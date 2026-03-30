@@ -1,0 +1,50 @@
+site_name: Apache Superset Kubernetes Operator
+site_description: Kubernetes operator for deploying and managing Apache Superset
+repo_url: https://github.com/apache/superset-kubernetes-operator
+repo_name: apache/superset-kubernetes-operator
+
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - User Guide: user-guide.md
+  - Architecture: architecture.md
+  - Internals: internals.md
+  - API Reference: api-reference.md
+  - Security: security.md
+  - Developer Guide: developer-guide.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - tables
+  - toc:
+      permalink: true

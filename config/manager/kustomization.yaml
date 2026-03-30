@@ -1,0 +1,11 @@
+resources:
+- manager.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+images:
+- name: apachesuperset.docker.scarf.sh/apache/superset-kubernetes-operator
+  newName: apachesuperset.docker.scarf.sh/apache/superset-kubernetes-operator
+  newTag: latest
+- name: controller
+  newName: localhost/superset-operator
+  newTag: dev

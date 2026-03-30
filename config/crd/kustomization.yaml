@@ -1,0 +1,13 @@
+# This kustomization.yaml is not intended to be run by itself,
+# since it depends on service name and namespace that are out of this kustomize package.
+# It should be run by config/default
+resources:
+- bases/superset.apache.org_supersets.yaml
+- bases/superset.apache.org_supersetinits.yaml
+- bases/superset.apache.org_supersetwebservers.yaml
+- bases/superset.apache.org_supersetceleryworkers.yaml
+- bases/superset.apache.org_supersetcelerybeats.yaml
+- bases/superset.apache.org_supersetceleryflowers.yaml
+- bases/superset.apache.org_supersetwebsocketservers.yaml
+- bases/superset.apache.org_supersetmcpservers.yaml
+# +kubebuilder:scaffold:crdkustomizeresource

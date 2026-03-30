@@ -1,0 +1,10 @@
+## Append samples of your project ##
+resources:
+- superset_v1alpha1_superset.yaml
+- superset_v1alpha1_supersetwebserver.yaml
+- superset_v1alpha1_supersetceleryworker.yaml
+- superset_v1alpha1_supersetcelerybeat.yaml
+- superset_v1alpha1_supersetceleryflower.yaml
+- superset_v1alpha1_supersetwebsocketserver.yaml
+- superset_v1alpha1_supersetmcpserver.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples

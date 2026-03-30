@@ -1,0 +1,16 @@
+apiVersion: superset.apache.org/v1alpha1
+kind: SupersetWebsocketServer
+metadata:
+  labels:
+    app.kubernetes.io/name: superset
+    app.kubernetes.io/component: websocket-server
+    app.kubernetes.io/instance: superset-sample
+  name: superset-sample-websocket-server
+spec:
+  image:
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  service:
+    type: ClusterIP
+    port: 8080

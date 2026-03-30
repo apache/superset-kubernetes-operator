@@ -1,0 +1,19 @@
+apiVersion: superset.apache.org/v1alpha1
+kind: SupersetCeleryFlower
+metadata:
+  labels:
+    app.kubernetes.io/name: superset
+    app.kubernetes.io/component: celery-flower
+    app.kubernetes.io/instance: superset-sample
+  name: superset-sample-celery-flower
+spec:
+  image:
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  config: |
+    import os
+  configChecksum: "sha256:example..."
+  service:
+    type: ClusterIP
+    port: 5555

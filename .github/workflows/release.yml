@@ -1,0 +1,95 @@
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Release
+
+# TODO: Enable once the repository is set up upstream with GHCR access and
+# cosign signing infrastructure.
+# on:
+#   push:
+#     branches: [main]
+#     tags: ['v*']
+on: workflow_dispatch
+
+env:
+  # Images are published to GHCR. The default image in Makefile/Helm uses
+  # apachesuperset.docker.scarf.sh — a Scarf analytics proxy that transparently
+  # redirects to GHCR, providing download metrics without affecting pulls.
+  IMAGE_NAME: ghcr.io/apache/superset-kubernetes-operator
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write # Required for cosign OIDC signing
+
+jobs:
+  release:
+    name: Build and publish image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5.7.0
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            # On push to main: sha-<short-sha>
+            type=sha,prefix=sha-,format=short,enable={{is_default_branch}}
+            # On tag push: strip 'v' prefix (v0.1.0 -> 0.1.0, v0.1.0-rc1 -> 0.1.0-rc1)
+            type=semver,pattern={{version}}
+            # On non-prerelease tag push: latest
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') && !contains(github.ref, '-') }}
+
+      - name: Build and push
+        id: build-push
+        uses: docker/build-push-action@14487ce63c7a62a4a324b0bfb37086795e31c6c1 # v6.16.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@3454372f43399081ed03b604cb2d021dabca52bb # v3.8.2
+
+      - name: Sign image with cosign
+        env:
+          DIGEST: ${{ steps.build-push.outputs.digest }}
+        run: |
+          cosign sign --yes "${{ env.IMAGE_NAME }}@${DIGEST}"
+
+      # TODO: Automate Helm chart appVersion update during release.
+      # For tag-based releases, consider a step that updates
+      # charts/superset-operator/Chart.yaml appVersion to match the
+      # release version and commits/PRs the change.

@@ -1,0 +1,29 @@
+apiVersion: superset.apache.org/v1alpha1
+kind: SupersetWebServer
+metadata:
+  labels:
+    app.kubernetes.io/name: superset
+    app.kubernetes.io/component: web-server
+    app.kubernetes.io/instance: superset-sample
+  name: superset-sample-web-server
+spec:
+  image:
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  replicas: 2
+  podTemplate:
+    container:
+      resources:
+        requests:
+          cpu: "500m"
+          memory: 1Gi
+        limits:
+          cpu: "1"
+          memory: 2Gi
+  config: |
+    import os
+    SUPERSET_WEBSERVER_PORT = 8088
+  configChecksum: "sha256:example..."
+  service:
+    type: ClusterIP
+    port: 8088

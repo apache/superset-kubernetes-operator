@@ -1,0 +1,18 @@
+apiVersion: v2
+name: superset-operator
+description: Kubernetes operator for deploying and managing Apache Superset
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/apache/superset-kubernetes-operator
+sources:
+  - https://github.com/apache/superset-kubernetes-operator
+maintainers:
+  - name: Apache Superset
+    url: https://superset.apache.org/
+keywords:
+  - superset
+  - operator
+  - kubernetes
+  - analytics
+  - bi
