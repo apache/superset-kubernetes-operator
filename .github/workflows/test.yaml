@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: E2E Tests
+name: Test
 
 on:
   push:
@@ -25,18 +25,25 @@ permissions:
   contents: read
 
 jobs:
-  test-e2e:
-    name: Run on Ubuntu
+  unit-integration:
+    name: Unit & Integration
     runs-on: ubuntu-latest
     steps:
-      - name: Clone the code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-
-      - name: Setup Go
-        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.3.0
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.3.0
         with:
           go-version-file: go.mod
+      - name: Test
+        run: make test-unit test-integration
 
+  e2e:
+    name: E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.3.0
+        with:
+          go-version-file: go.mod
       - name: Install kind
         run: |
           KIND_VERSION="v0.27.0"
@@ -45,9 +52,7 @@ jobs:
           echo "${KIND_CHECKSUM}  ./kind" | sha256sum -c -
           chmod +x ./kind
           sudo mv ./kind /usr/local/bin/kind
-
       - name: Verify kind installation
         run: kind version
-
-      - name: Running Test e2e
+      - name: Run E2E tests
         run: make test-e2e
