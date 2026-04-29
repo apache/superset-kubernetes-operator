@@ -40,7 +40,7 @@ jobs:
       - name: Install kind
         run: |
           KIND_VERSION="v0.27.0"
-          KIND_CHECKSUM="af5e8331f2165feab52ec2acda1f8b57d188c32e23b2682ef846523a26bff191" # linux-amd64
+          KIND_CHECKSUM="a6875aaea358acf0ac07786b1a6755d08fd640f4c79b7a2e46681cc13f49a04b" # linux-amd64
           curl -Lo ./kind "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-linux-amd64"
           echo "${KIND_CHECKSUM}  ./kind" | sha256sum -c -
           chmod +x ./kind
