@@ -49,6 +49,6 @@ github:
     merge: false
     rebase: false
 
-publish:
-  whoami: asf-site
+  ghp_branch: gh-pages
+  ghp_path: /
 

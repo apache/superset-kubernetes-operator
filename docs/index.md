@@ -22,7 +22,7 @@ under the License.
 !!! warning "Under Development"
     This project is under active development and is not yet stable. APIs, CRD schemas, and behavior may change without notice between releases. Do not use in production.
 
-A Kubernetes operator for deploying and managing [Apache Superset](https://superset.apache.org/) on Kubernetes. Built with the Go-based [Operator SDK](https://sdk.operatorframework.io/).
+A Kubernetes operator for deploying and managing [Apache Superset](https://superset.apache.org/). Built with the Go-based [Operator SDK](https://sdk.operatorframework.io/).
 
 The operator manages the full Superset lifecycle: database migrations, configuration rendering, component deployment, scaling, and networking. Users define a single `Superset` custom resource, and the operator resolves it into per-component child CRDs that each manage their own Deployment, ConfigMap, and Service.
 

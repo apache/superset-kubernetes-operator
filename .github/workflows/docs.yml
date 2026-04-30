@@ -64,4 +64,4 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - name: Deploy docs
-        run: NO_MKDOCS_2_WARNING=1 mkdocs gh-deploy --force --remote-branch asf-site
+        run: NO_MKDOCS_2_WARNING=1 mkdocs gh-deploy --force --remote-branch gh-pages
