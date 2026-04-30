@@ -49,3 +49,6 @@ github:
     merge: false
     rebase: false
 
+publish:
+  whoami: asf-site
+

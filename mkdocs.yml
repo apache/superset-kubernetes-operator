@@ -1,4 +1,5 @@
 site_name: Apache Superset Kubernetes Operator
+site_url: https://apache.github.io/superset-kubernetes-operator/
 site_description: Kubernetes operator for deploying and managing Apache Superset
 repo_url: https://github.com/apache/superset-kubernetes-operator
 repo_name: apache/superset-kubernetes-operator
