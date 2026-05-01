@@ -86,6 +86,7 @@ The operator uses a **two-tier CRD architecture** where the parent `Superset` re
 - `config/` — Kustomize manifests (CRDs, RBAC, manager, samples, prometheus)
 - `cmd/main.go` — entrypoint, registers all reconcilers + Gateway API scheme
 - `docs/` — installation, architecture overview, internals, user guide, developer guide
+- `scripts/` — release automation (`release-rc.sh`, `release-finalize.sh`)
 - `test/e2e/` — end-to-end tests (require Kind cluster)
 
 ## Key Patterns

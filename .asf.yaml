@@ -52,3 +52,17 @@ github:
   ghp_branch: gh-pages
   ghp_path: /
 
+  protected_branches:
+    main:
+      required_status_checks:
+        strict: false
+        contexts:
+          - Build
+          - Lint
+          - Verify codegen
+          - Docker build
+          - Helm lint
+          - Unit & Integration
+          - Apache Rat
+      required_signatures: false
+

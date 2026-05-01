@@ -32,17 +32,14 @@ This guide covers installing the operator and deploying a Superset instance.
 
 ## 1. Install the operator
 
-!!! note
-    The Helm chart and container images are not yet published to a registry.
-    Until the first release, install from a source checkout:
-
 ```bash
 helm install superset-operator charts/superset-operator \
   --namespace superset-operator-system \
   --create-namespace
 ```
 
-See `charts/superset-operator/values.yaml` for all available Helm values.
+See `charts/superset-operator/values.yaml` for all available Helm values and
+[Downloads](downloads.md) for published images and tag conventions.
 
 ## 2. Create secrets
 
