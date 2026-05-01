@@ -22,6 +22,7 @@ under the License.
 > **Warning**: This project is under active development and is not yet stable. APIs, CRD schemas, and behavior may change without notice between releases. Do not use in production.
 
 [![CI](https://github.com/apache/superset-kubernetes-operator/actions/workflows/ci.yaml/badge.svg)](https://github.com/apache/superset-kubernetes-operator/actions/workflows/ci.yaml)
+[![Docs](https://img.shields.io/badge/docs-apache.github.io-blue)](https://apache.github.io/superset-kubernetes-operator/)
 
 A Kubernetes operator for deploying and managing [Apache Superset](https://superset.apache.org/) on Kubernetes. Built with the Go-based [Operator SDK](https://sdk.operatorframework.io/), the operator is designed to be simple to get started with — a minimal deployment requires just a few lines of YAML — while giving advanced users full control over every component through shared top-level defaults, per-component overrides, and direct access to flattened child CRDs.
 
@@ -82,13 +83,11 @@ spec:
   webServer: {}
 ```
 
-> **Note**: The example above uses `environment: dev` for simplicity. In production (the default), use `secretKeyFrom` and `metastore.uriFrom` to reference Kubernetes Secrets. See the [User Guide](docs/user-guide.md) and the [sample manifests](config/samples/) for production-ready examples.
+> **Note**: The example above uses `environment: dev` for simplicity. In production (the default), use `secretKeyFrom` and `metastore.uriFrom` to reference Kubernetes Secrets. See the [User Guide](https://apache.github.io/superset-kubernetes-operator/user-guide/) and the [sample manifests](config/samples/) for production-ready examples.
 
 ## Documentation
 
-- [User Guide](docs/user-guide.md) — installation, configuration, migration from Helm chart
-- [Architecture](docs/architecture.md) — two-tier CRD design, config rendering, init lifecycle
-- [Developer Guide](docs/developer-guide.md) — contributing, testing, releasing
+Full documentation is available at **[apache.github.io/superset-kubernetes-operator](https://apache.github.io/superset-kubernetes-operator/)**.
 
 ## Development
 
