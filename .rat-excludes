@@ -42,6 +42,7 @@
 .*mkdocs\.yml
 
 # CI / tooling
+.*PULL_REQUEST_TEMPLATE\.md
 .*\.claude.*
 .*rat-results\.txt
 .*Dockerfile\.cross
