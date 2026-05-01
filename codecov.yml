@@ -13,36 +13,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Note: Generated/scaffolded directories (config/) are removed from the
-# Rat workdir by scripts/check_license.sh before Rat runs. This file
-# handles remaining file-level exclusions.
+coverage:
+  status:
+    project: off
+    patch: off
 
-# Git
-.*\.gitignore
+comment:
+  layout: "condensed_header, condensed_files, condensed_footer"
+  behavior: default
+  require_changes: true
 
-# Go
-.*go\.mod
-.*go\.sum
+ignore:
+  - "api/v1alpha1/zz_generated.deepcopy.go"
+  - "config/**"
+  - "test/e2e/**"
+  - "cmd/main.go"
 
-# Generated code
-.*zz_generated\.deepcopy\.go
-
-# Kustomize structural files
-.*kustomization\.yaml
-.*kustomizeconfig\.yaml
-.*PROJECT
-
-# Helm chart metadata
-.*Chart\.yaml
-.*values\.yaml
-
-# Documentation
-.*api-reference\.md
-.*docs-requirements\.txt
-.*mkdocs\.yml
-
-# CI / tooling
-.*\.claude.*
-.*rat-results\.txt
-.*Dockerfile\.cross
-.*codecov\.yml
+flags:
+  unit:
+    paths:
+      - "internal/"
+      - "api/"
+    carryforward: true
+  integration:
+    paths:
+      - "internal/"
+      - "api/"
+    carryforward: true
