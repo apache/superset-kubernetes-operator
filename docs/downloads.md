@@ -48,8 +48,7 @@ published on every merge to `main` and on version tags.
 
 ### Image Signing
 
-All images are signed with [cosign](https://docs.sigstore.dev/cosign/overview/)
-using keyless OIDC signing via GitHub Actions.
+All images are signed with cosign using keyless OIDC signing via GitHub Actions.
 
 ## Helm Chart
 
