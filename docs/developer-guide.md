@@ -598,7 +598,7 @@ tags). It can also be triggered manually via `workflow_dispatch`.
 | RC tag | Semver without `v` prefix | `0.1.0-rc1` |
 | Release tag | Semver without `v` prefix + `latest` | `0.1.0`, `latest` |
 
-See [Downloads](artifacts.md) for full details on published images and
+See [Downloads](downloads.md) for full details on published images and
 registries.
 
 **Creating a release candidate:**

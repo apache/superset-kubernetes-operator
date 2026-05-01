@@ -39,7 +39,7 @@ helm install superset-operator charts/superset-operator \
 ```
 
 See `charts/superset-operator/values.yaml` for all available Helm values and
-[Downloads](artifacts.md) for published images and tag conventions.
+[Downloads](downloads.md) for published images and tag conventions.
 
 ## 2. Create secrets
 

@@ -19,27 +19,14 @@ under the License.
 
 # Downloads
 
+!!! warning "Work in progress"
+    Container image and Helm chart publishing are being set up. Registry URLs
+    and pull commands will be added here once the infrastructure is confirmed.
+
 ## Docker Images
 
-Operator images are published to the GitHub Container Registry (GHCR) and
-available via a Scarf analytics proxy that provides download metrics.
-
-### Registries
-
-| Registry | URL | Notes |
-|----------|-----|-------|
-| **GHCR (direct)** | `ghcr.io/apache/superset-kubernetes-operator` | Primary registry |
-| **Scarf proxy** | `apachesuperset.docker.scarf.sh/apache/superset-kubernetes-operator` | Default in Helm chart. Transparently redirects to GHCR. |
-
-Both URLs serve the same images. The Scarf proxy is used by default in the
-Helm chart and kustomize manifests to provide anonymous download metrics.
-
-### Architectures
-
-All images are multi-architecture manifests supporting:
-
-- `linux/amd64`
-- `linux/arm64`
+Multi-architecture operator images (`linux/amd64`, `linux/arm64`) will be
+published on every merge to `main` and on version tags.
 
 ### Image Tags
 
@@ -62,24 +49,7 @@ All images are multi-architecture manifests supporting:
 ### Image Signing
 
 All images are signed with [cosign](https://docs.sigstore.dev/cosign/overview/)
-using keyless OIDC signing via GitHub Actions. To verify an image:
-
-```bash
-cosign verify \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  --certificate-identity-regexp 'github\.com/apache/superset-kubernetes-operator' \
-  ghcr.io/apache/superset-kubernetes-operator:<tag>
-```
-
-### Pulling an Image
-
-```bash
-# Via GHCR directly
-docker pull ghcr.io/apache/superset-kubernetes-operator:dev
-
-# Via Scarf proxy (default in Helm chart)
-docker pull apachesuperset.docker.scarf.sh/apache/superset-kubernetes-operator:dev
-```
+using keyless OIDC signing via GitHub Actions.
 
 ## Helm Chart
 
