@@ -30,6 +30,7 @@ theme:
 nav:
   - Home: index.md
   - Installation: installation.md
+  - Downloads: artifacts.md
   - User Guide: user-guide.md
   - Architecture: architecture.md
   - Internals: internals.md

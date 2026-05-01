@@ -585,60 +585,53 @@ While the project is pre-1.0, all versions use `0.x.y` to signal instability per
 
 ### Release checklist
 
-The release workflow (`.github/workflows/release.yml`) is configured to build
-multi-platform images and push them to GHCR, but is currently disabled
-(`workflow_dispatch` only) until the upstream repository is set up with GHCR
-access and signing infrastructure. Once enabled, it will be triggered by pushes
-to `main` and version tags.
+The release workflow (`.github/workflows/release.yml`) builds multi-platform
+images and pushes them to GHCR. It runs automatically on pushes to `main`
+(producing `dev` and `sha-<short>` tags) and on version tags (producing semver
+tags). It can also be triggered manually via `workflow_dispatch`.
 
 **Image tagging:**
 
 | Trigger | Image tag | Example |
 |---|---|---|
-| Push to `main` | `sha-<short-sha>` | `sha-abc1234` |
+| Push to `main` | `dev` + `sha-<short-sha>` | `dev`, `sha-abc1234` |
 | RC tag | Semver without `v` prefix | `0.1.0-rc1` |
 | Release tag | Semver without `v` prefix + `latest` | `0.1.0`, `latest` |
 
-**Release process:**
+See [Downloads](artifacts.md) for full details on published images and
+registries.
 
-1. **Update the operator version** in the Makefile:
-   ```sh
-   # Edit VERSION in Makefile
-   VERSION ?= 0.2.0
-   ```
+**Creating a release candidate:**
 
-2. **Bump the chart version** in `charts/superset-operator/Chart.yaml` if chart
-   templates or values changed. If only the operator code changed, the chart version
-   can stay the same — `appVersion` is injected automatically.
+The `scripts/release-rc.sh` script automates the full RC preparation: creates a
+release branch, bumps the operator version, regenerates manifests, runs tests
+and linting, commits, and tags.
 
-3. **Regenerate manifests** (CRDs, RBAC, DeepCopy):
-   ```sh
-   make manifests generate
-   ```
+```sh
+# First RC for 0.2.0 — creates release/0.2.0 branch and v0.2.0-rc1 tag
+scripts/release-rc.sh 0.2.0
 
-4. **Run tests**:
-   ```sh
-   make test
-   make helm-lint
-   make docs-build
-   ```
+# Optionally bump the Helm chart version too
+scripts/release-rc.sh 0.2.0 --chart-version 0.2.0
 
-5. **Package the Helm chart**:
-   ```sh
-   make helm
-   ```
+# Push branch + tag to trigger the release workflow
+git push origin release/0.2.0 v0.2.0-rc1
+```
 
-6. **Tag the release candidate**:
-   ```sh
-   git tag v0.2.0-rc1
-   git push origin v0.2.0-rc1
-   ```
-   Then trigger the release workflow manually via `workflow_dispatch` in the
-   GitHub Actions UI. This builds and pushes the `0.2.0-rc1` image to GHCR.
+Running the script again from the same release branch increments the RC number
+automatically (rc1, rc2, ...).
 
-7. **After the release vote passes**, tag the final release:
-   ```sh
-   git tag v0.2.0
-   git push origin v0.2.0
-   ```
-   Trigger the release workflow again to push the `0.2.0` and `latest` images.
+**Finalizing a release:**
+
+After the ASF vote passes, the `scripts/release-finalize.sh` script tags the final
+release on the release branch:
+
+```sh
+# From the release/0.2.0 branch
+scripts/release-finalize.sh 0.2.0
+
+# Push the tag to trigger the release workflow
+git push origin v0.2.0
+```
+
+The release workflow pushes the `0.2.0` and `latest` images to GHCR.
