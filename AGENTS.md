@@ -132,3 +132,11 @@ The operator uses a **two-tier CRD architecture** where the parent `Superset` re
 All components use the reserved container name `superset` for the main container. Since each component runs in its own Pod, names never collide. This allows `kubectl exec -it <pod> -c superset` without needing to know the component type.
 
 All CRD names (parent and child) are validated via CEL to be valid DNS labels (lowercase alphanumeric and hyphens, `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`, max 63 characters). DNS-label syntax is required because the operator derives Service names from the parent name + component suffix. Per-component CEL rules enforce that the parent name is short enough for each enabled component's suffix to fit within the 63-char Service name limit (e.g., `-websocket-server` = 17 chars limits parent to 46).
+
+## PR Conventions
+
+- **Title format**: `type(scope): description` or `type: description` — enforced by CI (`amannn/action-semantic-pull-request`). Scope is optional but encouraged.
+- **Types**: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `ci`, `build`, `perf`, `style`, `revert`
+- **Scopes** (when used): `api`, `controller`, `resolution`, `config`, `helm`, `ci`, `docs`, `deps`
+- **Description**: Every PR must have a Summary section with at least one paragraph explaining what and why. Use the Details section for implementation notes. PR template pre-fills these sections.
+- **Code coverage**: Codecov reports patch coverage and project delta on every PR (informational, no enforced targets).

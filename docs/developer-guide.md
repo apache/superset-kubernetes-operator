@@ -518,6 +518,80 @@ See `internal/controller/monitoring.go` for the implementation.
 
 ---
 
+## Pull Requests
+
+### Title format
+
+PR titles must follow the conventional commits format:
+
+```
+type(scope): description
+type: description
+```
+
+Scope is optional but encouraged when the change is scoped to a single area.
+
+CI validates this on every PR via the `PR / Validate PR title` check.
+
+**Allowed types:**
+
+| Type | Use for |
+|------|---------|
+| `feat` | New functionality |
+| `fix` | Bug fixes |
+| `refactor` | Code restructuring without behavior change |
+| `docs` | Documentation only |
+| `test` | Adding or updating tests |
+| `chore` | Maintenance (config, tooling, dependencies) |
+| `ci` | CI/CD workflow changes |
+| `build` | Build system or external dependency changes |
+| `perf` | Performance improvements |
+| `style` | Formatting, whitespace, linting |
+| `revert` | Reverting a previous commit |
+
+**Allowed scopes:**
+
+| Scope | Covers |
+|-------|--------|
+| `api` | CRD type definitions (`api/v1alpha1/`) |
+| `controller` | Reconciler logic (`internal/controller/`) |
+| `resolution` | Spec resolution/merge engine (`internal/resolution/`) |
+| `config` | Config rendering (`internal/config/`) |
+| `helm` | Helm chart (`charts/`) |
+| `ci` | CI workflows, tooling (`.github/`, `Makefile`) |
+| `docs` | Documentation (`docs/`) |
+| `deps` | Dependency updates |
+
+**Examples:**
+
+```
+feat(api): add tolerations field to PodTemplate
+fix(controller): handle nil deployment template in scaling reconciler
+docs: add valkey configuration examples to user guide
+chore(deps): bump controller-runtime to v0.20.0
+```
+
+### Description
+
+Every PR must include a **Summary** section with at least one paragraph
+explaining what the change does and why. A reviewer should understand the
+motivation and scope from the summary alone, without reading the diff.
+
+Use the optional **Details** section for implementation notes, design decisions,
+alternatives considered, or migration steps.
+
+The PR template (`PULL_REQUEST_TEMPLATE.md`) pre-fills these sections.
+
+### Code coverage
+
+CI uploads test coverage to [Codecov](https://codecov.io) on every PR. The
+Codecov bot posts a comment showing:
+
+- **Patch coverage** — what percentage of new/changed lines are covered by tests
+- **Project coverage delta** — how overall coverage changed
+
+---
+
 ## CI & Supply Chain
 
 All CI workflows live in `.github/workflows/`. When adding or modifying

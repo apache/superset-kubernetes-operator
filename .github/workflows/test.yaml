@@ -35,6 +35,20 @@ jobs:
           go-version-file: go.mod
       - name: Test
         run: make test-unit test-integration
+      - name: Upload unit test coverage
+        if: always()
+        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe # v5.5.4
+        with:
+          files: cover_ut.out
+          flags: unit
+          token: ${{ secrets.CODECOV_TOKEN }}
+      - name: Upload integration test coverage
+        if: always()
+        uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe # v5.5.4
+        with:
+          files: cover.out
+          flags: integration
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   # TODO: enable E2E tests once test infrastructure is ready
   # e2e:
