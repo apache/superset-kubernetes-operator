@@ -20,8 +20,8 @@ under the License.
 # Security
 
 This document defines the security boundaries, assumptions, and scope for the
-Superset Kubernetes Operator. It covers the threat model, trust boundaries,
-RBAC justification, and vulnerability reporting process.
+Superset Kubernetes Operator. It covers trust boundaries, secret handling,
+RBAC justification, and vulnerability reporting.
 
 ## Trust Boundaries
 
