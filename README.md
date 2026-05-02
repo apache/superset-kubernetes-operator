@@ -22,6 +22,9 @@ under the License.
 > **Warning**: This project is under active development and is not yet stable. APIs, CRD schemas, and behavior may change without notice between releases. Do not use in production.
 
 [![CI](https://github.com/apache/superset-kubernetes-operator/actions/workflows/ci.yaml/badge.svg)](https://github.com/apache/superset-kubernetes-operator/actions/workflows/ci.yaml)
+[![codecov](https://codecov.io/gh/apache/superset-kubernetes-operator/branch/main/graph/badge.svg)](https://codecov.io/gh/apache/superset-kubernetes-operator)
+[![Go Report Card](https://goreportcard.com/badge/github.com/apache/superset-kubernetes-operator)](https://goreportcard.com/report/github.com/apache/superset-kubernetes-operator)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Docs](https://img.shields.io/badge/docs-apache.github.io-blue)](https://apache.github.io/superset-kubernetes-operator/)
 
 A Kubernetes operator for deploying and managing [Apache Superset](https://superset.apache.org/) on Kubernetes. Built with the Go-based [Operator SDK](https://sdk.operatorframework.io/), the operator is designed to be simple to get started with — a minimal deployment requires just a few lines of YAML — while giving advanced users full control over every component through shared top-level defaults, per-component overrides, and direct access to flattened child CRDs.
@@ -61,7 +64,9 @@ The operator manages eight CRDs under the `superset.apache.org/v1alpha1` API gro
 Install the operator via Helm:
 
 ```sh
-helm install superset-operator charts/superset-operator \
+helm install superset-operator \
+  oci://ghcr.io/apache/superset-kubernetes-operator/charts/superset-operator \
+  --version <version> \
   --namespace superset-operator-system \
   --create-namespace
 ```

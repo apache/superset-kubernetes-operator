@@ -1,5 +1,5 @@
 image:
-  repository: apachesuperset.docker.scarf.sh/apache/superset-kubernetes-operator
+  repository: ghcr.io/apache/superset-kubernetes-operator
   tag: ""  # defaults to .Chart.AppVersion
   pullPolicy: IfNotPresent
 

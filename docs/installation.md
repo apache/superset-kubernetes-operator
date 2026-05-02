@@ -32,6 +32,18 @@ This guide covers installing the operator and deploying a Superset instance.
 
 ## 1. Install the operator
 
+Install from the OCI Helm registry:
+
+```bash
+helm install superset-operator \
+  oci://ghcr.io/apache/superset-kubernetes-operator/charts/superset-operator \
+  --version <version> \
+  --namespace superset-operator-system \
+  --create-namespace
+```
+
+Or from a source checkout:
+
 ```bash
 helm install superset-operator charts/superset-operator \
   --namespace superset-operator-system \
