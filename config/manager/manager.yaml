@@ -40,7 +40,7 @@ spec:
         args:
           - --leader-elect
           - --health-probe-bind-address=:8081
-        image: apachesuperset.docker.scarf.sh/apache/superset-kubernetes-operator:latest
+        image: ghcr.io/apache/superset-kubernetes-operator:latest
         name: manager
         securityContext:
           allowPrivilegeEscalation: false

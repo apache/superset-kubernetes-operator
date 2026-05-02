@@ -22,10 +22,8 @@ on:
   workflow_dispatch:
 
 env:
-  # Images are published to GHCR. The default image in Makefile/Helm uses
-  # apachesuperset.docker.scarf.sh — a Scarf analytics proxy that transparently
-  # redirects to GHCR, providing download metrics without affecting pulls.
   IMAGE_NAME: ghcr.io/apache/superset-kubernetes-operator
+  HELM_REGISTRY: oci://ghcr.io/apache/superset-kubernetes-operator/charts
 
 permissions:
   contents: read
@@ -86,7 +84,27 @@ jobs:
         run: |
           cosign sign --yes "${{ env.IMAGE_NAME }}@${DIGEST}"
 
-      # TODO: Automate Helm chart appVersion update during release.
-      # For tag-based releases, consider a step that updates
-      # charts/superset-operator/Chart.yaml appVersion to match the
-      # release version and commits/PRs the change.
+      - name: Install Helm
+        run: curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+      - name: Set chart version for release tags
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          sed -i "s/^version:.*/version: ${VERSION}/" charts/superset-operator/Chart.yaml
+          sed -i "s/^appVersion:.*/appVersion: \"${VERSION}\"/" charts/superset-operator/Chart.yaml
+
+      - name: Package Helm chart
+        run: |
+          mkdir -p charts/superset-operator/crds
+          cp config/crd/bases/*.yaml charts/superset-operator/crds/
+          helm package charts/superset-operator
+
+      - name: Push Helm chart to GHCR OCI
+        run: |
+          helm push superset-operator-*.tgz ${{ env.HELM_REGISTRY }}
+
+      - name: Sign Helm chart with cosign
+        run: |
+          CHART_VERSION="$(grep '^version:' charts/superset-operator/Chart.yaml | awk '{print $2}')"
+          cosign sign --yes "${{ env.HELM_REGISTRY }}/superset-operator:${CHART_VERSION}"

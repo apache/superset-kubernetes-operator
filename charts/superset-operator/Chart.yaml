@@ -2,8 +2,8 @@ apiVersion: v2
 name: superset-operator
 description: Kubernetes operator for deploying and managing Apache Superset
 type: application
-version: 0.1.0
-appVersion: "0.1.0"
+version: 0.0.0-dev
+appVersion: "dev"
 home: https://github.com/apache/superset-kubernetes-operator
 sources:
   - https://github.com/apache/superset-kubernetes-operator
