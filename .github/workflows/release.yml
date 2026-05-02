@@ -107,4 +107,5 @@ jobs:
       - name: Sign Helm chart with cosign
         run: |
           CHART_VERSION="$(grep '^version:' charts/superset-operator/Chart.yaml | awk '{print $2}')"
-          cosign sign --yes "${{ env.HELM_REGISTRY }}/superset-operator:${CHART_VERSION}"
+          CHART_REF="${{ env.HELM_REGISTRY }}/superset-operator:${CHART_VERSION}"
+          cosign sign --yes "${CHART_REF#oci://}"
