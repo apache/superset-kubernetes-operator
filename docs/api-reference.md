@@ -69,7 +69,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `minReplicas` _integer_ | Minimum replica count (defaults to 1). |  | Minimum: 1 <br />Optional: \{\} <br /> |
 | `maxReplicas` _integer_ | Maximum replica count; HPA will not scale above this. |  | Maximum: 100 <br />Minimum: 1 <br /> |
-| `metrics` _[MetricSpec](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#metricspec-v2-autoscaling) array_ | Metrics for the HPA. Supports CPU, memory, custom, and external metrics.<br />When empty, Kubernetes defaults to 80% average CPU utilization. |  | Optional: \{\} <br /> |
+| `metrics` _[MetricSpec](https://pkg.go.dev/k8s.io/api/autoscaling/v2#MetricSpec) array_ | Metrics for the HPA. Supports CPU, memory, custom, and external metrics.<br />When empty, Kubernetes defaults to 80% average CPU utilization. |  | Optional: \{\} <br /> |
 
 
 #### CeleryBeatComponentSpec
@@ -185,7 +185,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _string_ | "2/2" format showing ready vs desired replicas. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#condition-v1-meta) array_ | Standard conditions. |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ | Standard conditions. |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ | ObservedGeneration for leader election consistency. |  | Optional: \{\} <br /> |
 
 
@@ -227,7 +227,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `type` _[ServiceType](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#servicetype-v1-core)_ | Service type (ClusterIP, NodePort, LoadBalancer). | ClusterIP | Enum: [ClusterIP NodePort LoadBalancer] <br />Optional: \{\} <br /> |
+| `type` _[ServiceType](https://pkg.go.dev/k8s.io/api/core/v1#ServiceType)_ | Service type (ClusterIP, NodePort, LoadBalancer). | ClusterIP | Enum: [ClusterIP NodePort LoadBalancer] <br />Optional: \{\} <br /> |
 | `port` _integer_ | Service port exposed to clients. Defaults to the component's standard port (8088 for web server, 5555 for Flower). |  | Optional: \{\} <br /> |
 | `nodePort` _integer_ | Fixed NodePort number when type=NodePort (30000-32767). If omitted, Kubernetes auto-assigns. |  | Optional: \{\} <br /> |
 | `annotations` _object (keys:string, values:string)_ | Service annotations (e.g., for cloud load balancer configuration). |  | Optional: \{\} <br /> |
@@ -291,18 +291,18 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#resourcerequirements-v1-core)_ | Resource requirements (CPU, memory). |  | Optional: \{\} <br /> |
-| `env` _[EnvVar](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#envvar-v1-core) array_ | Environment variables. |  | Optional: \{\} <br /> |
-| `envFrom` _[EnvFromSource](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#envfromsource-v1-core) array_ | Environment variable sources (ConfigMaps, Secrets). |  | Optional: \{\} <br /> |
-| `volumeMounts` _[VolumeMount](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#volumemount-v1-core) array_ | Volume mounts for the main container. |  | Optional: \{\} <br /> |
-| `ports` _[ContainerPort](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#containerport-v1-core) array_ | Container ports. Replaces operator defaults when set. |  | Optional: \{\} <br /> |
-| `securityContext` _[SecurityContext](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#securitycontext-v1-core)_ | Container-level security context. |  | Optional: \{\} <br /> |
+| `resources` _[ResourceRequirements](https://pkg.go.dev/k8s.io/api/core/v1#ResourceRequirements)_ | Resource requirements (CPU, memory). |  | Optional: \{\} <br /> |
+| `env` _[EnvVar](https://pkg.go.dev/k8s.io/api/core/v1#EnvVar) array_ | Environment variables. |  | Optional: \{\} <br /> |
+| `envFrom` _[EnvFromSource](https://pkg.go.dev/k8s.io/api/core/v1#EnvFromSource) array_ | Environment variable sources (ConfigMaps, Secrets). |  | Optional: \{\} <br /> |
+| `volumeMounts` _[VolumeMount](https://pkg.go.dev/k8s.io/api/core/v1#VolumeMount) array_ | Volume mounts for the main container. |  | Optional: \{\} <br /> |
+| `ports` _[ContainerPort](https://pkg.go.dev/k8s.io/api/core/v1#ContainerPort) array_ | Container ports. Replaces operator defaults when set. |  | Optional: \{\} <br /> |
+| `securityContext` _[SecurityContext](https://pkg.go.dev/k8s.io/api/core/v1#SecurityContext)_ | Container-level security context. |  | Optional: \{\} <br /> |
 | `command` _string array_ | Container entrypoint override. |  | Optional: \{\} <br /> |
 | `args` _string array_ | Container arguments override. |  | Optional: \{\} <br /> |
-| `livenessProbe` _[Probe](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#probe-v1-core)_ | Liveness probe; container is restarted when the probe fails. |  | Optional: \{\} <br /> |
-| `readinessProbe` _[Probe](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#probe-v1-core)_ | Readiness probe; pod is removed from Service endpoints when the probe fails. |  | Optional: \{\} <br /> |
-| `startupProbe` _[Probe](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#probe-v1-core)_ | Startup probe; liveness and readiness probes are deferred until this probe succeeds. |  | Optional: \{\} <br /> |
-| `lifecycle` _[Lifecycle](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#lifecycle-v1-core)_ | Lifecycle hooks for the main container. |  | Optional: \{\} <br /> |
+| `livenessProbe` _[Probe](https://pkg.go.dev/k8s.io/api/core/v1#Probe)_ | Liveness probe; container is restarted when the probe fails. |  | Optional: \{\} <br /> |
+| `readinessProbe` _[Probe](https://pkg.go.dev/k8s.io/api/core/v1#Probe)_ | Readiness probe; pod is removed from Service endpoints when the probe fails. |  | Optional: \{\} <br /> |
+| `startupProbe` _[Probe](https://pkg.go.dev/k8s.io/api/core/v1#Probe)_ | Startup probe; liveness and readiness probes are deferred until this probe succeeds. |  | Optional: \{\} <br /> |
+| `lifecycle` _[Lifecycle](https://pkg.go.dev/k8s.io/api/core/v1#Lifecycle)_ | Lifecycle hooks for the main container. |  | Optional: \{\} <br /> |
 
 
 #### DeploymentTemplate
@@ -338,7 +338,7 @@ _Appears in:_
 | `revisionHistoryLimit` _integer_ | Number of old ReplicaSets to retain for rollback. |  | Optional: \{\} <br /> |
 | `minReadySeconds` _integer_ | Minimum seconds a pod must be ready before considered available. |  | Optional: \{\} <br /> |
 | `progressDeadlineSeconds` _integer_ | Maximum seconds for a deployment to make progress before considered failed. |  | Optional: \{\} <br /> |
-| `strategy` _[DeploymentStrategy](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#deploymentstrategy-v1-apps)_ | Deployment update strategy. |  | Optional: \{\} <br /> |
+| `strategy` _[DeploymentStrategy](https://pkg.go.dev/k8s.io/api/apps/v1#DeploymentStrategy)_ | Deployment update strategy. |  | Optional: \{\} <br /> |
 
 
 #### FlatComponentSpec
@@ -465,8 +465,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `repository` _string_ | Container image repository. | apachesuperset.docker.scarf.sh/apache/superset | Optional: \{\} <br /> |
 | `tag` _string_ | Image tag. |  | MinLength: 1 <br /> |
-| `pullPolicy` _[PullPolicy](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#pullpolicy-v1-core)_ | Image pull policy (IfNotPresent, Always, Never). | IfNotPresent | Optional: \{\} <br /> |
-| `pullSecrets` _[LocalObjectReference](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#localobjectreference-v1-core) array_ | References to Secrets for pulling images from private registries. |  | Optional: \{\} <br /> |
+| `pullPolicy` _[PullPolicy](https://pkg.go.dev/k8s.io/api/core/v1#PullPolicy)_ | Image pull policy (IfNotPresent, Always, Never). | IfNotPresent | Optional: \{\} <br /> |
+| `pullSecrets` _[LocalObjectReference](https://pkg.go.dev/k8s.io/api/core/v1#LocalObjectReference) array_ | References to Secrets for pulling images from private registries. |  | Optional: \{\} <br /> |
 
 
 #### IngressHost
@@ -500,7 +500,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `path` _string_ |  | / |  |
-| `pathType` _[PathType](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#pathtype-v1-networking)_ |  | Prefix | Optional: \{\} <br /> |
+| `pathType` _[PathType](https://pkg.go.dev/k8s.io/api/networking/v1#PathType)_ |  | Prefix | Optional: \{\} <br /> |
 
 
 #### IngressSpec
@@ -521,7 +521,7 @@ _Appears in:_
 | `annotations` _object (keys:string, values:string)_ | Ingress annotations (e.g., for TLS, auth, or controller-specific configuration). |  | Optional: \{\} <br /> |
 | `labels` _object (keys:string, values:string)_ | Ingress labels. |  | Optional: \{\} <br /> |
 | `hosts` _[IngressHost](#ingresshost) array_ | Additional host/path rules beyond the primary host. |  | Optional: \{\} <br /> |
-| `tls` _[IngressTLS](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#ingresstls-v1-networking) array_ | TLS configuration (certificate secrets and hostnames). |  | Optional: \{\} <br /> |
+| `tls` _[IngressTLS](https://pkg.go.dev/k8s.io/api/networking/v1#IngressTLS) array_ | TLS configuration (certificate secrets and hostnames). |  | Optional: \{\} <br /> |
 
 
 #### InitSpec
@@ -547,7 +547,7 @@ _Appears in:_
 | `adminUser` _[AdminUserSpec](#adminuserspec)_ | Admin user to create during initialization. Only allowed in dev mode.<br />When set, the operator appends a superset fab create-admin step to the init command. |  | Optional: \{\} <br /> |
 | `loadExamples` _boolean_ | Load example dashboards and data during initialization. Only allowed in dev mode.<br />When true, the operator appends a superset load-examples step to the init command. |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
-| `timeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#duration-v1-meta)_ | Maximum timeout for the init pod. Default: 300s. |  | Optional: \{\} <br /> |
+| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout for the init pod. Default: 300s. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. Default: 3. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Pod retention policy for completed init pods. |  | Optional: \{\} <br /> |
 
@@ -568,8 +568,8 @@ _Appears in:_
 | `state` _string_ |  |  | Enum: [Pending Running Complete Failed] <br />Optional: \{\} <br /> |
 | `revision` _string_ |  |  | Optional: \{\} <br /> |
 | `previousRevision` _string_ |  |  | Optional: \{\} <br /> |
-| `startedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#time-v1-meta)_ |  |  | Optional: \{\} <br /> |
-| `completedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#time-v1-meta)_ |  |  | Optional: \{\} <br /> |
+| `startedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
+| `completedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
 | `duration` _string_ |  |  | Optional: \{\} <br /> |
 | `attempts` _integer_ |  |  | Optional: \{\} <br /> |
 | `podName` _string_ |  |  | Optional: \{\} <br /> |
@@ -617,14 +617,14 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `uri` _string_ | Full SQLAlchemy database URI. Mutually exclusive with structured fields and uriFrom.<br />In prod mode, CRD validation rejects plain text URIs — use uriFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
-| `uriFrom` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#secretkeyselector-v1-core)_ | Reference to a Secret key containing the full SQLAlchemy URI.<br />Mutually exclusive with uri and structured fields. |  | Optional: \{\} <br /> |
+| `uriFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the full SQLAlchemy URI.<br />Mutually exclusive with uri and structured fields. |  | Optional: \{\} <br /> |
 | `type` _string_ | Database type. Determines the SQLAlchemy driver. | postgresql | Enum: [postgresql mysql] <br />Optional: \{\} <br /> |
 | `host` _string_ | Database hostname. |  | Optional: \{\} <br /> |
 | `port` _integer_ | Database port. Defaults per driver (5432 for postgresql, 3306 for mysql). |  | Optional: \{\} <br /> |
 | `database` _string_ | Database name. |  | Optional: \{\} <br /> |
 | `username` _string_ | Database username. |  | Optional: \{\} <br /> |
 | `password` _string_ | Database password. In prod mode, CRD validation rejects plain text passwords — use passwordFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
-| `passwordFrom` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#secretkeyselector-v1-core)_ | Reference to a Secret key containing the database password.<br />Mutually exclusive with password. |  | Optional: \{\} <br /> |
+| `passwordFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the database password.<br />Mutually exclusive with password. |  | Optional: \{\} <br /> |
 
 
 #### MonitoringSpec
@@ -656,8 +656,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `extraIngress` _[NetworkPolicyIngressRule](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#networkpolicyingressrule-v1-networking) array_ | Additional ingress rules appended to the operator-generated NetworkPolicy (e.g., allow traffic from monitoring namespace). |  | Optional: \{\} <br /> |
-| `extraEgress` _[NetworkPolicyEgressRule](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#networkpolicyegressrule-v1-networking) array_ | Additional egress rules appended to the operator-generated NetworkPolicy. |  | Optional: \{\} <br /> |
+| `extraIngress` _[NetworkPolicyIngressRule](https://pkg.go.dev/k8s.io/api/networking/v1#NetworkPolicyIngressRule) array_ | Additional ingress rules appended to the operator-generated NetworkPolicy (e.g., allow traffic from monitoring namespace). |  | Optional: \{\} <br /> |
+| `extraEgress` _[NetworkPolicyEgressRule](https://pkg.go.dev/k8s.io/api/networking/v1#NetworkPolicyEgressRule) array_ | Additional egress rules appended to the operator-generated NetworkPolicy. |  | Optional: \{\} <br /> |
 
 
 #### NetworkingSpec
@@ -704,8 +704,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `minAvailable` _[IntOrString](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#intorstring-intstr-util)_ | Minimum pods that must remain available during voluntary disruptions. Mutually exclusive with maxUnavailable. |  | Optional: \{\} <br /> |
-| `maxUnavailable` _[IntOrString](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#intorstring-intstr-util)_ | Maximum pods allowed to be unavailable during voluntary disruptions. Mutually exclusive with minAvailable. |  | Optional: \{\} <br /> |
+| `minAvailable` _[IntOrString](https://pkg.go.dev/k8s.io/apimachinery/pkg/util/intstr#IntOrString)_ | Minimum pods that must remain available during voluntary disruptions. Mutually exclusive with maxUnavailable. |  | Optional: \{\} <br /> |
+| `maxUnavailable` _[IntOrString](https://pkg.go.dev/k8s.io/apimachinery/pkg/util/intstr#IntOrString)_ | Maximum pods allowed to be unavailable during voluntary disruptions. Mutually exclusive with minAvailable. |  | Optional: \{\} <br /> |
 
 
 #### PodRetentionSpec
@@ -756,19 +756,19 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `annotations` _object (keys:string, values:string)_ | Pod annotations. |  | Optional: \{\} <br /> |
 | `labels` _object (keys:string, values:string)_ | Pod labels (merged with operator-managed labels which cannot be overridden). |  | Optional: \{\} <br /> |
-| `affinity` _[Affinity](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#affinity-v1-core)_ | Pod affinity and anti-affinity rules for scheduling. |  | Optional: \{\} <br /> |
-| `tolerations` _[Toleration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#toleration-v1-core) array_ | Tolerations for scheduling on tainted nodes. |  | Optional: \{\} <br /> |
+| `affinity` _[Affinity](https://pkg.go.dev/k8s.io/api/core/v1#Affinity)_ | Pod affinity and anti-affinity rules for scheduling. |  | Optional: \{\} <br /> |
+| `tolerations` _[Toleration](https://pkg.go.dev/k8s.io/api/core/v1#Toleration) array_ | Tolerations for scheduling on tainted nodes. |  | Optional: \{\} <br /> |
 | `nodeSelector` _object (keys:string, values:string)_ | Node labels for constraining pod scheduling. |  | Optional: \{\} <br /> |
-| `topologySpreadConstraints` _[TopologySpreadConstraint](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#topologyspreadconstraint-v1-core) array_ | Topology spread constraints for distributing pods across failure domains. |  | Optional: \{\} <br /> |
-| `hostAliases` _[HostAlias](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#hostalias-v1-core) array_ | Entries added to /etc/hosts in pod containers. |  | Optional: \{\} <br /> |
-| `podSecurityContext` _[PodSecurityContext](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#podsecuritycontext-v1-core)_ | Pod-level security context (runAsUser, fsGroup, seccomp, etc.). |  | Optional: \{\} <br /> |
+| `topologySpreadConstraints` _[TopologySpreadConstraint](https://pkg.go.dev/k8s.io/api/core/v1#TopologySpreadConstraint) array_ | Topology spread constraints for distributing pods across failure domains. |  | Optional: \{\} <br /> |
+| `hostAliases` _[HostAlias](https://pkg.go.dev/k8s.io/api/core/v1#HostAlias) array_ | Entries added to /etc/hosts in pod containers. |  | Optional: \{\} <br /> |
+| `podSecurityContext` _[PodSecurityContext](https://pkg.go.dev/k8s.io/api/core/v1#PodSecurityContext)_ | Pod-level security context (runAsUser, fsGroup, seccomp, etc.). |  | Optional: \{\} <br /> |
 | `priorityClassName` _string_ | Priority class name for pod scheduling priority and preemption. |  | Optional: \{\} <br /> |
-| `volumes` _[Volume](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#volume-v1-core) array_ | Additional volumes for the pod (mounted via container.volumeMounts). |  | Optional: \{\} <br /> |
-| `sidecars` _[Container](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#container-v1-core) array_ | Sidecar containers added alongside the main Superset container. |  | Optional: \{\} <br /> |
-| `initContainers` _[Container](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#container-v1-core) array_ | Init containers run before the main container starts. |  | Optional: \{\} <br /> |
+| `volumes` _[Volume](https://pkg.go.dev/k8s.io/api/core/v1#Volume) array_ | Additional volumes for the pod (mounted via container.volumeMounts). |  | Optional: \{\} <br /> |
+| `sidecars` _[Container](https://pkg.go.dev/k8s.io/api/core/v1#Container) array_ | Sidecar containers added alongside the main Superset container. |  | Optional: \{\} <br /> |
+| `initContainers` _[Container](https://pkg.go.dev/k8s.io/api/core/v1#Container) array_ | Init containers run before the main container starts. |  | Optional: \{\} <br /> |
 | `terminationGracePeriodSeconds` _integer_ | Grace period for pod termination in seconds. |  | Optional: \{\} <br /> |
-| `dnsPolicy` _[DNSPolicy](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#dnspolicy-v1-core)_ | DNS policy for pods. |  | Optional: \{\} <br /> |
-| `dnsConfig` _[PodDNSConfig](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#poddnsconfig-v1-core)_ | Custom DNS configuration for pods. |  | Optional: \{\} <br /> |
+| `dnsPolicy` _[DNSPolicy](https://pkg.go.dev/k8s.io/api/core/v1#DNSPolicy)_ | DNS policy for pods. |  | Optional: \{\} <br /> |
+| `dnsConfig` _[PodDNSConfig](https://pkg.go.dev/k8s.io/api/core/v1#PodDNSConfig)_ | Custom DNS configuration for pods. |  | Optional: \{\} <br /> |
 | `runtimeClassName` _string_ | RuntimeClass for pods. |  | Optional: \{\} <br /> |
 | `shareProcessNamespace` _boolean_ | Share a single process namespace between all containers in a pod. |  | Optional: \{\} <br /> |
 | `enableServiceLinks` _boolean_ | Controls whether service environment variables are injected into pods. |  | Optional: \{\} <br /> |
@@ -880,7 +880,7 @@ Superset is the top-level resource representing a complete Superset deployment.
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `superset.apache.org/v1alpha1` | | |
 | `kind` _string_ | `Superset` | | |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ObjectMeta](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#ObjectMeta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[SupersetSpec](#supersetspec)_ |  |  |  |
 | `status` _[SupersetStatus](#supersetstatus)_ |  |  |  |
 
@@ -900,7 +900,7 @@ It manages the Celery beat scheduler Deployment (singleton).
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `superset.apache.org/v1alpha1` | | |
 | `kind` _string_ | `SupersetCeleryBeat` | | |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ObjectMeta](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#ObjectMeta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[SupersetCeleryBeatSpec](#supersetcelerybeatspec)_ |  |  |  |
 | `status` _[SupersetCeleryBeatStatus](#supersetcelerybeatstatus)_ |  |  |  |
 
@@ -944,7 +944,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _string_ | "2/2" format showing ready vs desired replicas. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#condition-v1-meta) array_ | Standard conditions. |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ | Standard conditions. |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ | ObservedGeneration for leader election consistency. |  | Optional: \{\} <br /> |
 
 
@@ -963,7 +963,7 @@ It manages the Celery Flower monitoring UI Deployment and Service.
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `superset.apache.org/v1alpha1` | | |
 | `kind` _string_ | `SupersetCeleryFlower` | | |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ObjectMeta](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#ObjectMeta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[SupersetCeleryFlowerSpec](#supersetceleryflowerspec)_ |  |  |  |
 | `status` _[SupersetCeleryFlowerStatus](#supersetceleryflowerstatus)_ |  |  |  |
 
@@ -1007,7 +1007,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _string_ | "2/2" format showing ready vs desired replicas. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#condition-v1-meta) array_ | Standard conditions. |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ | Standard conditions. |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ | ObservedGeneration for leader election consistency. |  | Optional: \{\} <br /> |
 
 
@@ -1026,7 +1026,7 @@ It manages the Celery worker Deployment.
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `superset.apache.org/v1alpha1` | | |
 | `kind` _string_ | `SupersetCeleryWorker` | | |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ObjectMeta](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#ObjectMeta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[SupersetCeleryWorkerSpec](#supersetceleryworkerspec)_ |  |  |  |
 | `status` _[SupersetCeleryWorkerStatus](#supersetceleryworkerstatus)_ |  |  |  |
 
@@ -1069,7 +1069,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _string_ | "2/2" format showing ready vs desired replicas. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#condition-v1-meta) array_ | Standard conditions. |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ | Standard conditions. |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ | ObservedGeneration for leader election consistency. |  | Optional: \{\} <br /> |
 
 
@@ -1088,7 +1088,7 @@ It manages the initialization lifecycle (database migrations, init commands).
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `superset.apache.org/v1alpha1` | | |
 | `kind` _string_ | `SupersetInit` | | |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ObjectMeta](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#ObjectMeta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[SupersetInitSpec](#supersetinitspec)_ |  |  |  |
 | `status` _[SupersetInitStatus](#supersetinitstatus)_ |  |  |  |
 
@@ -1116,7 +1116,7 @@ _Appears in:_
 | `config` _string_ | Rendered superset_config.py content. |  | Optional: \{\} <br /> |
 | `configChecksum` _string_ | Config checksum for detecting config changes. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
-| `timeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#duration-v1-meta)_ | Maximum timeout per init pod attempt. |  | Optional: \{\} <br /> |
+| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per init pod attempt. |  | Optional: \{\} <br /> |
 | `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Pod retention policy for completed init pods. |  | Optional: \{\} <br /> |
 
 
@@ -1135,14 +1135,14 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `state` _string_ |  |  | Enum: [Pending Running Complete Failed] <br />Optional: \{\} <br /> |
 | `podName` _string_ |  |  | Optional: \{\} <br /> |
-| `startedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#time-v1-meta)_ |  |  | Optional: \{\} <br /> |
-| `completedAt` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#time-v1-meta)_ |  |  | Optional: \{\} <br /> |
+| `startedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
+| `completedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
 | `duration` _string_ |  |  | Optional: \{\} <br /> |
 | `attempts` _integer_ |  |  | Optional: \{\} <br /> |
 | `image` _string_ |  |  | Optional: \{\} <br /> |
 | `message` _string_ |  |  | Optional: \{\} <br /> |
 | `configChecksum` _string_ | Config checksum that was active when init last completed.<br />Used to detect config changes and trigger re-initialization. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#condition-v1-meta) array_ |  |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ |  |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ |  |  | Optional: \{\} <br /> |
 
 
@@ -1161,7 +1161,7 @@ It manages the FastMCP server Deployment and Service.
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `superset.apache.org/v1alpha1` | | |
 | `kind` _string_ | `SupersetMcpServer` | | |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ObjectMeta](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#ObjectMeta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[SupersetMcpServerSpec](#supersetmcpserverspec)_ |  |  |  |
 | `status` _[SupersetMcpServerStatus](#supersetmcpserverstatus)_ |  |  |  |
 
@@ -1205,7 +1205,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _string_ | "2/2" format showing ready vs desired replicas. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#condition-v1-meta) array_ | Standard conditions. |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ | Standard conditions. |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ | ObservedGeneration for leader election consistency. |  | Optional: \{\} <br /> |
 
 
@@ -1230,7 +1230,7 @@ _Appears in:_
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | Default pod disruption budget for all scalable components (component-level overrides this). |  | Optional: \{\} <br /> |
 | `environment` _string_ | Environment mode: "dev" or "prod". Controls validation strictness.<br />In prod mode, CRD validation rejects plain text secrets (secretKey, metastore.uri, metastore.password). | prod | Enum: [dev prod] <br />Optional: \{\} <br /> |
 | `secretKey` _string_ | Plain text secret key for session signing. Only allowed in dev mode.<br />In prod, use secretKeyFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
-| `secretKeyFrom` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#secretkeyselector-v1-core)_ | Reference to a Secret key containing the secret key for session signing.<br />Mutually exclusive with secretKey. |  | Optional: \{\} <br /> |
+| `secretKeyFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the secret key for session signing.<br />Mutually exclusive with secretKey. |  | Optional: \{\} <br /> |
 | `metastore` _[MetastoreSpec](#metastorespec)_ | Metastore database connection configuration. |  | Optional: \{\} <br /> |
 | `valkey` _[ValkeySpec](#valkeyspec)_ | Valkey cache, broker, and results backend configuration. |  | Optional: \{\} <br /> |
 | `config` _string_ | Raw Python appended after operator-generated superset_config.py. |  | Optional: \{\} <br /> |
@@ -1263,7 +1263,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#condition-v1-meta) array_ |  |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ |  |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ |  |  | Optional: \{\} <br /> |
 | `components` _[ComponentStatusMap](#componentstatusmap)_ |  |  | Optional: \{\} <br /> |
 | `init` _[InitTaskStatus](#inittaskstatus)_ |  |  | Optional: \{\} <br /> |
@@ -1288,7 +1288,7 @@ It manages the Superset web server (gunicorn) Deployment.
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `superset.apache.org/v1alpha1` | | |
 | `kind` _string_ | `SupersetWebServer` | | |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ObjectMeta](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#ObjectMeta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[SupersetWebServerSpec](#supersetwebserverspec)_ |  |  |  |
 | `status` _[SupersetWebServerStatus](#supersetwebserverstatus)_ |  |  |  |
 
@@ -1332,7 +1332,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _string_ | "2/2" format showing ready vs desired replicas. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#condition-v1-meta) array_ | Standard conditions. |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ | Standard conditions. |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ | ObservedGeneration for leader election consistency. |  | Optional: \{\} <br /> |
 
 
@@ -1351,7 +1351,7 @@ It manages the Superset websocket server Deployment.
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `superset.apache.org/v1alpha1` | | |
 | `kind` _string_ | `SupersetWebsocketServer` | | |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ObjectMeta](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#ObjectMeta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[SupersetWebsocketServerSpec](#supersetwebsocketserverspec)_ |  |  |  |
 | `status` _[SupersetWebsocketServerStatus](#supersetwebsocketserverstatus)_ |  |  |  |
 
@@ -1394,7 +1394,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `ready` _string_ | "2/2" format showing ready vs desired replicas. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#condition-v1-meta) array_ | Standard conditions. |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ | Standard conditions. |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ | ObservedGeneration for leader election consistency. |  | Optional: \{\} <br /> |
 
 
@@ -1489,7 +1489,7 @@ _Appears in:_
 | `host` _string_ | Valkey server hostname. |  |  |
 | `port` _integer_ | Valkey server port. | 6379 | Optional: \{\} <br /> |
 | `password` _string_ | Plain text password. Only allowed in dev mode — use passwordFrom in prod. |  | Optional: \{\} <br /> |
-| `passwordFrom` _[SecretKeySelector](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#secretkeyselector-v1-core)_ | Reference to a Secret key containing the Valkey password.<br />Mutually exclusive with password. |  | Optional: \{\} <br /> |
+| `passwordFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the Valkey password.<br />Mutually exclusive with password. |  | Optional: \{\} <br /> |
 | `ssl` _[ValkeySSLSpec](#valkeysslspec)_ | SSL/TLS configuration. When set, enables SSL for the Valkey connection. |  | Optional: \{\} <br /> |
 | `cache` _[ValkeyCacheSpec](#valkeycachespec)_ | General cache (CACHE_CONFIG). Default: db=1, prefix="superset_", timeout=300s. |  | Optional: \{\} <br /> |
 | `dataCache` _[ValkeyCacheSpec](#valkeycachespec)_ | Data/query results cache (DATA_CACHE_CONFIG). Default: db=2, prefix="superset_data_", timeout=86400s. |  | Optional: \{\} <br /> |

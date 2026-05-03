@@ -126,6 +126,7 @@ docs-build: ## Build documentation site.
 .PHONY: docs-api
 docs-api: crd-ref-docs ## Generate API reference documentation from Go types.
 	$(CRD_REF_DOCS) --source-path=api/v1alpha1 --config=hack/api-ref-config.yaml --renderer=markdown --max-depth=15 --output-path=docs/api-reference.md
+	sed -f hack/fix-api-ref-links.sed docs/api-reference.md > docs/api-reference.md.tmp && mv docs/api-reference.md.tmp docs/api-reference.md
 
 ##@ Helm
 

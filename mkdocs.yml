@@ -38,6 +38,9 @@ nav:
   - Security: security.md
   - Developer Guide: developer-guide.md
 
+extra_css:
+  - stylesheets/extra.css
+
 markdown_extensions:
   - admonition
   - pymdownx.details
