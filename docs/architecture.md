@@ -187,16 +187,23 @@ exclusive. If both are set, the component receives all three sections:
    `SUPERSET_OPERATOR__SECRET_KEY` env var, `SQLALCHEMY_DATABASE_URI` rendered
    from operator-internal env vars (both passthrough and structured metastore
    modes), plus `SUPERSET_WEBSERVER_PORT` for the web server.
-2. **Valkey cache config** — When `spec.valkey` is set, the operator renders
+2. **SQLAlchemy engine options** — `SQLALCHEMY_ENGINE_OPTIONS` dict, computed
+   per component from the resolved `sqlaEngineOptions` preset and the
+   component's worker/thread configuration (Gunicorn workers × threads for
+   the web server, Celery concurrency for workers). Presets range from
+   `conservative` (NullPool) through `balanced` (pool\_size=1, max\_overflow=-1)
+   to `aggressive` (pool\_size=workers×threads). See
+   [SQLAlchemy Engine Options](user-guide.md#sqlalchemy-engine-options) for details.
+3. **Valkey cache config** — When `spec.valkey` is set, the operator renders
    `CACHE_CONFIG`, `DATA_CACHE_CONFIG`, `FILTER_STATE_CACHE_CONFIG`,
    `EXPLORE_FORM_DATA_CACHE_CONFIG`, `THUMBNAIL_CACHE_CONFIG`,
    `CeleryConfig`, and `RESULTS_BACKEND` backed by Valkey. Connection details
    are read from `SUPERSET_OPERATOR__VALKEY_*` env vars at Python runtime.
    SSL/mTLS cert paths are baked directly into the rendered config.
-3. **Base config (`spec.config`)** — Raw Python from the top-level `config`
+4. **Base config (`spec.config`)** — Raw Python from the top-level `config`
    field, shared by all Python components. Appended after operator-generated
    configs.
-4. **Component config (`spec.<component>.config`)** — Raw Python from the
+5. **Component config (`spec.<component>.config`)** — Raw Python from the
    per-component `config` field. Appended last, so it can override anything
    above.
 

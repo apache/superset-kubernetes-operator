@@ -439,3 +439,81 @@ func assertNotContains(t *testing.T, s, substr string) {
 		t.Errorf("expected output NOT to contain %q, but it does.\nFull output:\n%s", substr, s)
 	}
 }
+
+func TestRenderConfig_EngineOptionsQueuePool(t *testing.T) {
+	input := &ConfigInput{
+		MetastoreMode: MetastorePassthrough,
+		EngineOptions: &EngineOptionsInput{
+			PoolSize:    1,
+			MaxOverflow: -1,
+			PoolRecycle: 3600,
+		},
+	}
+	result := RenderConfig(ComponentWebServer, input)
+	assertContains(t, result, "SQLALCHEMY_ENGINE_OPTIONS = {")
+	assertContains(t, result, `"pool_size": 1,`)
+	assertContains(t, result, `"max_overflow": -1,`)
+	assertContains(t, result, `"pool_recycle": 3600,`)
+	assertContains(t, result, `"pool_pre_ping": False,`)
+	assertNotContains(t, result, "NullPool")
+}
+
+func TestRenderConfig_EngineOptionsNullPool(t *testing.T) {
+	input := &ConfigInput{
+		MetastoreMode: MetastorePassthrough,
+		EngineOptions: &EngineOptionsInput{UseNullPool: true},
+	}
+	result := RenderConfig(ComponentWebServer, input)
+	assertContains(t, result, "from sqlalchemy.pool import NullPool")
+	assertContains(t, result, `"poolclass": NullPool,`)
+	assertNotContains(t, result, "pool_size")
+}
+
+func TestRenderConfig_EngineOptionsNil(t *testing.T) {
+	input := &ConfigInput{MetastoreMode: MetastorePassthrough}
+	result := RenderConfig(ComponentWebServer, input)
+	assertNotContains(t, result, "SQLALCHEMY_ENGINE_OPTIONS")
+}
+
+func TestRenderConfig_EngineOptionsWithPrePing(t *testing.T) {
+	input := &ConfigInput{
+		MetastoreMode: MetastoreNone,
+		EngineOptions: &EngineOptionsInput{
+			PoolSize:    5,
+			MaxOverflow: 10,
+			PoolRecycle: 1800,
+			PoolPrePing: true,
+			PoolTimeout: 15,
+		},
+	}
+	result := RenderConfig(ComponentCeleryWorker, input)
+	assertContains(t, result, `"pool_pre_ping": True,`)
+	assertContains(t, result, `"pool_timeout": 15,`)
+	assertContains(t, result, `"pool_recycle": 1800,`)
+}
+
+func TestRenderConfig_EngineOptionsSectionOrder(t *testing.T) {
+	input := &ConfigInput{
+		MetastoreMode: MetastorePassthrough,
+		EngineOptions: &EngineOptionsInput{PoolSize: 1, MaxOverflow: -1, PoolRecycle: 3600},
+		Valkey: &ValkeyInput{
+			Cache:                ValkeyCacheInput{Database: 1, KeyPrefix: "s_", DefaultTimeout: 300},
+			DataCache:            ValkeyCacheInput{Disabled: true},
+			FilterStateCache:     ValkeyCacheInput{Disabled: true},
+			ExploreFormDataCache: ValkeyCacheInput{Disabled: true},
+			ThumbnailCache:       ValkeyCacheInput{Disabled: true},
+			CeleryBroker:         ValkeyCeleryInput{Disabled: true},
+			CeleryResultBackend:  ValkeyCeleryInput{Disabled: true},
+			ResultsBackend:       ValkeyResultsInput{Disabled: true},
+		},
+	}
+	result := RenderConfig(ComponentWebServer, input)
+	engineIdx := strings.Index(result, "SQLALCHEMY_ENGINE_OPTIONS")
+	valkeyIdx := strings.Index(result, "# Valkey cache config")
+	if engineIdx < 0 || valkeyIdx < 0 {
+		t.Fatalf("expected both engine options and valkey sections")
+	}
+	if engineIdx >= valkeyIdx {
+		t.Errorf("SQLALCHEMY_ENGINE_OPTIONS should appear before Valkey config")
+	}
+}

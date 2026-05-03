@@ -54,8 +54,8 @@ The operator uses a **two-tier CRD architecture** where the parent `Superset` re
 ## Directory Layout
 
 - `api/v1alpha1/` — CRD type definitions
-  - `shared_types.go` — ImageSpec, MetastoreSpec, ValkeySpec (ValkeySSLSpec, ValkeyCacheSpec, ValkeyCelerySpec, ValkeyResultsBackendSpec), FlatComponentSpec, DeploymentTemplate, PodTemplate, ContainerTemplate, ScalableComponentSpec, ComponentSpec, AutoscalingSpec, PDBSpec
-  - `superset_types.go` — Parent CRD: SupersetSpec (environment, secretKey/secretKeyFrom, metastore with uriFrom/passwordFrom, valkey, config, autoscaling, podDisruptionBudget), component specs, InitSpec (adminUser, loadExamples), AdminUserSpec, NetworkingSpec, MonitoringSpec, status types
+  - `shared_types.go` — ImageSpec, MetastoreSpec, ValkeySpec (ValkeySSLSpec, ValkeyCacheSpec, ValkeyCelerySpec, ValkeyResultsBackendSpec), GunicornSpec, CeleryWorkerProcessSpec, SQLAlchemyEngineOptionsSpec, FlatComponentSpec, DeploymentTemplate, PodTemplate, ContainerTemplate, ScalableComponentSpec, ComponentSpec, AutoscalingSpec, PDBSpec
+  - `superset_types.go` — Parent CRD: SupersetSpec (environment, secretKey/secretKeyFrom, metastore with uriFrom/passwordFrom, valkey, config, sqlaEngineOptions, autoscaling, podDisruptionBudget), component specs (GunicornSpec on webServer, CeleryWorkerProcessSpec on celeryWorker, SQLAlchemyEngineOptionsSpec on all Python components except Flower), InitSpec (adminUser, loadExamples), AdminUserSpec, NetworkingSpec, MonitoringSpec, status types
   - `supersetinit_types.go` — Flat child CRD (Config + checksums, Pods + ConfigMap)
   - `supersetwebserver_types.go` — Flat child CRD (Config + Service + checksums)
   - `supersetceleryworker_types.go` — Flat child CRD (Config + checksums)
@@ -70,6 +70,9 @@ The operator uses a **two-tier CRD architecture** where the parent `Superset` re
   - `resolver.go` — ResolveChildSpec() — core flattening engine
 - `internal/config/` — Pure Go config rendering pipeline (zero controller-runtime deps)
   - `renderer.go` — Per-component superset_config.py generation
+  - `gunicorn.go` — Gunicorn preset resolution, env var generation
+  - `celery.go` — Celery worker preset resolution, command construction
+  - `engine_options.go` — SQLALCHEMY_ENGINE_OPTIONS computation (pool sizing from worker/thread counts)
 - `internal/common/` — Shared types (ComponentType, Ptr), naming functions (ChildName, ConfigMapName, ComponentLabels), constants (labels, suffixes, ports)
 - `internal/controller/` — Reconciler implementations
   - `child_reconciler.go` — generic `ChildReconciler` with `ChildCR` interface: shared sub-resource lifecycle (ConfigMap, Deployment, Service, Scaling) used by all 6 child controllers
@@ -95,7 +98,10 @@ The operator uses a **two-tier CRD architecture** where the parent `Superset` re
 - **Deployment template hierarchy**: All Deployment/Pod/Container configuration flows through `deploymentTemplate` (Deployment-level) and `podTemplate` (Pod-level with nested `container` for main container fields) as siblings on the component spec. Top-level values provide defaults; per-component values are field-level merged (scalars: component wins; named collections: merge by name; unnamed collections: append). Init uses `podTemplate` only (no Deployment-level). See `docs/user-guide.md#deployment-template` for full semantics.
 - **ScalableComponentSpec**: Has `DeploymentTemplate`, `PodTemplate`, and scaling fields (`Replicas`, `Autoscaling`, `PDB`). Used by scalable components. CeleryBeat has `DeploymentTemplate` + `PodTemplate` directly (no scaling). Init has `PodTemplate` only.
 - **ComponentSpec**: Per-component image override field (`Image`). Embedded by all component specs except InitSpec.
-- **Per-component config**: `internal/config/RenderConfig()` generates component-appropriate Python. `SECRET_KEY` is rendered from the `SUPERSET_OPERATOR__SECRET_KEY` env var. Both passthrough and structured metastore modes render `SQLALCHEMY_DATABASE_URI` in the config from operator-internal env vars (`SUPERSET_OPERATOR__DB_URI` for passthrough, `SUPERSET_OPERATOR__DB_*` for structured). Web server gets `SUPERSET_WEBSERVER_PORT`. WebsocketServer returns empty (Node.js). All Python components get `config`.
+- **Per-component config**: `internal/config/RenderConfig()` generates component-appropriate Python. `SECRET_KEY` is rendered from the `SUPERSET_OPERATOR__SECRET_KEY` env var. Both passthrough and structured metastore modes render `SQLALCHEMY_DATABASE_URI` in the config from operator-internal env vars (`SUPERSET_OPERATOR__DB_URI` for passthrough, `SUPERSET_OPERATOR__DB_*` for structured). `SQLALCHEMY_ENGINE_OPTIONS` is computed per component from the `sqlaEngineOptions` preset and Gunicorn/Celery worker configuration. Web server gets `SUPERSET_WEBSERVER_PORT`. WebsocketServer returns empty (Node.js). All Python components get `config`.
+- **Gunicorn configuration**: `spec.webServer.gunicorn` controls Gunicorn worker parameters. Presets (`conservative`/`balanced`/`performance`/`aggressive`) set workers, threads, workerClass. Static defaults for timeout, keepAlive, etc. Operator injects env vars (`SERVER_WORKER_AMOUNT`, `SERVER_THREADS_AMOUNT`, etc.) read by `run-server.sh`. `disabled` preset suppresses injection.
+- **Celery worker configuration**: `spec.celeryWorker.celery` controls Celery worker command args. Presets set concurrency and pool. Operator constructs the `celery worker` command from resolved fields. `disabled` preset uses the hardcoded fallback command.
+- **SQLAlchemy engine options**: `spec.sqlaEngineOptions` sets the baseline; per-component `sqlaEngineOptions` on webServer, celeryWorker, celeryBeat, mcpServer, init replaces the top-level entirely (override semantics). Presets: `disabled` (no rendering), `conservative` (NullPool), `balanced` (pool_size=1, max_overflow=-1), `performance` (pool_size=workers), `aggressive` (pool_size=workers×threads). CeleryBeat and Init always default to NullPool. Pool sizing is computed from resolved Gunicorn workers/threads or Celery concurrency. Static defaults: pool_recycle=3600, pool_pre_ping=false.
 - **Environment modes**: `environment: dev` allows inline `secretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, `init.adminUser`, and `init.loadExamples`. `environment: prod` (default) rejects these via CRD validation; use `secretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`, or `valkey.passwordFrom` to reference Kubernetes Secrets (operator injects `valueFrom.secretKeyRef` env vars).
 - **Env var tiers**: Operator-internal transport vars (`SUPERSET_OPERATOR__SECRET_KEY`, `SUPERSET_OPERATOR__DB_URI`, `SUPERSET_OPERATOR__DB_HOST`, `SUPERSET_OPERATOR__VALKEY_HOST`, `SUPERSET_OPERATOR__FORCE_RELOAD`, etc.) and standard env vars (`PYTHONPATH`).
 - **SECRET_KEY validation**: CEL requires either `secretKey` (dev mode) or `secretKeyFrom` (any mode) to be set.
@@ -140,3 +146,11 @@ All CRD names (parent and child) are validated via CEL to be valid DNS labels (l
 - **Scopes** (when used): `api`, `controller`, `resolution`, `config`, `helm`, `ci`, `docs`, `deps`
 - **Description**: Every PR must have a Summary section with at least one paragraph explaining what and why. Use the Details section for implementation notes. PR template pre-fills these sections.
 - **Code coverage**: Codecov reports patch coverage and project delta on every PR (informational, no enforced targets).
+
+## Documentation Style
+
+- **README** is a landing page: project description, philosophy, quick start, link to docs. Keep it welcoming and free of jargon — don't reference specific knobs, internal config names, or implementation details that might intimidate newcomers.
+- **docs/index.md** is the primary feature overview for the docs site. Keep feature descriptions high-level and outcome-focused. Implementation details belong in the user guide or architecture docs.
+- **docs/user-guide.md** is the full configuration reference. Here it's appropriate to name specific fields, presets, env vars, and show concrete YAML examples.
+- **docs/architecture.md** explains design decisions and internal structure for contributors and advanced users.
+- General principles: be concise and objective, avoid overselling or verbose language, reserve code blocks for real code (not ASCII art), minimize duplication between README and docs (README links to docs for details).

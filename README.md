@@ -27,37 +27,9 @@ under the License.
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Docs](https://img.shields.io/badge/docs-apache.github.io-blue)](https://apache.github.io/superset-kubernetes-operator/)
 
-A Kubernetes operator for deploying and managing [Apache Superset](https://superset.apache.org/) on Kubernetes. Built with the Go-based [Operator SDK](https://sdk.operatorframework.io/), the operator is designed to be simple to get started with — a minimal deployment requires just a few lines of YAML — while giving advanced users full control over every component through shared top-level defaults, per-component overrides, and direct access to flattened child CRDs.
+A Kubernetes operator for deploying and managing [Apache Superset](https://superset.apache.org/) on Kubernetes. Built with the Go-based [Operator SDK](https://sdk.operatorframework.io/).
 
-- **Typed config with secret safety** — structured config fields rendered to per-component `superset_config.py`; secrets resolve to `os.environ["..."]` and never appear in ConfigMaps
-- **Flat configuration** — shared top-level defaults inherited by all components, with per-component overrides (primitives replace, collections merge)
-- **Component toggle** — enable CeleryWorker, CeleryBeat, CeleryFlower, WebsocketServer, or McpServer by setting their spec; omit to disable
-- **Init lifecycle** — database migration and custom scripts run as managed Pods before components deploy
-- **Checksum-driven rollouts** — config changes automatically trigger rolling restarts of affected components
-- **Networking** — Gateway API (HTTPRoute) and Ingress support
-- **Production hardening** — HPA with custom metrics, PodDisruptionBudgets, NetworkPolicies, Prometheus ServiceMonitor, health probes, customizable security contexts via deployment templates
-
-## CRD Hierarchy
-
-The operator manages eight CRDs under the `superset.apache.org/v1alpha1` API group:
-
-| CRD Kind | Parent field | Suffix | Creates |
-|---|---|---|---|
-| **Superset** | *(parent)* | | Child CRs, Ingress/HTTPRoute, ServiceMonitor, NetworkPolicies |
-| **SupersetInit** | `init` | `-init` | Pods, ConfigMap |
-| **SupersetWebServer** | `webServer` | `-web-server` | Deployment, Service, ConfigMap, HPA |
-| **SupersetCeleryWorker** | `celeryWorker` | `-celery-worker` | Deployment, ConfigMap, HPA |
-| **SupersetCeleryBeat** | `celeryBeat` | `-celery-beat` | Deployment, ConfigMap |
-| **SupersetCeleryFlower** | `celeryFlower` | `-celery-flower` | Deployment, Service, ConfigMap |
-| **SupersetWebsocketServer** | `websocketServer` | `-websocket-server` | Deployment, Service |
-| **SupersetMcpServer** | `mcpServer` | `-mcp-server` | Deployment, Service, ConfigMap |
-
-## Prerequisites
-
-- Kubernetes v1.28+ cluster
-- Helm 3 (for Helm-based installation) or `kubectl` + `kustomize`
-- (Optional) Gateway API CRDs for HTTPRoute support
-- (Optional) prometheus-operator CRDs for ServiceMonitor support
+The operator is designed to make running Superset on Kubernetes as painless as possible. It works well out of the box with production-ready defaults, and every default is overridable when you need more control.
 
 ## Quick Start
 

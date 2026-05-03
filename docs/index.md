@@ -28,7 +28,9 @@ The operator manages the full Superset lifecycle: database migrations, configura
 
 ## Features
 
-- **Simple configuration** — `environment`, `secretKey`/`secretKeyFrom`, `metastore`, and `config` fields; per-component `superset_config.py` generated automatically
+- **Sane defaults** — production-ready settings out of the box that adapt automatically to your workload
+- **Painless management** — structured configuration fields with per-component config generated automatically
+- **Full control** — every default is overridable, from high-level presets down to individual fields, with a raw Python escape hatch for anything not covered
 - **Flat configuration** — shared top-level defaults inherited by all components, with per-component overrides (primitives replace, collections merge)
 - **Component toggle** — enable CeleryWorker, CeleryBeat, CeleryFlower, WebsocketServer, or McpServer by setting their spec; omit to disable
 - **Init lifecycle** — database migration and initialization run as managed Pods before components deploy

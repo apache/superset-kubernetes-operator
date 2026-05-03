@@ -304,6 +304,103 @@ spec:
   celeryBeat: {}
 ```
 
+### Gunicorn Configuration
+
+The operator manages Gunicorn worker parameters for the web server by injecting environment variables that Superset's `run-server.sh` reads. By default, even without an explicit `gunicorn` field, the operator injects balanced defaults (2 workers, 8 threads, gthread worker class).
+
+Presets control **workers**, **threads**, and **workerClass**. All other fields have static defaults that you can override individually.
+
+| Field | conservative | balanced (default) | performance | aggressive |
+|---|---|---|---|---|
+| workers | 1 | 2 | 4 | 8 |
+| threads | 4 | 8 | 8 | 16 |
+| workerClass | gthread | gthread | gthread | gthread |
+
+Set `preset: disabled` to suppress env var injection entirely — Superset's `run-server.sh` built-in defaults will apply instead.
+
+```yaml
+spec:
+  webServer:
+    gunicorn:
+      preset: performance      # 4 workers, 8 threads
+      timeout: 120             # override static default (60)
+      maxRequests: 1000        # enable worker recycling
+      maxRequestsJitter: 50
+```
+
+The full set of configurable fields (static defaults in parentheses): `timeout` (60), `keepAlive` (2), `maxRequests` (0 = disabled), `maxRequestsJitter` (0), `limitRequestLine` (0 = unlimited), `limitRequestFieldSize` (0 = unlimited), `logLevel` (info).
+
+### Celery Worker Configuration
+
+The operator constructs the celery worker command from structured fields instead of the hardcoded default. Presets control **concurrency** and **pool** type:
+
+| Field | conservative | balanced (default) | performance | aggressive |
+|---|---|---|---|---|
+| concurrency | 2 | 4 | 8 | 16 |
+| pool | prefork | prefork | prefork | prefork |
+
+Set `preset: disabled` to use the operator's built-in fallback command (`--pool=prefork -O fair -c 4`).
+
+```yaml
+spec:
+  celeryWorker:
+    celery:
+      preset: performance        # 8 concurrency, prefork
+      maxTasksPerChild: 1000     # recycle workers after 1000 tasks
+      softTimeLimit: 3600        # 1h soft limit (raises SoftTimeLimitExceeded)
+      timeLimit: 7200            # 2h hard kill
+```
+
+Additional fields (static defaults in parentheses): `optimization` (fair), `maxTasksPerChild` (0 = unlimited), `maxMemoryPerChild` (0 = disabled), `prefetchMultiplier` (4), `softTimeLimit` (0 = disabled), `timeLimit` (0 = disabled).
+
+### SQLAlchemy Engine Options
+
+The operator renders `SQLALCHEMY_ENGINE_OPTIONS` in each component's `superset_config.py`, with pool sizing computed from the component's execution model. By default (balanced preset), all components get sensible pool settings without any explicit configuration.
+
+Presets control **poolClass**, **poolSize**, and **maxOverflow**:
+
+| Preset | Pool class | pool\_size | max\_overflow |
+|---|---|---|---|
+| disabled | *(no rendering)* | — | — |
+| conservative | NullPool | — | — |
+| balanced (default) | QueuePool | 1 (web/celery), 5 (MCP) | -1 (unlimited) |
+| performance | QueuePool | workers (web), concurrency (celery) | -1 |
+| aggressive | QueuePool | workers × threads (web), concurrency (celery) | -1 |
+
+CeleryBeat and Init always use NullPool regardless of preset (singleton/short-lived components with minimal DB interaction).
+
+`spec.sqlaEngineOptions` sets the baseline for all Python components. Per-component `sqlaEngineOptions` on `webServer`, `celeryWorker`, `celeryBeat`, `mcpServer`, or `init` replaces the top-level entirely (override semantics, not merge).
+
+```yaml
+spec:
+  sqlaEngineOptions:
+    preset: balanced             # applies to all components
+    poolRecycle: 1800            # override static default (3600)
+  webServer:
+    gunicorn:
+      preset: performance        # 4 workers, 8 threads
+    sqlaEngineOptions:
+      preset: performance        # pool_size=4 (gunicorn workers)
+  celeryWorker:
+    celery:
+      concurrency: 12
+    sqlaEngineOptions:
+      preset: aggressive         # pool_size=12 (celery concurrency)
+  celeryBeat: {}                 # always NullPool
+```
+
+Static defaults (same regardless of preset, overridable per-field): `poolRecycle` (3600), `poolPrePing` (false), `poolTimeout` (omitted — SQLAlchemy default 30s).
+
+Individual field overrides take precedence over the preset computation:
+
+```yaml
+spec:
+  sqlaEngineOptions:
+    preset: balanced
+    poolSize: 10                 # explicit: overrides preset calculation
+    poolPrePing: true            # explicit: overrides static default
+```
+
 ### MCP Server
 
 Enable the [Model Context Protocol](https://modelcontextprotocol.io/) server by setting `mcpServer`. This deploys a Python-based FastMCP server that exposes Superset's API via MCP, allowing AI assistants and LLM-based tools to interact with Superset:
