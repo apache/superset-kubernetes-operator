@@ -27,7 +27,7 @@ under the License.
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Docs](https://img.shields.io/badge/docs-apache.github.io-blue)](https://apache.github.io/superset-kubernetes-operator/)
 
-A Kubernetes operator for deploying and managing [Apache Superset](https://superset.apache.org/) on Kubernetes. Built with the Go-based [Operator SDK](https://sdk.operatorframework.io/).
+A Kubernetes operator for deploying and managing [Apache Superset](https://superset.apache.org/) on Kubernetes. Read the [documentation](https://apache.github.io/superset-kubernetes-operator/) to get started. Built with the Go-based [Operator SDK](https://sdk.operatorframework.io/).
 
 The operator is designed to make running Superset on Kubernetes as painless as possible. It works well out of the box with production-ready defaults, and every default is overridable when you need more control.
 
@@ -61,10 +61,6 @@ spec:
 ```
 
 > **Note**: The example above uses `environment: dev` for simplicity. In production (the default), use `secretKeyFrom` and `metastore.uriFrom` to reference Kubernetes Secrets. See the [User Guide](https://apache.github.io/superset-kubernetes-operator/user-guide/) and the [sample manifests](config/samples/) for production-ready examples.
-
-## Documentation
-
-Full documentation is available at **[apache.github.io/superset-kubernetes-operator](https://apache.github.io/superset-kubernetes-operator/)**.
 
 ## Development
 
