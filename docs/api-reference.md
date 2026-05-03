@@ -90,6 +90,7 @@ _Appears in:_
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for Celery beat pods. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
+| `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
 
 
 #### CeleryFlowerComponentSpec
@@ -135,6 +136,34 @@ _Appears in:_
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
+| `celery` _[CeleryWorkerProcessSpec](#celeryworkerprocessspec)_ | Celery worker execution configuration. Controls concurrency, pool type, and related parameters. |  | Optional: \{\} <br /> |
+| `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
+
+
+#### CeleryWorkerProcessSpec
+
+
+
+CeleryWorkerProcessSpec configures Celery worker execution parameters.
+Fields controlled by presets: concurrency, pool.
+All other fields have static defaults independent of preset.
+
+
+
+_Appears in:_
+- [CeleryWorkerComponentSpec](#celeryworkercomponentspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `preset` _string_ | Preset controlling concurrency and pool defaults.<br />Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
+| `concurrency` _integer_ | Number of concurrent task workers (maps to celery -c flag). |  | Minimum: 1 <br />Optional: \{\} <br /> |
+| `pool` _string_ | Celery pool implementation. |  | Enum: [prefork threads gevent eventlet solo] <br />Optional: \{\} <br /> |
+| `optimization` _string_ | Task distribution optimization strategy. |  | Enum: [default fair] <br />Optional: \{\} <br /> |
+| `maxTasksPerChild` _integer_ | Maximum tasks a worker process handles before being replaced (prefork only; 0 = unlimited). |  | Minimum: 0 <br />Optional: \{\} <br /> |
+| `maxMemoryPerChild` _integer_ | Maximum resident memory in bytes per worker before being replaced (prefork only; 0 = disabled). |  | Minimum: 0 <br />Optional: \{\} <br /> |
+| `prefetchMultiplier` _integer_ | Task prefetch multiplier — number of tasks prefetched per worker. |  | Minimum: 0 <br />Optional: \{\} <br /> |
+| `softTimeLimit` _integer_ | Soft time limit in seconds — raises SoftTimeLimitExceeded (0 = disabled). |  | Minimum: 0 <br />Optional: \{\} <br /> |
+| `timeLimit` _integer_ | Hard time limit in seconds — kills the task (0 = disabled). |  | Minimum: 0 <br />Optional: \{\} <br /> |
 
 
 #### ChildComponentStatus
@@ -360,6 +389,34 @@ _Appears in:_
 | `labels` _object (keys:string, values:string)_ | HTTPRoute labels. |  | Optional: \{\} <br /> |
 
 
+#### GunicornSpec
+
+
+
+GunicornSpec configures Gunicorn worker parameters for the web server.
+Fields controlled by presets: workers, threads, workerClass.
+All other fields have static defaults independent of preset.
+
+
+
+_Appears in:_
+- [WebServerComponentSpec](#webservercomponentspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `preset` _string_ | Preset controlling workers, threads, and workerClass defaults.<br />Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
+| `workers` _integer_ | Number of Gunicorn worker processes. |  | Minimum: 1 <br />Optional: \{\} <br /> |
+| `threads` _integer_ | Number of threads per worker (only effective with gthread worker class). |  | Minimum: 1 <br />Optional: \{\} <br /> |
+| `workerClass` _string_ | Gunicorn worker class. |  | Enum: [sync gthread gevent eventlet] <br />Optional: \{\} <br /> |
+| `timeout` _integer_ | Request timeout in seconds. |  | Minimum: 1 <br />Optional: \{\} <br /> |
+| `keepAlive` _integer_ | Keep-alive timeout in seconds for waiting for requests on a connection. |  | Minimum: 0 <br />Optional: \{\} <br /> |
+| `maxRequests` _integer_ | Maximum requests per worker before recycling (0 = disabled). |  | Minimum: 0 <br />Optional: \{\} <br /> |
+| `maxRequestsJitter` _integer_ | Random jitter added to maxRequests to prevent thundering herd on worker recycling. |  | Minimum: 0 <br />Optional: \{\} <br /> |
+| `limitRequestLine` _integer_ | Maximum size of HTTP request line in bytes (0 = unlimited). |  | Minimum: 0 <br />Optional: \{\} <br /> |
+| `limitRequestFieldSize` _integer_ | Maximum size of HTTP request header field in bytes (0 = unlimited). |  | Minimum: 0 <br />Optional: \{\} <br /> |
+| `logLevel` _string_ | Gunicorn log level. |  | Enum: [debug info warning error critical] <br />Optional: \{\} <br /> |
+
+
 #### ImageOverrideSpec
 
 
@@ -489,6 +546,7 @@ _Appears in:_
 | `disabled` _boolean_ | Set to true to skip initialization entirely. |  | Optional: \{\} <br /> |
 | `adminUser` _[AdminUserSpec](#adminuserspec)_ | Admin user to create during initialization. Only allowed in dev mode.<br />When set, the operator appends a superset fab create-admin step to the init command. |  | Optional: \{\} <br /> |
 | `loadExamples` _boolean_ | Load example dashboards and data during initialization. Only allowed in dev mode.<br />When true, the operator appends a superset load-examples step to the init command. |  | Optional: \{\} <br /> |
+| `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#duration-v1-meta)_ | Maximum timeout for the init pod. Default: 300s. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. Default: 3. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Pod retention policy for completed init pods. |  | Optional: \{\} <br /> |
@@ -540,6 +598,7 @@ _Appears in:_
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration (type, port, annotations). |  | Optional: \{\} <br /> |
+| `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
 
 
 #### MetastoreSpec
@@ -714,6 +773,34 @@ _Appears in:_
 | `shareProcessNamespace` _boolean_ | Share a single process namespace between all containers in a pod. |  | Optional: \{\} <br /> |
 | `enableServiceLinks` _boolean_ | Controls whether service environment variables are injected into pods. |  | Optional: \{\} <br /> |
 | `container` _[ContainerTemplate](#containertemplate)_ | Main container configuration. |  | Optional: \{\} <br /> |
+
+
+#### SQLAlchemyEngineOptionsSpec
+
+
+
+SQLAlchemyEngineOptionsSpec configures the SQLAlchemy connection pool.
+Fields controlled by presets: poolClass (NullPool vs QueuePool), poolSize, maxOverflow.
+Static defaults: poolRecycle=3600, poolPrePing=false.
+
+
+
+_Appears in:_
+- [CeleryBeatComponentSpec](#celerybeatcomponentspec)
+- [CeleryWorkerComponentSpec](#celeryworkercomponentspec)
+- [InitSpec](#initspec)
+- [McpServerComponentSpec](#mcpservercomponentspec)
+- [SupersetSpec](#supersetspec)
+- [WebServerComponentSpec](#webservercomponentspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `preset` _string_ | Preset for connection pool behavior. "disabled" suppresses rendering entirely.<br />"conservative" uses NullPool (no persistent connections).<br />"balanced" through "aggressive" use QueuePool with increasing pool sizes.<br />Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
+| `poolSize` _integer_ | Number of persistent connections in the pool. Overrides preset calculation. |  | Minimum: 0 <br />Optional: \{\} <br /> |
+| `maxOverflow` _integer_ | Maximum overflow connections beyond poolSize (-1 = unlimited). |  | Optional: \{\} <br /> |
+| `poolRecycle` _integer_ | Connection max-age in seconds before recycling. |  | Minimum: 0 <br />Optional: \{\} <br /> |
+| `poolPrePing` _boolean_ | Verify connections are alive before use. |  | Optional: \{\} <br /> |
+| `poolTimeout` _integer_ | Seconds to wait for a connection from the pool before giving up. |  | Minimum: 0 <br />Optional: \{\} <br /> |
 
 
 #### ScalableComponentSpec
@@ -1147,6 +1234,7 @@ _Appears in:_
 | `metastore` _[MetastoreSpec](#metastorespec)_ | Metastore database connection configuration. |  | Optional: \{\} <br /> |
 | `valkey` _[ValkeySpec](#valkeyspec)_ | Valkey cache, broker, and results backend configuration. |  | Optional: \{\} <br /> |
 | `config` _string_ | Raw Python appended after operator-generated superset_config.py. |  | Optional: \{\} <br /> |
+| `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | SQLAlchemy engine options for connection pooling. Inherited by all Python<br />components; per-component sqlaEngineOptions overrides this entirely.<br />When unset, the operator computes balanced defaults per component. |  | Optional: \{\} <br /> |
 | `webServer` _[WebServerComponentSpec](#webservercomponentspec)_ | Web server (gunicorn) component. Presence enables it; absence disables. |  | Optional: \{\} <br /> |
 | `celeryWorker` _[CeleryWorkerComponentSpec](#celeryworkercomponentspec)_ | Celery async task worker component. Requires Valkey for broker/backend. |  | Optional: \{\} <br /> |
 | `celeryBeat` _[CeleryBeatComponentSpec](#celerybeatcomponentspec)_ | Celery periodic task scheduler (singleton, always 1 replica). Requires Valkey. |  | Optional: \{\} <br /> |
@@ -1434,6 +1522,8 @@ _Appears in:_
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration (type, port, annotations). |  | Optional: \{\} <br /> |
+| `gunicorn` _[GunicornSpec](#gunicornspec)_ | Gunicorn worker configuration. Controls worker processes, threads, and related parameters. |  | Optional: \{\} <br /> |
+| `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
 
 
 #### WebsocketServerComponentSpec
