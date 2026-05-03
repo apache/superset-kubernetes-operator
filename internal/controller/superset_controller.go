@@ -104,12 +104,20 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	// Phase 1: Compute shared config checksum (per-component checksums are
 	// derived from this combined with each component's rendered config).
 	configChecksum := computeChecksum(struct {
-		SecretKey     *string
-		SecretKeyFrom *corev1.SecretKeySelector
-		Metastore     *supersetv1alpha1.MetastoreSpec
-		Valkey        *supersetv1alpha1.ValkeySpec
-		Config        *string
-	}{superset.Spec.SecretKey, superset.Spec.SecretKeyFrom, superset.Spec.Metastore, superset.Spec.Valkey, superset.Spec.Config})
+		SecretKey           *string
+		SecretKeyFrom       *corev1.SecretKeySelector
+		Metastore           *supersetv1alpha1.MetastoreSpec
+		Valkey              *supersetv1alpha1.ValkeySpec
+		Config              *string
+		SQLAEngineOptions   *supersetv1alpha1.SQLAlchemyEngineOptionsSpec
+		WebServerGunicorn   *supersetv1alpha1.GunicornSpec
+		CeleryWorkerProcess *supersetv1alpha1.CeleryWorkerProcessSpec
+	}{
+		superset.Spec.SecretKey, superset.Spec.SecretKeyFrom, superset.Spec.Metastore, superset.Spec.Valkey, superset.Spec.Config,
+		superset.Spec.SQLAlchemyEngineOptions,
+		gunicornSpecFrom(superset.Spec.WebServer),
+		celerySpecFrom(superset.Spec.CeleryWorker),
+	})
 
 	// Phase 2: Reconcile shared resources.
 	if err := r.reconcileServiceAccount(ctx, superset); err != nil {
@@ -331,6 +339,15 @@ func (r *SupersetReconciler) reconcileInit(
 	if superset.Spec.Init != nil && superset.Spec.Init.Config != nil {
 		compConfigInput.ComponentConfig = *superset.Spec.Init.Config
 	}
+
+	// Compute init engine options (always NullPool for short-lived init pods).
+	var initSQLASpec *supersetv1alpha1.SQLAlchemyEngineOptionsSpec
+	if superset.Spec.Init != nil {
+		initSQLASpec = superset.Spec.Init.SQLAlchemyEngineOptions
+	}
+	compConfigInput.EngineOptions = supersetconfig.ComputeEngineOptions(
+		naming.ComponentInit, superset.Spec.SQLAlchemyEngineOptions, initSQLASpec, 0, 0,
+	)
 
 	comp := convertInitComponent(superset.Spec.Init)
 	renderedConfig := supersetconfig.RenderConfig(supersetconfig.ComponentInit, compConfigInput)
@@ -914,6 +931,20 @@ func computeChecksum(obj any) string {
 	h := sha256.New()
 	h.Write(data)
 	return fmt.Sprintf("sha256:%x", h.Sum(nil))
+}
+
+func gunicornSpecFrom(ws *supersetv1alpha1.WebServerComponentSpec) *supersetv1alpha1.GunicornSpec {
+	if ws == nil {
+		return nil
+	}
+	return ws.Gunicorn
+}
+
+func celerySpecFrom(cw *supersetv1alpha1.CeleryWorkerComponentSpec) *supersetv1alpha1.CeleryWorkerProcessSpec {
+	if cw == nil {
+		return nil
+	}
+	return cw.Celery
 }
 
 func isReadyString(ready string) bool {

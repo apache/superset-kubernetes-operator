@@ -252,6 +252,159 @@ type ValkeyResultsBackendSpec struct {
 	KeyPrefix *string `json:"keyPrefix,omitempty"`
 }
 
+// --- Process configuration types ---
+
+// GunicornSpec configures Gunicorn worker parameters for the web server.
+// Fields controlled by presets: workers, threads, workerClass.
+// All other fields have static defaults independent of preset.
+// +kubebuilder:validation:XValidation:rule="!has(self.threads) || self.threads <= 1 || !has(self.workerClass) || self.workerClass == 'gthread'",message="threads > 1 requires workerClass=gthread"
+type GunicornSpec struct {
+	// Preset controlling workers, threads, and workerClass defaults.
+	// Individual fields override preset-computed values.
+	// +optional
+	// +kubebuilder:validation:Enum=disabled;conservative;balanced;performance;aggressive
+	Preset *string `json:"preset,omitempty"`
+
+	// Number of Gunicorn worker processes.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	Workers *int32 `json:"workers,omitempty"`
+
+	// Number of threads per worker (only effective with gthread worker class).
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	Threads *int32 `json:"threads,omitempty"`
+
+	// Gunicorn worker class.
+	// +optional
+	// +kubebuilder:validation:Enum=sync;gthread;gevent;eventlet
+	WorkerClass *string `json:"workerClass,omitempty"`
+
+	// Request timeout in seconds.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	Timeout *int32 `json:"timeout,omitempty"`
+
+	// Keep-alive timeout in seconds for waiting for requests on a connection.
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	KeepAlive *int32 `json:"keepAlive,omitempty"`
+
+	// Maximum requests per worker before recycling (0 = disabled).
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	MaxRequests *int32 `json:"maxRequests,omitempty"`
+
+	// Random jitter added to maxRequests to prevent thundering herd on worker recycling.
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	MaxRequestsJitter *int32 `json:"maxRequestsJitter,omitempty"`
+
+	// Maximum size of HTTP request line in bytes (0 = unlimited).
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	LimitRequestLine *int32 `json:"limitRequestLine,omitempty"`
+
+	// Maximum size of HTTP request header field in bytes (0 = unlimited).
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	LimitRequestFieldSize *int32 `json:"limitRequestFieldSize,omitempty"`
+
+	// Gunicorn log level.
+	// +optional
+	// +kubebuilder:validation:Enum=debug;info;warning;error;critical
+	LogLevel *string `json:"logLevel,omitempty"`
+}
+
+// CeleryWorkerProcessSpec configures Celery worker execution parameters.
+// Fields controlled by presets: concurrency, pool.
+// All other fields have static defaults independent of preset.
+// +kubebuilder:validation:XValidation:rule="(!has(self.maxTasksPerChild) || self.maxTasksPerChild == 0) || !has(self.pool) || self.pool == 'prefork'",message="maxTasksPerChild only applies to pool=prefork"
+// +kubebuilder:validation:XValidation:rule="(!has(self.maxMemoryPerChild) || self.maxMemoryPerChild == 0) || !has(self.pool) || self.pool == 'prefork'",message="maxMemoryPerChild only applies to pool=prefork"
+type CeleryWorkerProcessSpec struct {
+	// Preset controlling concurrency and pool defaults.
+	// Individual fields override preset-computed values.
+	// +optional
+	// +kubebuilder:validation:Enum=disabled;conservative;balanced;performance;aggressive
+	Preset *string `json:"preset,omitempty"`
+
+	// Number of concurrent task workers (maps to celery -c flag).
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	Concurrency *int32 `json:"concurrency,omitempty"`
+
+	// Celery pool implementation.
+	// +optional
+	// +kubebuilder:validation:Enum=prefork;threads;gevent;eventlet;solo
+	Pool *string `json:"pool,omitempty"`
+
+	// Task distribution optimization strategy.
+	// +optional
+	// +kubebuilder:validation:Enum=default;fair
+	Optimization *string `json:"optimization,omitempty"`
+
+	// Maximum tasks a worker process handles before being replaced (prefork only; 0 = unlimited).
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	MaxTasksPerChild *int32 `json:"maxTasksPerChild,omitempty"`
+
+	// Maximum resident memory in bytes per worker before being replaced (prefork only; 0 = disabled).
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	MaxMemoryPerChild *int32 `json:"maxMemoryPerChild,omitempty"`
+
+	// Task prefetch multiplier — number of tasks prefetched per worker.
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	PrefetchMultiplier *int32 `json:"prefetchMultiplier,omitempty"`
+
+	// Soft time limit in seconds — raises SoftTimeLimitExceeded (0 = disabled).
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	SoftTimeLimit *int32 `json:"softTimeLimit,omitempty"`
+
+	// Hard time limit in seconds — kills the task (0 = disabled).
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	TimeLimit *int32 `json:"timeLimit,omitempty"`
+}
+
+// SQLAlchemyEngineOptionsSpec configures the SQLAlchemy connection pool.
+// Fields controlled by presets: poolClass (NullPool vs QueuePool), poolSize, maxOverflow.
+// Static defaults: poolRecycle=3600, poolPrePing=false.
+type SQLAlchemyEngineOptionsSpec struct {
+	// Preset for connection pool behavior. "disabled" suppresses rendering entirely.
+	// "conservative" uses NullPool (no persistent connections).
+	// "balanced" through "aggressive" use QueuePool with increasing pool sizes.
+	// Individual fields override preset-computed values.
+	// +optional
+	// +kubebuilder:validation:Enum=disabled;conservative;balanced;performance;aggressive
+	Preset *string `json:"preset,omitempty"`
+
+	// Number of persistent connections in the pool. Overrides preset calculation.
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	PoolSize *int32 `json:"poolSize,omitempty"`
+
+	// Maximum overflow connections beyond poolSize (-1 = unlimited).
+	// +optional
+	MaxOverflow *int32 `json:"maxOverflow,omitempty"`
+
+	// Connection max-age in seconds before recycling.
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	PoolRecycle *int32 `json:"poolRecycle,omitempty"`
+
+	// Verify connections are alive before use.
+	// +optional
+	PoolPrePing *bool `json:"poolPrePing,omitempty"`
+
+	// Seconds to wait for a connection from the pool before giving up.
+	// +optional
+	// +kubebuilder:validation:Minimum=0
+	PoolTimeout *int32 `json:"poolTimeout,omitempty"`
+}
+
 // --- Deployment template hierarchy ---
 //
 // Mirrors Kubernetes Deployment → PodTemplateSpec → Container structure.

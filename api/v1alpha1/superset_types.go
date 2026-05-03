@@ -85,6 +85,12 @@ type SupersetSpec struct {
 	// +optional
 	Config *string `json:"config,omitempty"`
 
+	// SQLAlchemy engine options for connection pooling. Inherited by all Python
+	// components; per-component sqlaEngineOptions overrides this entirely.
+	// When unset, the operator computes balanced defaults per component.
+	// +optional
+	SQLAlchemyEngineOptions *SQLAlchemyEngineOptionsSpec `json:"sqlaEngineOptions,omitempty"`
+
 	// Web server (gunicorn) component. Presence enables it; absence disables.
 	// +optional
 	WebServer *WebServerComponentSpec `json:"webServer,omitempty"`
@@ -147,6 +153,12 @@ type WebServerComponentSpec struct {
 	// Service configuration (type, port, annotations).
 	// +optional
 	Service *ComponentServiceSpec `json:"service,omitempty"`
+	// Gunicorn worker configuration. Controls worker processes, threads, and related parameters.
+	// +optional
+	Gunicorn *GunicornSpec `json:"gunicorn,omitempty"`
+	// Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely).
+	// +optional
+	SQLAlchemyEngineOptions *SQLAlchemyEngineOptionsSpec `json:"sqlaEngineOptions,omitempty"`
 }
 
 // CeleryWorkerComponentSpec defines the celery worker component on the parent CRD.
@@ -156,6 +168,12 @@ type CeleryWorkerComponentSpec struct {
 	// Per-component raw Python appended after top-level config.
 	// +optional
 	Config *string `json:"config,omitempty"`
+	// Celery worker execution configuration. Controls concurrency, pool type, and related parameters.
+	// +optional
+	Celery *CeleryWorkerProcessSpec `json:"celery,omitempty"`
+	// Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely).
+	// +optional
+	SQLAlchemyEngineOptions *SQLAlchemyEngineOptionsSpec `json:"sqlaEngineOptions,omitempty"`
 }
 
 // CeleryBeatComponentSpec defines the celery beat component on the parent CRD.
@@ -171,6 +189,9 @@ type CeleryBeatComponentSpec struct {
 	// Per-component raw Python appended after top-level config.
 	// +optional
 	Config *string `json:"config,omitempty"`
+	// Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely).
+	// +optional
+	SQLAlchemyEngineOptions *SQLAlchemyEngineOptionsSpec `json:"sqlaEngineOptions,omitempty"`
 }
 
 // CeleryFlowerComponentSpec defines the celery flower component on the parent CRD.
@@ -204,6 +225,9 @@ type McpServerComponentSpec struct {
 	// Service configuration (type, port, annotations).
 	// +optional
 	Service *ComponentServiceSpec `json:"service,omitempty"`
+	// Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely).
+	// +optional
+	SQLAlchemyEngineOptions *SQLAlchemyEngineOptionsSpec `json:"sqlaEngineOptions,omitempty"`
 }
 
 // --- Init spec ---
@@ -245,6 +269,10 @@ type InitSpec struct {
 	// When true, the operator appends a superset load-examples step to the init command.
 	// +optional
 	LoadExamples *bool `json:"loadExamples,omitempty"`
+
+	// Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely).
+	// +optional
+	SQLAlchemyEngineOptions *SQLAlchemyEngineOptionsSpec `json:"sqlaEngineOptions,omitempty"`
 
 	// Maximum timeout for the init pod. Default: 300s.
 	// +optional

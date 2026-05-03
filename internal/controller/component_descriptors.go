@@ -42,6 +42,9 @@ type componentAccessor struct {
 	config             *string
 	image              *supersetv1alpha1.ImageOverrideSpec
 	service            *supersetv1alpha1.ComponentServiceSpec
+	gunicorn           *supersetv1alpha1.GunicornSpec
+	celery             *supersetv1alpha1.CeleryWorkerProcessSpec
+	sqlaEngineOptions  *supersetv1alpha1.SQLAlchemyEngineOptionsSpec
 }
 
 // componentDescriptor captures all per-component variation needed to
@@ -167,9 +170,48 @@ func (r *SupersetReconciler) reconcileComponent(
 		if accessor.config != nil {
 			compConfigInput.ComponentConfig = *accessor.config
 		}
+
+		// Compute SQLALCHEMY_ENGINE_OPTIONS per component.
+		effectiveSQLASpec := superset.Spec.SQLAlchemyEngineOptions
+		if accessor.sqlaEngineOptions != nil {
+			effectiveSQLASpec = accessor.sqlaEngineOptions
+		}
+		var workers, threads int32
+		switch desc.componentType {
+		case naming.ComponentWebServer:
+			g := supersetconfig.ResolveGunicorn(accessor.gunicorn)
+			if !g.Disabled {
+				workers, threads = g.Workers, g.Threads
+			}
+		case naming.ComponentCeleryWorker:
+			c := supersetconfig.ResolveCelery(accessor.celery)
+			if !c.Disabled {
+				workers = c.Concurrency
+			}
+		}
+		compConfigInput.EngineOptions = supersetconfig.ComputeEngineOptions(
+			desc.componentType, effectiveSQLASpec, accessor.sqlaEngineOptions, workers, threads,
+		)
+
 		renderedConfig = supersetconfig.RenderConfig(desc.componentType, compConfigInput)
 		secretEnvVars = collectSecretEnvVars(&superset.Spec)
 		operatorInjected = buildOperatorInjected(renderedConfig, resourceBaseName, superset.Spec.ForceReload, secretEnvVars)
+
+		// Inject Gunicorn env vars for web server.
+		if desc.componentType == naming.ComponentWebServer {
+			g := supersetconfig.ResolveGunicorn(accessor.gunicorn)
+			if !g.Disabled {
+				operatorInjected.Env = append(operatorInjected.Env, g.EnvVars()...)
+			}
+		}
+
+		// Inject celery worker command.
+		if desc.componentType == naming.ComponentCeleryWorker {
+			c := supersetconfig.ResolveCelery(accessor.celery)
+			if !c.Disabled {
+				injectCeleryCommand(comp, c.Command())
+			}
+		}
 	} else {
 		operatorInjected = &resolution.OperatorInjected{}
 		if superset.Spec.ForceReload != "" {
@@ -204,6 +246,24 @@ func (r *SupersetReconciler) reconcileComponent(
 	)
 }
 
+// injectCeleryCommand sets the celery worker command on the ComponentInput's
+// pod template, allowing the resolution engine to use it instead of the
+// child controller's DefaultCommand.
+func injectCeleryCommand(comp *resolution.ComponentInput, cmd []string) {
+	if comp == nil {
+		return
+	}
+	if comp.PodTemplate == nil {
+		comp.PodTemplate = &supersetv1alpha1.PodTemplate{}
+	}
+	if comp.PodTemplate.Container == nil {
+		comp.PodTemplate.Container = &supersetv1alpha1.ContainerTemplate{}
+	}
+	if len(comp.PodTemplate.Container.Command) == 0 {
+		comp.PodTemplate.Container.Command = cmd
+	}
+}
+
 // --- Descriptor definitions ---
 
 func extractScalable(s *supersetv1alpha1.ScalableComponentSpec, config *string, image *supersetv1alpha1.ImageOverrideSpec, service *supersetv1alpha1.ComponentServiceSpec) *componentAccessor {
@@ -229,7 +289,10 @@ var webServerDescriptor = &componentDescriptor{
 		if c == nil {
 			return nil
 		}
-		return extractScalable(&c.ScalableComponentSpec, c.Config, c.Image, c.Service)
+		a := extractScalable(&c.ScalableComponentSpec, c.Config, c.Image, c.Service)
+		a.gunicorn = c.Gunicorn
+		a.sqlaEngineOptions = c.SQLAlchemyEngineOptions
+		return a
 	},
 	newChild: func() client.Object { return &supersetv1alpha1.SupersetWebServer{} },
 	newList:  func() client.ObjectList { return &supersetv1alpha1.SupersetWebServerList{} },
@@ -255,7 +318,10 @@ var celeryWorkerDescriptor = &componentDescriptor{
 		if c == nil {
 			return nil
 		}
-		return extractScalable(&c.ScalableComponentSpec, c.Config, c.Image, nil)
+		a := extractScalable(&c.ScalableComponentSpec, c.Config, c.Image, nil)
+		a.celery = c.Celery
+		a.sqlaEngineOptions = c.SQLAlchemyEngineOptions
+		return a
 	},
 	newChild: func() client.Object { return &supersetv1alpha1.SupersetCeleryWorker{} },
 	newList:  func() client.ObjectList { return &supersetv1alpha1.SupersetCeleryWorkerList{} },
@@ -285,6 +351,7 @@ var celeryBeatDescriptor = &componentDescriptor{
 			podTemplate:        c.PodTemplate,
 			config:             c.Config,
 			image:              c.Image,
+			sqlaEngineOptions:  c.SQLAlchemyEngineOptions,
 		}
 	},
 	newChild: func() client.Object { return &supersetv1alpha1.SupersetCeleryBeat{} },
@@ -338,7 +405,9 @@ var mcpServerDescriptor = &componentDescriptor{
 		if c == nil {
 			return nil
 		}
-		return extractScalable(&c.ScalableComponentSpec, c.Config, c.Image, c.Service)
+		a := extractScalable(&c.ScalableComponentSpec, c.Config, c.Image, c.Service)
+		a.sqlaEngineOptions = c.SQLAlchemyEngineOptions
+		return a
 	},
 	newChild: func() client.Object { return &supersetv1alpha1.SupersetMcpServer{} },
 	newList:  func() client.ObjectList { return &supersetv1alpha1.SupersetMcpServerList{} },

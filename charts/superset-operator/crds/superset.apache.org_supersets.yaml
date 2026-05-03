@@ -3900,6 +3900,34 @@ spec:
                           type: object
                         type: array
                     type: object
+                  sqlaEngineOptions:
+                    properties:
+                      maxOverflow:
+                        format: int32
+                        type: integer
+                      poolPrePing:
+                        type: boolean
+                      poolRecycle:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      poolSize:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      poolTimeout:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      preset:
+                        enum:
+                        - disabled
+                        - conservative
+                        - balanced
+                        - performance
+                        - aggressive
+                        type: string
+                    type: object
                 type: object
               celeryFlower:
                 properties:
@@ -8096,6 +8124,61 @@ spec:
                     x-kubernetes-validations:
                     - message: maxReplicas must be >= minReplicas
                       rule: '!has(self.minReplicas) || self.maxReplicas >= self.minReplicas'
+                  celery:
+                    properties:
+                      concurrency:
+                        format: int32
+                        minimum: 1
+                        type: integer
+                      maxMemoryPerChild:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      maxTasksPerChild:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      optimization:
+                        enum:
+                        - default
+                        - fair
+                        type: string
+                      pool:
+                        enum:
+                        - prefork
+                        - threads
+                        - gevent
+                        - eventlet
+                        - solo
+                        type: string
+                      prefetchMultiplier:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      preset:
+                        enum:
+                        - disabled
+                        - conservative
+                        - balanced
+                        - performance
+                        - aggressive
+                        type: string
+                      softTimeLimit:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      timeLimit:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                    type: object
+                    x-kubernetes-validations:
+                    - message: maxTasksPerChild only applies to pool=prefork
+                      rule: (!has(self.maxTasksPerChild) || self.maxTasksPerChild
+                        == 0) || !has(self.pool) || self.pool == 'prefork'
+                    - message: maxMemoryPerChild only applies to pool=prefork
+                      rule: (!has(self.maxMemoryPerChild) || self.maxMemoryPerChild
+                        == 0) || !has(self.pool) || self.pool == 'prefork'
                   config:
                     type: string
                   deploymentTemplate:
@@ -11689,6 +11772,34 @@ spec:
                   replicas:
                     format: int32
                     type: integer
+                  sqlaEngineOptions:
+                    properties:
+                      maxOverflow:
+                        format: int32
+                        type: integer
+                      poolPrePing:
+                        type: boolean
+                      poolRecycle:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      poolSize:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      poolTimeout:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      preset:
+                        enum:
+                        - disabled
+                        - conservative
+                        - balanced
+                        - performance
+                        - aggressive
+                        type: string
+                    type: object
                 type: object
               config:
                 type: string
@@ -15340,6 +15451,34 @@ spec:
                           - name
                           type: object
                         type: array
+                    type: object
+                  sqlaEngineOptions:
+                    properties:
+                      maxOverflow:
+                        format: int32
+                        type: integer
+                      poolPrePing:
+                        type: boolean
+                      poolRecycle:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      poolSize:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      poolTimeout:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      preset:
+                        enum:
+                        - disabled
+                        - conservative
+                        - balanced
+                        - performance
+                        - aggressive
+                        type: string
                     type: object
                   timeout:
                     type: string
@@ -19253,6 +19392,34 @@ spec:
                         - ClusterIP
                         - NodePort
                         - LoadBalancer
+                        type: string
+                    type: object
+                  sqlaEngineOptions:
+                    properties:
+                      maxOverflow:
+                        format: int32
+                        type: integer
+                      poolPrePing:
+                        type: boolean
+                      poolRecycle:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      poolSize:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      poolTimeout:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      preset:
+                        enum:
+                        - disabled
+                        - conservative
+                        - balanced
+                        - performance
+                        - aggressive
                         type: string
                     type: object
                 type: object
@@ -23210,6 +23377,34 @@ spec:
                   name:
                     type: string
                 type: object
+              sqlaEngineOptions:
+                properties:
+                  maxOverflow:
+                    format: int32
+                    type: integer
+                  poolPrePing:
+                    type: boolean
+                  poolRecycle:
+                    format: int32
+                    minimum: 0
+                    type: integer
+                  poolSize:
+                    format: int32
+                    minimum: 0
+                    type: integer
+                  poolTimeout:
+                    format: int32
+                    minimum: 0
+                    type: integer
+                  preset:
+                    enum:
+                    - disabled
+                    - conservative
+                    - balanced
+                    - performance
+                    - aggressive
+                    type: string
+                type: object
               suspend:
                 type: boolean
               valkey:
@@ -23667,6 +23862,68 @@ spec:
                             type: string
                         type: object
                     type: object
+                  gunicorn:
+                    properties:
+                      keepAlive:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      limitRequestFieldSize:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      limitRequestLine:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      logLevel:
+                        enum:
+                        - debug
+                        - info
+                        - warning
+                        - error
+                        - critical
+                        type: string
+                      maxRequests:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      maxRequestsJitter:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      preset:
+                        enum:
+                        - disabled
+                        - conservative
+                        - balanced
+                        - performance
+                        - aggressive
+                        type: string
+                      threads:
+                        format: int32
+                        minimum: 1
+                        type: integer
+                      timeout:
+                        format: int32
+                        minimum: 1
+                        type: integer
+                      workerClass:
+                        enum:
+                        - sync
+                        - gthread
+                        - gevent
+                        - eventlet
+                        type: string
+                      workers:
+                        format: int32
+                        minimum: 1
+                        type: integer
+                    type: object
+                    x-kubernetes-validations:
+                    - message: threads > 1 requires workerClass=gthread
+                      rule: '!has(self.threads) || self.threads <= 1 || !has(self.workerClass)
+                        || self.workerClass == ''gthread'''
                   image:
                     properties:
                       repository:
@@ -27253,6 +27510,34 @@ spec:
                         - ClusterIP
                         - NodePort
                         - LoadBalancer
+                        type: string
+                    type: object
+                  sqlaEngineOptions:
+                    properties:
+                      maxOverflow:
+                        format: int32
+                        type: integer
+                      poolPrePing:
+                        type: boolean
+                      poolRecycle:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      poolSize:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      poolTimeout:
+                        format: int32
+                        minimum: 0
+                        type: integer
+                      preset:
+                        enum:
+                        - disabled
+                        - conservative
+                        - balanced
+                        - performance
+                        - aggressive
                         type: string
                     type: object
                 type: object

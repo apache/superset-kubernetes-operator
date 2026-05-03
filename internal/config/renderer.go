@@ -104,6 +104,9 @@ type ConfigInput struct {
 	// Valkey cache configuration. Nil when spec.valkey is not set.
 	Valkey *ValkeyInput
 
+	// Engine options for SQLALCHEMY_ENGINE_OPTIONS. Nil = do not render.
+	EngineOptions *EngineOptionsInput
+
 	// Top-level raw Python from spec.config.
 	Config string
 
@@ -127,6 +130,9 @@ func RenderConfig(componentType ComponentType, input *ConfigInput) string {
 	}
 	if input.Valkey != nil && !input.Valkey.ResultsBackend.Disabled {
 		b.WriteString("from cachelib.redis import RedisCache as _CachelibRedis\n")
+	}
+	if input.EngineOptions != nil && input.EngineOptions.UseNullPool {
+		b.WriteString("from sqlalchemy.pool import NullPool\n")
 	}
 	b.WriteString("\n")
 
@@ -166,6 +172,11 @@ func RenderConfig(componentType ComponentType, input *ConfigInput) string {
 	}
 
 	b.WriteString("\n")
+
+	// [2.5] SQLALCHEMY_ENGINE_OPTIONS
+	if input.EngineOptions != nil {
+		renderEngineOptions(&b, input.EngineOptions)
+	}
 
 	// [3] Valkey cache config
 	if input.Valkey != nil {
@@ -302,6 +313,29 @@ func renderValkey(b *strings.Builder, v *ValkeyInput) {
 	}
 
 	b.WriteString("\n")
+}
+
+// renderEngineOptions writes the SQLALCHEMY_ENGINE_OPTIONS Python configuration.
+func renderEngineOptions(b *strings.Builder, opts *EngineOptionsInput) {
+	b.WriteString("SQLALCHEMY_ENGINE_OPTIONS = {\n")
+	if opts.UseNullPool {
+		b.WriteString("    \"poolclass\": NullPool,\n")
+	} else {
+		fmt.Fprintf(b, "    \"pool_size\": %d,\n", opts.PoolSize)
+		fmt.Fprintf(b, "    \"max_overflow\": %d,\n", opts.MaxOverflow)
+		if opts.PoolRecycle > 0 {
+			fmt.Fprintf(b, "    \"pool_recycle\": %d,\n", opts.PoolRecycle)
+		}
+		if opts.PoolPrePing {
+			b.WriteString("    \"pool_pre_ping\": True,\n")
+		} else {
+			b.WriteString("    \"pool_pre_ping\": False,\n")
+		}
+		if opts.PoolTimeout > 0 {
+			fmt.Fprintf(b, "    \"pool_timeout\": %d,\n", opts.PoolTimeout)
+		}
+	}
+	b.WriteString("}\n\n")
 }
 
 // pyQuote returns s escaped for use inside a Python double-quoted string literal.
