@@ -1,0 +1,2574 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Kubernetes operator for deploying and managing Apache Superset">
+      
+      
+      
+        <link rel="canonical" href="https://apache.github.io/superset-kubernetes-operator/developer-guide/">
+      
+      
+        <link rel="prev" href="../security/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Developer Guide - Apache Superset Kubernetes Operator</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#developer-guide" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Apache Superset Kubernetes Operator" class="md-header__button md-logo" aria-label="Apache Superset Kubernetes Operator" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Apache Superset Kubernetes Operator
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Developer Guide
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/apache/superset-kubernetes-operator" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    apache/superset-kubernetes-operator
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Apache Superset Kubernetes Operator" class="md-nav__button md-logo" aria-label="Apache Superset Kubernetes Operator" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Apache Superset Kubernetes Operator
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/apache/superset-kubernetes-operator" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    apache/superset-kubernetes-operator
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../downloads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Downloads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../internals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Guide
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#development-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Development Setup
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Development Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#1-create-a-kind-cluster" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Create a Kind cluster
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-deploy-postgresql" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Deploy PostgreSQL
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-deploy-valkey" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Deploy Valkey
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-run-the-operator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Run the operator
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-deploy-superset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Deploy Superset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-access-superset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Access Superset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-clean-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Clean up
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#make-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Make Commands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pre-commit-hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pre-Commit Hooks
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pre-Commit Hooks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-philosophy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing Philosophy
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Testing Philosophy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#test-granularity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test granularity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#test-pyramid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test Pyramid
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-unit-tests-over-integration-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why unit tests over integration tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-goes-where" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What goes where
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#writing-a-new-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Writing a new unit test
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#testing-pure-packages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing pure packages
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#license-headers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        License Headers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dos-and-donts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Do's and Don'ts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Do&#39;s and Don&#39;ts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#do" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Do
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dont" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Don't
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-add-a-new-field" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Add a New Field
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-add-a-new-component" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Add a New Component
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#package-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Package Structure
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-files-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Files Reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metrics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Metrics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#operator-metrics-own-process" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operator metrics (own process)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#superset-instance-monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Superset instance monitoring
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pull-requests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pull Requests
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pull Requests">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#title-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Title format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#description" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Description
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#code-coverage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code coverage
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ci-supply-chain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CI &amp; Supply Chain
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="CI &amp; Supply Chain">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#github-actions-pinning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GitHub Actions pinning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tool-binary-pinning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool binary pinning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#workflow-permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflow permissions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#renovate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Renovate
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#releasing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Releasing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Releasing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#versioning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Versioning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#release-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Release checklist
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#development-setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Development Setup
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Development Setup">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#1-create-a-kind-cluster" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Create a Kind cluster
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-deploy-postgresql" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Deploy PostgreSQL
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-deploy-valkey" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Deploy Valkey
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-run-the-operator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Run the operator
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-deploy-superset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Deploy Superset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#6-access-superset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Access Superset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#7-clean-up" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Clean up
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#make-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Make Commands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pre-commit-hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pre-Commit Hooks
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pre-Commit Hooks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-philosophy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing Philosophy
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Testing Philosophy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#test-granularity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test granularity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#test-pyramid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test Pyramid
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-unit-tests-over-integration-tests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why unit tests over integration tests
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-goes-where" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What goes where
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#writing-a-new-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Writing a new unit test
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#testing-pure-packages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing pure packages
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#license-headers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        License Headers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dos-and-donts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Do's and Don'ts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Do&#39;s and Don&#39;ts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#do" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Do
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dont" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Don't
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-add-a-new-field" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Add a New Field
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-add-a-new-component" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Add a New Component
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#package-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Package Structure
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-files-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Files Reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metrics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Metrics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#operator-metrics-own-process" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operator metrics (own process)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#superset-instance-monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Superset instance monitoring
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pull-requests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pull Requests
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pull Requests">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#title-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Title format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#description" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Description
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#code-coverage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code coverage
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ci-supply-chain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CI &amp; Supply Chain
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="CI &amp; Supply Chain">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#github-actions-pinning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GitHub Actions pinning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tool-binary-pinning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool binary pinning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#workflow-permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflow permissions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#renovate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Renovate
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#releasing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Releasing
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Releasing">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#versioning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Versioning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#release-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Release checklist
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<!--
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+-->
+
+<h1 id="developer-guide">Developer Guide<a class="headerlink" href="#developer-guide" title="Permanent link">&para;</a></h1>
+<p>This guide covers everything you need to contribute to the Superset Kubernetes Operator.</p>
+<h2 id="development-setup">Development Setup<a class="headerlink" href="#development-setup" title="Permanent link">&para;</a></h2>
+<p>This section walks through setting up a local development environment with
+Kind, PostgreSQL, and Valkey. By the end you will have a working Superset
+instance running on your laptop.</p>
+<h3 id="prerequisites">Prerequisites<a class="headerlink" href="#prerequisites" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Tool</th>
+<th>Version</th>
+<th>Install</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Docker (or Podman)</td>
+<td>20+</td>
+<td><a href="https://docs.docker.com/get-docker/">docs.docker.com</a></td>
+</tr>
+<tr>
+<td>kubectl</td>
+<td>1.27+</td>
+<td><a href="https://kubernetes.io/docs/tasks/tools/">kubernetes.io</a></td>
+</tr>
+<tr>
+<td>Kind</td>
+<td>0.20+</td>
+<td><code>go install sigs.k8s.io/kind@latest</code> or <code>brew install kind</code></td>
+</tr>
+<tr>
+<td>Go</td>
+<td>1.26+</td>
+<td><a href="https://go.dev/dl/">go.dev</a></td>
+</tr>
+</tbody>
+</table>
+<h3 id="1-create-a-kind-cluster">1. Create a Kind cluster<a class="headerlink" href="#1-create-a-kind-cluster" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>kind<span class="w"> </span>create<span class="w"> </span>cluster<span class="w"> </span>--name<span class="w"> </span>superset
+</code></pre></div>
+<h3 id="2-deploy-postgresql">2. Deploy PostgreSQL<a class="headerlink" href="#2-deploy-postgresql" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>kubectl<span class="w"> </span>create<span class="w"> </span>deployment<span class="w"> </span>postgres<span class="w"> </span>--image<span class="o">=</span>postgres:16<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span>--port<span class="o">=</span><span class="m">5432</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span>--<span class="w"> </span>sh<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;exec postgres&#39;</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>kubectl<span class="w"> </span><span class="nb">set</span><span class="w"> </span>env<span class="w"> </span>deployment/postgres<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">  </span><span class="nv">POSTGRES_USER</span><span class="o">=</span>superset<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">  </span><span class="nv">POSTGRES_PASSWORD</span><span class="o">=</span>superset<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nv">POSTGRES_DB</span><span class="o">=</span>superset
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>kubectl<span class="w"> </span>expose<span class="w"> </span>deployment<span class="w"> </span>postgres<span class="w"> </span>--port<span class="o">=</span><span class="m">5432</span>
+</code></pre></div>
+<p>Wait for the pod to be ready:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>kubectl<span class="w"> </span><span class="nb">wait</span><span class="w"> </span>--for<span class="o">=</span><span class="nv">condition</span><span class="o">=</span>available<span class="w"> </span>deployment/postgres<span class="w"> </span>--timeout<span class="o">=</span>60s
+</code></pre></div>
+<h3 id="3-deploy-valkey">3. Deploy Valkey<a class="headerlink" href="#3-deploy-valkey" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>kubectl<span class="w"> </span>create<span class="w"> </span>deployment<span class="w"> </span>valkey<span class="w"> </span>--image<span class="o">=</span>valkey/valkey:8<span class="w"> </span>--port<span class="o">=</span><span class="m">6379</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>kubectl<span class="w"> </span>expose<span class="w"> </span>deployment<span class="w"> </span>valkey<span class="w"> </span>--port<span class="o">=</span><span class="m">6379</span>
+</code></pre></div>
+<h3 id="4-run-the-operator">4. Run the operator<a class="headerlink" href="#4-run-the-operator" title="Permanent link">&para;</a></h3>
+<p>There are two ways to run the operator:</p>
+<p><strong>Option A: Run locally (outside the cluster)</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>make<span class="w"> </span>run
+</code></pre></div>
+<p>This compiles and runs the operator process on your machine, connecting to the Kind cluster via your kubeconfig. Leave this terminal open — it streams reconciliation logs.</p>
+<p><strong>Option B: Deploy in-cluster</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>make<span class="w"> </span>docker-build<span class="w"> </span><span class="nv">IMG</span><span class="o">=</span>superset-operator:dev
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>kind<span class="w"> </span>load<span class="w"> </span>docker-image<span class="w"> </span>superset-operator:dev<span class="w"> </span>--name<span class="w"> </span>superset
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>make<span class="w"> </span>deploy<span class="w"> </span><span class="nv">IMG</span><span class="o">=</span>superset-operator:dev
+</code></pre></div>
+<p>This builds the operator image, loads it into Kind, and deploys it as a Deployment with all RBAC and CRDs. View logs with:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>kubectl<span class="w"> </span>logs<span class="w"> </span>-n<span class="w"> </span>superset-operator-system<span class="w"> </span>deployment/superset-operator-controller-manager<span class="w"> </span>-f
+</code></pre></div>
+<p><code>make deploy</code> is a superset of <code>make install</code> — it installs CRDs, RBAC, and the operator Deployment in one step.</p>
+<h3 id="5-deploy-superset">5. Deploy Superset<a class="headerlink" href="#5-deploy-superset" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>kubectl<span class="w"> </span>apply<span class="w"> </span>-f<span class="w"> </span>config/samples/superset_v1alpha1_superset.yaml
+</code></pre></div>
+<p>The sample manifest deploys a web server in dev mode with init disabled,
+pointing at the Postgres instance created above.</p>
+<h3 id="6-access-superset">6. Access Superset<a class="headerlink" href="#6-access-superset" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>kubectl<span class="w"> </span>port-forward<span class="w"> </span>svc/superset-sample-web-server<span class="w"> </span><span class="m">8088</span>:8088
+</code></pre></div>
+<p>Open <a href="http://localhost:8088">http://localhost:8088</a>.</p>
+<h3 id="7-clean-up">7. Clean up<a class="headerlink" href="#7-clean-up" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>kubectl<span class="w"> </span>delete<span class="w"> </span>superset<span class="w"> </span>superset-sample
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>kind<span class="w"> </span>delete<span class="w"> </span>cluster<span class="w"> </span>--name<span class="w"> </span>superset
+</code></pre></div>
+<hr />
+<h2 id="make-commands">Make Commands<a class="headerlink" href="#make-commands" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>make run</code></td>
+<td>Run the operator locally (connects to cluster via kubeconfig)</td>
+</tr>
+<tr>
+<td><code>make deploy IMG=&lt;image&gt;</code></td>
+<td>Deploy operator in-cluster (CRDs + RBAC + Deployment — superset of <code>make install</code>)</td>
+</tr>
+<tr>
+<td><code>make install</code></td>
+<td>Install CRDs only</td>
+</tr>
+<tr>
+<td><code>make undeploy</code></td>
+<td>Remove the in-cluster operator deployment</td>
+</tr>
+<tr>
+<td><code>make uninstall</code></td>
+<td>Remove CRDs only</td>
+</tr>
+<tr>
+<td><code>make manifests</code></td>
+<td>Regenerate CRD YAML and RBAC from kubebuilder markers</td>
+</tr>
+<tr>
+<td><code>make generate</code></td>
+<td>Regenerate DeepCopy methods</td>
+</tr>
+<tr>
+<td><code>make build</code></td>
+<td>Build the operator binary</td>
+</tr>
+<tr>
+<td><code>make docker-build IMG=&lt;image&gt;</code></td>
+<td>Build container image for the local platform</td>
+</tr>
+<tr>
+<td><code>make docker-buildx IMG=&lt;image&gt;</code></td>
+<td>Build and push multi-platform image (linux/arm64, linux/amd64)</td>
+</tr>
+<tr>
+<td><code>make test</code></td>
+<td>Run all tests (unit + integration + e2e)</td>
+</tr>
+<tr>
+<td><code>make test-unit</code></td>
+<td>Run unit tests (no envtest or cluster required)</td>
+</tr>
+<tr>
+<td><code>make test-integration</code></td>
+<td>Run integration tests (requires envtest)</td>
+</tr>
+<tr>
+<td><code>make test-e2e</code></td>
+<td>Run e2e tests (requires Kind cluster)</td>
+</tr>
+<tr>
+<td><code>make lint</code></td>
+<td>Run golangci-lint</td>
+</tr>
+<tr>
+<td><code>make hooks</code></td>
+<td>Configure git to use <code>.githooks/</code> for pre-commit hooks</td>
+</tr>
+<tr>
+<td><code>make helm</code></td>
+<td>Sync CRDs into Helm chart and package it</td>
+</tr>
+<tr>
+<td><code>make helm-lint</code></td>
+<td>Lint the Helm chart</td>
+</tr>
+<tr>
+<td><code>make docs-serve</code></td>
+<td>Serve docs locally at http://localhost:8000</td>
+</tr>
+<tr>
+<td><code>make docs-build</code></td>
+<td>Build docs site (runs in CI with <code>--strict</code>)</td>
+</tr>
+<tr>
+<td><code>make docs-api</code></td>
+<td>Regenerate API reference from Go types</td>
+</tr>
+<tr>
+<td><code>make check-license</code></td>
+<td>Check Apache license headers (requires Java)</td>
+</tr>
+<tr>
+<td><code>make clean</code></td>
+<td>Remove build artifacts, downloaded tools, and test cache</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="pre-commit-hooks">Pre-Commit Hooks<a class="headerlink" href="#pre-commit-hooks" title="Permanent link">&para;</a></h2>
+<p>The project includes a lightweight git hook at <code>.githooks/pre-commit</code> that runs <code>make lint</code> before each commit. No external tools required — it uses <code>golangci-lint</code>, which covers formatting (<code>gofmt</code>, <code>goimports</code>), <code>go vet</code>, and all configured linters.</p>
+<h3 id="setup">Setup<a class="headerlink" href="#setup" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>make<span class="w"> </span>hooks
+</code></pre></div>
+<p>This sets <code>core.hooksPath</code> to <code>.githooks/</code> for this repository. To bypass the hook for a specific commit, use <code>git commit --no-verify</code>.</p>
+<hr />
+<h2 id="documentation">Documentation<a class="headerlink" href="#documentation" title="Permanent link">&para;</a></h2>
+<p>The docs are built with <a href="https://squidfunk.github.io/mkdocs-material/">mkdocs-material</a>. To set up and preview locally:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>virtualenv<span class="w"> </span>venv
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nb">source</span><span class="w"> </span>venv/bin/activate
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>docs-requirements.txt
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>make<span class="w"> </span>docs-serve
+</code></pre></div>
+<p>This starts a live-reloading server at <code>http://localhost:8000</code>. Edit Markdown files in <code>docs/</code> and changes appear instantly.</p>
+<p>To verify the docs build cleanly (same check that runs in CI):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>make<span class="w"> </span>docs-build
+</code></pre></div>
+<h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
+<p>See <a href="../architecture/">Architecture</a> for the structural overview (CRD hierarchy,
+configuration model, config rendering) and <a href="../internals/">Internals</a> for runtime
+behavior (reconciliation lifecycle, init pod state machine, retry semantics).
+Key points:</p>
+<ul>
+<li><strong>Two-tier CRD</strong>: Parent <code>Superset</code> resolves shared spec (top-level + per-component) into flat child CRDs</li>
+<li><strong>7 child types</strong>: SupersetInit, SupersetWebServer, SupersetCeleryWorker, SupersetCeleryBeat, SupersetCeleryFlower, SupersetWebsocketServer, SupersetMcpServer</li>
+<li><strong>3 pure Go packages</strong>: <code>internal/resolution/</code> (spec flattening), <code>internal/config/</code> (Python rendering), <code>internal/common/</code> (shared types)</li>
+<li><strong>Parent resolves, children execute</strong>: All layering logic in the parent controller; child CRs are fully flattened</li>
+</ul>
+<p>The parent controller orchestrates all reconciliation:</p>
+<ul>
+<li><code>reconcileInit()</code> — SupersetInit CR → bare Pod (db upgrade + superset init) + ConfigMap</li>
+<li><code>reconcileServiceAccount()</code> — ServiceAccount</li>
+<li><code>reconcileComponent()</code> — Table-driven loop over <code>componentDescriptors</code>: resolves each enabled component into a flat child CR (WebServer, CeleryWorker, CeleryBeat, CeleryFlower, WebsocketServer, McpServer). Each child controller then reconciles its own sub-resources (Deployment, ConfigMap, Service, HPA, PDB).</li>
+<li><code>reconcileNetworking()</code> — HTTPRoute or Ingress</li>
+<li><code>reconcileMonitoring()</code> — ServiceMonitor (unstructured)</li>
+<li><code>reconcileNetworkPolicies()</code> — NetworkPolicy per component</li>
+<li><code>updateStatus()</code> — Aggregate child statuses into phase</li>
+</ul>
+<hr />
+<h2 id="testing-philosophy">Testing Philosophy<a class="headerlink" href="#testing-philosophy" title="Permanent link">&para;</a></h2>
+<p>We use a <strong>pyramid testing strategy</strong> where the vast majority of logic is
+covered by fast, deterministic unit tests. Integration and e2e tests are
+reserved for verifying the system works end-to-end, not for testing
+individual behaviors.</p>
+<h3 id="test-granularity">Test granularity<a class="headerlink" href="#test-granularity" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Prefer broad happy-path tests</strong> that cover critical assertions in a single test function. For example, one comprehensive test that creates all components and verifies config, env vars, and status is better than 10 separate tests each checking one field.</li>
+<li><strong>Use granular tests only for complex utilities</strong> with many edge cases (e.g., merge functions, backoff calculation, condition management). These benefit from table-driven tests covering boundary conditions.</li>
+<li><strong>Every assertion should protect against a plausible regression.</strong> If you can't name the scenario where removing it would let a bug through, it doesn't belong. Avoid adding narrow standalone tests when the assertion fits naturally in an existing comprehensive test.</li>
+<li><strong>When fixing a regression, always add a test that would have caught it.</strong> Regressions that broke silently indicate a gap in test coverage — close the gap as part of the fix.</li>
+<li><strong>Use subtests (<code>t.Run</code>)</strong> to group related scenarios within a single test function instead of creating separate top-level tests.</li>
+</ul>
+<h3 id="test-pyramid">Test Pyramid<a class="headerlink" href="#test-pyramid" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Unit tests</strong> — Fast, deterministic, fake client or pure functions. Cover all business logic.</li>
+<li><strong>Integration tests</strong> — Minimal envtest tests (real API server). Verify CRD registration, CEL validation, reconciler lifecycle.</li>
+<li><strong>E2E tests</strong> — 1-2 comprehensive scenarios on a Kind cluster. Verify full operator lifecycle.</li>
+</ul>
+<h3 id="why-unit-tests-over-integration-tests">Why unit tests over integration tests<a class="headerlink" href="#why-unit-tests-over-integration-tests" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>Unit test</th>
+<th>Integration test</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Speed</td>
+<td>&lt;1 second</td>
+<td>10-30 seconds (envtest startup)</td>
+</tr>
+<tr>
+<td>Reliability</td>
+<td>Deterministic</td>
+<td>Flaky (port binding, timing)</td>
+</tr>
+<tr>
+<td>Dependencies</td>
+<td>None (fake client)</td>
+<td>envtest binaries</td>
+</tr>
+<tr>
+<td>IDE support</td>
+<td>Works everywhere</td>
+<td>Needs KUBEBUILDER_ASSETS</td>
+</tr>
+<tr>
+<td>CI cost</td>
+<td>Negligible</td>
+<td>Moderate</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Rule of thumb</strong>: If you can test it with a fake client, do. Reserve
+envtest/e2e for things that genuinely need a real API server (CEL
+validation, CRD defaulting, multi-controller interaction).</p>
+<h3 id="what-goes-where">What goes where<a class="headerlink" href="#what-goes-where" title="Permanent link">&para;</a></h3>
+<p><strong>Unit tests</strong> (<code>*_test.go</code> with <code>testing</code> package + <code>fake.NewClientBuilder</code>):
+- Resolution engine: merge semantics, override behavior, beat singleton
+- Config rendering: per-component Python output, metastore URI, config
+- Parent controller: reconciliation logic, child CR creation/deletion,
+  config env var injection, image overrides, status aggregation, suspend
+- Child controller helpers: ConfigMap, Deployment, Service reconciliation
+- InitPod: pod spec building, retention policy, backoff calculation</p>
+<p><strong>Integration tests</strong> (Ginkgo + envtest):
+- CRD schema validation works (kubebuilder markers produce correct OpenAPI)
+- CEL validation rules reject invalid CRs
+- Controller manager starts and registers all controllers</p>
+<p><strong>E2E tests</strong> (Ginkgo + Kind cluster):
+- Operator health: controller pod running, metrics endpoint serving
+- CR lifecycle: apply Superset CR → child CRs created → Deployments + ConfigMaps exist → status populated
+- Multi-component: all component types reconciled with correct sub-resources</p>
+<h3 id="writing-a-new-unit-test">Writing a new unit test<a class="headerlink" href="#writing-a-new-unit-test" title="Permanent link">&para;</a></h3>
+<p>Use the standard pattern from <code>reconcile_test.go</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">TestReconcile_MyScenario</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">    </span><span class="nx">scheme</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">testScheme</span><span class="p">(</span><span class="nx">t</span><span class="p">)</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">    </span><span class="nx">superset</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">supersetv1alpha1</span><span class="p">.</span><span class="nx">Superset</span><span class="p">{</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">        </span><span class="nx">ObjectMeta</span><span class="p">:</span><span class="w"> </span><span class="nx">metav1</span><span class="p">.</span><span class="nx">ObjectMeta</span><span class="p">{</span><span class="nx">Name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;test&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">Namespace</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;default&quot;</span><span class="p">},</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">        </span><span class="nx">Spec</span><span class="p">:</span><span class="w"> </span><span class="nx">supersetv1alpha1</span><span class="p">.</span><span class="nx">SupersetSpec</span><span class="p">{</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="w">            </span><span class="nx">Image</span><span class="p">:</span><span class="w">       </span><span class="nx">supersetv1alpha1</span><span class="p">.</span><span class="nx">ImageSpec</span><span class="p">{</span><span class="nx">Repository</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;apache/superset&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">Tag</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;latest&quot;</span><span class="p">},</span>
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="w">            </span><span class="nx">Environment</span><span class="p">:</span><span class="w"> </span><span class="nx">strPtr</span><span class="p">(</span><span class="s">&quot;dev&quot;</span><span class="p">),</span>
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="w">            </span><span class="nx">SecretKey</span><span class="p">:</span><span class="w">   </span><span class="nx">strPtr</span><span class="p">(</span><span class="s">&quot;test-secret-key&quot;</span><span class="p">),</span>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="w">            </span><span class="nx">Init</span><span class="p">:</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">supersetv1alpha1</span><span class="p">.</span><span class="nx">InitSpec</span><span class="p">{</span>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="w">                </span><span class="nx">Disabled</span><span class="p">:</span><span class="w"> </span><span class="nx">boolPtr</span><span class="p">(</span><span class="kc">true</span><span class="p">),</span>
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="w">            </span><span class="p">},</span>
+<a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a><span class="w">        </span><span class="p">},</span>
+<a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a>
+<a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a><span class="w">    </span><span class="nx">c</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">fake</span><span class="p">.</span><span class="nx">NewClientBuilder</span><span class="p">().</span>
+<a id="__codelineno-13-17" name="__codelineno-13-17" href="#__codelineno-13-17"></a><span class="w">        </span><span class="nx">WithScheme</span><span class="p">(</span><span class="nx">scheme</span><span class="p">).</span>
+<a id="__codelineno-13-18" name="__codelineno-13-18" href="#__codelineno-13-18"></a><span class="w">        </span><span class="nx">WithObjects</span><span class="p">(</span><span class="nx">superset</span><span class="p">).</span>
+<a id="__codelineno-13-19" name="__codelineno-13-19" href="#__codelineno-13-19"></a><span class="w">        </span><span class="nx">WithStatusSubresource</span><span class="p">(</span><span class="nx">superset</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">supersetv1alpha1</span><span class="p">.</span><span class="nx">SupersetWebServer</span><span class="p">{}).</span>
+<a id="__codelineno-13-20" name="__codelineno-13-20" href="#__codelineno-13-20"></a><span class="w">        </span><span class="nx">Build</span><span class="p">()</span>
+<a id="__codelineno-13-21" name="__codelineno-13-21" href="#__codelineno-13-21"></a>
+<a id="__codelineno-13-22" name="__codelineno-13-22" href="#__codelineno-13-22"></a><span class="w">    </span><span class="nx">r</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">SupersetReconciler</span><span class="p">{</span>
+<a id="__codelineno-13-23" name="__codelineno-13-23" href="#__codelineno-13-23"></a><span class="w">        </span><span class="nx">Client</span><span class="p">:</span><span class="w"> </span><span class="nx">c</span><span class="p">,</span><span class="w"> </span><span class="nx">Scheme</span><span class="p">:</span><span class="w"> </span><span class="nx">scheme</span><span class="p">,</span><span class="w"> </span><span class="nx">Recorder</span><span class="p">:</span><span class="w"> </span><span class="nx">record</span><span class="p">.</span><span class="nx">NewFakeRecorder</span><span class="p">(</span><span class="mi">10</span><span class="p">),</span>
+<a id="__codelineno-13-24" name="__codelineno-13-24" href="#__codelineno-13-24"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-13-25" name="__codelineno-13-25" href="#__codelineno-13-25"></a>
+<a id="__codelineno-13-26" name="__codelineno-13-26" href="#__codelineno-13-26"></a><span class="w">    </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">r</span><span class="p">.</span><span class="nx">Reconcile</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">Background</span><span class="p">(),</span><span class="w"> </span><span class="nx">reconcile</span><span class="p">.</span><span class="nx">Request</span><span class="p">{</span>
+<a id="__codelineno-13-27" name="__codelineno-13-27" href="#__codelineno-13-27"></a><span class="w">        </span><span class="nx">NamespacedName</span><span class="p">:</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">NamespacedName</span><span class="p">{</span><span class="nx">Name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;test&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">Namespace</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;default&quot;</span><span class="p">},</span>
+<a id="__codelineno-13-28" name="__codelineno-13-28" href="#__codelineno-13-28"></a><span class="w">    </span><span class="p">})</span>
+<a id="__codelineno-13-29" name="__codelineno-13-29" href="#__codelineno-13-29"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-13-30" name="__codelineno-13-30" href="#__codelineno-13-30"></a><span class="w">        </span><span class="nx">t</span><span class="p">.</span><span class="nx">Fatalf</span><span class="p">(</span><span class="s">&quot;reconcile: %v&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<a id="__codelineno-13-31" name="__codelineno-13-31" href="#__codelineno-13-31"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-13-32" name="__codelineno-13-32" href="#__codelineno-13-32"></a>
+<a id="__codelineno-13-33" name="__codelineno-13-33" href="#__codelineno-13-33"></a><span class="w">    </span><span class="c1">// Assert on the result...</span>
+<a id="__codelineno-13-34" name="__codelineno-13-34" href="#__codelineno-13-34"></a><span class="p">}</span>
+</code></pre></div>
+<p>Key patterns:
+- Use <code>boolPtr(true)</code> for <code>Init.Disabled</code> to bypass init pod lifecycle
+- Register all types in the scheme via <code>testScheme(t)</code> helper
+- Use <code>WithStatusSubresource</code> for objects whose status is updated
+- Assert on child CR fields, not on intermediate state</p>
+<h3 id="testing-pure-packages">Testing pure packages<a class="headerlink" href="#testing-pure-packages" title="Permanent link">&para;</a></h3>
+<p><code>internal/resolution/</code> and <code>internal/config/</code> are pure Go with zero
+controller-runtime dependencies. Test them directly:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">TestMergeEnvVars_ConflictResolution</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">    </span><span class="nx">result</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">resolution</span><span class="p">.</span><span class="nx">MergeEnvVars</span><span class="p">(</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">        </span><span class="p">[]</span><span class="nx">corev1</span><span class="p">.</span><span class="nx">EnvVar</span><span class="p">{{</span><span class="nx">Name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;A&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">Value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1&quot;</span><span class="p">}},</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">        </span><span class="p">[]</span><span class="nx">corev1</span><span class="p">.</span><span class="nx">EnvVar</span><span class="p">{{</span><span class="nx">Name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;A&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">Value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2&quot;</span><span class="p">}},</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">    </span><span class="p">)</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">    </span><span class="c1">// Later slice wins on name conflict.</span>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">result</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="nx">Value</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="s">&quot;2&quot;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="o">...</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="p">}</span>
+</code></pre></div>
+<hr />
+<h2 id="license-headers">License Headers<a class="headerlink" href="#license-headers" title="Permanent link">&para;</a></h2>
+<p>All source files must carry the Apache License 2.0 header. This is enforced in CI
+by <a href="https://creadur.apache.org/rat/">Apache Rat</a>.</p>
+<p>To check locally (requires Java):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>make<span class="w"> </span>check-license
+</code></pre></div>
+<p>The script downloads the Rat jar to <code>/tmp/lib/</code> on first run. Files that are
+generated, scaffolded by Operator SDK, or not user-authored are excluded via
+<code>.rat-excludes</code>.</p>
+<p>When adding new source files (<code>.go</code>, <code>.yaml</code>, <code>.sh</code>, <code>Dockerfile</code>, etc.), include
+the appropriate license header. Go files get this automatically from
+<code>hack/boilerplate.go.txt</code> when using <code>make generate</code>. For other file types, use
+the <code>#</code>-comment form:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a># Licensed to the Apache Software Foundation (ASF) under one or more
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a># contributor license agreements.  See the NOTICE file distributed with
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a># this work for additional information regarding copyright ownership.
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a># The ASF licenses this file to You under the Apache License, Version 2.0
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a># (the &quot;License&quot;); you may not use this file except in compliance with
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a># the License.  You may obtain a copy of the License at
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>#
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a>#    http://www.apache.org/licenses/LICENSE-2.0
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a>#
+<a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a># Unless required by applicable law or agreed to in writing, software
+<a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a># distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+<a id="__codelineno-16-12" name="__codelineno-16-12" href="#__codelineno-16-12"></a># WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+<a id="__codelineno-16-13" name="__codelineno-16-13" href="#__codelineno-16-13"></a># See the License for the specific language governing permissions and
+<a id="__codelineno-16-14" name="__codelineno-16-14" href="#__codelineno-16-14"></a># limitations under the License.
+</code></pre></div>
+<hr />
+<h2 id="dos-and-donts">Do's and Don'ts<a class="headerlink" href="#dos-and-donts" title="Permanent link">&para;</a></h2>
+<h3 id="do">Do<a class="headerlink" href="#do" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Use shared helpers</strong> from <code>child_reconciler.go</code> (<code>reconcileChildConfigMap</code>, <code>reconcileChildDeployment</code>, <code>reconcileChildService</code>, <code>reconcileScaling</code>, <code>updateChildStatus</code>, <code>buildChecksumAnnotations</code>)</li>
+<li><strong>Use <code>componentLabels(component, instance)</code></strong> for consistent label generation</li>
+<li><strong>Stamp <code>parentLabels(parentName)</code> on all parent-owned resources</strong> (ServiceAccount, Ingress, HTTPRoute, ServiceMonitor) — this enables label-based cleanup</li>
+<li><strong>Use <code>controllerutil.CreateOrUpdate</code></strong> for idempotent reconciliation</li>
+<li><strong>Set OwnerReferences</strong> via <code>controllerutil.SetControllerReference</code></li>
+<li><strong>Record events</strong> via <code>r.Recorder.Eventf()</code> for errors and state changes</li>
+<li><strong>Add Go doc comments</strong> to all exported types — they become CRD descriptions</li>
+<li><strong>Run <code>make manifests generate</code></strong> after any change to <code>api/v1alpha1/</code></li>
+<li><strong>Write unit tests first</strong> — every new feature should have tests before integration</li>
+<li><strong>Test with fake client</strong> — only use envtest when you genuinely need a real API server</li>
+</ul>
+<h3 id="dont">Don't<a class="headerlink" href="#dont" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Don't hardcode child CR names</strong> — always use <code>componentDescriptor.childName()</code> to resolve names. Child CRs use the parent name (differentiated by Kind); sub-resources are named <code>{parentName}-{componentType}</code>.</li>
+<li><strong>Don't fetch resources by name for cleanup</strong> — use <code>deleteByLabels</code> with <code>parentLabels(parentName)</code> (parent-owned resources) or <code>componentLabels</code> (child-owned resources) to discover and clean up. Name-based <code>CreateOrUpdate</code> and status reads are fine — those address resources whose names the operator controls.</li>
+<li><strong>Don't hardcode commands/ports</strong> — use <code>DeploymentConfig</code> defaults</li>
+<li><strong>Don't duplicate controller logic</strong> — use <code>child_reconciler.go</code> helpers</li>
+<li><strong>Don't add fields without doc comments</strong> — they become CRD descriptions</li>
+<li><strong>Don't use <code>bool</code> with <code>omitempty</code></strong> — use <code>*bool</code> to distinguish false from unset</li>
+<li><strong>Don't write integration tests for unit-testable logic</strong> — use fake client</li>
+<li><strong>Don't put secret values in ConfigMaps</strong> — in prod mode, secrets are mounted via env vars from Kubernetes Secrets</li>
+<li><strong>Don't use admission webhooks for validation</strong> — use <a href="https://kubernetes.io/docs/reference/using-api/cel/">CEL</a> (<code>x-kubernetes-validations</code>) on CRD types instead. Webhooks add operational complexity (cert-manager dependency, TLS setup) and are not installed by default. All validation rules should be expressed as CEL where feasible.</li>
+<li><strong>Cross-reference security docs</strong> — any change that affects trust boundaries, secret handling, RBAC, CRD validation, or the operator's attack surface must be reflected in <a href="../security/"><code>docs/security.md</code></a>. Review the threat model, design decisions, and in-scope/out-of-scope sections to ensure they stay accurate.</li>
+</ul>
+<h2 id="how-to-add-a-new-field">How to Add a New Field<a class="headerlink" href="#how-to-add-a-new-field" title="Permanent link">&para;</a></h2>
+<p>New Deployment/Pod/Container fields go into the template hierarchy:</p>
+<ol>
+<li>Determine the Kubernetes level: <code>DeploymentTemplate</code> (Deployment-level),
+   <code>PodTemplate</code> (PodSpec-level), or <code>ContainerTemplate</code> (Container-level)</li>
+<li>Add the field to the appropriate template type in <code>api/v1alpha1/shared_types.go</code></li>
+<li>Add the merge logic in <code>internal/resolution/merge.go</code> (<code>MergeDeploymentTemplate</code>,
+   <code>MergePodTemplate</code>, or <code>MergeContainerTemplate</code>) using the field's natural
+   semantics (scalar → <code>ResolveOverridableValue</code>, named slice → <code>Merge*ByName</code>,
+   map → <code>MergeMaps</code>, unnamed slice → <code>append</code>). All merge functions follow the
+   convention <code>Merge*(topLevel, component[, operatorInjected])</code>: the top-level
+   value establishes ordering, the component value overrides by name in place,
+   and where applicable (env vars, volume mounts, labels) operator-injected
+   values are applied last so they cannot be overridden by user configuration.
+   Any code consuming resolved ports, env vars, or other merged collections
+   must respect this same ordering.</li>
+<li>Wire the field in <code>internal/controller/deployment_builder.go</code> (<code>buildDeploymentSpec</code>)</li>
+<li>Run <code>make manifests generate</code></li>
+<li>Add assertions to existing comprehensive tests</li>
+<li>Update sample CRs if helpful</li>
+</ol>
+<h2 id="how-to-add-a-new-component">How to Add a New Component<a class="headerlink" href="#how-to-add-a-new-component" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Create <code>api/v1alpha1/supersetnewcomponent_types.go</code>:</li>
+<li>Define flat spec type embedding <code>FlatComponentSpec</code></li>
+<li>Add <code>Config</code>/checksum fields (if Python) or just <code>Service</code> (if not)</li>
+<li>
+<p>Register in <code>init()</code> via <code>SchemeBuilder.Register</code></p>
+</li>
+<li>
+<p>Add component spec to parent in <code>superset_types.go</code></p>
+</li>
+<li>
+<p>Create <code>internal/controller/supersetnewcomponent_controller.go</code>:</p>
+</li>
+<li>Follow the pattern in <code>supersetceleryflower_controller.go</code></li>
+<li>Define a <code>DeploymentConfig</code> with component-specific defaults</li>
+<li>Use shared helpers from <code>child_reconciler.go</code></li>
+<li>
+<p>Add RBAC markers</p>
+</li>
+<li>
+<p>Register in parent controller:</p>
+</li>
+<li>Add <code>reconcileXxx</code> method and call in <code>Reconcile()</code></li>
+<li>Add <code>convertXxxComponent</code> function</li>
+<li>Add status check in <code>updateStatus()</code></li>
+<li>
+<p>Add <code>Owns()</code> in <code>SetupWithManager()</code></p>
+</li>
+<li>
+<p>Register in <code>cmd/main.go</code></p>
+</li>
+<li>Run <code>make manifests generate</code></li>
+<li>Add sample CR and unit tests</li>
+</ol>
+<h2 id="package-structure">Package Structure<a class="headerlink" href="#package-structure" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a>internal/
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a>├── resolution/       # Pure Go — spec flattening engine
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a>│                     # Zero controller-runtime deps, fully unit-testable
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a>│                     # MergeMaps, MergeEnvVars, ResolveChildSpec(), etc.
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a>├── config/           # Pure Go — Python config renderer
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a>│                     # Per-component rendering, metastore URI,
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a>│                     # config appending
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a>├── common/           # Shared types (ComponentType, Ptr helper)
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a>└── controller/       # controller-runtime — reconcilers
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a>                      # Parent controller, 7 child controllers,
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a>                      # InitPod lifecycle, status, scaling, networking
+</code></pre></div>
+<hr />
+<h2 id="key-files-reference">Key Files Reference<a class="headerlink" href="#key-files-reference" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>api/v1alpha1/shared_types.go</code></td>
+<td>ImageSpec, MetastoreSpec, DeploymentTemplate, PodTemplate, ContainerTemplate, FlatComponentSpec</td>
+</tr>
+<tr>
+<td><code>api/v1alpha1/superset_types.go</code></td>
+<td>Parent SupersetSpec, component specs, InitSpec, CEL validation rules, status</td>
+</tr>
+<tr>
+<td><code>internal/common/types.go</code></td>
+<td>Shared ComponentType, Ptr helper</td>
+</tr>
+<tr>
+<td><code>internal/resolution/resolver.go</code></td>
+<td>ResolveChildSpec — core flattening engine</td>
+</tr>
+<tr>
+<td><code>internal/config/renderer.go</code></td>
+<td>RenderConfig — per-component Python generation</td>
+</tr>
+<tr>
+<td><code>internal/controller/child_reconciler.go</code></td>
+<td>Shared helpers for all child controllers</td>
+</tr>
+<tr>
+<td><code>internal/controller/superset_controller.go</code></td>
+<td>Parent reconciler (orchestrates everything)</td>
+</tr>
+<tr>
+<td><code>internal/controller/deployment_builder.go</code></td>
+<td>Deployment construction from flat spec</td>
+</tr>
+<tr>
+<td><code>internal/controller/initpod.go</code></td>
+<td>InitPod lifecycle manager</td>
+</tr>
+<tr>
+<td><code>internal/controller/reconcile_test.go</code></td>
+<td>Parent controller unit tests (fake client)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="metrics">Metrics<a class="headerlink" href="#metrics" title="Permanent link">&para;</a></h2>
+<p>The operator exposes metrics at two levels:</p>
+<h3 id="operator-metrics-own-process">Operator metrics (own process)<a class="headerlink" href="#operator-metrics-own-process" title="Permanent link">&para;</a></h3>
+<p>Controller-runtime provides default metrics (reconcile counts/durations, leader
+election, work queue depth) on HTTPS port 8443. The metrics endpoint is
+protected by Kubernetes authentication and authorization — only clients with
+the <code>metrics-reader</code> ClusterRole can scrape.</p>
+<p>Key files:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>config/default/metrics_service.yaml</code></td>
+<td>Service exposing :8443</td>
+</tr>
+<tr>
+<td><code>config/default/manager_metrics_patch.yaml</code></td>
+<td>Injects <code>--metrics-bind-address</code></td>
+</tr>
+<tr>
+<td><code>config/rbac/metrics_auth_role.yaml</code></td>
+<td>TokenReview/SubjectAccessReview for auth</td>
+</tr>
+<tr>
+<td><code>config/rbac/metrics_reader_role.yaml</code></td>
+<td>Grants GET on <code>/metrics</code></td>
+</tr>
+<tr>
+<td><code>config/prometheus/monitor.yaml</code></td>
+<td>ServiceMonitor for operator metrics (optional)</td>
+</tr>
+<tr>
+<td><code>config/network-policy/allow-metrics-traffic.yaml</code></td>
+<td>NetworkPolicy restricting scrape access (optional)</td>
+</tr>
+</tbody>
+</table>
+<p>The Helm chart enables metrics by default (<code>metrics.enabled: true</code>, port 8443).</p>
+<p><strong>No custom metrics.</strong> Controller-runtime defaults are sufficient for operator
+health. Don't add custom metrics unless there's a concrete alerting or
+dashboarding need that can't be met by the defaults.</p>
+<h3 id="superset-instance-monitoring">Superset instance monitoring<a class="headerlink" href="#superset-instance-monitoring" title="Permanent link">&para;</a></h3>
+<p>When <code>spec.monitoring.serviceMonitor</code> is set on a Superset CR, the parent
+controller creates a Prometheus ServiceMonitor targeting the web-server
+component (port 8088). This uses unstructured objects because the
+ServiceMonitor CRD is external (<code>monitoring.coreos.com/v1</code>). If the CRD is
+not installed, the controller logs an info message and continues.</p>
+<p>See <code>internal/controller/monitoring.go</code> for the implementation.</p>
+<hr />
+<h2 id="pull-requests">Pull Requests<a class="headerlink" href="#pull-requests" title="Permanent link">&para;</a></h2>
+<h3 id="title-format">Title format<a class="headerlink" href="#title-format" title="Permanent link">&para;</a></h3>
+<p>PR titles must follow the conventional commits format:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a>type(scope): description
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a>type: description
+</code></pre></div>
+<p>Scope is optional but encouraged when the change is scoped to a single area.</p>
+<p>CI validates this on every PR via the <code>PR / Validate PR title</code> check.</p>
+<p><strong>Allowed types:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Use for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>feat</code></td>
+<td>New functionality</td>
+</tr>
+<tr>
+<td><code>fix</code></td>
+<td>Bug fixes</td>
+</tr>
+<tr>
+<td><code>refactor</code></td>
+<td>Code restructuring without behavior change</td>
+</tr>
+<tr>
+<td><code>docs</code></td>
+<td>Documentation only</td>
+</tr>
+<tr>
+<td><code>test</code></td>
+<td>Adding or updating tests</td>
+</tr>
+<tr>
+<td><code>chore</code></td>
+<td>Maintenance (config, tooling, dependencies)</td>
+</tr>
+<tr>
+<td><code>ci</code></td>
+<td>CI/CD workflow changes</td>
+</tr>
+<tr>
+<td><code>build</code></td>
+<td>Build system or external dependency changes</td>
+</tr>
+<tr>
+<td><code>perf</code></td>
+<td>Performance improvements</td>
+</tr>
+<tr>
+<td><code>style</code></td>
+<td>Formatting, whitespace, linting</td>
+</tr>
+<tr>
+<td><code>revert</code></td>
+<td>Reverting a previous commit</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Allowed scopes:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Scope</th>
+<th>Covers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>api</code></td>
+<td>CRD type definitions (<code>api/v1alpha1/</code>)</td>
+</tr>
+<tr>
+<td><code>controller</code></td>
+<td>Reconciler logic (<code>internal/controller/</code>)</td>
+</tr>
+<tr>
+<td><code>resolution</code></td>
+<td>Spec resolution/merge engine (<code>internal/resolution/</code>)</td>
+</tr>
+<tr>
+<td><code>config</code></td>
+<td>Config rendering (<code>internal/config/</code>)</td>
+</tr>
+<tr>
+<td><code>helm</code></td>
+<td>Helm chart (<code>charts/</code>)</td>
+</tr>
+<tr>
+<td><code>ci</code></td>
+<td>CI workflows, tooling (<code>.github/</code>, <code>Makefile</code>)</td>
+</tr>
+<tr>
+<td><code>docs</code></td>
+<td>Documentation (<code>docs/</code>)</td>
+</tr>
+<tr>
+<td><code>deps</code></td>
+<td>Dependency updates</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Examples:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a>feat(api): add tolerations field to PodTemplate
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a>fix(controller): handle nil deployment template in scaling reconciler
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a>docs: add valkey configuration examples to user guide
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a>chore(deps): bump controller-runtime to v0.20.0
+</code></pre></div>
+<h3 id="description">Description<a class="headerlink" href="#description" title="Permanent link">&para;</a></h3>
+<p>Every PR must include a <strong>Summary</strong> section with at least one paragraph
+explaining what the change does and why. A reviewer should understand the
+motivation and scope from the summary alone, without reading the diff.</p>
+<p>Use the optional <strong>Details</strong> section for implementation notes, design decisions,
+alternatives considered, or migration steps.</p>
+<p>The PR template (<code>PULL_REQUEST_TEMPLATE.md</code>) pre-fills these sections.</p>
+<h3 id="code-coverage">Code coverage<a class="headerlink" href="#code-coverage" title="Permanent link">&para;</a></h3>
+<p>CI uploads test coverage to <a href="https://codecov.io">Codecov</a> on every PR. The
+Codecov bot posts a comment showing:</p>
+<ul>
+<li><strong>Patch coverage</strong> — what percentage of new/changed lines are covered by tests</li>
+<li><strong>Project coverage delta</strong> — how overall coverage changed</li>
+</ul>
+<hr />
+<h2 id="ci-supply-chain">CI &amp; Supply Chain<a class="headerlink" href="#ci-supply-chain" title="Permanent link">&para;</a></h2>
+<p>All CI workflows live in <code>.github/workflows/</code>. When adding or modifying
+workflows, follow these conventions:</p>
+<h3 id="github-actions-pinning">GitHub Actions pinning<a class="headerlink" href="#github-actions-pinning" title="Permanent link">&para;</a></h3>
+<p>Pin all <code>uses:</code> references by <strong>full commit SHA</strong>, not version tag. Add a
+version comment for readability:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683</span><span class="w"> </span><span class="c1"># v4.2.2</span>
+</code></pre></div>
+<p><strong>Why</strong>: Version tags are mutable — a compromised upstream can retag a
+malicious commit to an existing version. SHA pinning makes the reference
+immutable. Dependabot automatically proposes SHA updates when new versions
+are released, so maintenance overhead is minimal.</p>
+<h3 id="tool-binary-pinning">Tool binary pinning<a class="headerlink" href="#tool-binary-pinning" title="Permanent link">&para;</a></h3>
+<p>When downloading binaries in CI (e.g., <code>kind</code>, <code>helm</code>), always:</p>
+<ol>
+<li>Pin to a specific version (never <code>latest</code>)</li>
+<li>Verify with a SHA256 checksum</li>
+</ol>
+<h3 id="workflow-permissions">Workflow permissions<a class="headerlink" href="#workflow-permissions" title="Permanent link">&para;</a></h3>
+<p>Every workflow must declare <code>permissions:</code> at the top level. Default to the
+minimum required:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="nt">permissions</span><span class="p">:</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">  </span><span class="nt">contents</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">read</span>
+</code></pre></div>
+<p>Only add broader permissions when needed (e.g., <code>packages: write</code> for image
+publishing, <code>security-events: write</code> for CodeQL).</p>
+<h3 id="renovate">Renovate<a class="headerlink" href="#renovate" title="Permanent link">&para;</a></h3>
+<p><code>renovate.json</code> is configured to propose weekly dependency updates for Go
+modules and GitHub Actions. A <strong>7-day minimum release age</strong> is enforced — Renovate
+will not propose a version until it has been published for at least 7 days. This
+reduces the risk of adopting a compromised release before the community detects
+it. Review and merge these PRs promptly to stay current on security patches.</p>
+<hr />
+<h2 id="releasing">Releasing<a class="headerlink" href="#releasing" title="Permanent link">&para;</a></h2>
+<h3 id="versioning">Versioning<a class="headerlink" href="#versioning" title="Permanent link">&para;</a></h3>
+<p>The project follows <a href="https://semver.org/">Semantic Versioning</a>. Two versions are tracked:</p>
+<table>
+<thead>
+<tr>
+<th>Version</th>
+<th>Location</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Operator version</strong></td>
+<td><code>VERSION</code> in <code>Makefile</code></td>
+<td>Operator image tag. Single source of truth.</td>
+</tr>
+<tr>
+<td><strong>Chart version</strong></td>
+<td><code>version</code> in <code>charts/superset-operator/Chart.yaml</code></td>
+<td>Helm chart version. Can diverge for chart-only fixes.</td>
+</tr>
+</tbody>
+</table>
+<p>The Chart.yaml <code>appVersion</code> is injected from the Makefile <code>VERSION</code> at package time
+(<code>make helm</code> passes <code>--app-version</code>), so it does not need to be updated manually.</p>
+<p>While the project is pre-1.0, all versions use <code>0.x.y</code> to signal instability per semver.</p>
+<h3 id="release-checklist">Release checklist<a class="headerlink" href="#release-checklist" title="Permanent link">&para;</a></h3>
+<p>The release workflow (<code>.github/workflows/release.yml</code>) builds multi-platform
+images and pushes them to GHCR. It runs automatically on pushes to <code>main</code>
+(producing <code>dev</code> and <code>sha-&lt;short&gt;</code> tags) and on version tags (producing semver
+tags). It can also be triggered manually via <code>workflow_dispatch</code>.</p>
+<p><strong>Image tagging:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Trigger</th>
+<th>Image tag</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Push to <code>main</code></td>
+<td><code>dev</code> + <code>sha-&lt;short-sha&gt;</code></td>
+<td><code>dev</code>, <code>sha-abc1234</code></td>
+</tr>
+<tr>
+<td>RC tag</td>
+<td>Semver without <code>v</code> prefix</td>
+<td><code>0.1.0-rc1</code></td>
+</tr>
+<tr>
+<td>Release tag</td>
+<td>Semver without <code>v</code> prefix + <code>latest</code></td>
+<td><code>0.1.0</code>, <code>latest</code></td>
+</tr>
+</tbody>
+</table>
+<p>See <a href="../downloads/">Downloads</a> for full details on published images and
+registries.</p>
+<p><strong>Creating a release candidate:</strong></p>
+<p>The <code>scripts/release-rc.sh</code> script automates the full RC preparation: creates a
+release branch, bumps the operator version, regenerates manifests, runs tests
+and linting, commits, and tags.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="c1"># First RC for 0.2.0 — creates release/0.2.0 branch and v0.2.0-rc1 tag</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>scripts/release-rc.sh<span class="w"> </span><span class="m">0</span>.2.0
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="c1"># Optionally bump the Helm chart version too</span>
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a>scripts/release-rc.sh<span class="w"> </span><span class="m">0</span>.2.0<span class="w"> </span>--chart-version<span class="w"> </span><span class="m">0</span>.2.0
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a>
+<a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="c1"># Push branch + tag to trigger the release workflow</span>
+<a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a>git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>release/0.2.0<span class="w"> </span>v0.2.0-rc1
+</code></pre></div>
+<p>Running the script again from the same release branch increments the RC number
+automatically (rc1, rc2, ...).</p>
+<p><strong>Finalizing a release:</strong></p>
+<p>After the ASF vote passes, the <code>scripts/release-finalize.sh</code> script tags the final
+release on the release branch:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="c1"># From the release/0.2.0 branch</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>scripts/release-finalize.sh<span class="w"> </span><span class="m">0</span>.2.0
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="c1"># Push the tag to trigger the release workflow</span>
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a>git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>v0.2.0
+</code></pre></div>
+<p>The release workflow pushes the <code>0.2.0</code> and <code>latest</code> images to GHCR.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "navigation.sections", "navigation.expand", "navigation.top", "search.highlight"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

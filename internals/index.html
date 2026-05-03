@@ -1,0 +1,2280 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Kubernetes operator for deploying and managing Apache Superset">
+      
+      
+      
+        <link rel="canonical" href="https://apache.github.io/superset-kubernetes-operator/internals/">
+      
+      
+        <link rel="prev" href="../architecture/">
+      
+      
+        <link rel="next" href="../api-reference/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Internals - Apache Superset Kubernetes Operator</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#internals-reconciliation-runtime" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Apache Superset Kubernetes Operator" class="md-header__button md-logo" aria-label="Apache Superset Kubernetes Operator" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Apache Superset Kubernetes Operator
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Internals
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/apache/superset-kubernetes-operator" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    apache/superset-kubernetes-operator
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Apache Superset Kubernetes Operator" class="md-nav__button md-logo" aria-label="Apache Superset Kubernetes Operator" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Apache Superset Kubernetes Operator
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/apache/superset-kubernetes-operator" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    apache/superset-kubernetes-operator
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../downloads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Downloads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Internals
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#reconciliation-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reconciliation Lifecycle
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reconciliation Lifecycle">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-preflight" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1: Preflight
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-shared-resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2: Shared Resources
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-init-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3: Init Lifecycle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-component-reconciliation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4: Component Reconciliation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-5-status-aggregation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 5: Status Aggregation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#init-pod-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Init Pod Lifecycle
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Init Pod Lifecycle">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#default-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Default Command
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-bare-pods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why Bare Pods
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gating" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gating
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pod-state-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pod State Machine
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#retry-and-backoff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Retry and Backoff
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pod-naming-and-discovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pod Naming and Discovery
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pod-retention" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pod Retention
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#init-pod-spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Init Pod Spec
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#child-controller-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Child Controller Pattern
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Child Controller Pattern">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-configmaps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why ConfigMaps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-each-component-creates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Each Component Creates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deployment-builder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deployment Builder
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#idempotent-reconciliation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Idempotent Reconciliation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#labels-and-annotations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Labels and Annotations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Labels and Annotations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#operator-managed-labels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operator-Managed Labels
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#orphan-cleanup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Orphan Cleanup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checksum-driven-rollouts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checksum-Driven Rollouts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Checksum-Driven Rollouts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How It Works
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#checksum-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checksum Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#networking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Networking
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Networking">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#gateway-api-httproute" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gateway API (HTTPRoute)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ingress" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ingress
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#graceful-crd-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Graceful CRD Handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monitoring
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#network-policies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Network Policies
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#garbage-collection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Garbage Collection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#status-and-conditions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status and Conditions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Status and Conditions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#parent-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parent Status
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#child-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Child Status
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#init-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Init Status
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../developer-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#reconciliation-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reconciliation Lifecycle
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reconciliation Lifecycle">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#phase-1-preflight" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 1: Preflight
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-2-shared-resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 2: Shared Resources
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-3-init-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 3: Init Lifecycle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-4-component-reconciliation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 4: Component Reconciliation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#phase-5-status-aggregation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Phase 5: Status Aggregation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#init-pod-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Init Pod Lifecycle
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Init Pod Lifecycle">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#default-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Default Command
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-bare-pods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why Bare Pods
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gating" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gating
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pod-state-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pod State Machine
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#retry-and-backoff" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Retry and Backoff
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pod-naming-and-discovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pod Naming and Discovery
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pod-retention" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pod Retention
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#init-pod-spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Init Pod Spec
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#child-controller-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Child Controller Pattern
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Child Controller Pattern">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-configmaps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why ConfigMaps
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-each-component-creates" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Each Component Creates
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deployment-builder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deployment Builder
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#idempotent-reconciliation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Idempotent Reconciliation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#labels-and-annotations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Labels and Annotations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Labels and Annotations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#operator-managed-labels" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operator-Managed Labels
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#orphan-cleanup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Orphan Cleanup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#checksum-driven-rollouts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checksum-Driven Rollouts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Checksum-Driven Rollouts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How It Works
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#checksum-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Checksum Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#networking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Networking
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Networking">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#gateway-api-httproute" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gateway API (HTTPRoute)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ingress" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ingress
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#graceful-crd-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Graceful CRD Handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monitoring
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#network-policies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Network Policies
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#garbage-collection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Garbage Collection
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#status-and-conditions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status and Conditions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Status and Conditions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#parent-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Parent Status
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#child-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Child Status
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#init-status" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Init Status
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#error-handling-summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error Handling Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<!--
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+-->
+
+<h1 id="internals-reconciliation-runtime">Internals — Reconciliation &amp; Runtime<a class="headerlink" href="#internals-reconciliation-runtime" title="Permanent link">&para;</a></h1>
+<p>This document describes how the operator behaves at runtime: the
+reconciliation lifecycle, init pod management, retry semantics, status
+reporting, and resource cleanup. For the structural overview (CRD hierarchy,
+configuration model, config rendering), see <a href="../architecture/">Architecture</a>.</p>
+<hr />
+<h2 id="reconciliation-lifecycle">Reconciliation Lifecycle<a class="headerlink" href="#reconciliation-lifecycle" title="Permanent link">&para;</a></h2>
+<p>When a <code>Superset</code> CR is created or updated, the parent controller runs through
+five sequential phases:</p>
+<ol>
+<li><strong>Preflight</strong> — Fetch the Superset CR, check the suspend flag</li>
+<li><strong>Shared Resources</strong> — ServiceAccount</li>
+<li><strong>Init Lifecycle</strong> — Create/update SupersetInit child CR (gates everything below)</li>
+<li><strong>Component Reconciliation</strong> — Resolve shared spec (top-level + per-component) into flat child specs, create/update/delete child CRs, reconcile networking/monitoring/network policies</li>
+<li><strong>Status Aggregation</strong> — Read child CR statuses, set conditions and phase</li>
+</ol>
+<h3 id="phase-1-preflight">Phase 1: Preflight<a class="headerlink" href="#phase-1-preflight" title="Permanent link">&para;</a></h3>
+<p>The controller fetches the <code>Superset</code> CR. If it no longer exists, the
+reconciler returns gracefully — Kubernetes garbage collection handles cleanup
+via owner references.</p>
+<p>If <code>spec.suspend</code> is <code>true</code>, the controller sets the <code>Suspended</code> condition to
+<code>True</code>, updates status, and returns immediately. No init pods run, no child CRs
+are created or updated, and no resources are deleted. This allows users to
+pause reconciliation without removing the CR.</p>
+<h3 id="phase-2-shared-resources">Phase 2: Shared Resources<a class="headerlink" href="#phase-2-shared-resources" title="Permanent link">&para;</a></h3>
+<p><strong>ServiceAccount</strong> — Created if <code>spec.serviceAccount.create</code> is true (the
+default). Uses the name from <code>spec.serviceAccount.name</code> or falls back to the
+parent CR name. Owned by the parent CR and garbage-collected on parent deletion.</p>
+<h3 id="phase-3-init-lifecycle">Phase 3: Init Lifecycle<a class="headerlink" href="#phase-3-init-lifecycle" title="Permanent link">&para;</a></h3>
+<p>The parent controller creates or updates a <code>SupersetInit</code> child CR. The
+dedicated <code>SupersetInitReconciler</code> manages the Pod lifecycle (ConfigMap
+creation, bare Pod creation, retry with backoff, timeout, retention). See
+<a href="#init-pod-lifecycle">Init Pod Lifecycle</a> below for the full state machine.</p>
+<p>Components do not deploy until initialization completes (or is
+explicitly disabled via <code>spec.init.disabled: true</code>). If init is in progress or
+has failed, <code>Reconcile()</code> returns early with a requeue, skipping Phase 4.</p>
+<h3 id="phase-4-component-reconciliation">Phase 4: Component Reconciliation<a class="headerlink" href="#phase-4-component-reconciliation" title="Permanent link">&para;</a></h3>
+<p>For each of the six deployment components, the parent controller:</p>
+<ol>
+<li>Checks if the component is enabled (field present in spec)</li>
+<li>If disabled, deletes the child CR (cascade-deletes all owned resources)</li>
+<li>If enabled:<ul>
+<li>Renders component-appropriate <code>superset_config.py</code> from the parent's
+  <code>secretKey</code>/<code>secretKeyFrom</code>, <code>metastore</code>, <code>config</code>, and per-component
+  <code>config</code> fields via <code>RenderConfig()</code></li>
+<li>Collects secret env vars: when <code>secretKeyFrom</code>, <code>metastore.uriFrom</code>, or
+  <code>metastore.passwordFrom</code> are set, the operator produces env vars with
+  <code>valueFrom.secretKeyRef</code> pointing at the referenced Secret. In dev mode,
+  inline values produce plain <code>value</code> env vars instead.</li>
+<li>Resolves the shared spec (top-level + per-component) into a
+  flat <code>FlatComponentSpec</code> via <code>ResolveChildSpec()</code></li>
+<li>Computes a config checksum from shared inputs and rendered config</li>
+<li>Creates or updates the child CR with the fully-flattened spec</li>
+</ul>
+</li>
+</ol>
+<p>After components, the controller reconciles cluster-scoped resources:
+networking (Ingress or HTTPRoute), monitoring (ServiceMonitor), and network
+policies (one NetworkPolicy per enabled component).</p>
+<h3 id="phase-5-status-aggregation">Phase 5: Status Aggregation<a class="headerlink" href="#phase-5-status-aggregation" title="Permanent link">&para;</a></h3>
+<p>The controller reads each child CR's status via unstructured GET (using the
+correct GVK per component type), extracts the <code>ready</code> field (format:
+<code>"readyReplicas/desiredReplicas"</code>), and aggregates into the parent status.</p>
+<table>
+<thead>
+<tr>
+<th>All components ready</th>
+<th>Phase</th>
+<th>Available condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Yes</td>
+<td><code>Running</code></td>
+<td><code>True</code></td>
+</tr>
+<tr>
+<td>No</td>
+<td><code>Degraded</code></td>
+<td><code>False</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="init-pod-lifecycle">Init Pod Lifecycle<a class="headerlink" href="#init-pod-lifecycle" title="Permanent link">&para;</a></h2>
+<p>The parent controller creates a <code>SupersetInit</code> child CR, and the dedicated
+<code>SupersetInitReconciler</code> manages bare Pods (<code>restartPolicy: Never</code>). The init
+controller acts as the retry controller, giving it full control over backoff,
+timeout, naming, and cleanup.</p>
+<h3 id="default-command">Default Command<a class="headerlink" href="#default-command" title="Permanent link">&para;</a></h3>
+<p>The init pod runs a single command that defaults to:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>superset<span class="w"> </span>db<span class="w"> </span>upgrade<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>superset<span class="w"> </span>init
+</code></pre></div>
+<p>This handles database migration and application initialization (roles,
+permissions, app state) in one step. The command is customizable via
+<code>spec.init.command</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">init</span><span class="p">:</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;/bin/sh&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;-c&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;superset</span><span class="nv"> </span><span class="s">db</span><span class="nv"> </span><span class="s">upgrade</span><span class="nv"> </span><span class="s">&amp;&amp;</span><span class="nv"> </span><span class="s">custom-migrate</span><span class="nv"> </span><span class="s">&amp;&amp;</span><span class="nv"> </span><span class="s">superset</span><span class="nv"> </span><span class="s">init&quot;</span><span class="p p-Indicator">]</span>
+</code></pre></div>
+<h3 id="why-bare-pods">Why Bare Pods<a class="headerlink" href="#why-bare-pods" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Controlled retries</strong> — The operator decides when and how to retry, with
+  configurable max attempts and exponential backoff</li>
+<li><strong>Clean audit trail</strong> — Each attempt creates a new Pod with a unique
+  <code>generateName</code> suffix, making it easy to inspect history</li>
+<li><strong>Sidecar handling</strong> — The operator manages pod lifecycle directly, avoiding
+  the Job controller's sidecar termination issues</li>
+</ul>
+<h3 id="gating">Gating<a class="headerlink" href="#gating" title="Permanent link">&para;</a></h3>
+<p>If the init pod has not completed successfully, the
+reconciler returns early and no child CRs are created or updated. Set
+<code>spec.init.disabled: true</code> to skip initialization entirely.</p>
+<h3 id="pod-state-machine">Pod State Machine<a class="headerlink" href="#pod-state-machine" title="Permanent link">&para;</a></h3>
+<p>Init pods transition through these states:</p>
+<ul>
+<li><strong>Pending</strong> — No pod exists yet. The operator creates one.</li>
+<li><strong>Running</strong> — Pod is executing. If it exceeds the timeout, it counts as a failed attempt.</li>
+<li><strong>Succeeded</strong> → <strong>Complete</strong> — Init is done; components can deploy.</li>
+<li><strong>Failed</strong> — If <code>attempts &lt; maxRetries</code>, the operator deletes the pod and requeues with exponential backoff. If <code>attempts &gt;= maxRetries</code>, the init is permanently failed.</li>
+</ul>
+<h3 id="retry-and-backoff">Retry and Backoff<a class="headerlink" href="#retry-and-backoff" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>spec.init.maxRetries</code></td>
+<td><code>3</code></td>
+<td>Maximum attempts before permanent failure</td>
+</tr>
+<tr>
+<td><code>spec.init.timeout</code></td>
+<td><code>300s</code></td>
+<td>Maximum time per attempt</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Backoff calculation:</strong></p>
+<p>Exponential backoff: <code>10s * 2^(attempt-1)</code>, capped at 300s (10s, 20s, 40s, 80s, 160s, 300s).</p>
+<p>If a pod stays in Running or Pending state beyond the timeout, it counts as a
+failed attempt.</p>
+<h3 id="pod-naming-and-discovery">Pod Naming and Discovery<a class="headerlink" href="#pod-naming-and-discovery" title="Permanent link">&para;</a></h3>
+<p>Pods use <code>generateName</code> (<code>{parent}-init-{random}</code>, e.g. <code>my-superset-init-x7k2m</code>)
+for unique names per attempt. The operator discovers pods by label
+(<code>superset.apache.org/instance</code> and <code>superset.apache.org/init-task</code>) and uses
+the most recently created one when multiple exist.</p>
+<h3 id="pod-retention">Pod Retention<a class="headerlink" href="#pod-retention" title="Permanent link">&para;</a></h3>
+<p>After a task completes (successfully or permanently fails), the retention
+policy determines what happens to the pod:</p>
+<table>
+<thead>
+<tr>
+<th>Policy</th>
+<th>On Success</th>
+<th>On Failure</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Delete</code> (default)</td>
+<td>Delete pod</td>
+<td>Delete pod</td>
+</tr>
+<tr>
+<td><code>Retain</code></td>
+<td>Keep pod</td>
+<td>Keep pod</td>
+</tr>
+<tr>
+<td><code>RetainOnFailure</code></td>
+<td>Delete pod</td>
+<td>Keep pod</td>
+</tr>
+</tbody>
+</table>
+<p>Configured via <code>spec.init.podRetention.policy</code>. Retaining failed pods is useful
+for debugging migration failures.</p>
+<h3 id="init-pod-spec">Init Pod Spec<a class="headerlink" href="#init-pod-spec" title="Permanent link">&para;</a></h3>
+<p>Init pods inherit scheduling, security, volumes, and env from the top-level
+<code>podTemplate</code>, just like other components. Key fields:</p>
+<ul>
+<li><strong>Image</strong>: From <code>spec.image</code></li>
+<li><strong>Command</strong>: From <code>spec.init.command</code> (default: <code>superset db upgrade &amp;&amp; superset init</code>)</li>
+<li><strong>Config</strong>: Mounted from the init ConfigMap (<code>{parent}-init-config</code>)</li>
+<li><strong>Env vars</strong>: Database credentials, secret key (via plain env vars in dev mode, or <code>valueFrom.secretKeyRef</code> when <code>*From</code> fields are used)</li>
+<li><strong>Resources</strong>: From <code>spec.init.podTemplate.container.resources</code> if set</li>
+<li><strong>Service account</strong>: Inherited from parent spec</li>
+<li><strong>Restart policy</strong>: Always <code>Never</code> — the operator handles retries</li>
+</ul>
+<hr />
+<h2 id="child-controller-pattern">Child Controller Pattern<a class="headerlink" href="#child-controller-pattern" title="Permanent link">&para;</a></h2>
+<p>Each child CRD (SupersetInit, SupersetWebServer, SupersetCeleryWorker, etc.)
+has its own controller that reconciles the Kubernetes resources for that
+component.</p>
+<p><strong>Scalable components</strong> (WebServer, CeleryWorker, CeleryFlower, WebsocketServer,
+McpServer) manage a Deployment and support replicas, HPA, and PDB. Their specs
+embed <code>ScalableComponentSpec</code>, which has <code>DeploymentTemplate</code>, <code>PodTemplate</code>,
+and scaling fields.</p>
+<p><strong>Singleton components</strong> (Init, CeleryBeat) run exactly one instance. Init
+manages bare Pods with retry logic (uses <code>PodTemplate</code> only). CeleryBeat manages
+a Deployment but forces <code>replicas: 1</code> (has both <code>DeploymentTemplate</code> and
+<code>PodTemplate</code> but no scaling fields).</p>
+<p>All deployment controllers follow the same pattern: reconcile ConfigMap (if
+applicable), reconcile Deployment, reconcile Service (if the component exposes
+a port), reconcile scaling (HPA + PDB for scalable components), and update
+status. The init controller reconciles a ConfigMap and manages bare Pods.</p>
+<h3 id="why-configmaps">Why ConfigMaps<a class="headerlink" href="#why-configmaps" title="Permanent link">&para;</a></h3>
+<p>Superset imports <code>superset_config</code> as a standard Python module, which means the
+config must exist as a <code>.py</code> file on the filesystem. A ConfigMap volume mount is
+the standard Kubernetes mechanism for projecting files into containers:</p>
+<ul>
+<li><strong>Python import requirement</strong> — <code>superset_config.py</code> must be a real file on
+  disk; environment variables and downward API projections cannot serve as
+  importable Python modules</li>
+<li><strong>Operability</strong> — <code>kubectl get cm</code> shows exactly what config each component is
+  running, making debugging straightforward</li>
+<li><strong>Clean pod manifests</strong> — Without ConfigMaps, the rendered Python config
+  would need to be inlined on the pod spec (as annotations or env vars),
+  making Deployment manifests difficult to read. ConfigMaps keep pod specs
+  focused on container configuration</li>
+</ul>
+<p>The rendered config is already stored on the child CR's <code>spec.config</code> field, so
+the ConfigMap is technically a derived resource. The child controller creates it
+from the spec and mounts it at <code>/app/superset/config/</code>.</p>
+<h3 id="what-each-component-creates">What Each Component Creates<a class="headerlink" href="#what-each-component-creates" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>ConfigMap</th>
+<th>Workload</th>
+<th>Service</th>
+<th>HPA</th>
+<th>PDB</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Init</td>
+<td>superset_config.py</td>
+<td>bare Pod</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>WebServer</td>
+<td>superset_config.py</td>
+<td>Deployment (gunicorn)</td>
+<td>port 8088</td>
+<td>if set</td>
+<td>if set</td>
+</tr>
+<tr>
+<td>CeleryWorker</td>
+<td>superset_config.py</td>
+<td>Deployment (celery worker)</td>
+<td>—</td>
+<td>if set</td>
+<td>if set</td>
+</tr>
+<tr>
+<td>CeleryBeat</td>
+<td>superset_config.py</td>
+<td>Deployment (celery beat)</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>CeleryFlower</td>
+<td>superset_config.py</td>
+<td>Deployment (celery flower)</td>
+<td>port 5555</td>
+<td>if set</td>
+<td>if set</td>
+</tr>
+<tr>
+<td>WebsocketServer</td>
+<td>—</td>
+<td>Deployment (node.js)</td>
+<td>port 8080</td>
+<td>if set</td>
+<td>if set</td>
+</tr>
+<tr>
+<td>McpServer</td>
+<td>superset_config.py</td>
+<td>Deployment (fastmcp)</td>
+<td>port 8088</td>
+<td>if set</td>
+<td>if set</td>
+</tr>
+</tbody>
+</table>
+<p><strong>CeleryBeat</strong> is a singleton — the controller forces <code>replicas: 1</code> regardless
+of the spec, and does not create an HPA or PDB.</p>
+<p><strong>WebsocketServer</strong> is Node.js-based and does not get a <code>superset_config.py</code>
+ConfigMap.</p>
+<h3 id="deployment-builder">Deployment Builder<a class="headerlink" href="#deployment-builder" title="Permanent link">&para;</a></h3>
+<p>All child controllers delegate to <code>buildDeploymentSpec()</code>, which constructs a
+complete Deployment spec from the flat <code>FlatComponentSpec</code> and a
+component-specific <code>DeploymentConfig</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kd">type</span><span class="w"> </span><span class="nx">DeploymentConfig</span><span class="w"> </span><span class="kd">struct</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="nx">ContainerName</span><span class="w">  </span><span class="kt">string</span><span class="w">                 </span><span class="c1">// e.g., &quot;superset-web-server&quot;</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">    </span><span class="nx">DefaultCommand</span><span class="w"> </span><span class="p">[]</span><span class="kt">string</span><span class="w">               </span><span class="c1">// e.g., [&quot;/usr/bin/run-server.sh&quot;]</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="nx">DefaultArgs</span><span class="w">    </span><span class="p">[]</span><span class="kt">string</span><span class="w">               </span><span class="c1">// optional</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="nx">DefaultPorts</span><span class="w">   </span><span class="p">[]</span><span class="nx">corev1</span><span class="p">.</span><span class="nx">ContainerPort</span><span class="w"> </span><span class="c1">// e.g., [{Name: &quot;http&quot;, Port: 8088}]</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="nx">ForceReplicas</span><span class="w">  </span><span class="o">*</span><span class="kt">int32</span><span class="w">                 </span><span class="c1">// non-nil only for beat (=1)</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="p">}</span>
+</code></pre></div>
+<p><strong>Replicas resolution order:</strong></p>
+<ol>
+<li><code>ForceReplicas</code> (beat singleton) — always wins</li>
+<li><code>nil</code> if HPA is configured — HPA manages scaling</li>
+<li><code>spec.Replicas</code> otherwise</li>
+</ol>
+<h3 id="idempotent-reconciliation">Idempotent Reconciliation<a class="headerlink" href="#idempotent-reconciliation" title="Permanent link">&para;</a></h3>
+<p>All resource creation uses <code>controllerutil.CreateOrUpdate()</code>: creates the
+resource if it doesn't exist, updates it if the spec has drifted. This makes
+every reconciliation cycle safe to re-run.</p>
+<hr />
+<h2 id="labels-and-annotations">Labels and Annotations<a class="headerlink" href="#labels-and-annotations" title="Permanent link">&para;</a></h2>
+<p>The operator sets reserved labels on child CRs (SupersetInit, SupersetWebServer,
+etc.) and NetworkPolicies for resource discovery and orphan cleanup.</p>
+<h3 id="operator-managed-labels">Operator-Managed Labels<a class="headerlink" href="#operator-managed-labels" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Label</th>
+<th>Value</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>app.kubernetes.io/name</code></td>
+<td><code>superset</code></td>
+<td>Application identity</td>
+</tr>
+<tr>
+<td><code>app.kubernetes.io/component</code></td>
+<td>Component type (e.g., <code>web-server</code>)</td>
+<td>Component type filtering</td>
+</tr>
+<tr>
+<td><code>superset.apache.org/parent</code></td>
+<td>Parent Superset CR name</td>
+<td>Parent-scoped discovery</td>
+</tr>
+</tbody>
+</table>
+<p>These labels are set by the operator on every reconciliation and <strong>cannot be
+overridden</strong> — operator-managed labels are applied last, taking precedence over
+any existing values.</p>
+<p>Sub-resources (Deployments, Services, ConfigMaps) created by child controllers
+use the standard <code>app.kubernetes.io/*</code> labels with <code>app.kubernetes.io/instance</code>
+set to the child CR name for selector matching.</p>
+<h3 id="orphan-cleanup">Orphan Cleanup<a class="headerlink" href="#orphan-cleanup" title="Permanent link">&para;</a></h3>
+<p>When a component is disabled, the operator uses label-based discovery to find
+and delete orphaned child CRs. On each reconcile, it lists all child CRs
+matching the parent and component type labels, then deletes any whose name does
+not match the currently desired name. Deleting a child CR cascades to all its
+owned sub-resources via owner references.</p>
+<hr />
+<h2 id="checksum-driven-rollouts">Checksum-Driven Rollouts<a class="headerlink" href="#checksum-driven-rollouts" title="Permanent link">&para;</a></h2>
+<p>Config changes must trigger pod restarts for the new config to take effect.
+The operator achieves this through <strong>checksum annotations</strong> on the pod template.</p>
+<h3 id="how-it-works">How It Works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Parent controller computes checksums when building child CRs</li>
+<li>Checksums are stored on the child CR spec</li>
+<li>Child controller stamps them as pod template annotations</li>
+<li>When a checksum changes, the pod template changes, and Kubernetes triggers a
+   rolling restart</li>
+</ol>
+<h3 id="checksum-types">Checksum Types<a class="headerlink" href="#checksum-types" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Annotation</th>
+<th>Source</th>
+<th>Scope</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>superset.apache.org/config-checksum</code></td>
+<td>Rendered superset_config.py</td>
+<td>Per-component</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Per-component isolation:</strong> Changing a component's <code>config</code> only
+changes that component's config checksum -- only its pods restart. Other
+components are unaffected.</p>
+<p><strong>Secret safety:</strong> In prod mode, operator-managed secret values (<code>secretKeyFrom</code>,
+<code>metastore.uriFrom</code>, <code>metastore.passwordFrom</code>, <code>valkey.passwordFrom</code>) are never
+read by the operator and therefore never appear in checksums, annotations, or
+ConfigMaps. In dev mode, inline secret values (<code>secretKey</code>, <code>metastore.password</code>,
+<code>valkey.password</code>) influence the shared config checksum (as a hash, not
+plaintext) because changes to these values must trigger a rollout.</p>
+<hr />
+<h2 id="networking">Networking<a class="headerlink" href="#networking" title="Permanent link">&para;</a></h2>
+<p>The operator supports two mutually exclusive networking modes for external
+access to the web server.</p>
+<h3 id="gateway-api-httproute">Gateway API (HTTPRoute)<a class="headerlink" href="#gateway-api-httproute" title="Permanent link">&para;</a></h3>
+<p>When <code>spec.networking.gateway</code> is set, the controller creates an <code>HTTPRoute</code>
+with path-based routing:</p>
+<table>
+<thead>
+<tr>
+<th>Priority</th>
+<th>Path</th>
+<th>Target</th>
+<th>Condition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 (most specific)</td>
+<td><code>/ws</code></td>
+<td>websocket-server Service</td>
+<td>websocketServer enabled</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>/mcp</code></td>
+<td>mcp-server Service</td>
+<td>mcpServer enabled</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>/flower</code></td>
+<td>celery-flower Service</td>
+<td>celeryFlower enabled</td>
+</tr>
+<tr>
+<td>4 (catch-all)</td>
+<td><code>/</code></td>
+<td>web-server Service</td>
+<td>webServer enabled</td>
+</tr>
+</tbody>
+</table>
+<p>More specific paths are listed first to ensure correct routing priority.
+Paths are configurable via <code>service.gatewayPath</code> on each component spec.</p>
+<h3 id="ingress">Ingress<a class="headerlink" href="#ingress" title="Permanent link">&para;</a></h3>
+<p>When <code>spec.networking.ingress</code> is set, the controller creates a standard
+<code>networkingv1.Ingress</code>. Supports multiple hosts with per-host path rules.
+All paths route to the web-server Service.</p>
+<h3 id="graceful-crd-handling">Graceful CRD Handling<a class="headerlink" href="#graceful-crd-handling" title="Permanent link">&para;</a></h3>
+<p>Gateway API is not included in Kubernetes and must be
+<a href="https://gateway-api.sigs.k8s.io/guides/#installing-gateway-api">installed separately</a>.
+If the CRDs are not present, the controller skips HTTPRoute watch registration
+and catches <code>meta.IsNoMatchError</code> at reconciliation time. The operator runs
+with reduced functionality rather than failing.</p>
+<hr />
+<h2 id="monitoring">Monitoring<a class="headerlink" href="#monitoring" title="Permanent link">&para;</a></h2>
+<p>When <code>spec.monitoring.serviceMonitor</code> is set, the controller creates a
+Prometheus <code>ServiceMonitor</code> targeting the web-server component.</p>
+<ul>
+<li>Uses <strong>unstructured objects</strong> because the ServiceMonitor CRD is external
+  (monitoring.coreos.com/v1)</li>
+<li>Default scrape interval: 30s (configurable)</li>
+<li>Targets pods with <code>app.kubernetes.io/component: web-server</code></li>
+<li>If the ServiceMonitor CRD is not installed, the controller logs an info
+  message and continues — monitoring is optional</li>
+</ul>
+<hr />
+<h2 id="network-policies">Network Policies<a class="headerlink" href="#network-policies" title="Permanent link">&para;</a></h2>
+<p>When <code>spec.networkPolicy</code> is set, the controller creates one <code>NetworkPolicy</code>
+per enabled component:</p>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Ingress from Superset pods</th>
+<th>Ingress from external</th>
+<th>Egress</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WebServer</td>
+<td>port 8088</td>
+<td>port 8088</td>
+<td>all</td>
+</tr>
+<tr>
+<td>CeleryWorker</td>
+<td>any port</td>
+<td>—</td>
+<td>all</td>
+</tr>
+<tr>
+<td>CeleryBeat</td>
+<td>any port</td>
+<td>—</td>
+<td>all</td>
+</tr>
+<tr>
+<td>CeleryFlower</td>
+<td>port 5555</td>
+<td>port 5555</td>
+<td>all</td>
+</tr>
+<tr>
+<td>WebsocketServer</td>
+<td>port 8080</td>
+<td>port 8080</td>
+<td>all</td>
+</tr>
+<tr>
+<td>McpServer</td>
+<td>port 8088</td>
+<td>port 8088</td>
+<td>all</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Base rules:</strong></p>
+<ul>
+<li>All components allow ingress from pods belonging to the same Superset instance
+  (matched by <code>app.kubernetes.io/name: superset</code> + <code>superset.apache.org/parent</code> labels)</li>
+<li>Components with external ports (web server, flower, websocket, mcp) also
+  allow ingress on that port from any source (enables load balancers and
+  ingress controllers)</li>
+<li>All components allow unrestricted egress (they need access to databases,
+  caches, and external APIs)</li>
+</ul>
+<p><strong>User-defined rules</strong> can be added via <code>spec.networkPolicy.extraIngress</code> and
+<code>spec.networkPolicy.extraEgress</code>.</p>
+<hr />
+<h2 id="garbage-collection">Garbage Collection<a class="headerlink" href="#garbage-collection" title="Permanent link">&para;</a></h2>
+<p>The operator uses Kubernetes owner references for automatic cleanup. The parent
+<code>Superset</code> CR owns child CRDs (SupersetInit, SupersetWebServer, etc.),
+networking resources, ServiceMonitor, and NetworkPolicies. Each child CR owns
+its managed resources — deployment CRDs own their Deployment, ConfigMap,
+Service, HPA, and PDB; the SupersetInit CRD owns its ConfigMap and Pods.
+Deleting the parent cascades to all child CRs, which cascade to all their
+owned resources. Removing a component from the parent spec (e.g. deleting
+<code>spec.celeryWorker</code>) deletes its child CR, cascading to all owned resources.</p>
+<hr />
+<h2 id="status-and-conditions">Status and Conditions<a class="headerlink" href="#status-and-conditions" title="Permanent link">&para;</a></h2>
+<h3 id="parent-status">Parent Status<a class="headerlink" href="#parent-status" title="Permanent link">&para;</a></h3>
+<p>The parent <code>Superset</code> CR reports aggregate status:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">status</span><span class="p">:</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">phase</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Running</span><span class="w">          </span><span class="c1"># Initializing | Running | Degraded | Suspended</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">observedGeneration</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;latest&quot;</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">components</span><span class="p">:</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="nt">webServer</span><span class="p">:</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">      </span><span class="nt">ready</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2/2&quot;</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">    </span><span class="nt">celeryWorker</span><span class="p">:</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">      </span><span class="nt">ready</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;4/4&quot;</span>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="w">    </span><span class="nt">celeryBeat</span><span class="p">:</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="w">      </span><span class="nt">ready</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1/1&quot;</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="w">  </span><span class="nt">conditions</span><span class="p">:</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Available</span>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="w">      </span><span class="nt">status</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;True&quot;</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="w">      </span><span class="nt">reason</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AllComponentsReady</span>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">InitComplete</span>
+<a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a><span class="w">      </span><span class="nt">status</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;True&quot;</span>
+<a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a><span class="w">      </span><span class="nt">reason</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">InitComplete</span>
+<a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Suspended</span>
+<a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a><span class="w">      </span><span class="nt">status</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;False&quot;</span>
+</code></pre></div>
+<h3 id="child-status">Child Status<a class="headerlink" href="#child-status" title="Permanent link">&para;</a></h3>
+<p>Each child CR reports its own status:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">status</span><span class="p">:</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">ready</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2/3&quot;</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">observedGeneration</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">conditions</span><span class="p">:</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Ready</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">      </span><span class="nt">status</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;False&quot;</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">      </span><span class="nt">reason</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PartiallyReady</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">      </span><span class="nt">message</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2</span><span class="nv"> </span><span class="s">of</span><span class="nv"> </span><span class="s">3</span><span class="nv"> </span><span class="s">replicas</span><span class="nv"> </span><span class="s">ready&quot;</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Progressing</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">      </span><span class="nt">status</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;True&quot;</span>
+<a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="w">      </span><span class="nt">reason</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">RolloutInProgress</span>
+</code></pre></div>
+<p><strong>Ready condition states:</strong></p>
+<table>
+<thead>
+<tr>
+<th>State</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>True</code> / <code>AllReplicasReady</code></td>
+<td>readyReplicas &gt;= desiredReplicas and &gt; 0</td>
+</tr>
+<tr>
+<td><code>False</code> / <code>PartiallyReady</code></td>
+<td>Some replicas ready, not all</td>
+</tr>
+<tr>
+<td><code>False</code> / <code>NotReady</code></td>
+<td>Zero replicas ready</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Progressing condition states:</strong></p>
+<table>
+<thead>
+<tr>
+<th>State</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>True</code> / <code>RolloutInProgress</code></td>
+<td>Deployment is rolling out new pods</td>
+</tr>
+<tr>
+<td><code>False</code> / <code>RolloutComplete</code></td>
+<td>New ReplicaSet is fully available</td>
+</tr>
+</tbody>
+</table>
+<h3 id="init-status">Init Status<a class="headerlink" href="#init-status" title="Permanent link">&para;</a></h3>
+<p>Init task progress is tracked per-task:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">status</span><span class="p">:</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">init</span><span class="p">:</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">    </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Complete</span><span class="w">       </span><span class="c1"># Pending | Running | Complete | Failed</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="nt">podName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-superset-init-x7k2m</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="nt">startedAt</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2026-03-16T10:00:00Z&quot;</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">    </span><span class="nt">completedAt</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2026-03-16T10:00:22Z&quot;</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="nt">duration</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;22s&quot;</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">    </span><span class="nt">attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">    </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apache/superset:latest</span>
+</code></pre></div>
+<hr />
+<h2 id="error-handling-summary">Error Handling Summary<a class="headerlink" href="#error-handling-summary" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Superset CR deleted during reconcile</td>
+<td>Graceful return (not found)</td>
+</tr>
+<tr>
+<td>Init pod fails</td>
+<td>Retry with backoff up to maxRetries, then permanent failure</td>
+</tr>
+<tr>
+<td>Init pod times out</td>
+<td>Counts as failed attempt, same retry logic</td>
+</tr>
+<tr>
+<td>Child CR creation fails</td>
+<td>Error propagated, reconcile retried by controller-runtime</td>
+</tr>
+<tr>
+<td>Optional CRD missing (Gateway API, ServiceMonitor)</td>
+<td>Log and continue — feature disabled gracefully</td>
+</tr>
+<tr>
+<td>Referenced Secret values change</td>
+<td>Pods see new values only after restart; update <code>forceReload</code> to trigger rollout</td>
+</tr>
+<tr>
+<td>Component removed from spec</td>
+<td>Child CR deleted, cascade cleans up all resources</td>
+</tr>
+<tr>
+<td>Suspend enabled</td>
+<td>All reconciliation paused, no resources created or deleted</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "navigation.sections", "navigation.expand", "navigation.top", "search.highlight"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

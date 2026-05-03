@@ -1,0 +1,2843 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Kubernetes operator for deploying and managing Apache Superset">
+      
+      
+      
+        <link rel="canonical" href="https://apache.github.io/superset-kubernetes-operator/user-guide/">
+      
+      
+        <link rel="prev" href="../downloads/">
+      
+      
+        <link rel="next" href="../architecture/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>User Guide - Apache Superset Kubernetes Operator</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#user-guide" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Apache Superset Kubernetes Operator" class="md-header__button md-logo" aria-label="Apache Superset Kubernetes Operator" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Apache Superset Kubernetes Operator
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              User Guide
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/apache/superset-kubernetes-operator" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    apache/superset-kubernetes-operator
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Apache Superset Kubernetes Operator" class="md-nav__button md-logo" aria-label="Apache Superset Kubernetes Operator" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Apache Superset Kubernetes Operator
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/apache/superset-kubernetes-operator" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    apache/superset-kubernetes-operator
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../downloads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Downloads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#environment-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment Mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dev-mode-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dev Mode Example
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prod-mode-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prod Mode Example
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metastore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metastore
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#valkey" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Valkey
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Valkey">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ssltls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SSL/TLS
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reserved-environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reserved Environment Variables
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#custom-python-config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom Python Config
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#celery-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Celery Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gunicorn-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gunicorn Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#celery-worker-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Celery Worker Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sqlalchemy-engine-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SQLAlchemy Engine Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mcp-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MCP Server
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#init-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Init Configuration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Init Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#admin-user-dev-mode-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Admin User (Dev Mode Only)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#load-examples-dev-mode-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Load Examples (Dev Mode Only)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#health-probes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Health Probes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#security-context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security Context
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#autoscaling-hpa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Autoscaling (HPA)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pod-disruption-budget" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pod Disruption Budget
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#networking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Networking
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Networking">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#gateway-api-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gateway API (Recommended)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ingress-legacy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ingress (Legacy)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#component-enabledisable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Component Enable/Disable
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Component Enable/Disable">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#child-cr-and-sub-resource-names" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Child CR and Sub-Resource Names
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deployment-template" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deployment Template
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Deployment Template">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#three-usage-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three usage patterns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#merge-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Merge semantics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#available-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Available fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#init-pod" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Init pod
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monitoring
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Monitoring">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prometheus-servicemonitor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prometheus ServiceMonitor
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#network-policies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Network Policies
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#force-reload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Force Reload
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#suspend-reconciliation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Suspend Reconciliation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#connecting-postgresql-and-valkey" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connecting PostgreSQL and Valkey
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Connecting PostgreSQL and Valkey">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#managed-services" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Managed Services
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cloudnativepg" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CloudNativePG
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#redis-operator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Redis Operator
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#migration-from-helm-chart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Migration from Helm Chart
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../internals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../developer-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#environment-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment Mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dev-mode-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dev Mode Example
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prod-mode-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prod Mode Example
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metastore" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metastore
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#valkey" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Valkey
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Valkey">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ssltls" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SSL/TLS
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reserved-environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reserved Environment Variables
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#custom-python-config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom Python Config
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#celery-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Celery Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gunicorn-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gunicorn Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#celery-worker-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Celery Worker Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sqlalchemy-engine-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SQLAlchemy Engine Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mcp-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MCP Server
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#init-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Init Configuration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Init Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#admin-user-dev-mode-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Admin User (Dev Mode Only)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#load-examples-dev-mode-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Load Examples (Dev Mode Only)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#health-probes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Health Probes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#security-context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security Context
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#autoscaling-hpa" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Autoscaling (HPA)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pod-disruption-budget" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pod Disruption Budget
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#networking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Networking
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Networking">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#gateway-api-recommended" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Gateway API (Recommended)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ingress-legacy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ingress (Legacy)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#component-enabledisable" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Component Enable/Disable
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Component Enable/Disable">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#child-cr-and-sub-resource-names" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Child CR and Sub-Resource Names
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#deployment-template" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Deployment Template
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Deployment Template">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#three-usage-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three usage patterns
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#merge-semantics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Merge semantics
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#available-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Available fields
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#init-pod" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Init pod
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Monitoring
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Monitoring">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prometheus-servicemonitor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prometheus ServiceMonitor
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#network-policies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Network Policies
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#force-reload" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Force Reload
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#suspend-reconciliation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Suspend Reconciliation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#connecting-postgresql-and-valkey" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Connecting PostgreSQL and Valkey
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Connecting PostgreSQL and Valkey">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#managed-services" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Managed Services
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cloudnativepg" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CloudNativePG
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#redis-operator" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Redis Operator
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#migration-from-helm-chart" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Migration from Helm Chart
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<!--
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+-->
+
+<h1 id="user-guide">User Guide<a class="headerlink" href="#user-guide" title="Permanent link">&para;</a></h1>
+<p>This guide covers the full configuration reference for the Superset operator.
+For installation instructions, see <a href="../installation/">Installation</a>.</p>
+<h2 id="configuration">Configuration<a class="headerlink" href="#configuration" title="Permanent link">&para;</a></h2>
+<h3 id="environment-mode">Environment Mode<a class="headerlink" href="#environment-mode" title="Permanent link">&para;</a></h3>
+<p>The <code>environment</code> field controls validation strictness (enforced by
+<a href="https://kubernetes.io/docs/reference/using-api/cel/">CEL</a> rules in the CRD schema):</p>
+<ul>
+<li><strong><code>prod</code></strong> (default) — inline <code>secretKey</code>, <code>metastore.uri</code>, <code>metastore.password</code>, and <code>valkey.password</code> are rejected by CRD validation. Use <code>secretKeyFrom</code>, <code>metastore.uriFrom</code>, <code>metastore.passwordFrom</code>, or <code>valkey.passwordFrom</code> to reference Kubernetes Secrets.</li>
+<li><strong><code>dev</code></strong> — allows plain-text <code>secretKey</code>, <code>metastore.uri</code>, <code>metastore.password</code>, and <code>valkey.password</code> directly in the CR for quick local development.</li>
+</ul>
+<h3 id="dev-mode-example">Dev Mode Example<a class="headerlink" href="#dev-mode-example" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">environment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dev</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">secretKey</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">thisIsNotSecure_changeInProduction!</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">metastore</span><span class="p">:</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="nt">uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgresql+psycopg2://superset:superset@postgres:5432/superset</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="nt">config</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="no">FEATURE_FLAGS = {&quot;ENABLE_TEMPLATE_PROCESSING&quot;: True}</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">  </span><span class="nt">webServer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="nt">init</span><span class="p">:</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">    </span><span class="nt">adminUser</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">    </span><span class="nt">loadExamples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</code></pre></div>
+<h3 id="prod-mode-example">Prod Mode Example<a class="headerlink" href="#prod-mode-example" title="Permanent link">&para;</a></h3>
+<p>Use <code>secretKeyFrom</code> and <code>metastore.uriFrom</code> to reference Kubernetes Secrets. The operator injects the corresponding env vars with <code>valueFrom.secretKeyRef</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">image</span><span class="p">:</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;6.0.1&quot;</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">  </span><span class="nt">secretKeyFrom</span><span class="p">:</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset-secret</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">    </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">secret-key</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">  </span><span class="nt">metastore</span><span class="p">:</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">    </span><span class="nt">uriFrom</span><span class="p">:</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">db-credentials</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">      </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">connection-string</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">  </span><span class="nt">config</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">    </span><span class="no">FEATURE_FLAGS = {&quot;DASHBOARD_RBAC&quot;: True, &quot;ALERT_REPORTS&quot;: True}</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">    </span><span class="no">ROW_LIMIT = 10000</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">  </span><span class="nt">webServer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+</code></pre></div>
+<h3 id="metastore">Metastore<a class="headerlink" href="#metastore" title="Permanent link">&para;</a></h3>
+<p>The <code>metastore</code> field provides database connection configuration. There are two modes:</p>
+<p><strong>Passthrough URI</strong> — provide the full SQLAlchemy connection string. In dev mode, use <code>uri</code> inline. In prod mode, use <code>uriFrom</code> to reference a Kubernetes Secret:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Dev mode: inline URI</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">environment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dev</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">  </span><span class="nt">metastore</span><span class="p">:</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="nt">uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgresql+psycopg2://superset:superset@postgres:5432/superset</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="c1"># Prod mode: URI from Secret</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">  </span><span class="nt">metastore</span><span class="p">:</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">    </span><span class="nt">uriFrom</span><span class="p">:</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">db-credentials</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">      </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">connection-string</span>
+</code></pre></div>
+<p><code>uri</code> and <code>uriFrom</code> are mutually exclusive with each other and with the structured fields below.</p>
+<p><strong>Structured fields</strong> — the operator sets individual env vars (<code>SUPERSET_OPERATOR__DB_HOST</code>, <code>SUPERSET_OPERATOR__DB_PORT</code>, <code>SUPERSET_OPERATOR__DB_NAME</code>, <code>SUPERSET_OPERATOR__DB_USER</code>, <code>SUPERSET_OPERATOR__DB_PASS</code>) that the generated config assembles into a connection URI. In prod mode, use <code>passwordFrom</code> to reference a Secret for the password:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Dev mode: inline password</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">  </span><span class="nt">environment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dev</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">metastore</span><span class="p">:</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgresql</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">    </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">db.example.com</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5432</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">    </span><span class="nt">database</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">    </span><span class="nt">username</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset</span>
+<a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="w">    </span><span class="nt">password</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">secret</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="c1"># Prod mode: password from Secret</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="w">  </span><span class="nt">metastore</span><span class="p">:</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgresql</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">    </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">db.example.com</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5432</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="nt">database</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset</span>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">    </span><span class="nt">username</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">    </span><span class="nt">passwordFrom</span><span class="p">:</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">db-credentials</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">      </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">password</span>
+</code></pre></div>
+<p><code>password</code> and <code>passwordFrom</code> are mutually exclusive.</p>
+<h3 id="valkey">Valkey<a class="headerlink" href="#valkey" title="Permanent link">&para;</a></h3>
+<p>The <code>valkey</code> field configures Valkey (or Redis) as the cache backend, Celery message broker, and SQL Lab results backend. Setting <code>valkey.host</code> auto-generates all cache, Celery, and results backend configuration with sensible defaults:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Minimal: one field configures everything</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">  </span><span class="nt">valkey</span><span class="p">:</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">    </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">valkey.default.svc</span>
+</code></pre></div>
+<p>This generates a complete <code>superset_config.py</code> with <code>CACHE_CONFIG</code>, <code>DATA_CACHE_CONFIG</code>, <code>FILTER_STATE_CACHE_CONFIG</code>, <code>EXPLORE_FORM_DATA_CACHE_CONFIG</code>, <code>THUMBNAIL_CACHE_CONFIG</code>, <code>CeleryConfig</code>, and <code>RESULTS_BACKEND</code> — each cache section backed by a separate Valkey database for isolation (Celery broker and result backend share database 0 by default).</p>
+<p><strong>Default database assignments:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Section</th>
+<th>Superset Config Key</th>
+<th>Valkey DB</th>
+<th>Key Prefix</th>
+<th>Timeout</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>cache</code></td>
+<td><code>CACHE_CONFIG</code></td>
+<td>1</td>
+<td><code>superset_</code></td>
+<td>300s</td>
+</tr>
+<tr>
+<td><code>dataCache</code></td>
+<td><code>DATA_CACHE_CONFIG</code></td>
+<td>2</td>
+<td><code>superset_data_</code></td>
+<td>86400s</td>
+</tr>
+<tr>
+<td><code>filterStateCache</code></td>
+<td><code>FILTER_STATE_CACHE_CONFIG</code></td>
+<td>3</td>
+<td><code>superset_filter_</code></td>
+<td>3600s</td>
+</tr>
+<tr>
+<td><code>exploreFormDataCache</code></td>
+<td><code>EXPLORE_FORM_DATA_CACHE_CONFIG</code></td>
+<td>4</td>
+<td><code>superset_explore_</code></td>
+<td>3600s</td>
+</tr>
+<tr>
+<td><code>thumbnailCache</code></td>
+<td><code>THUMBNAIL_CACHE_CONFIG</code></td>
+<td>5</td>
+<td><code>superset_thumbnail_</code></td>
+<td>3600s</td>
+</tr>
+<tr>
+<td><code>celeryBroker</code></td>
+<td><code>CeleryConfig.broker_url</code></td>
+<td>0</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>celeryResultBackend</code></td>
+<td><code>CeleryConfig.result_backend</code></td>
+<td>0</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>resultsBackend</code></td>
+<td><code>RESULTS_BACKEND</code></td>
+<td>6</td>
+<td><code>superset_results_</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p>Each section can be individually tuned or disabled:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">valkey</span><span class="p">:</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">    </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">valkey.default.svc</span>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">6380</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">    </span><span class="nt">passwordFrom</span><span class="p">:</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">valkey-credentials</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">      </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">password</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">    </span><span class="nt">cache</span><span class="p">:</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">      </span><span class="nt">defaultTimeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">600</span>
+<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a><span class="w">    </span><span class="nt">dataCache</span><span class="p">:</span>
+<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a><span class="w">      </span><span class="nt">database</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a><span class="w">      </span><span class="nt">defaultTimeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">43200</span>
+<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a><span class="w">    </span><span class="nt">filterStateCache</span><span class="p">:</span>
+<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a><span class="w">      </span><span class="nt">disabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">    </span><span class="c1"># fall back to Superset&#39;s built-in default</span>
+<a id="__codelineno-7-15" name="__codelineno-7-15" href="#__codelineno-7-15"></a><span class="w">    </span><span class="nt">celeryBroker</span><span class="p">:</span>
+<a id="__codelineno-7-16" name="__codelineno-7-16" href="#__codelineno-7-16"></a><span class="w">      </span><span class="nt">database</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">14</span>
+<a id="__codelineno-7-17" name="__codelineno-7-17" href="#__codelineno-7-17"></a><span class="w">    </span><span class="nt">celeryResultBackend</span><span class="p">:</span>
+<a id="__codelineno-7-18" name="__codelineno-7-18" href="#__codelineno-7-18"></a><span class="w">      </span><span class="nt">database</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span>
+</code></pre></div>
+<p>In dev mode, <code>valkey.password</code> can be set inline. In prod mode (default), use <code>valkey.passwordFrom</code> to reference a Kubernetes Secret — the operator injects the password via <code>valueFrom.secretKeyRef</code>.</p>
+<h4 id="ssltls">SSL/TLS<a class="headerlink" href="#ssltls" title="Permanent link">&para;</a></h4>
+<p>Enable SSL by setting the <code>ssl</code> field. For simple SSL (encrypted connection, no client certificates), set <code>ssl: {}</code>. For mTLS, provide certificate file paths:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">valkey</span><span class="p">:</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">    </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">valkey.default.svc</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">    </span><span class="nt">passwordFrom</span><span class="p">:</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">valkey-credentials</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">      </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">password</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">    </span><span class="nt">ssl</span><span class="p">:</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">      </span><span class="nt">certRequired</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">required</span><span class="w">   </span><span class="c1"># &quot;required&quot; (default), &quot;optional&quot;, or &quot;none&quot;</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">      </span><span class="nt">keyFile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/mnt/tls/client.key.pem</span>
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="w">      </span><span class="nt">certFile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/mnt/tls/client.crt.pem</span>
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="w">      </span><span class="nt">caCertFile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/mnt/tls/ca.pem</span>
+</code></pre></div>
+<p>Mount the certificate files via the top-level <code>podTemplate</code> so they are available to all components:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">podTemplate</span><span class="p">:</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">    </span><span class="nt">volumes</span><span class="p">:</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">valkey-tls</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">        </span><span class="nt">secret</span><span class="p">:</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">          </span><span class="nt">secretName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">valkey-tls-certs</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">    </span><span class="nt">container</span><span class="p">:</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">      </span><span class="nt">volumeMounts</span><span class="p">:</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">valkey-tls</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="w">          </span><span class="nt">mountPath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/mnt/tls</span>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">          </span><span class="nt">readOnly</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">  </span><span class="nt">valkey</span><span class="p">:</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">    </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">valkey.default.svc</span>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="w">    </span><span class="nt">ssl</span><span class="p">:</span>
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="w">      </span><span class="nt">keyFile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/mnt/tls/tls.key</span>
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="w">      </span><span class="nt">certFile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/mnt/tls/tls.crt</span>
+<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="w">      </span><span class="nt">caCertFile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/mnt/tls/ca.crt</span>
+</code></pre></div>
+<h3 id="reserved-environment-variables">Reserved Environment Variables<a class="headerlink" href="#reserved-environment-variables" title="Permanent link">&para;</a></h3>
+<p>The operator sets certain env vars automatically based on the CR spec. These are organized into tiers:</p>
+<table>
+<thead>
+<tr>
+<th>Env Var</th>
+<th>Tier</th>
+<th>Set by</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SUPERSET_OPERATOR__SECRET_KEY</code></td>
+<td>Operator-internal</td>
+<td>Operator (from <code>secretKey</code> or <code>secretKeyFrom</code>)</td>
+<td>Superset session signing key</td>
+</tr>
+<tr>
+<td><code>SUPERSET_OPERATOR__DB_URI</code></td>
+<td>Operator-internal</td>
+<td>Operator (from <code>metastore.uri</code> or <code>metastore.uriFrom</code>)</td>
+<td>Full database connection URI</td>
+</tr>
+<tr>
+<td><code>SUPERSET_OPERATOR__DB_HOST</code>, <code>SUPERSET_OPERATOR__DB_PORT</code>, <code>SUPERSET_OPERATOR__DB_NAME</code></td>
+<td>Operator-internal</td>
+<td>Operator (structured metastore)</td>
+<td>Database connection fields</td>
+</tr>
+<tr>
+<td><code>SUPERSET_OPERATOR__DB_USER</code>, <code>SUPERSET_OPERATOR__DB_PASS</code></td>
+<td>Operator-internal</td>
+<td>Operator (from metastore structured fields or <code>passwordFrom</code>)</td>
+<td>Database credentials</td>
+</tr>
+<tr>
+<td><code>SUPERSET_OPERATOR__VALKEY_HOST</code>, <code>SUPERSET_OPERATOR__VALKEY_PORT</code></td>
+<td>Operator-internal</td>
+<td>Operator (from <code>valkey</code>)</td>
+<td>Valkey connection fields</td>
+</tr>
+<tr>
+<td><code>SUPERSET_OPERATOR__VALKEY_PASS</code></td>
+<td>Operator-internal</td>
+<td>Operator (from <code>valkey.password</code> or <code>valkey.passwordFrom</code>)</td>
+<td>Valkey password</td>
+</tr>
+<tr>
+<td><code>SUPERSET_OPERATOR__FORCE_RELOAD</code></td>
+<td>Operator-internal</td>
+<td>Operator (from <code>spec.forceReload</code>)</td>
+<td>Triggers rolling restart</td>
+</tr>
+<tr>
+<td><code>PYTHONPATH</code></td>
+<td>Standard</td>
+<td>Operator</td>
+<td>Python module search path</td>
+</tr>
+<tr>
+<td><code>SUPERSET_WEBSERVER_PORT</code></td>
+<td>Standard</td>
+<td>Rendered in config</td>
+<td>Web server port (8088)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Tier descriptions:</strong></p>
+<ul>
+<li><strong>Operator-internal transport vars</strong> (<code>SUPERSET_OPERATOR__</code> prefix) are used by the operator to pass values into the rendered <code>superset_config.py</code>. They are not recognized by Superset directly — the operator renders them as Python assignments (e.g., <code>SECRET_KEY = os.environ['SUPERSET_OPERATOR__SECRET_KEY']</code>).</li>
+<li><strong>Standard env vars</strong> have no special prefix.</li>
+</ul>
+<p><strong>Which env vars are set per metastore mode:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Env Var</th>
+<th style="text-align: center;"><code>metastore.uri</code></th>
+<th style="text-align: center;"><code>metastore.uriFrom</code></th>
+<th style="text-align: center;">Structured (<code>host</code>, ...)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SUPERSET_OPERATOR__DB_URI</code></td>
+<td style="text-align: center;">Set (plain text)</td>
+<td style="text-align: center;">Set (<code>valueFrom</code>)</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td><code>SUPERSET_OPERATOR__DB_HOST</code></td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">Set</td>
+</tr>
+<tr>
+<td><code>SUPERSET_OPERATOR__DB_PORT</code></td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">Set</td>
+</tr>
+<tr>
+<td><code>SUPERSET_OPERATOR__DB_NAME</code></td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">Set (if <code>database</code> provided)</td>
+</tr>
+<tr>
+<td><code>SUPERSET_OPERATOR__DB_USER</code></td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">Set (if <code>username</code> provided)</td>
+</tr>
+<tr>
+<td><code>SUPERSET_OPERATOR__DB_PASS</code></td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">Set (plain text or <code>valueFrom</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>In both passthrough and structured modes, the operator renders <code>SQLALCHEMY_DATABASE_URI</code> in <code>superset_config.py</code> from the operator-internal env vars. Passthrough mode reads from <code>SUPERSET_OPERATOR__DB_URI</code>, while structured mode assembles an f-string URI from the <code>SUPERSET_OPERATOR__DB_*</code> env vars.</p>
+<p><strong>Which env vars are set when <code>valkey</code> is configured:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Env Var</th>
+<th>Set when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SUPERSET_OPERATOR__VALKEY_HOST</code></td>
+<td>Always (from <code>valkey.host</code>)</td>
+</tr>
+<tr>
+<td><code>SUPERSET_OPERATOR__VALKEY_PORT</code></td>
+<td>Always (from <code>valkey.port</code>, default 6379)</td>
+</tr>
+<tr>
+<td><code>SUPERSET_OPERATOR__VALKEY_PASS</code></td>
+<td><code>valkey.password</code> (dev, plain text) or <code>valkey.passwordFrom</code> (prod, <code>valueFrom</code>)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="custom-python-config">Custom Python Config<a class="headerlink" href="#custom-python-config" title="Permanent link">&para;</a></h3>
+<p>The <code>config</code> field accepts raw Python that is appended after the operator-generated config. It is available at the top level (base config, shared by all Python components) and per component (component config):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="c1"># Base config: appended to ALL Python components</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="nt">config</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">    </span><span class="no">FEATURE_FLAGS = {&quot;ENABLE_TEMPLATE_PROCESSING&quot;: True}</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">    </span><span class="no">ROW_LIMIT = 10000</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">  </span><span class="c1"># Component config: appended after base config for this component only</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">  </span><span class="nt">celeryWorker</span><span class="p">:</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="w">    </span><span class="nt">config</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="w">      </span><span class="no">CELERY_ANNOTATIONS = {&quot;tasks.add&quot;: {&quot;rate_limit&quot;: &quot;10/s&quot;}}</span>
+</code></pre></div>
+<p>Both fields are <strong>concatenated</strong>, not mutually exclusive. In this example, the celery worker's <code>superset_config.py</code> contains the operator-generated configs (<code>SECRET_KEY</code>, structured DB URI if applicable), then the base config (FEATURE_FLAGS, ROW_LIMIT), then the component config (CELERY_ANNOTATIONS). The web server receives only the operator-generated configs and the base config, since it has no component-specific <code>config</code> field set.</p>
+<p>See <a href="../architecture/#config-rendering-pipeline">Config Rendering Pipeline</a> for the full rendering order and an example of the generated output.</p>
+<h3 id="celery-configuration">Celery Configuration<a class="headerlink" href="#celery-configuration" title="Permanent link">&para;</a></h3>
+<p>Enable Celery workers for background tasks (caching, scheduled reports, long-running queries) by setting <code>celeryWorker</code> and <code>celeryBeat</code>. When <code>spec.valkey</code> is configured, the Celery broker and result backend are auto-generated. Otherwise, provide Celery config manually via <code>config</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="c1"># With valkey (recommended): Celery config auto-generated</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="nt">valkey</span><span class="p">:</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">    </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">valkey.default.svc</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">  </span><span class="nt">celeryWorker</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">  </span><span class="nt">celeryBeat</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+</code></pre></div>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># Without valkey: manual Celery config</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span><span class="nt">config</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">    </span><span class="no">class CeleryConfig:</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">        </span><span class="no">broker_url = &quot;redis://valkey:6379/0&quot;</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">        </span><span class="no">result_backend = &quot;redis://valkey:6379/1&quot;</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">    </span><span class="no">CELERY_CONFIG = CeleryConfig</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">  </span><span class="nt">celeryWorker</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="w">  </span><span class="nt">celeryBeat</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+</code></pre></div>
+<h3 id="gunicorn-configuration">Gunicorn Configuration<a class="headerlink" href="#gunicorn-configuration" title="Permanent link">&para;</a></h3>
+<p>The operator manages Gunicorn worker parameters for the web server by injecting environment variables that Superset's <code>run-server.sh</code> reads. By default, even without an explicit <code>gunicorn</code> field, the operator injects balanced defaults (2 workers, 8 threads, gthread worker class).</p>
+<p>Presets control <strong>workers</strong>, <strong>threads</strong>, and <strong>workerClass</strong>. All other fields have static defaults that you can override individually.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>conservative</th>
+<th>balanced (default)</th>
+<th>performance</th>
+<th>aggressive</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>workers</td>
+<td>1</td>
+<td>2</td>
+<td>4</td>
+<td>8</td>
+</tr>
+<tr>
+<td>threads</td>
+<td>4</td>
+<td>8</td>
+<td>8</td>
+<td>16</td>
+</tr>
+<tr>
+<td>workerClass</td>
+<td>gthread</td>
+<td>gthread</td>
+<td>gthread</td>
+<td>gthread</td>
+</tr>
+</tbody>
+</table>
+<p>Set <code>preset: disabled</code> to suppress env var injection entirely — Superset's <code>run-server.sh</code> built-in defaults will apply instead.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="nt">webServer</span><span class="p">:</span>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">    </span><span class="nt">gunicorn</span><span class="p">:</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">      </span><span class="nt">preset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">performance</span><span class="w">      </span><span class="c1"># 4 workers, 8 threads</span>
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">      </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">120</span><span class="w">             </span><span class="c1"># override static default (60)</span>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">      </span><span class="nt">maxRequests</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span><span class="w">        </span><span class="c1"># enable worker recycling</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="w">      </span><span class="nt">maxRequestsJitter</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
+</code></pre></div>
+<p>The full set of configurable fields (static defaults in parentheses): <code>timeout</code> (60), <code>keepAlive</code> (2), <code>maxRequests</code> (0 = disabled), <code>maxRequestsJitter</code> (0), <code>limitRequestLine</code> (0 = unlimited), <code>limitRequestFieldSize</code> (0 = unlimited), <code>logLevel</code> (info).</p>
+<h3 id="celery-worker-configuration">Celery Worker Configuration<a class="headerlink" href="#celery-worker-configuration" title="Permanent link">&para;</a></h3>
+<p>The operator constructs the celery worker command from structured fields instead of the hardcoded default. Presets control <strong>concurrency</strong> and <strong>pool</strong> type:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>conservative</th>
+<th>balanced (default)</th>
+<th>performance</th>
+<th>aggressive</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>concurrency</td>
+<td>2</td>
+<td>4</td>
+<td>8</td>
+<td>16</td>
+</tr>
+<tr>
+<td>pool</td>
+<td>prefork</td>
+<td>prefork</td>
+<td>prefork</td>
+<td>prefork</td>
+</tr>
+</tbody>
+</table>
+<p>Set <code>preset: disabled</code> to use the operator's built-in fallback command (<code>--pool=prefork -O fair -c 4</code>).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="nt">celeryWorker</span><span class="p">:</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">    </span><span class="nt">celery</span><span class="p">:</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">      </span><span class="nt">preset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">performance</span><span class="w">        </span><span class="c1"># 8 concurrency, prefork</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">      </span><span class="nt">maxTasksPerChild</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span><span class="w">     </span><span class="c1"># recycle workers after 1000 tasks</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">      </span><span class="nt">softTimeLimit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3600</span><span class="w">        </span><span class="c1"># 1h soft limit (raises SoftTimeLimitExceeded)</span>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="w">      </span><span class="nt">timeLimit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">7200</span><span class="w">            </span><span class="c1"># 2h hard kill</span>
+</code></pre></div>
+<p>Additional fields (static defaults in parentheses): <code>optimization</code> (fair), <code>maxTasksPerChild</code> (0 = unlimited), <code>maxMemoryPerChild</code> (0 = disabled), <code>prefetchMultiplier</code> (4), <code>softTimeLimit</code> (0 = disabled), <code>timeLimit</code> (0 = disabled).</p>
+<h3 id="sqlalchemy-engine-options">SQLAlchemy Engine Options<a class="headerlink" href="#sqlalchemy-engine-options" title="Permanent link">&para;</a></h3>
+<p>The operator renders <code>SQLALCHEMY_ENGINE_OPTIONS</code> in each component's <code>superset_config.py</code>, with pool sizing computed from the component's execution model. By default (balanced preset), all components get sensible pool settings without any explicit configuration.</p>
+<p>Presets control <strong>poolClass</strong>, <strong>poolSize</strong>, and <strong>maxOverflow</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Preset</th>
+<th>Pool class</th>
+<th>pool_size</th>
+<th>max_overflow</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>disabled</td>
+<td><em>(no rendering)</em></td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>conservative</td>
+<td>NullPool</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>balanced (default)</td>
+<td>QueuePool</td>
+<td>1 (web/celery), 5 (MCP)</td>
+<td>-1 (unlimited)</td>
+</tr>
+<tr>
+<td>performance</td>
+<td>QueuePool</td>
+<td>workers (web), concurrency (celery)</td>
+<td>-1</td>
+</tr>
+<tr>
+<td>aggressive</td>
+<td>QueuePool</td>
+<td>workers × threads (web), concurrency (celery)</td>
+<td>-1</td>
+</tr>
+</tbody>
+</table>
+<p>CeleryBeat and Init always use NullPool regardless of preset (singleton/short-lived components with minimal DB interaction).</p>
+<p><code>spec.sqlaEngineOptions</code> sets the baseline for all Python components. Per-component <code>sqlaEngineOptions</code> on <code>webServer</code>, <code>celeryWorker</code>, <code>celeryBeat</code>, <code>mcpServer</code>, or <code>init</code> replaces the top-level entirely (override semantics, not merge).</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="nt">sqlaEngineOptions</span><span class="p">:</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">    </span><span class="nt">preset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">balanced</span><span class="w">             </span><span class="c1"># applies to all components</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">    </span><span class="nt">poolRecycle</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1800</span><span class="w">            </span><span class="c1"># override static default (3600)</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">  </span><span class="nt">webServer</span><span class="p">:</span>
+<a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="w">    </span><span class="nt">gunicorn</span><span class="p">:</span>
+<a id="__codelineno-15-7" name="__codelineno-15-7" href="#__codelineno-15-7"></a><span class="w">      </span><span class="nt">preset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">performance</span><span class="w">        </span><span class="c1"># 4 workers, 8 threads</span>
+<a id="__codelineno-15-8" name="__codelineno-15-8" href="#__codelineno-15-8"></a><span class="w">    </span><span class="nt">sqlaEngineOptions</span><span class="p">:</span>
+<a id="__codelineno-15-9" name="__codelineno-15-9" href="#__codelineno-15-9"></a><span class="w">      </span><span class="nt">preset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">performance</span><span class="w">        </span><span class="c1"># pool_size=4 (gunicorn workers)</span>
+<a id="__codelineno-15-10" name="__codelineno-15-10" href="#__codelineno-15-10"></a><span class="w">  </span><span class="nt">celeryWorker</span><span class="p">:</span>
+<a id="__codelineno-15-11" name="__codelineno-15-11" href="#__codelineno-15-11"></a><span class="w">    </span><span class="nt">celery</span><span class="p">:</span>
+<a id="__codelineno-15-12" name="__codelineno-15-12" href="#__codelineno-15-12"></a><span class="w">      </span><span class="nt">concurrency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">12</span>
+<a id="__codelineno-15-13" name="__codelineno-15-13" href="#__codelineno-15-13"></a><span class="w">    </span><span class="nt">sqlaEngineOptions</span><span class="p">:</span>
+<a id="__codelineno-15-14" name="__codelineno-15-14" href="#__codelineno-15-14"></a><span class="w">      </span><span class="nt">preset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">aggressive</span><span class="w">         </span><span class="c1"># pool_size=12 (celery concurrency)</span>
+<a id="__codelineno-15-15" name="__codelineno-15-15" href="#__codelineno-15-15"></a><span class="w">  </span><span class="nt">celeryBeat</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span><span class="w">                 </span><span class="c1"># always NullPool</span>
+</code></pre></div>
+<p>Static defaults (same regardless of preset, overridable per-field): <code>poolRecycle</code> (3600), <code>poolPrePing</code> (false), <code>poolTimeout</code> (omitted — SQLAlchemy default 30s).</p>
+<p>Individual field overrides take precedence over the preset computation:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nt">sqlaEngineOptions</span><span class="p">:</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">    </span><span class="nt">preset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">balanced</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">    </span><span class="nt">poolSize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">                 </span><span class="c1"># explicit: overrides preset calculation</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">    </span><span class="nt">poolPrePing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">            </span><span class="c1"># explicit: overrides static default</span>
+</code></pre></div>
+<h3 id="mcp-server">MCP Server<a class="headerlink" href="#mcp-server" title="Permanent link">&para;</a></h3>
+<p>Enable the <a href="https://modelcontextprotocol.io/">Model Context Protocol</a> server by setting <code>mcpServer</code>. This deploys a Python-based FastMCP server that exposes Superset's API via MCP, allowing AI assistants and LLM-based tools to interact with Superset:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">  </span><span class="nt">mcpServer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+</code></pre></div>
+<p>The MCP server receives a <code>superset_config.py</code> with core config (<code>SECRET_KEY</code>, structured DB URI if applicable) and top-level/per-component <code>config</code> — but not web server port. It runs as a separate Deployment with its own Service.</p>
+<h3 id="init-configuration">Init Configuration<a class="headerlink" href="#init-configuration" title="Permanent link">&para;</a></h3>
+<p>The <code>spec.init</code> section supports <code>podTemplate</code> with the same Pod and container
+fields as other components (tolerations, nodeSelector, volumes, etc. on
+<code>podTemplate</code>; env, resources, securityContext, etc. on <code>podTemplate.container</code>),
+so init pods inherit top-level scheduling and security settings and can be
+customized independently. Init is enabled by default even when <code>spec.init</code> is
+nil; disable it explicitly with <code>spec.init.disabled: true</code>.</p>
+<h4 id="admin-user-dev-mode-only">Admin User (Dev Mode Only)<a class="headerlink" href="#admin-user-dev-mode-only" title="Permanent link">&para;</a></h4>
+<p>In dev mode, the operator can create an admin user during initialization:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="w">  </span><span class="nt">environment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dev</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="w">  </span><span class="nt">init</span><span class="p">:</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="w">    </span><span class="nt">adminUser</span><span class="p">:</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="w">      </span><span class="nt">username</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">admin</span><span class="w">           </span><span class="c1"># default</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="w">      </span><span class="nt">password</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">admin</span><span class="w">           </span><span class="c1"># default</span>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="w">      </span><span class="nt">firstName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Superset</span><span class="w">       </span><span class="c1"># default</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="w">      </span><span class="nt">lastName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Admin</span><span class="w">           </span><span class="c1"># default</span>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="w">      </span><span class="nt">email</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">admin@example.com</span><span class="w">  </span><span class="c1"># default</span>
+</code></pre></div>
+<p>All fields have defaults, so <code>adminUser: {}</code> creates a user with
+username/password <code>admin</code>/<code>admin</code>. The operator passes credentials as env vars
+and appends a <code>superset fab create-admin</code> step to the init command. This field
+is rejected in prod mode by CRD validation.</p>
+<h4 id="load-examples-dev-mode-only">Load Examples (Dev Mode Only)<a class="headerlink" href="#load-examples-dev-mode-only" title="Permanent link">&para;</a></h4>
+<p>Load Superset's example dashboards and datasets during initialization:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="w">  </span><span class="nt">environment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dev</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="w">  </span><span class="nt">init</span><span class="p">:</span>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="w">    </span><span class="nt">loadExamples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</code></pre></div>
+<p>The operator appends a <code>superset load-examples</code> step to the init command. This
+field is rejected in prod mode by CRD validation. Note that Superset's built-in
+examples require an admin user with username <code>admin</code> — if you customize
+<code>adminUser.username</code>, example loading may fail.</p>
+<p>Both <code>adminUser</code> and <code>loadExamples</code> are mutually exclusive with a custom
+<code>init.command</code> — when using these fields, the operator constructs the full
+init command automatically.</p>
+<h3 id="health-probes">Health Probes<a class="headerlink" href="#health-probes" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span><span class="nt">webServer</span><span class="p">:</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="w">    </span><span class="nt">podTemplate</span><span class="p">:</span>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="w">      </span><span class="nt">container</span><span class="p">:</span>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="w">        </span><span class="nt">livenessProbe</span><span class="p">:</span>
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="w">          </span><span class="nt">httpGet</span><span class="p">:</span>
+<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="w">            </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/health</span>
+<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a><span class="w">            </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8088</span>
+<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="w">          </span><span class="nt">initialDelaySeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span>
+<a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="w">          </span><span class="nt">periodSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span>
+<a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a><span class="w">        </span><span class="nt">readinessProbe</span><span class="p">:</span>
+<a id="__codelineno-20-12" name="__codelineno-20-12" href="#__codelineno-20-12"></a><span class="w">          </span><span class="nt">httpGet</span><span class="p">:</span>
+<a id="__codelineno-20-13" name="__codelineno-20-13" href="#__codelineno-20-13"></a><span class="w">            </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/health</span>
+<a id="__codelineno-20-14" name="__codelineno-20-14" href="#__codelineno-20-14"></a><span class="w">            </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8088</span>
+<a id="__codelineno-20-15" name="__codelineno-20-15" href="#__codelineno-20-15"></a><span class="w">          </span><span class="nt">initialDelaySeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span>
+<a id="__codelineno-20-16" name="__codelineno-20-16" href="#__codelineno-20-16"></a><span class="w">          </span><span class="nt">periodSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span>
+</code></pre></div>
+<h3 id="security-context">Security Context<a class="headerlink" href="#security-context" title="Permanent link">&para;</a></h3>
+<p>Security context can be set at the top level (shared by all components) or overridden per component:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">  </span><span class="nt">podTemplate</span><span class="p">:</span>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="w">    </span><span class="nt">podSecurityContext</span><span class="p">:</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="w">      </span><span class="nt">runAsUser</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="w">      </span><span class="nt">runAsNonRoot</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="w">      </span><span class="nt">fsGroup</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="w">    </span><span class="nt">container</span><span class="p">:</span>
+<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a><span class="w">      </span><span class="nt">securityContext</span><span class="p">:</span>
+<a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a><span class="w">        </span><span class="nt">readOnlyRootFilesystem</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a><span class="w">        </span><span class="nt">allowPrivilegeEscalation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</code></pre></div>
+<p>Or override per component (replaces the top-level value):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="w">  </span><span class="nt">webServer</span><span class="p">:</span>
+<a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="w">    </span><span class="nt">podTemplate</span><span class="p">:</span>
+<a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="w">      </span><span class="nt">podSecurityContext</span><span class="p">:</span>
+<a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="w">        </span><span class="nt">runAsUser</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="w">        </span><span class="nt">runAsNonRoot</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</code></pre></div>
+<h3 id="autoscaling-hpa">Autoscaling (HPA)<a class="headerlink" href="#autoscaling-hpa" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="w">  </span><span class="nt">webServer</span><span class="p">:</span>
+<a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="w">    </span><span class="nt">autoscaling</span><span class="p">:</span>
+<a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="w">      </span><span class="nt">minReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a><span class="w">      </span><span class="nt">maxReplicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a><span class="w">      </span><span class="nt">metrics</span><span class="p">:</span>
+<a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Resource</span>
+<a id="__codelineno-23-8" name="__codelineno-23-8" href="#__codelineno-23-8"></a><span class="w">          </span><span class="nt">resource</span><span class="p">:</span>
+<a id="__codelineno-23-9" name="__codelineno-23-9" href="#__codelineno-23-9"></a><span class="w">            </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cpu</span>
+<a id="__codelineno-23-10" name="__codelineno-23-10" href="#__codelineno-23-10"></a><span class="w">            </span><span class="nt">target</span><span class="p">:</span>
+<a id="__codelineno-23-11" name="__codelineno-23-11" href="#__codelineno-23-11"></a><span class="w">              </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Utilization</span>
+<a id="__codelineno-23-12" name="__codelineno-23-12" href="#__codelineno-23-12"></a><span class="w">              </span><span class="nt">averageUtilization</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">75</span>
+</code></pre></div>
+<p>When HPA is configured, the <code>replicas</code> field is ignored (HPA manages scaling).</p>
+<h3 id="pod-disruption-budget">Pod Disruption Budget<a class="headerlink" href="#pod-disruption-budget" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="w">  </span><span class="nt">webServer</span><span class="p">:</span>
+<a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="w">    </span><span class="nt">podDisruptionBudget</span><span class="p">:</span>
+<a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="w">      </span><span class="nt">minAvailable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+</code></pre></div>
+<h2 id="networking">Networking<a class="headerlink" href="#networking" title="Permanent link">&para;</a></h2>
+<h3 id="gateway-api-recommended">Gateway API (Recommended)<a class="headerlink" href="#gateway-api-recommended" title="Permanent link">&para;</a></h3>
+<p>Requires <a href="https://gateway-api.sigs.k8s.io/">Gateway API CRDs</a> installed on the cluster. Gateway API is not included in Kubernetes and must be <a href="https://gateway-api.sigs.k8s.io/guides/#installing-gateway-api">installed separately</a>. If the CRDs are absent, the operator logs a message and skips HTTPRoute management.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="w">  </span><span class="nt">networking</span><span class="p">:</span>
+<a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="w">    </span><span class="nt">gateway</span><span class="p">:</span>
+<a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="w">      </span><span class="nt">gatewayRef</span><span class="p">:</span>
+<a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-gateway</span>
+<a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="w">        </span><span class="nt">namespace</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gateway-system</span>
+<a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="w">      </span><span class="nt">hostnames</span><span class="p">:</span>
+<a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset.example.com</span>
+</code></pre></div>
+<p>The operator creates an <code>HTTPRoute</code> with:
+- <code>/ws</code> -&gt; websocket-server Service (if enabled)
+- <code>/mcp</code> -&gt; mcp-server Service (if enabled)
+- <code>/flower</code> -&gt; celery-flower Service (if enabled)
+- <code>/</code> -&gt; web-server Service (if enabled)</p>
+<p>Paths are configurable via <code>service.gatewayPath</code> on each component. For
+example, to serve Celery Flower under <code>/monitoring</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-26-2" name="__codelineno-26-2" href="#__codelineno-26-2"></a><span class="w">  </span><span class="nt">celeryFlower</span><span class="p">:</span>
+<a id="__codelineno-26-3" name="__codelineno-26-3" href="#__codelineno-26-3"></a><span class="w">    </span><span class="nt">service</span><span class="p">:</span>
+<a id="__codelineno-26-4" name="__codelineno-26-4" href="#__codelineno-26-4"></a><span class="w">      </span><span class="nt">gatewayPath</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/monitoring</span>
+</code></pre></div>
+<h3 id="ingress-legacy">Ingress (Legacy)<a class="headerlink" href="#ingress-legacy" title="Permanent link">&para;</a></h3>
+<p>Gateway API and Ingress are mutually exclusive — set one or the other, not both.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="w">  </span><span class="nt">networking</span><span class="p">:</span>
+<a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="w">    </span><span class="nt">ingress</span><span class="p">:</span>
+<a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="w">      </span><span class="nt">className</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nginx</span>
+<a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="w">      </span><span class="nt">annotations</span><span class="p">:</span>
+<a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="w">        </span><span class="nt">nginx.ingress.kubernetes.io/proxy-body-size</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;100m&quot;</span>
+<a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a><span class="w">      </span><span class="nt">hosts</span><span class="p">:</span>
+<a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset.example.com</span>
+<a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a><span class="w">          </span><span class="nt">paths</span><span class="p">:</span>
+<a id="__codelineno-27-10" name="__codelineno-27-10" href="#__codelineno-27-10"></a><span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/</span>
+<a id="__codelineno-27-11" name="__codelineno-27-11" href="#__codelineno-27-11"></a><span class="w">              </span><span class="nt">pathType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Prefix</span>
+<a id="__codelineno-27-12" name="__codelineno-27-12" href="#__codelineno-27-12"></a><span class="w">      </span><span class="nt">tls</span><span class="p">:</span>
+<a id="__codelineno-27-13" name="__codelineno-27-13" href="#__codelineno-27-13"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">secretName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset-tls</span>
+<a id="__codelineno-27-14" name="__codelineno-27-14" href="#__codelineno-27-14"></a><span class="w">          </span><span class="nt">hosts</span><span class="p">:</span>
+<a id="__codelineno-27-15" name="__codelineno-27-15" href="#__codelineno-27-15"></a><span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset.example.com</span>
+</code></pre></div>
+<h2 id="component-enabledisable">Component Enable/Disable<a class="headerlink" href="#component-enabledisable" title="Permanent link">&para;</a></h2>
+<p>All components follow the same rule: presence = enabled, absence = disabled. Set a component's spec to enable it (use <code>{}</code> for defaults), omit it or set to null to disable:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="w">  </span><span class="nt">webServer</span><span class="p">:</span>
+<a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="w">    </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span><span class="w">          </span><span class="c1"># enabled with 2 replicas</span>
+<a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="w">  </span><span class="nt">celeryWorker</span><span class="p">:</span>
+<a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="w">    </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span><span class="w">          </span><span class="c1"># enabled with 3 replicas</span>
+<a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a><span class="w">  </span><span class="nt">celeryBeat</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span><span class="w">         </span><span class="c1"># enabled with defaults</span>
+<a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a><span class="w">  </span><span class="nt">celeryFlower</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span><span class="w">       </span><span class="c1"># enabled with defaults</span>
+<a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a><span class="w">  </span><span class="nt">websocketServer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span><span class="w">  </span><span class="c1"># disabled (or omit entirely)</span>
+<a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a><span class="w">  </span><span class="nt">mcpServer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span><span class="w">          </span><span class="c1"># enabled with defaults</span>
+</code></pre></div>
+<p>A Superset CR with no components enabled is valid — the operator will run
+initialization (if not disabled) but deploy no workloads. The parent status
+will report <code>Phase: Running</code> with condition reason <code>NoComponentsEnabled</code>.</p>
+<h3 id="child-cr-and-sub-resource-names">Child CR and Sub-Resource Names<a class="headerlink" href="#child-cr-and-sub-resource-names" title="Permanent link">&para;</a></h3>
+<p>Child CRs share the parent's name (differentiated by Kind). For example, a
+parent named <code>my-superset</code> creates <code>SupersetWebServer/my-superset</code>,
+<code>SupersetCeleryWorker/my-superset</code>, etc. Sub-resources (Deployments, Services,
+ConfigMaps) are named <code>{parentName}-{componentType}</code> (e.g.
+<code>my-superset-web-server</code>).</p>
+<p>The parent name must be a valid DNS label: lowercase alphanumeric and hyphens
+only (<code>^[a-z0-9]([-a-z0-9]*[a-z0-9])?$</code>), at most 63 characters. Since
+sub-resource names append a component suffix, the parent name is further
+constrained by the longest enabled component's suffix. The longest suffix is
+<code>-websocket-server</code> (17 characters), so parent names must be at most 46
+characters when websocket-server is enabled. CRD validation enforces the
+appropriate limit for each enabled component.</p>
+<h2 id="deployment-template">Deployment Template<a class="headerlink" href="#deployment-template" title="Permanent link">&para;</a></h2>
+<p>The <code>deploymentTemplate</code> and <code>podTemplate</code> fields configure the Kubernetes
+Deployment and Pod for each component. They mirror the Kubernetes hierarchy
+as siblings:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a>deploymentTemplate                  → DeploymentSpec-level
+<a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a>podTemplate                         → PodSpec-level
+<a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a>└── container                       → main container
+</code></pre></div>
+<h3 id="three-usage-patterns">Three usage patterns<a class="headerlink" href="#three-usage-patterns" title="Permanent link">&para;</a></h3>
+<p><strong>1. Omit entirely</strong> — use operator defaults (most users start here):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="w">  </span><span class="nt">image</span><span class="p">:</span>
+<a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a><span class="w">    </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;6.0.1&quot;</span>
+<a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="w">  </span><span class="nt">webServer</span><span class="p">:</span>
+<a id="__codelineno-30-5" name="__codelineno-30-5" href="#__codelineno-30-5"></a><span class="w">    </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+</code></pre></div>
+<p><strong>2. Set top-level defaults</strong> — apply to all components:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="w">  </span><span class="nt">deploymentTemplate</span><span class="p">:</span>
+<a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="w">    </span><span class="nt">revisionHistoryLimit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="w">  </span><span class="nt">podTemplate</span><span class="p">:</span>
+<a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a><span class="w">    </span><span class="nt">terminationGracePeriodSeconds</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span>
+<a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a><span class="w">    </span><span class="nt">nodeSelector</span><span class="p">:</span>
+<a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="w">      </span><span class="nt">workload</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset</span>
+<a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a><span class="w">    </span><span class="nt">container</span><span class="p">:</span>
+<a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a><span class="w">      </span><span class="nt">resources</span><span class="p">:</span>
+<a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a><span class="w">        </span><span class="nt">limits</span><span class="p">:</span>
+<a id="__codelineno-31-11" name="__codelineno-31-11" href="#__codelineno-31-11"></a><span class="w">          </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2&quot;</span>
+<a id="__codelineno-31-12" name="__codelineno-31-12" href="#__codelineno-31-12"></a><span class="w">          </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;4Gi&quot;</span>
+<a id="__codelineno-31-13" name="__codelineno-31-13" href="#__codelineno-31-13"></a><span class="w">      </span><span class="nt">env</span><span class="p">:</span>
+<a id="__codelineno-31-14" name="__codelineno-31-14" href="#__codelineno-31-14"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LOG_LEVEL</span>
+<a id="__codelineno-31-15" name="__codelineno-31-15" href="#__codelineno-31-15"></a><span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INFO</span>
+<a id="__codelineno-31-16" name="__codelineno-31-16" href="#__codelineno-31-16"></a>
+<a id="__codelineno-31-17" name="__codelineno-31-17" href="#__codelineno-31-17"></a><span class="w">  </span><span class="nt">webServer</span><span class="p">:</span>
+<a id="__codelineno-31-18" name="__codelineno-31-18" href="#__codelineno-31-18"></a><span class="w">    </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-31-19" name="__codelineno-31-19" href="#__codelineno-31-19"></a><span class="w">  </span><span class="nt">celeryWorker</span><span class="p">:</span>
+<a id="__codelineno-31-20" name="__codelineno-31-20" href="#__codelineno-31-20"></a><span class="w">    </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+</code></pre></div>
+<p>All components inherit the deployment template, pod template (node selector,
+termination grace period), and container template (resources, env vars).</p>
+<p><strong>3. Per-component customization</strong> — field-level merge with top-level:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="w">  </span><span class="nt">deploymentTemplate</span><span class="p">:</span>
+<a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="w">    </span><span class="nt">revisionHistoryLimit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="w">  </span><span class="nt">podTemplate</span><span class="p">:</span>
+<a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a><span class="w">    </span><span class="nt">container</span><span class="p">:</span>
+<a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a><span class="w">      </span><span class="nt">resources</span><span class="p">:</span>
+<a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a><span class="w">        </span><span class="nt">limits</span><span class="p">:</span>
+<a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a><span class="w">          </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2&quot;</span>
+<a id="__codelineno-32-9" name="__codelineno-32-9" href="#__codelineno-32-9"></a><span class="w">          </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;4Gi&quot;</span>
+<a id="__codelineno-32-10" name="__codelineno-32-10" href="#__codelineno-32-10"></a><span class="w">      </span><span class="nt">env</span><span class="p">:</span>
+<a id="__codelineno-32-11" name="__codelineno-32-11" href="#__codelineno-32-11"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LOG_LEVEL</span>
+<a id="__codelineno-32-12" name="__codelineno-32-12" href="#__codelineno-32-12"></a><span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INFO</span>
+<a id="__codelineno-32-13" name="__codelineno-32-13" href="#__codelineno-32-13"></a>
+<a id="__codelineno-32-14" name="__codelineno-32-14" href="#__codelineno-32-14"></a><span class="w">  </span><span class="nt">webServer</span><span class="p">:</span>
+<a id="__codelineno-32-15" name="__codelineno-32-15" href="#__codelineno-32-15"></a><span class="w">    </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-32-16" name="__codelineno-32-16" href="#__codelineno-32-16"></a><span class="w">    </span><span class="nt">deploymentTemplate</span><span class="p">:</span>
+<a id="__codelineno-32-17" name="__codelineno-32-17" href="#__codelineno-32-17"></a><span class="w">      </span><span class="nt">strategy</span><span class="p">:</span>
+<a id="__codelineno-32-18" name="__codelineno-32-18" href="#__codelineno-32-18"></a><span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">RollingUpdate</span>
+<a id="__codelineno-32-19" name="__codelineno-32-19" href="#__codelineno-32-19"></a><span class="w">        </span><span class="nt">rollingUpdate</span><span class="p">:</span>
+<a id="__codelineno-32-20" name="__codelineno-32-20" href="#__codelineno-32-20"></a><span class="w">          </span><span class="nt">maxSurge</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-32-21" name="__codelineno-32-21" href="#__codelineno-32-21"></a><span class="w">          </span><span class="nt">maxUnavailable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<a id="__codelineno-32-22" name="__codelineno-32-22" href="#__codelineno-32-22"></a><span class="w">    </span><span class="nt">podTemplate</span><span class="p">:</span>
+<a id="__codelineno-32-23" name="__codelineno-32-23" href="#__codelineno-32-23"></a><span class="w">      </span><span class="nt">container</span><span class="p">:</span>
+<a id="__codelineno-32-24" name="__codelineno-32-24" href="#__codelineno-32-24"></a><span class="w">        </span><span class="nt">resources</span><span class="p">:</span>
+<a id="__codelineno-32-25" name="__codelineno-32-25" href="#__codelineno-32-25"></a><span class="w">          </span><span class="nt">limits</span><span class="p">:</span>
+<a id="__codelineno-32-26" name="__codelineno-32-26" href="#__codelineno-32-26"></a><span class="w">            </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;4&quot;</span><span class="w">             </span><span class="c1"># replaces entire resources struct</span>
+<a id="__codelineno-32-27" name="__codelineno-32-27" href="#__codelineno-32-27"></a><span class="w">            </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;8Gi&quot;</span>
+<a id="__codelineno-32-28" name="__codelineno-32-28" href="#__codelineno-32-28"></a><span class="w">        </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;gunicorn&quot;</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-32-29" name="__codelineno-32-29" href="#__codelineno-32-29"></a><span class="w">        </span><span class="nt">lifecycle</span><span class="p">:</span>
+<a id="__codelineno-32-30" name="__codelineno-32-30" href="#__codelineno-32-30"></a><span class="w">          </span><span class="nt">preStop</span><span class="p">:</span>
+<a id="__codelineno-32-31" name="__codelineno-32-31" href="#__codelineno-32-31"></a><span class="w">            </span><span class="nt">exec</span><span class="p">:</span>
+<a id="__codelineno-32-32" name="__codelineno-32-32" href="#__codelineno-32-32"></a><span class="w">              </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;/bin/sh&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;-c&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;sleep</span><span class="nv"> </span><span class="s">15&quot;</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-32-33" name="__codelineno-32-33" href="#__codelineno-32-33"></a>
+<a id="__codelineno-32-34" name="__codelineno-32-34" href="#__codelineno-32-34"></a><span class="w">  </span><span class="nt">celeryWorker</span><span class="p">:</span>
+<a id="__codelineno-32-35" name="__codelineno-32-35" href="#__codelineno-32-35"></a><span class="w">    </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
+<a id="__codelineno-32-36" name="__codelineno-32-36" href="#__codelineno-32-36"></a><span class="w">    </span><span class="nt">podTemplate</span><span class="p">:</span>
+<a id="__codelineno-32-37" name="__codelineno-32-37" href="#__codelineno-32-37"></a><span class="w">      </span><span class="nt">container</span><span class="p">:</span>
+<a id="__codelineno-32-38" name="__codelineno-32-38" href="#__codelineno-32-38"></a><span class="w">        </span><span class="nt">env</span><span class="p">:</span>
+<a id="__codelineno-32-39" name="__codelineno-32-39" href="#__codelineno-32-39"></a><span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CELERY_CONCURRENCY</span>
+<a id="__codelineno-32-40" name="__codelineno-32-40" href="#__codelineno-32-40"></a><span class="w">            </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;8&quot;</span><span class="w">           </span><span class="c1"># merged with top-level LOG_LEVEL env var</span>
+</code></pre></div>
+<h3 id="merge-semantics">Merge semantics<a class="headerlink" href="#merge-semantics" title="Permanent link">&para;</a></h3>
+<p>Per-component <code>deploymentTemplate</code> and <code>podTemplate</code> are each <strong>field-level
+merged</strong> independently with the top-level — you only specify what's different.</p>
+<table>
+<thead>
+<tr>
+<th>Behavior</th>
+<th>Fields</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Component wins if set</strong></td>
+<td><code>resources</code>, <code>affinity</code>, <code>securityContext</code>, <code>podSecurityContext</code>, <code>priorityClassName</code>, <code>strategy</code>, <code>revisionHistoryLimit</code>, probes, <code>lifecycle</code>, <code>dnsPolicy</code>, <code>dnsConfig</code>, <code>runtimeClassName</code>, <code>shareProcessNamespace</code>, <code>enableServiceLinks</code>, <code>terminationGracePeriodSeconds</code>, <code>minReadySeconds</code>, <code>progressDeadlineSeconds</code></td>
+</tr>
+<tr>
+<td><strong>Merge by name</strong></td>
+<td><code>env</code>, <code>volumes</code>, <code>volumeMounts</code>, <code>sidecars</code>, <code>initContainers</code></td>
+</tr>
+<tr>
+<td><strong>Merge by key</strong></td>
+<td><code>annotations</code>, <code>labels</code>, <code>nodeSelector</code>, <code>hostAliases</code> (by IP)</td>
+</tr>
+<tr>
+<td><strong>Append</strong></td>
+<td><code>tolerations</code>, <code>topologySpreadConstraints</code>, <code>envFrom</code></td>
+</tr>
+<tr>
+<td><strong>No inheritance</strong></td>
+<td><code>command</code>, <code>args</code> (component-only, not inherited from top-level)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Note on append fields:</strong> <code>tolerations</code>, <code>topologySpreadConstraints</code>, and <code>envFrom</code> are
+concatenated (top-level first, then component-level) without deduplication. To avoid
+duplicates in the final pod spec, define each entry at one level only — typically
+top-level for shared entries and component-level for component-specific ones.</p>
+<h3 id="available-fields">Available fields<a class="headerlink" href="#available-fields" title="Permanent link">&para;</a></h3>
+<p><strong>Deployment level</strong> (<code>deploymentTemplate.*</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>revisionHistoryLimit</code></td>
+<td>Old ReplicaSets to retain for rollback</td>
+</tr>
+<tr>
+<td><code>minReadySeconds</code></td>
+<td>Seconds before a pod is considered available</td>
+</tr>
+<tr>
+<td><code>progressDeadlineSeconds</code></td>
+<td>Seconds before a rollout is considered failed</td>
+</tr>
+<tr>
+<td><code>strategy</code></td>
+<td>Update strategy (RollingUpdate or Recreate)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Pod level</strong> (<code>podTemplate.*</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>annotations</code></td>
+<td>Pod annotations (merged with operator-managed annotations)</td>
+</tr>
+<tr>
+<td><code>labels</code></td>
+<td>Pod labels (merged; operator labels cannot be overridden)</td>
+</tr>
+<tr>
+<td><code>affinity</code></td>
+<td>Pod/node affinity and anti-affinity</td>
+</tr>
+<tr>
+<td><code>tolerations</code></td>
+<td>Node tolerations (appended)</td>
+</tr>
+<tr>
+<td><code>nodeSelector</code></td>
+<td>Node label selector (merged by key)</td>
+</tr>
+<tr>
+<td><code>topologySpreadConstraints</code></td>
+<td>Topology spread constraints (appended)</td>
+</tr>
+<tr>
+<td><code>hostAliases</code></td>
+<td>/etc/hosts entries (merged by IP)</td>
+</tr>
+<tr>
+<td><code>podSecurityContext</code></td>
+<td>Pod-level security context</td>
+</tr>
+<tr>
+<td><code>priorityClassName</code></td>
+<td>Pod priority class</td>
+</tr>
+<tr>
+<td><code>volumes</code></td>
+<td>Volumes (merged by name with operator-injected volumes)</td>
+</tr>
+<tr>
+<td><code>sidecars</code></td>
+<td>Sidecar containers (merged by name)</td>
+</tr>
+<tr>
+<td><code>initContainers</code></td>
+<td>Init containers (merged by name)</td>
+</tr>
+<tr>
+<td><code>terminationGracePeriodSeconds</code></td>
+<td>Grace period for pod shutdown</td>
+</tr>
+<tr>
+<td><code>dnsPolicy</code></td>
+<td>DNS resolution policy</td>
+</tr>
+<tr>
+<td><code>dnsConfig</code></td>
+<td>Custom DNS configuration</td>
+</tr>
+<tr>
+<td><code>runtimeClassName</code></td>
+<td>RuntimeClass (e.g., gVisor, Kata)</td>
+</tr>
+<tr>
+<td><code>shareProcessNamespace</code></td>
+<td>Share PID namespace between containers</td>
+</tr>
+<tr>
+<td><code>enableServiceLinks</code></td>
+<td>Inject service environment variables</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Container level</strong> (<code>podTemplate.container.*</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>resources</code></td>
+<td>CPU/memory requests and limits</td>
+</tr>
+<tr>
+<td><code>env</code></td>
+<td>Environment variables (merged by name)</td>
+</tr>
+<tr>
+<td><code>envFrom</code></td>
+<td>ConfigMap/Secret env sources (appended)</td>
+</tr>
+<tr>
+<td><code>volumeMounts</code></td>
+<td>Volume mounts (merged by name)</td>
+</tr>
+<tr>
+<td><code>securityContext</code></td>
+<td>Container-level security context</td>
+</tr>
+<tr>
+<td><code>command</code></td>
+<td>Container entrypoint (no inheritance)</td>
+</tr>
+<tr>
+<td><code>args</code></td>
+<td>Container arguments (no inheritance)</td>
+</tr>
+<tr>
+<td><code>livenessProbe</code></td>
+<td>Liveness probe</td>
+</tr>
+<tr>
+<td><code>readinessProbe</code></td>
+<td>Readiness probe</td>
+</tr>
+<tr>
+<td><code>startupProbe</code></td>
+<td>Startup probe</td>
+</tr>
+<tr>
+<td><code>lifecycle</code></td>
+<td>preStop/postStart lifecycle hooks</td>
+</tr>
+</tbody>
+</table>
+<h3 id="init-pod">Init pod<a class="headerlink" href="#init-pod" title="Permanent link">&para;</a></h3>
+<p>The init pod uses <code>podTemplate</code> instead of <code>deploymentTemplate</code> (since it creates
+bare Pods, not Deployments):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="w">  </span><span class="nt">init</span><span class="p">:</span>
+<a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a><span class="w">    </span><span class="nt">podTemplate</span><span class="p">:</span>
+<a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a><span class="w">      </span><span class="nt">container</span><span class="p">:</span>
+<a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a><span class="w">        </span><span class="nt">resources</span><span class="p">:</span>
+<a id="__codelineno-33-6" name="__codelineno-33-6" href="#__codelineno-33-6"></a><span class="w">          </span><span class="nt">limits</span><span class="p">:</span>
+<a id="__codelineno-33-7" name="__codelineno-33-7" href="#__codelineno-33-7"></a><span class="w">            </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2Gi&quot;</span>
+<a id="__codelineno-33-8" name="__codelineno-33-8" href="#__codelineno-33-8"></a><span class="w">    </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;/bin/sh&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;-c&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;superset</span><span class="nv"> </span><span class="s">db</span><span class="nv"> </span><span class="s">upgrade</span><span class="nv"> </span><span class="s">&amp;&amp;</span><span class="nv"> </span><span class="s">superset</span><span class="nv"> </span><span class="s">init&quot;</span><span class="p p-Indicator">]</span>
+</code></pre></div>
+<h2 id="monitoring">Monitoring<a class="headerlink" href="#monitoring" title="Permanent link">&para;</a></h2>
+<h3 id="prometheus-servicemonitor">Prometheus ServiceMonitor<a class="headerlink" href="#prometheus-servicemonitor" title="Permanent link">&para;</a></h3>
+<p>Requires <a href="https://prometheus-operator.dev/">prometheus-operator</a> CRDs. The operator gracefully skips if they are not installed.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="w">  </span><span class="nt">monitoring</span><span class="p">:</span>
+<a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="w">    </span><span class="nt">serviceMonitor</span><span class="p">:</span>
+<a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="w">      </span><span class="nt">interval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30s</span>
+<a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a><span class="w">      </span><span class="nt">labels</span><span class="p">:</span>
+<a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a><span class="w">        </span><span class="nt">release</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">prometheus</span>
+</code></pre></div>
+<h2 id="network-policies">Network Policies<a class="headerlink" href="#network-policies" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a><span class="w">  </span><span class="nt">networkPolicy</span><span class="p">:</span>
+<a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a><span class="w">    </span><span class="nt">extraIngress</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+<a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a><span class="w">    </span><span class="nt">extraEgress</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+</code></pre></div>
+<p>Creates per-component NetworkPolicies that:
+- Allow ingress from other components of the same Superset instance (matched by <code>app.kubernetes.io/name: superset</code> + <code>superset.apache.org/parent</code> labels — multiple Superset instances in the same namespace are isolated from each other)
+- Allow ingress on the service port from any source for externally-facing components (web server, Celery Flower, websocket server, MCP server) — this is necessary because ingress controllers and load balancers typically reside outside the namespace and cannot be matched with a pod selector
+- Allow all egress (for database/cache access)
+- Support custom <code>extraIngress</code> and <code>extraEgress</code> rules</p>
+<p>If you need to restrict external ingress to specific sources, disable the built-in
+network policy and create your own NetworkPolicy resources with the desired <code>from</code>
+selectors.</p>
+<h2 id="force-reload">Force Reload<a class="headerlink" href="#force-reload" title="Permanent link">&para;</a></h2>
+<p>Trigger a rolling restart of all components:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a><span class="w">  </span><span class="nt">forceReload</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2026-03-14T12:00:00Z&quot;</span>
+</code></pre></div>
+<p>Change the value to any new string to trigger a restart.</p>
+<h2 id="suspend-reconciliation">Suspend Reconciliation<a class="headerlink" href="#suspend-reconciliation" title="Permanent link">&para;</a></h2>
+<p>Temporarily pause reconciliation without deleting resources:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a><span class="w">  </span><span class="nt">suspend</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</code></pre></div>
+<p>When suspended, the operator stops all reconciliation — no init pods run, no
+child CRs are created or updated, and no resources are deleted. Set
+<code>suspend: false</code> (or remove the field) to resume.</p>
+<h2 id="connecting-postgresql-and-valkey">Connecting PostgreSQL and Valkey<a class="headerlink" href="#connecting-postgresql-and-valkey" title="Permanent link">&para;</a></h2>
+<p>The operator does not manage database or cache infrastructure. Use one of these approaches:</p>
+<h3 id="managed-services">Managed Services<a class="headerlink" href="#managed-services" title="Permanent link">&para;</a></h3>
+<p>Set connection details via <code>secretKeyFrom</code>, <code>metastore.uriFrom</code>, and <code>valkey</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a><span class="w">  </span><span class="nt">secretKeyFrom</span><span class="p">:</span>
+<a id="__codelineno-38-3" name="__codelineno-38-3" href="#__codelineno-38-3"></a><span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset-secrets</span>
+<a id="__codelineno-38-4" name="__codelineno-38-4" href="#__codelineno-38-4"></a><span class="w">    </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">secret-key</span>
+<a id="__codelineno-38-5" name="__codelineno-38-5" href="#__codelineno-38-5"></a><span class="w">  </span><span class="nt">metastore</span><span class="p">:</span>
+<a id="__codelineno-38-6" name="__codelineno-38-6" href="#__codelineno-38-6"></a><span class="w">    </span><span class="nt">uriFrom</span><span class="p">:</span>
+<a id="__codelineno-38-7" name="__codelineno-38-7" href="#__codelineno-38-7"></a><span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset-db</span>
+<a id="__codelineno-38-8" name="__codelineno-38-8" href="#__codelineno-38-8"></a><span class="w">      </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uri</span>
+<a id="__codelineno-38-9" name="__codelineno-38-9" href="#__codelineno-38-9"></a><span class="w">  </span><span class="nt">valkey</span><span class="p">:</span>
+<a id="__codelineno-38-10" name="__codelineno-38-10" href="#__codelineno-38-10"></a><span class="w">    </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">valkey.default.svc</span>
+<a id="__codelineno-38-11" name="__codelineno-38-11" href="#__codelineno-38-11"></a><span class="w">    </span><span class="nt">passwordFrom</span><span class="p">:</span>
+<a id="__codelineno-38-12" name="__codelineno-38-12" href="#__codelineno-38-12"></a><span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">valkey-credentials</span>
+<a id="__codelineno-38-13" name="__codelineno-38-13" href="#__codelineno-38-13"></a><span class="w">      </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">password</span>
+</code></pre></div>
+<h3 id="cloudnativepg">CloudNativePG<a class="headerlink" href="#cloudnativepg" title="Permanent link">&para;</a></h3>
+<p>Use <a href="https://cloudnative-pg.io/">CloudNativePG</a> for PostgreSQL:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a><span class="c1"># CloudNativePG Cluster (separate CR)</span>
+<a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgresql.cnpg.io/v1</span>
+<a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Cluster</span>
+<a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a><span class="nt">metadata</span><span class="p">:</span>
+<a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset-pg</span>
+<a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-39-7" name="__codelineno-39-7" href="#__codelineno-39-7"></a><span class="w">  </span><span class="nt">instances</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<a id="__codelineno-39-8" name="__codelineno-39-8" href="#__codelineno-39-8"></a><span class="w">  </span><span class="nt">storage</span><span class="p">:</span>
+<a id="__codelineno-39-9" name="__codelineno-39-9" href="#__codelineno-39-9"></a><span class="w">    </span><span class="nt">size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10Gi</span>
+</code></pre></div>
+<p>Then reference the connection secret via <code>metastore.uriFrom</code> on your Superset CR.</p>
+<h3 id="redis-operator">Redis Operator<a class="headerlink" href="#redis-operator" title="Permanent link">&para;</a></h3>
+<p>Use the <a href="https://github.com/spotahome/redis-operator">Redis Operator</a> or <a href="https://github.com/bitnami/charts/tree/main/bitnami/redis">Bitnami Redis Helm chart</a> for Redis, and configure the connection via <code>config</code>.</p>
+<h2 id="migration-from-helm-chart">Migration from Helm Chart<a class="headerlink" href="#migration-from-helm-chart" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Helm Chart Value</th>
+<th>Operator Equivalent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>image.repository</code> + <code>image.tag</code></td>
+<td><code>spec.image.repository</code> + <code>spec.image.tag</code></td>
+</tr>
+<tr>
+<td><code>supersetNode.connections</code></td>
+<td><code>spec.metastore</code> (with <code>uriFrom</code> or structured fields)</td>
+</tr>
+<tr>
+<td><code>supersetNode.replicaCount</code></td>
+<td><code>spec.webServer.replicas</code></td>
+</tr>
+<tr>
+<td><code>supersetWorker.replicaCount</code></td>
+<td><code>spec.celeryWorker.replicas</code></td>
+</tr>
+<tr>
+<td><code>supersetCeleryBeat.enabled</code></td>
+<td><code>spec.celeryBeat: {}</code> (set) or omit (disabled)</td>
+</tr>
+<tr>
+<td><code>supersetCeleryFlower.enabled</code></td>
+<td><code>spec.celeryFlower: {}</code> (set) or omit (disabled)</td>
+</tr>
+<tr>
+<td><code>supersetWebsockets.enabled</code></td>
+<td><code>spec.websocketServer: {}</code> (set) or omit (disabled)</td>
+</tr>
+<tr>
+<td><code>configOverrides</code></td>
+<td><code>spec.config</code></td>
+</tr>
+<tr>
+<td><code>ingress.*</code></td>
+<td><code>spec.networking.ingress</code></td>
+</tr>
+<tr>
+<td><code>service.*</code></td>
+<td><code>spec.webServer.service</code></td>
+</tr>
+<tr>
+<td><code>resources.*</code></td>
+<td><code>spec.podTemplate.container.resources</code> (top-level) or per-component</td>
+</tr>
+<tr>
+<td><code>nodeSelector</code></td>
+<td><code>spec.podTemplate.nodeSelector</code> (top-level) or per-component (merged)</td>
+</tr>
+<tr>
+<td><code>tolerations</code></td>
+<td><code>spec.podTemplate.tolerations</code> (top-level) or per-component (appended)</td>
+</tr>
+<tr>
+<td><code>affinity</code></td>
+<td><code>spec.podTemplate.affinity</code> (top-level) or per-component (replaces)</td>
+</tr>
+<tr>
+<td><code>extraEnv</code></td>
+<td><code>spec.podTemplate.container.env</code> (top-level) or per-component (merged)</td>
+</tr>
+<tr>
+<td><code>postgresql.*</code></td>
+<td>Not managed -- use CloudNativePG or managed services</td>
+</tr>
+<tr>
+<td><code>redis.*</code></td>
+<td>Not managed -- use Redis Operator or managed services</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "navigation.sections", "navigation.expand", "navigation.top", "search.highlight"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

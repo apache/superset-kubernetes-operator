@@ -1,0 +1,5516 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Kubernetes operator for deploying and managing Apache Superset">
+      
+      
+      
+        <link rel="canonical" href="https://apache.github.io/superset-kubernetes-operator/api-reference/">
+      
+      
+        <link rel="prev" href="../internals/">
+      
+      
+        <link rel="next" href="../security/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>API Reference - Apache Superset Kubernetes Operator</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#api-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Apache Superset Kubernetes Operator" class="md-header__button md-logo" aria-label="Apache Superset Kubernetes Operator" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Apache Superset Kubernetes Operator
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              API Reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/apache/superset-kubernetes-operator" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    apache/superset-kubernetes-operator
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Apache Superset Kubernetes Operator" class="md-nav__button md-logo" aria-label="Apache Superset Kubernetes Operator" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Apache Superset Kubernetes Operator
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/apache/superset-kubernetes-operator" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    apache/superset-kubernetes-operator
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../downloads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Downloads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../internals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#packages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Packages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supersetapacheorgv1alpha1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        superset.apache.org/v1alpha1
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="superset.apache.org/v1alpha1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#resource-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resource Types
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Resource Types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#adminuserspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AdminUserSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#autoscalingspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AutoscalingSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#celerybeatcomponentspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CeleryBeatComponentSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#celeryflowercomponentspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CeleryFlowerComponentSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#celeryworkercomponentspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CeleryWorkerComponentSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#childcomponentstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ChildComponentStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#componentrefstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ComponentRefStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#componentservicespec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ComponentServiceSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#componentspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ComponentSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#componentstatusmap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ComponentStatusMap
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#containertemplate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ContainerTemplate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deploymenttemplate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DeploymentTemplate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#flatcomponentspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FlatComponentSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gatewayspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GatewaySpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#imageoverridespec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ImageOverrideSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#imagespec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ImageSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ingresshost" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IngressHost
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ingresspath" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IngressPath
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ingressspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IngressSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#initspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InitSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inittaskstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InitTaskStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mcpservercomponentspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        McpServerComponentSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metastorespec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MetastoreSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#monitoringspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MonitoringSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#networkpolicyspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NetworkPolicySpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#networkingspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NetworkingSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pdbspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PDBSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#podretentionspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PodRetentionSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#podtemplate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PodTemplate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scalablecomponentspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ScalableComponentSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#serviceaccountspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ServiceAccountSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#servicemonitorspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ServiceMonitorSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#superset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Superset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetcelerybeat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetCeleryBeat
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetcelerybeatspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetCeleryBeatSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetcelerybeatstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetCeleryBeatStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetceleryflower" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetCeleryFlower
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetceleryflowerspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetCeleryFlowerSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetceleryflowerstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetCeleryFlowerStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetceleryworker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetCeleryWorker
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetceleryworkerspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetCeleryWorkerSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetceleryworkerstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetCeleryWorkerStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetinit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetInit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetinitspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetInitSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetinitstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetInitStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetmcpserver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetMcpServer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetmcpserverspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetMcpServerSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetmcpserverstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetMcpServerStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetwebserver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetWebServer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetwebserverspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetWebServerSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetwebserverstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetWebServerStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetwebsocketserver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetWebsocketServer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetwebsocketserverspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetWebsocketServerSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetwebsocketserverstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetWebsocketServerStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#valkeycachespec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ValkeyCacheSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#valkeyceleryspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ValkeyCelerySpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#valkeyresultsbackendspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ValkeyResultsBackendSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#valkeysslspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ValkeySSLSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#valkeyspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ValkeySpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#webservercomponentspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WebServerComponentSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#websocketservercomponentspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WebsocketServerComponentSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../developer-guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#packages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Packages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supersetapacheorgv1alpha1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        superset.apache.org/v1alpha1
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="superset.apache.org/v1alpha1">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#resource-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resource Types
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Resource Types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#adminuserspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AdminUserSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#autoscalingspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AutoscalingSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#celerybeatcomponentspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CeleryBeatComponentSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#celeryflowercomponentspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CeleryFlowerComponentSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#celeryworkercomponentspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CeleryWorkerComponentSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#childcomponentstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ChildComponentStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#componentrefstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ComponentRefStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#componentservicespec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ComponentServiceSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#componentspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ComponentSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#componentstatusmap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ComponentStatusMap
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#containertemplate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ContainerTemplate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#deploymenttemplate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        DeploymentTemplate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#flatcomponentspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FlatComponentSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gatewayspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GatewaySpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#imageoverridespec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ImageOverrideSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#imagespec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ImageSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ingresshost" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IngressHost
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ingresspath" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IngressPath
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ingressspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        IngressSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#initspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InitSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#inittaskstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        InitTaskStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mcpservercomponentspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        McpServerComponentSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#metastorespec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MetastoreSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#monitoringspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MonitoringSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#networkpolicyspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NetworkPolicySpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#networkingspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NetworkingSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#pdbspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PDBSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#podretentionspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PodRetentionSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#podtemplate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PodTemplate
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scalablecomponentspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ScalableComponentSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#serviceaccountspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ServiceAccountSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#servicemonitorspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ServiceMonitorSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#superset" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Superset
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetcelerybeat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetCeleryBeat
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetcelerybeatspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetCeleryBeatSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetcelerybeatstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetCeleryBeatStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetceleryflower" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetCeleryFlower
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetceleryflowerspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetCeleryFlowerSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetceleryflowerstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetCeleryFlowerStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetceleryworker" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetCeleryWorker
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetceleryworkerspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetCeleryWorkerSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetceleryworkerstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetCeleryWorkerStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetinit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetInit
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetinitspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetInitSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetinitstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetInitStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetmcpserver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetMcpServer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetmcpserverspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetMcpServerSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetmcpserverstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetMcpServerStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetwebserver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetWebServer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetwebserverspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetWebServerSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetwebserverstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetWebServerStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetwebsocketserver" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetWebsocketServer
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetwebsocketserverspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetWebsocketServerSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#supersetwebsocketserverstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SupersetWebsocketServerStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#valkeycachespec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ValkeyCacheSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#valkeyceleryspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ValkeyCelerySpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#valkeyresultsbackendspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ValkeyResultsBackendSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#valkeysslspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ValkeySSLSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#valkeyspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ValkeySpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#webservercomponentspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WebServerComponentSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#websocketservercomponentspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WebsocketServerComponentSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="api-reference">API Reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h1>
+<h2 id="packages">Packages<a class="headerlink" href="#packages" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="#supersetapacheorgv1alpha1">superset.apache.org/v1alpha1</a></li>
+</ul>
+<h2 id="supersetapacheorgv1alpha1">superset.apache.org/v1alpha1<a class="headerlink" href="#supersetapacheorgv1alpha1" title="Permanent link">&para;</a></h2>
+<p>Package v1alpha1 contains API Schema definitions for the superset v1alpha1 API group.</p>
+<h3 id="resource-types">Resource Types<a class="headerlink" href="#resource-types" title="Permanent link">&para;</a></h3>
+<ul>
+<li><a href="#superset">Superset</a></li>
+<li><a href="#supersetcelerybeat">SupersetCeleryBeat</a></li>
+<li><a href="#supersetceleryflower">SupersetCeleryFlower</a></li>
+<li><a href="#supersetceleryworker">SupersetCeleryWorker</a></li>
+<li><a href="#supersetinit">SupersetInit</a></li>
+<li><a href="#supersetmcpserver">SupersetMcpServer</a></li>
+<li><a href="#supersetwebserver">SupersetWebServer</a></li>
+<li><a href="#supersetwebsocketserver">SupersetWebsocketServer</a></li>
+</ul>
+<h4 id="adminuserspec">AdminUserSpec<a class="headerlink" href="#adminuserspec" title="Permanent link">&para;</a></h4>
+<p>AdminUserSpec defines admin user credentials for dev-mode initialization.</p>
+<p><em>Appears in:</em>
+- <a href="#initspec">InitSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>username</code> <em>string</em></td>
+<td>Admin username.</td>
+<td>admin</td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>password</code> <em>string</em></td>
+<td>Admin password. Stored as plain-text env var in dev mode.</td>
+<td>admin</td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>firstName</code> <em>string</em></td>
+<td>Admin first name.</td>
+<td>Superset</td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>lastName</code> <em>string</em></td>
+<td>Admin last name.</td>
+<td>Admin</td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>email</code> <em>string</em></td>
+<td>Admin email.</td>
+<td>admin@example.com</td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="autoscalingspec">AutoscalingSpec<a class="headerlink" href="#autoscalingspec" title="Permanent link">&para;</a></h4>
+<p>AutoscalingSpec configures a HorizontalPodAutoscaler.</p>
+<p><em>Appears in:</em>
+- <a href="#celeryflowercomponentspec">CeleryFlowerComponentSpec</a>
+- <a href="#celeryworkercomponentspec">CeleryWorkerComponentSpec</a>
+- <a href="#flatcomponentspec">FlatComponentSpec</a>
+- <a href="#mcpservercomponentspec">McpServerComponentSpec</a>
+- <a href="#scalablecomponentspec">ScalableComponentSpec</a>
+- <a href="#supersetcelerybeatspec">SupersetCeleryBeatSpec</a>
+- <a href="#supersetceleryflowerspec">SupersetCeleryFlowerSpec</a>
+- <a href="#supersetceleryworkerspec">SupersetCeleryWorkerSpec</a>
+- <a href="#supersetinitspec">SupersetInitSpec</a>
+- <a href="#supersetmcpserverspec">SupersetMcpServerSpec</a>
+- <a href="#supersetspec">SupersetSpec</a>
+- <a href="#supersetwebserverspec">SupersetWebServerSpec</a>
+- <a href="#supersetwebsocketserverspec">SupersetWebsocketServerSpec</a>
+- <a href="#webservercomponentspec">WebServerComponentSpec</a>
+- <a href="#websocketservercomponentspec">WebsocketServerComponentSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>minReplicas</code> <em>integer</em></td>
+<td>Minimum replica count (defaults to 1).</td>
+<td></td>
+<td>Minimum: 1 <br />Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>maxReplicas</code> <em>integer</em></td>
+<td>Maximum replica count; HPA will not scale above this.</td>
+<td></td>
+<td>Maximum: 100 <br />Minimum: 1 <br /></td>
+</tr>
+<tr>
+<td><code>metrics</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#metricspec-v2-autoscaling">MetricSpec</a> array</em></td>
+<td>Metrics for the HPA. Supports CPU, memory, custom, and external metrics.<br />When empty, Kubernetes defaults to 80% average CPU utilization.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="celerybeatcomponentspec">CeleryBeatComponentSpec<a class="headerlink" href="#celerybeatcomponentspec" title="Permanent link">&para;</a></h4>
+<p>CeleryBeatComponentSpec defines the celery beat component on the parent CRD.
+The controller forces replicas=1 regardless of spec.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetspec">SupersetSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>deploymentTemplate</code> <em><a href="#deploymenttemplate">DeploymentTemplate</a></em></td>
+<td>Deployment-level overrides (strategy, revision history). Always enforces replicas=1.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podTemplate</code> <em><a href="#podtemplate">PodTemplate</a></em></td>
+<td>Pod and container template for Celery beat pods.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>image</code> <em><a href="#imageoverridespec">ImageOverrideSpec</a></em></td>
+<td>Image tag and/or repository overrides; inherits from spec.image if unset.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>config</code> <em>string</em></td>
+<td>Per-component raw Python appended after top-level config.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="celeryflowercomponentspec">CeleryFlowerComponentSpec<a class="headerlink" href="#celeryflowercomponentspec" title="Permanent link">&para;</a></h4>
+<p>CeleryFlowerComponentSpec defines the celery flower component on the parent CRD.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetspec">SupersetSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>deploymentTemplate</code> <em><a href="#deploymenttemplate">DeploymentTemplate</a></em></td>
+<td>Deployment template (Deployment-level configuration).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podTemplate</code> <em><a href="#podtemplate">PodTemplate</a></em></td>
+<td>Pod template (Pod and container configuration).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>replicas</code> <em>integer</em></td>
+<td>Desired replica count; overridden by autoscaling when active. Defaults to spec.replicas if unset.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>autoscaling</code> <em><a href="#autoscalingspec">AutoscalingSpec</a></em></td>
+<td>HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podDisruptionBudget</code> <em><a href="#pdbspec">PDBSpec</a></em></td>
+<td>PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>image</code> <em><a href="#imageoverridespec">ImageOverrideSpec</a></em></td>
+<td>Image tag and/or repository overrides; inherits from spec.image if unset.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>config</code> <em>string</em></td>
+<td>Per-component raw Python appended after top-level config.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>service</code> <em><a href="#componentservicespec">ComponentServiceSpec</a></em></td>
+<td>Service configuration (type, port, annotations).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="celeryworkercomponentspec">CeleryWorkerComponentSpec<a class="headerlink" href="#celeryworkercomponentspec" title="Permanent link">&para;</a></h4>
+<p>CeleryWorkerComponentSpec defines the celery worker component on the parent CRD.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetspec">SupersetSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>deploymentTemplate</code> <em><a href="#deploymenttemplate">DeploymentTemplate</a></em></td>
+<td>Deployment template (Deployment-level configuration).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podTemplate</code> <em><a href="#podtemplate">PodTemplate</a></em></td>
+<td>Pod template (Pod and container configuration).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>replicas</code> <em>integer</em></td>
+<td>Desired replica count; overridden by autoscaling when active. Defaults to spec.replicas if unset.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>autoscaling</code> <em><a href="#autoscalingspec">AutoscalingSpec</a></em></td>
+<td>HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podDisruptionBudget</code> <em><a href="#pdbspec">PDBSpec</a></em></td>
+<td>PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>image</code> <em><a href="#imageoverridespec">ImageOverrideSpec</a></em></td>
+<td>Image tag and/or repository overrides; inherits from spec.image if unset.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>config</code> <em>string</em></td>
+<td>Per-component raw Python appended after top-level config.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="childcomponentstatus">ChildComponentStatus<a class="headerlink" href="#childcomponentstatus" title="Permanent link">&para;</a></h4>
+<p>ChildComponentStatus reports the operational state of a child component.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetcelerybeatstatus">SupersetCeleryBeatStatus</a>
+- <a href="#supersetceleryflowerstatus">SupersetCeleryFlowerStatus</a>
+- <a href="#supersetceleryworkerstatus">SupersetCeleryWorkerStatus</a>
+- <a href="#supersetmcpserverstatus">SupersetMcpServerStatus</a>
+- <a href="#supersetwebserverstatus">SupersetWebServerStatus</a>
+- <a href="#supersetwebsocketserverstatus">SupersetWebsocketServerStatus</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ready</code> <em>string</em></td>
+<td>"2/2" format showing ready vs desired replicas.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>conditions</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#condition-v1-meta">Condition</a> array</em></td>
+<td>Standard conditions.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>observedGeneration</code> <em>integer</em></td>
+<td>ObservedGeneration for leader election consistency.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="componentrefstatus">ComponentRefStatus<a class="headerlink" href="#componentrefstatus" title="Permanent link">&para;</a></h4>
+<p>ComponentRefStatus holds the status summary of a child component.</p>
+<p><em>Appears in:</em>
+- <a href="#componentstatusmap">ComponentStatusMap</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ready</code> <em>string</em></td>
+<td>"2/2" format showing ready vs desired replicas.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>ref</code> <em>string</em></td>
+<td>Reference to the child CR.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>configChecksum</code> <em>string</em></td>
+<td>Config checksum on the child.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="componentservicespec">ComponentServiceSpec<a class="headerlink" href="#componentservicespec" title="Permanent link">&para;</a></h4>
+<p>ComponentServiceSpec defines the Service configuration for a component.</p>
+<p><em>Appears in:</em>
+- <a href="#celeryflowercomponentspec">CeleryFlowerComponentSpec</a>
+- <a href="#mcpservercomponentspec">McpServerComponentSpec</a>
+- <a href="#supersetceleryflowerspec">SupersetCeleryFlowerSpec</a>
+- <a href="#supersetmcpserverspec">SupersetMcpServerSpec</a>
+- <a href="#supersetwebserverspec">SupersetWebServerSpec</a>
+- <a href="#supersetwebsocketserverspec">SupersetWebsocketServerSpec</a>
+- <a href="#webservercomponentspec">WebServerComponentSpec</a>
+- <a href="#websocketservercomponentspec">WebsocketServerComponentSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>type</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#servicetype-v1-core">ServiceType</a></em></td>
+<td>Service type (ClusterIP, NodePort, LoadBalancer).</td>
+<td>ClusterIP</td>
+<td>Enum: [ClusterIP NodePort LoadBalancer] <br />Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>port</code> <em>integer</em></td>
+<td>Service port exposed to clients. Defaults to the component's standard port (8088 for web server, 5555 for Flower).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>nodePort</code> <em>integer</em></td>
+<td>Fixed NodePort number when type=NodePort (30000-32767). If omitted, Kubernetes auto-assigns.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>annotations</code> <em>object (keys:string, values:string)</em></td>
+<td>Service annotations (e.g., for cloud load balancer configuration).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>labels</code> <em>object (keys:string, values:string)</em></td>
+<td>Service labels; merged with operator-managed labels.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>gatewayPath</code> <em>string</em></td>
+<td>URL path prefix for this component's HTTPRoute rule.<br />Only used when spec.networking.gateway is set.<br />Defaults: /ws (websocket), /mcp (MCP server), /flower (Celery Flower).</td>
+<td></td>
+<td>Pattern: <code>^/[a-zA-Z0-9/_.-]+$</code> <br />Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="componentspec">ComponentSpec<a class="headerlink" href="#componentspec" title="Permanent link">&para;</a></h4>
+<p>ComponentSpec defines per-component identity fields.
+Embedded by all component specs except InitSpec.</p>
+<p><em>Appears in:</em>
+- <a href="#celerybeatcomponentspec">CeleryBeatComponentSpec</a>
+- <a href="#celeryflowercomponentspec">CeleryFlowerComponentSpec</a>
+- <a href="#celeryworkercomponentspec">CeleryWorkerComponentSpec</a>
+- <a href="#mcpservercomponentspec">McpServerComponentSpec</a>
+- <a href="#webservercomponentspec">WebServerComponentSpec</a>
+- <a href="#websocketservercomponentspec">WebsocketServerComponentSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>image</code> <em><a href="#imageoverridespec">ImageOverrideSpec</a></em></td>
+<td>Image tag and/or repository overrides; inherits from spec.image if unset.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="componentstatusmap">ComponentStatusMap<a class="headerlink" href="#componentstatusmap" title="Permanent link">&para;</a></h4>
+<p>ComponentStatusMap holds status for each component.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetstatus">SupersetStatus</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>webServer</code> <em><a href="#componentrefstatus">ComponentRefStatus</a></em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>celeryWorker</code> <em><a href="#componentrefstatus">ComponentRefStatus</a></em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>celeryBeat</code> <em><a href="#componentrefstatus">ComponentRefStatus</a></em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>celeryFlower</code> <em><a href="#componentrefstatus">ComponentRefStatus</a></em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>websocketServer</code> <em><a href="#componentrefstatus">ComponentRefStatus</a></em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>mcpServer</code> <em><a href="#componentrefstatus">ComponentRefStatus</a></em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="containertemplate">ContainerTemplate<a class="headerlink" href="#containertemplate" title="Permanent link">&para;</a></h4>
+<p>ContainerTemplate configures fields on the main Superset container.</p>
+<p><em>Appears in:</em>
+- <a href="#podtemplate">PodTemplate</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>resources</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#resourcerequirements-v1-core">ResourceRequirements</a></em></td>
+<td>Resource requirements (CPU, memory).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>env</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#envvar-v1-core">EnvVar</a> array</em></td>
+<td>Environment variables.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>envFrom</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#envfromsource-v1-core">EnvFromSource</a> array</em></td>
+<td>Environment variable sources (ConfigMaps, Secrets).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>volumeMounts</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#volumemount-v1-core">VolumeMount</a> array</em></td>
+<td>Volume mounts for the main container.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>ports</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#containerport-v1-core">ContainerPort</a> array</em></td>
+<td>Container ports. Replaces operator defaults when set.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>securityContext</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#securitycontext-v1-core">SecurityContext</a></em></td>
+<td>Container-level security context.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>command</code> <em>string array</em></td>
+<td>Container entrypoint override.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>args</code> <em>string array</em></td>
+<td>Container arguments override.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>livenessProbe</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#probe-v1-core">Probe</a></em></td>
+<td>Liveness probe; container is restarted when the probe fails.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>readinessProbe</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#probe-v1-core">Probe</a></em></td>
+<td>Readiness probe; pod is removed from Service endpoints when the probe fails.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>startupProbe</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#probe-v1-core">Probe</a></em></td>
+<td>Startup probe; liveness and readiness probes are deferred until this probe succeeds.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>lifecycle</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#lifecycle-v1-core">Lifecycle</a></em></td>
+<td>Lifecycle hooks for the main container.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="deploymenttemplate">DeploymentTemplate<a class="headerlink" href="#deploymenttemplate" title="Permanent link">&para;</a></h4>
+<p>DeploymentTemplate configures Kubernetes Deployment-level fields for
+operator-managed Deployments. Pod and container configuration is in
+the sibling PodTemplate field.</p>
+<p><em>Appears in:</em>
+- <a href="#celerybeatcomponentspec">CeleryBeatComponentSpec</a>
+- <a href="#celeryflowercomponentspec">CeleryFlowerComponentSpec</a>
+- <a href="#celeryworkercomponentspec">CeleryWorkerComponentSpec</a>
+- <a href="#flatcomponentspec">FlatComponentSpec</a>
+- <a href="#mcpservercomponentspec">McpServerComponentSpec</a>
+- <a href="#scalablecomponentspec">ScalableComponentSpec</a>
+- <a href="#supersetcelerybeatspec">SupersetCeleryBeatSpec</a>
+- <a href="#supersetceleryflowerspec">SupersetCeleryFlowerSpec</a>
+- <a href="#supersetceleryworkerspec">SupersetCeleryWorkerSpec</a>
+- <a href="#supersetinitspec">SupersetInitSpec</a>
+- <a href="#supersetmcpserverspec">SupersetMcpServerSpec</a>
+- <a href="#supersetspec">SupersetSpec</a>
+- <a href="#supersetwebserverspec">SupersetWebServerSpec</a>
+- <a href="#supersetwebsocketserverspec">SupersetWebsocketServerSpec</a>
+- <a href="#webservercomponentspec">WebServerComponentSpec</a>
+- <a href="#websocketservercomponentspec">WebsocketServerComponentSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>revisionHistoryLimit</code> <em>integer</em></td>
+<td>Number of old ReplicaSets to retain for rollback.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>minReadySeconds</code> <em>integer</em></td>
+<td>Minimum seconds a pod must be ready before considered available.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>progressDeadlineSeconds</code> <em>integer</em></td>
+<td>Maximum seconds for a deployment to make progress before considered failed.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>strategy</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#deploymentstrategy-v1-apps">DeploymentStrategy</a></em></td>
+<td>Deployment update strategy.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="flatcomponentspec">FlatComponentSpec<a class="headerlink" href="#flatcomponentspec" title="Permanent link">&para;</a></h4>
+<p>FlatComponentSpec defines the common fields for all fully-resolved child specs.
+This is embedded (inlined) in each child CRD spec type.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetcelerybeatspec">SupersetCeleryBeatSpec</a>
+- <a href="#supersetceleryflowerspec">SupersetCeleryFlowerSpec</a>
+- <a href="#supersetceleryworkerspec">SupersetCeleryWorkerSpec</a>
+- <a href="#supersetinitspec">SupersetInitSpec</a>
+- <a href="#supersetmcpserverspec">SupersetMcpServerSpec</a>
+- <a href="#supersetwebserverspec">SupersetWebServerSpec</a>
+- <a href="#supersetwebsocketserverspec">SupersetWebsocketServerSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>image</code> <em><a href="#imagespec">ImageSpec</a></em></td>
+<td>Container image configuration.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>replicas</code> <em>integer</em></td>
+<td>Desired replica count.</td>
+<td>1</td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>deploymentTemplate</code> <em><a href="#deploymenttemplate">DeploymentTemplate</a></em></td>
+<td>Fully-resolved deployment template.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podTemplate</code> <em><a href="#podtemplate">PodTemplate</a></em></td>
+<td>Fully-resolved pod template.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>serviceAccountName</code> <em>string</em></td>
+<td>ServiceAccountName to set on the pod.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>autoscaling</code> <em><a href="#autoscalingspec">AutoscalingSpec</a></em></td>
+<td>Autoscaling configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podDisruptionBudget</code> <em><a href="#pdbspec">PDBSpec</a></em></td>
+<td>PodDisruptionBudget configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="gatewayspec">GatewaySpec<a class="headerlink" href="#gatewayspec" title="Permanent link">&para;</a></h4>
+<p>GatewaySpec defines HTTPRoute configuration.</p>
+<p><em>Appears in:</em>
+- <a href="#networkingspec">NetworkingSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gatewayRef</code> <em><a href="https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.ParentReference">ParentReference</a></em></td>
+<td>Reference to the Gateway resource to attach the HTTPRoute to.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>hostnames</code> <em><a href="https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.Hostname">Hostname</a> array</em></td>
+<td>Hostnames for the HTTPRoute (e.g., "superset.example.com").</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>annotations</code> <em>object (keys:string, values:string)</em></td>
+<td>HTTPRoute annotations.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>labels</code> <em>object (keys:string, values:string)</em></td>
+<td>HTTPRoute labels.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="imageoverridespec">ImageOverrideSpec<a class="headerlink" href="#imageoverridespec" title="Permanent link">&para;</a></h4>
+<p>ImageOverrideSpec allows a component to override specific image fields.
+Unset fields inherit from spec.image.</p>
+<p><em>Appears in:</em>
+- <a href="#celerybeatcomponentspec">CeleryBeatComponentSpec</a>
+- <a href="#celeryflowercomponentspec">CeleryFlowerComponentSpec</a>
+- <a href="#celeryworkercomponentspec">CeleryWorkerComponentSpec</a>
+- <a href="#componentspec">ComponentSpec</a>
+- <a href="#initspec">InitSpec</a>
+- <a href="#mcpservercomponentspec">McpServerComponentSpec</a>
+- <a href="#webservercomponentspec">WebServerComponentSpec</a>
+- <a href="#websocketservercomponentspec">WebsocketServerComponentSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tag</code> <em>string</em></td>
+<td>Override the image tag for this component; inherits from spec.image.tag if omitted.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>repository</code> <em>string</em></td>
+<td>Override the image repository for this component; inherits from spec.image.repository if omitted.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="imagespec">ImageSpec<a class="headerlink" href="#imagespec" title="Permanent link">&para;</a></h4>
+<p>ImageSpec defines the container image configuration.</p>
+<p><em>Appears in:</em>
+- <a href="#flatcomponentspec">FlatComponentSpec</a>
+- <a href="#supersetcelerybeatspec">SupersetCeleryBeatSpec</a>
+- <a href="#supersetceleryflowerspec">SupersetCeleryFlowerSpec</a>
+- <a href="#supersetceleryworkerspec">SupersetCeleryWorkerSpec</a>
+- <a href="#supersetinitspec">SupersetInitSpec</a>
+- <a href="#supersetmcpserverspec">SupersetMcpServerSpec</a>
+- <a href="#supersetspec">SupersetSpec</a>
+- <a href="#supersetwebserverspec">SupersetWebServerSpec</a>
+- <a href="#supersetwebsocketserverspec">SupersetWebsocketServerSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>repository</code> <em>string</em></td>
+<td>Container image repository.</td>
+<td>apachesuperset.docker.scarf.sh/apache/superset</td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>tag</code> <em>string</em></td>
+<td>Image tag.</td>
+<td></td>
+<td>MinLength: 1 <br /></td>
+</tr>
+<tr>
+<td><code>pullPolicy</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#pullpolicy-v1-core">PullPolicy</a></em></td>
+<td>Image pull policy (IfNotPresent, Always, Never).</td>
+<td>IfNotPresent</td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>pullSecrets</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#localobjectreference-v1-core">LocalObjectReference</a> array</em></td>
+<td>References to Secrets for pulling images from private registries.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="ingresshost">IngressHost<a class="headerlink" href="#ingresshost" title="Permanent link">&para;</a></h4>
+<p>IngressHost defines a host rule for the Ingress.</p>
+<p><em>Appears in:</em>
+- <a href="#ingressspec">IngressSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>host</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>paths</code> <em><a href="#ingresspath">IngressPath</a> array</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="ingresspath">IngressPath<a class="headerlink" href="#ingresspath" title="Permanent link">&para;</a></h4>
+<p>IngressPath defines a path rule for an Ingress host.</p>
+<p><em>Appears in:</em>
+- <a href="#ingresshost">IngressHost</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>path</code> <em>string</em></td>
+<td></td>
+<td>/</td>
+<td></td>
+</tr>
+<tr>
+<td><code>pathType</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#pathtype-v1-networking">PathType</a></em></td>
+<td></td>
+<td>Prefix</td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="ingressspec">IngressSpec<a class="headerlink" href="#ingressspec" title="Permanent link">&para;</a></h4>
+<p>IngressSpec defines Ingress configuration.</p>
+<p><em>Appears in:</em>
+- <a href="#networkingspec">NetworkingSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>className</code> <em>string</em></td>
+<td>IngressClass name (e.g., "nginx") that determines which controller processes this Ingress.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>host</code> <em>string</em></td>
+<td>Primary hostname for the Ingress rule (e.g., "superset.example.com").</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>annotations</code> <em>object (keys:string, values:string)</em></td>
+<td>Ingress annotations (e.g., for TLS, auth, or controller-specific configuration).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>labels</code> <em>object (keys:string, values:string)</em></td>
+<td>Ingress labels.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>hosts</code> <em><a href="#ingresshost">IngressHost</a> array</em></td>
+<td>Additional host/path rules beyond the primary host.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>tls</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#ingresstls-v1-networking">IngressTLS</a> array</em></td>
+<td>TLS configuration (certificate secrets and hostnames).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="initspec">InitSpec<a class="headerlink" href="#initspec" title="Permanent link">&para;</a></h4>
+<p>InitSpec defines initialization configuration. The init pod runs a single
+command (default: superset db upgrade &amp;&amp; superset init) that must complete
+before any component is deployed.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetspec">SupersetSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>podTemplate</code> <em><a href="#podtemplate">PodTemplate</a></em></td>
+<td>Pod and container template for the init pod.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>config</code> <em>string</em></td>
+<td>Per-init raw Python appended after top-level config.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>image</code> <em><a href="#imageoverridespec">ImageOverrideSpec</a></em></td>
+<td>Image override for init pods.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>command</code> <em>string array</em></td>
+<td>Command to execute during initialization. When empty, the operator<br />constructs the command from base steps (db upgrade + init) and any<br />adminUser/loadExamples options. Mutually exclusive with adminUser<br />and loadExamples.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>disabled</code> <em>boolean</em></td>
+<td>Set to true to skip initialization entirely.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>adminUser</code> <em><a href="#adminuserspec">AdminUserSpec</a></em></td>
+<td>Admin user to create during initialization. Only allowed in dev mode.<br />When set, the operator appends a superset fab create-admin step to the init command.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>loadExamples</code> <em>boolean</em></td>
+<td>Load example dashboards and data during initialization. Only allowed in dev mode.<br />When true, the operator appends a superset load-examples step to the init command.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>timeout</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#duration-v1-meta">Duration</a></em></td>
+<td>Maximum timeout for the init pod. Default: 300s.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>maxRetries</code> <em>integer</em></td>
+<td>Maximum number of retries before permanent failure. Default: 3.</td>
+<td>3</td>
+<td>Minimum: 1 <br />Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podRetention</code> <em><a href="#podretentionspec">PodRetentionSpec</a></em></td>
+<td>Pod retention policy for completed init pods.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="inittaskstatus">InitTaskStatus<a class="headerlink" href="#inittaskstatus" title="Permanent link">&para;</a></h4>
+<p>InitTaskStatus reports the status of the init task.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetstatus">SupersetStatus</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>state</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Enum: [Pending Running Complete Failed] <br />Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>revision</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>previousRevision</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>startedAt</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#time-v1-meta">Time</a></em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>completedAt</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#time-v1-meta">Time</a></em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>duration</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>attempts</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podName</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>image</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>message</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="mcpservercomponentspec">McpServerComponentSpec<a class="headerlink" href="#mcpservercomponentspec" title="Permanent link">&para;</a></h4>
+<p>McpServerComponentSpec defines the MCP server component on the parent CRD.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetspec">SupersetSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>deploymentTemplate</code> <em><a href="#deploymenttemplate">DeploymentTemplate</a></em></td>
+<td>Deployment template (Deployment-level configuration).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podTemplate</code> <em><a href="#podtemplate">PodTemplate</a></em></td>
+<td>Pod template (Pod and container configuration).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>replicas</code> <em>integer</em></td>
+<td>Desired replica count; overridden by autoscaling when active. Defaults to spec.replicas if unset.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>autoscaling</code> <em><a href="#autoscalingspec">AutoscalingSpec</a></em></td>
+<td>HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podDisruptionBudget</code> <em><a href="#pdbspec">PDBSpec</a></em></td>
+<td>PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>image</code> <em><a href="#imageoverridespec">ImageOverrideSpec</a></em></td>
+<td>Image tag and/or repository overrides; inherits from spec.image if unset.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>config</code> <em>string</em></td>
+<td>Per-component raw Python appended after top-level config.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>service</code> <em><a href="#componentservicespec">ComponentServiceSpec</a></em></td>
+<td>Service configuration (type, port, annotations).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="metastorespec">MetastoreSpec<a class="headerlink" href="#metastorespec" title="Permanent link">&para;</a></h4>
+<p>MetastoreSpec defines the database connection for Superset's metastore.
+Either a URI (passthrough) or structured fields (host, database, etc.) can be used.
+They are mutually exclusive.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetspec">SupersetSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>uri</code> <em>string</em></td>
+<td>Full SQLAlchemy database URI. Mutually exclusive with structured fields and uriFrom.<br />In prod mode, CRD validation rejects plain text URIs — use uriFrom to reference a Kubernetes Secret.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>uriFrom</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#secretkeyselector-v1-core">SecretKeySelector</a></em></td>
+<td>Reference to a Secret key containing the full SQLAlchemy URI.<br />Mutually exclusive with uri and structured fields.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>type</code> <em>string</em></td>
+<td>Database type. Determines the SQLAlchemy driver.</td>
+<td>postgresql</td>
+<td>Enum: [postgresql mysql] <br />Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>host</code> <em>string</em></td>
+<td>Database hostname.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>port</code> <em>integer</em></td>
+<td>Database port. Defaults per driver (5432 for postgresql, 3306 for mysql).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>database</code> <em>string</em></td>
+<td>Database name.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>username</code> <em>string</em></td>
+<td>Database username.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>password</code> <em>string</em></td>
+<td>Database password. In prod mode, CRD validation rejects plain text passwords — use passwordFrom to reference a Kubernetes Secret.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>passwordFrom</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#secretkeyselector-v1-core">SecretKeySelector</a></em></td>
+<td>Reference to a Secret key containing the database password.<br />Mutually exclusive with password.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="monitoringspec">MonitoringSpec<a class="headerlink" href="#monitoringspec" title="Permanent link">&para;</a></h4>
+<p>MonitoringSpec defines Prometheus monitoring configuration.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetspec">SupersetSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>serviceMonitor</code> <em><a href="#servicemonitorspec">ServiceMonitorSpec</a></em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="networkpolicyspec">NetworkPolicySpec<a class="headerlink" href="#networkpolicyspec" title="Permanent link">&para;</a></h4>
+<p>NetworkPolicySpec defines network segmentation configuration.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetspec">SupersetSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>extraIngress</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#networkpolicyingressrule-v1-networking">NetworkPolicyIngressRule</a> array</em></td>
+<td>Additional ingress rules appended to the operator-generated NetworkPolicy (e.g., allow traffic from monitoring namespace).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>extraEgress</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#networkpolicyegressrule-v1-networking">NetworkPolicyEgressRule</a> array</em></td>
+<td>Additional egress rules appended to the operator-generated NetworkPolicy.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="networkingspec">NetworkingSpec<a class="headerlink" href="#networkingspec" title="Permanent link">&para;</a></h4>
+<p>NetworkingSpec defines external access configuration.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetspec">SupersetSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gateway</code> <em><a href="#gatewayspec">GatewaySpec</a></em></td>
+<td>Gateway API HTTPRoute configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>ingress</code> <em><a href="#ingressspec">IngressSpec</a></em></td>
+<td>Ingress configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="pdbspec">PDBSpec<a class="headerlink" href="#pdbspec" title="Permanent link">&para;</a></h4>
+<p>PDBSpec configures a PodDisruptionBudget.</p>
+<p><em>Appears in:</em>
+- <a href="#celeryflowercomponentspec">CeleryFlowerComponentSpec</a>
+- <a href="#celeryworkercomponentspec">CeleryWorkerComponentSpec</a>
+- <a href="#flatcomponentspec">FlatComponentSpec</a>
+- <a href="#mcpservercomponentspec">McpServerComponentSpec</a>
+- <a href="#scalablecomponentspec">ScalableComponentSpec</a>
+- <a href="#supersetcelerybeatspec">SupersetCeleryBeatSpec</a>
+- <a href="#supersetceleryflowerspec">SupersetCeleryFlowerSpec</a>
+- <a href="#supersetceleryworkerspec">SupersetCeleryWorkerSpec</a>
+- <a href="#supersetinitspec">SupersetInitSpec</a>
+- <a href="#supersetmcpserverspec">SupersetMcpServerSpec</a>
+- <a href="#supersetspec">SupersetSpec</a>
+- <a href="#supersetwebserverspec">SupersetWebServerSpec</a>
+- <a href="#supersetwebsocketserverspec">SupersetWebsocketServerSpec</a>
+- <a href="#webservercomponentspec">WebServerComponentSpec</a>
+- <a href="#websocketservercomponentspec">WebsocketServerComponentSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>minAvailable</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#intorstring-intstr-util">IntOrString</a></em></td>
+<td>Minimum pods that must remain available during voluntary disruptions. Mutually exclusive with maxUnavailable.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>maxUnavailable</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#intorstring-intstr-util">IntOrString</a></em></td>
+<td>Maximum pods allowed to be unavailable during voluntary disruptions. Mutually exclusive with minAvailable.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="podretentionspec">PodRetentionSpec<a class="headerlink" href="#podretentionspec" title="Permanent link">&para;</a></h4>
+<p>PodRetentionSpec defines retention behavior for init pods.</p>
+<p><em>Appears in:</em>
+- <a href="#initspec">InitSpec</a>
+- <a href="#supersetinitspec">SupersetInitSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>policy</code> <em>string</em></td>
+<td>Retention policy: Delete removes pods after completion, Retain keeps all,<br />RetainOnFailure keeps only failed pods for debugging.</td>
+<td>Delete</td>
+<td>Enum: [Delete Retain RetainOnFailure] <br />Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="podtemplate">PodTemplate<a class="headerlink" href="#podtemplate" title="Permanent link">&para;</a></h4>
+<p>PodTemplate configures Kubernetes PodSpec fields for the pod template.</p>
+<p><em>Appears in:</em>
+- <a href="#celerybeatcomponentspec">CeleryBeatComponentSpec</a>
+- <a href="#celeryflowercomponentspec">CeleryFlowerComponentSpec</a>
+- <a href="#celeryworkercomponentspec">CeleryWorkerComponentSpec</a>
+- <a href="#flatcomponentspec">FlatComponentSpec</a>
+- <a href="#initspec">InitSpec</a>
+- <a href="#mcpservercomponentspec">McpServerComponentSpec</a>
+- <a href="#scalablecomponentspec">ScalableComponentSpec</a>
+- <a href="#supersetcelerybeatspec">SupersetCeleryBeatSpec</a>
+- <a href="#supersetceleryflowerspec">SupersetCeleryFlowerSpec</a>
+- <a href="#supersetceleryworkerspec">SupersetCeleryWorkerSpec</a>
+- <a href="#supersetinitspec">SupersetInitSpec</a>
+- <a href="#supersetmcpserverspec">SupersetMcpServerSpec</a>
+- <a href="#supersetspec">SupersetSpec</a>
+- <a href="#supersetwebserverspec">SupersetWebServerSpec</a>
+- <a href="#supersetwebsocketserverspec">SupersetWebsocketServerSpec</a>
+- <a href="#webservercomponentspec">WebServerComponentSpec</a>
+- <a href="#websocketservercomponentspec">WebsocketServerComponentSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>annotations</code> <em>object (keys:string, values:string)</em></td>
+<td>Pod annotations.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>labels</code> <em>object (keys:string, values:string)</em></td>
+<td>Pod labels (merged with operator-managed labels which cannot be overridden).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>affinity</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#affinity-v1-core">Affinity</a></em></td>
+<td>Pod affinity and anti-affinity rules for scheduling.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>tolerations</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#toleration-v1-core">Toleration</a> array</em></td>
+<td>Tolerations for scheduling on tainted nodes.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>nodeSelector</code> <em>object (keys:string, values:string)</em></td>
+<td>Node labels for constraining pod scheduling.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>topologySpreadConstraints</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#topologyspreadconstraint-v1-core">TopologySpreadConstraint</a> array</em></td>
+<td>Topology spread constraints for distributing pods across failure domains.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>hostAliases</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#hostalias-v1-core">HostAlias</a> array</em></td>
+<td>Entries added to /etc/hosts in pod containers.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podSecurityContext</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#podsecuritycontext-v1-core">PodSecurityContext</a></em></td>
+<td>Pod-level security context (runAsUser, fsGroup, seccomp, etc.).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>priorityClassName</code> <em>string</em></td>
+<td>Priority class name for pod scheduling priority and preemption.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>volumes</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#volume-v1-core">Volume</a> array</em></td>
+<td>Additional volumes for the pod (mounted via container.volumeMounts).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>sidecars</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#container-v1-core">Container</a> array</em></td>
+<td>Sidecar containers added alongside the main Superset container.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>initContainers</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#container-v1-core">Container</a> array</em></td>
+<td>Init containers run before the main container starts.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>terminationGracePeriodSeconds</code> <em>integer</em></td>
+<td>Grace period for pod termination in seconds.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>dnsPolicy</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#dnspolicy-v1-core">DNSPolicy</a></em></td>
+<td>DNS policy for pods.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>dnsConfig</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#poddnsconfig-v1-core">PodDNSConfig</a></em></td>
+<td>Custom DNS configuration for pods.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>runtimeClassName</code> <em>string</em></td>
+<td>RuntimeClass for pods.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>shareProcessNamespace</code> <em>boolean</em></td>
+<td>Share a single process namespace between all containers in a pod.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>enableServiceLinks</code> <em>boolean</em></td>
+<td>Controls whether service environment variables are injected into pods.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>container</code> <em><a href="#containertemplate">ContainerTemplate</a></em></td>
+<td>Main container configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="scalablecomponentspec">ScalableComponentSpec<a class="headerlink" href="#scalablecomponentspec" title="Permanent link">&para;</a></h4>
+<p>ScalableComponentSpec provides deployment template and scaling fields.
+Embedded by scalable components (WebServer, CeleryWorker, CeleryFlower,
+WebsocketServer, McpServer). Non-scalable components (CeleryBeat, Init)
+use DeploymentTemplate or PodTemplate directly.</p>
+<p><em>Appears in:</em>
+- <a href="#celeryflowercomponentspec">CeleryFlowerComponentSpec</a>
+- <a href="#celeryworkercomponentspec">CeleryWorkerComponentSpec</a>
+- <a href="#mcpservercomponentspec">McpServerComponentSpec</a>
+- <a href="#webservercomponentspec">WebServerComponentSpec</a>
+- <a href="#websocketservercomponentspec">WebsocketServerComponentSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>deploymentTemplate</code> <em><a href="#deploymenttemplate">DeploymentTemplate</a></em></td>
+<td>Deployment template (Deployment-level configuration).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podTemplate</code> <em><a href="#podtemplate">PodTemplate</a></em></td>
+<td>Pod template (Pod and container configuration).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>replicas</code> <em>integer</em></td>
+<td>Desired replica count; overridden by autoscaling when active. Defaults to spec.replicas if unset.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>autoscaling</code> <em><a href="#autoscalingspec">AutoscalingSpec</a></em></td>
+<td>HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podDisruptionBudget</code> <em><a href="#pdbspec">PDBSpec</a></em></td>
+<td>PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="serviceaccountspec">ServiceAccountSpec<a class="headerlink" href="#serviceaccountspec" title="Permanent link">&para;</a></h4>
+<p>ServiceAccountSpec defines ServiceAccount configuration.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetspec">SupersetSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>create</code> <em>boolean</em></td>
+<td>When true (default), the operator creates a ServiceAccount. When false, it references an existing one.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>name</code> <em>string</em></td>
+<td>ServiceAccount name. Created by the operator when create=true; must pre-exist when create=false.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>annotations</code> <em>object (keys:string, values:string)</em></td>
+<td>ServiceAccount annotations (e.g., for IAM role bindings on cloud platforms).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="servicemonitorspec">ServiceMonitorSpec<a class="headerlink" href="#servicemonitorspec" title="Permanent link">&para;</a></h4>
+<p>ServiceMonitorSpec defines the ServiceMonitor configuration.</p>
+<p><em>Appears in:</em>
+- <a href="#monitoringspec">MonitoringSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>interval</code> <em>string</em></td>
+<td>Scrape interval (e.g., "30s"). How often Prometheus scrapes the web server metrics endpoint.</td>
+<td>30s</td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>labels</code> <em>object (keys:string, values:string)</em></td>
+<td>Labels for Prometheus ServiceMonitor discovery (must match your Prometheus selector).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>scrapeTimeout</code> <em>string</em></td>
+<td>Maximum time to wait for a scrape response before timing out.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="superset">Superset<a class="headerlink" href="#superset" title="Permanent link">&para;</a></h4>
+<p>Superset is the top-level resource representing a complete Superset deployment.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>apiVersion</code> <em>string</em></td>
+<td><code>superset.apache.org/v1alpha1</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>kind</code> <em>string</em></td>
+<td><code>Superset</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>metadata</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#objectmeta-v1-meta">ObjectMeta</a></em></td>
+<td>Refer to Kubernetes API documentation for fields of <code>metadata</code>.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>spec</code> <em><a href="#supersetspec">SupersetSpec</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>status</code> <em><a href="#supersetstatus">SupersetStatus</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetcelerybeat">SupersetCeleryBeat<a class="headerlink" href="#supersetcelerybeat" title="Permanent link">&para;</a></h4>
+<p>SupersetCeleryBeat is the Schema for the supersetcelerybeats API.
+It manages the Celery beat scheduler Deployment (singleton).</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>apiVersion</code> <em>string</em></td>
+<td><code>superset.apache.org/v1alpha1</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>kind</code> <em>string</em></td>
+<td><code>SupersetCeleryBeat</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>metadata</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#objectmeta-v1-meta">ObjectMeta</a></em></td>
+<td>Refer to Kubernetes API documentation for fields of <code>metadata</code>.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>spec</code> <em><a href="#supersetcelerybeatspec">SupersetCeleryBeatSpec</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>status</code> <em><a href="#supersetcelerybeatstatus">SupersetCeleryBeatStatus</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetcelerybeatspec">SupersetCeleryBeatSpec<a class="headerlink" href="#supersetcelerybeatspec" title="Permanent link">&para;</a></h4>
+<p>SupersetCeleryBeatSpec is the fully-resolved, flat spec for celery beat.
+Beat is always a singleton (1 replica).</p>
+<p><em>Appears in:</em>
+- <a href="#supersetcelerybeat">SupersetCeleryBeat</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>image</code> <em><a href="#imagespec">ImageSpec</a></em></td>
+<td>Container image configuration.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>replicas</code> <em>integer</em></td>
+<td>Desired replica count.</td>
+<td>1</td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>deploymentTemplate</code> <em><a href="#deploymenttemplate">DeploymentTemplate</a></em></td>
+<td>Fully-resolved deployment template.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podTemplate</code> <em><a href="#podtemplate">PodTemplate</a></em></td>
+<td>Fully-resolved pod template.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>serviceAccountName</code> <em>string</em></td>
+<td>ServiceAccountName to set on the pod.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>autoscaling</code> <em><a href="#autoscalingspec">AutoscalingSpec</a></em></td>
+<td>Autoscaling configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podDisruptionBudget</code> <em><a href="#pdbspec">PDBSpec</a></em></td>
+<td>PodDisruptionBudget configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>config</code> <em>string</em></td>
+<td>The fully rendered superset_config.py content.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>configChecksum</code> <em>string</em></td>
+<td>Checksum for rolling restarts.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetcelerybeatstatus">SupersetCeleryBeatStatus<a class="headerlink" href="#supersetcelerybeatstatus" title="Permanent link">&para;</a></h4>
+<p>SupersetCeleryBeatStatus defines the observed state of SupersetCeleryBeat.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetcelerybeat">SupersetCeleryBeat</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ready</code> <em>string</em></td>
+<td>"2/2" format showing ready vs desired replicas.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>conditions</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#condition-v1-meta">Condition</a> array</em></td>
+<td>Standard conditions.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>observedGeneration</code> <em>integer</em></td>
+<td>ObservedGeneration for leader election consistency.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetceleryflower">SupersetCeleryFlower<a class="headerlink" href="#supersetceleryflower" title="Permanent link">&para;</a></h4>
+<p>SupersetCeleryFlower is the Schema for the supersetceleryflowers API.
+It manages the Celery Flower monitoring UI Deployment and Service.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>apiVersion</code> <em>string</em></td>
+<td><code>superset.apache.org/v1alpha1</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>kind</code> <em>string</em></td>
+<td><code>SupersetCeleryFlower</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>metadata</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#objectmeta-v1-meta">ObjectMeta</a></em></td>
+<td>Refer to Kubernetes API documentation for fields of <code>metadata</code>.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>spec</code> <em><a href="#supersetceleryflowerspec">SupersetCeleryFlowerSpec</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>status</code> <em><a href="#supersetceleryflowerstatus">SupersetCeleryFlowerStatus</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetceleryflowerspec">SupersetCeleryFlowerSpec<a class="headerlink" href="#supersetceleryflowerspec" title="Permanent link">&para;</a></h4>
+<p>SupersetCeleryFlowerSpec is the fully-resolved, flat spec for celery flower.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetceleryflower">SupersetCeleryFlower</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>image</code> <em><a href="#imagespec">ImageSpec</a></em></td>
+<td>Container image configuration.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>replicas</code> <em>integer</em></td>
+<td>Desired replica count.</td>
+<td>1</td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>deploymentTemplate</code> <em><a href="#deploymenttemplate">DeploymentTemplate</a></em></td>
+<td>Fully-resolved deployment template.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podTemplate</code> <em><a href="#podtemplate">PodTemplate</a></em></td>
+<td>Fully-resolved pod template.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>serviceAccountName</code> <em>string</em></td>
+<td>ServiceAccountName to set on the pod.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>autoscaling</code> <em><a href="#autoscalingspec">AutoscalingSpec</a></em></td>
+<td>Autoscaling configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podDisruptionBudget</code> <em><a href="#pdbspec">PDBSpec</a></em></td>
+<td>PodDisruptionBudget configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>config</code> <em>string</em></td>
+<td>The fully rendered superset_config.py content.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>configChecksum</code> <em>string</em></td>
+<td>Checksum for rolling restarts.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>service</code> <em><a href="#componentservicespec">ComponentServiceSpec</a></em></td>
+<td>Service configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetceleryflowerstatus">SupersetCeleryFlowerStatus<a class="headerlink" href="#supersetceleryflowerstatus" title="Permanent link">&para;</a></h4>
+<p>SupersetCeleryFlowerStatus defines the observed state of SupersetCeleryFlower.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetceleryflower">SupersetCeleryFlower</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ready</code> <em>string</em></td>
+<td>"2/2" format showing ready vs desired replicas.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>conditions</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#condition-v1-meta">Condition</a> array</em></td>
+<td>Standard conditions.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>observedGeneration</code> <em>integer</em></td>
+<td>ObservedGeneration for leader election consistency.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetceleryworker">SupersetCeleryWorker<a class="headerlink" href="#supersetceleryworker" title="Permanent link">&para;</a></h4>
+<p>SupersetCeleryWorker is the Schema for the supersetceleryworkers API.
+It manages the Celery worker Deployment.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>apiVersion</code> <em>string</em></td>
+<td><code>superset.apache.org/v1alpha1</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>kind</code> <em>string</em></td>
+<td><code>SupersetCeleryWorker</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>metadata</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#objectmeta-v1-meta">ObjectMeta</a></em></td>
+<td>Refer to Kubernetes API documentation for fields of <code>metadata</code>.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>spec</code> <em><a href="#supersetceleryworkerspec">SupersetCeleryWorkerSpec</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>status</code> <em><a href="#supersetceleryworkerstatus">SupersetCeleryWorkerStatus</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetceleryworkerspec">SupersetCeleryWorkerSpec<a class="headerlink" href="#supersetceleryworkerspec" title="Permanent link">&para;</a></h4>
+<p>SupersetCeleryWorkerSpec is the fully-resolved, flat spec for a celery worker.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetceleryworker">SupersetCeleryWorker</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>image</code> <em><a href="#imagespec">ImageSpec</a></em></td>
+<td>Container image configuration.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>replicas</code> <em>integer</em></td>
+<td>Desired replica count.</td>
+<td>1</td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>deploymentTemplate</code> <em><a href="#deploymenttemplate">DeploymentTemplate</a></em></td>
+<td>Fully-resolved deployment template.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podTemplate</code> <em><a href="#podtemplate">PodTemplate</a></em></td>
+<td>Fully-resolved pod template.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>serviceAccountName</code> <em>string</em></td>
+<td>ServiceAccountName to set on the pod.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>autoscaling</code> <em><a href="#autoscalingspec">AutoscalingSpec</a></em></td>
+<td>Autoscaling configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podDisruptionBudget</code> <em><a href="#pdbspec">PDBSpec</a></em></td>
+<td>PodDisruptionBudget configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>config</code> <em>string</em></td>
+<td>The fully rendered superset_config.py content.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>configChecksum</code> <em>string</em></td>
+<td>Checksum for rolling restarts.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetceleryworkerstatus">SupersetCeleryWorkerStatus<a class="headerlink" href="#supersetceleryworkerstatus" title="Permanent link">&para;</a></h4>
+<p>SupersetCeleryWorkerStatus defines the observed state of SupersetCeleryWorker.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetceleryworker">SupersetCeleryWorker</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ready</code> <em>string</em></td>
+<td>"2/2" format showing ready vs desired replicas.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>conditions</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#condition-v1-meta">Condition</a> array</em></td>
+<td>Standard conditions.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>observedGeneration</code> <em>integer</em></td>
+<td>ObservedGeneration for leader election consistency.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetinit">SupersetInit<a class="headerlink" href="#supersetinit" title="Permanent link">&para;</a></h4>
+<p>SupersetInit is the Schema for the supersetinits API.
+It manages the initialization lifecycle (database migrations, init commands).</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>apiVersion</code> <em>string</em></td>
+<td><code>superset.apache.org/v1alpha1</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>kind</code> <em>string</em></td>
+<td><code>SupersetInit</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>metadata</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#objectmeta-v1-meta">ObjectMeta</a></em></td>
+<td>Refer to Kubernetes API documentation for fields of <code>metadata</code>.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>spec</code> <em><a href="#supersetinitspec">SupersetInitSpec</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>status</code> <em><a href="#supersetinitstatus">SupersetInitStatus</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetinitspec">SupersetInitSpec<a class="headerlink" href="#supersetinitspec" title="Permanent link">&para;</a></h4>
+<p>SupersetInitSpec defines the fully-resolved spec for initialization.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetinit">SupersetInit</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>image</code> <em><a href="#imagespec">ImageSpec</a></em></td>
+<td>Container image configuration.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>replicas</code> <em>integer</em></td>
+<td>Desired replica count.</td>
+<td>1</td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>deploymentTemplate</code> <em><a href="#deploymenttemplate">DeploymentTemplate</a></em></td>
+<td>Fully-resolved deployment template.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podTemplate</code> <em><a href="#podtemplate">PodTemplate</a></em></td>
+<td>Fully-resolved pod template.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>serviceAccountName</code> <em>string</em></td>
+<td>ServiceAccountName to set on the pod.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>autoscaling</code> <em><a href="#autoscalingspec">AutoscalingSpec</a></em></td>
+<td>Autoscaling configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podDisruptionBudget</code> <em><a href="#pdbspec">PDBSpec</a></em></td>
+<td>PodDisruptionBudget configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>config</code> <em>string</em></td>
+<td>Rendered superset_config.py content.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>configChecksum</code> <em>string</em></td>
+<td>Config checksum for detecting config changes.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>maxRetries</code> <em>integer</em></td>
+<td>Maximum number of retries before permanent failure.</td>
+<td>3</td>
+<td>Minimum: 1 <br />Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>timeout</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#duration-v1-meta">Duration</a></em></td>
+<td>Maximum timeout per init pod attempt.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podRetention</code> <em><a href="#podretentionspec">PodRetentionSpec</a></em></td>
+<td>Pod retention policy for completed init pods.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetinitstatus">SupersetInitStatus<a class="headerlink" href="#supersetinitstatus" title="Permanent link">&para;</a></h4>
+<p>SupersetInitStatus reports the status of initialization.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetinit">SupersetInit</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>state</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Enum: [Pending Running Complete Failed] <br />Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podName</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>startedAt</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#time-v1-meta">Time</a></em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>completedAt</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#time-v1-meta">Time</a></em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>duration</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>attempts</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>image</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>message</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>configChecksum</code> <em>string</em></td>
+<td>Config checksum that was active when init last completed.<br />Used to detect config changes and trigger re-initialization.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>conditions</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#condition-v1-meta">Condition</a> array</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>observedGeneration</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetmcpserver">SupersetMcpServer<a class="headerlink" href="#supersetmcpserver" title="Permanent link">&para;</a></h4>
+<p>SupersetMcpServer is the Schema for the supersetmcpservers API.
+It manages the FastMCP server Deployment and Service.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>apiVersion</code> <em>string</em></td>
+<td><code>superset.apache.org/v1alpha1</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>kind</code> <em>string</em></td>
+<td><code>SupersetMcpServer</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>metadata</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#objectmeta-v1-meta">ObjectMeta</a></em></td>
+<td>Refer to Kubernetes API documentation for fields of <code>metadata</code>.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>spec</code> <em><a href="#supersetmcpserverspec">SupersetMcpServerSpec</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>status</code> <em><a href="#supersetmcpserverstatus">SupersetMcpServerStatus</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetmcpserverspec">SupersetMcpServerSpec<a class="headerlink" href="#supersetmcpserverspec" title="Permanent link">&para;</a></h4>
+<p>SupersetMcpServerSpec is the fully-resolved, flat spec for the MCP server.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetmcpserver">SupersetMcpServer</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>image</code> <em><a href="#imagespec">ImageSpec</a></em></td>
+<td>Container image configuration.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>replicas</code> <em>integer</em></td>
+<td>Desired replica count.</td>
+<td>1</td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>deploymentTemplate</code> <em><a href="#deploymenttemplate">DeploymentTemplate</a></em></td>
+<td>Fully-resolved deployment template.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podTemplate</code> <em><a href="#podtemplate">PodTemplate</a></em></td>
+<td>Fully-resolved pod template.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>serviceAccountName</code> <em>string</em></td>
+<td>ServiceAccountName to set on the pod.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>autoscaling</code> <em><a href="#autoscalingspec">AutoscalingSpec</a></em></td>
+<td>Autoscaling configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podDisruptionBudget</code> <em><a href="#pdbspec">PDBSpec</a></em></td>
+<td>PodDisruptionBudget configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>config</code> <em>string</em></td>
+<td>The fully rendered superset_config.py content.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>configChecksum</code> <em>string</em></td>
+<td>Checksum for rolling restarts.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>service</code> <em><a href="#componentservicespec">ComponentServiceSpec</a></em></td>
+<td>Service configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetmcpserverstatus">SupersetMcpServerStatus<a class="headerlink" href="#supersetmcpserverstatus" title="Permanent link">&para;</a></h4>
+<p>SupersetMcpServerStatus defines the observed state of SupersetMcpServer.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetmcpserver">SupersetMcpServer</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ready</code> <em>string</em></td>
+<td>"2/2" format showing ready vs desired replicas.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>conditions</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#condition-v1-meta">Condition</a> array</em></td>
+<td>Standard conditions.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>observedGeneration</code> <em>integer</em></td>
+<td>ObservedGeneration for leader election consistency.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetspec">SupersetSpec<a class="headerlink" href="#supersetspec" title="Permanent link">&para;</a></h4>
+<p>SupersetSpec defines the desired state of a Superset deployment.</p>
+<p><em>Appears in:</em>
+- <a href="#superset">Superset</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>image</code> <em><a href="#imagespec">ImageSpec</a></em></td>
+<td>Image configuration inherited by all components.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>deploymentTemplate</code> <em><a href="#deploymenttemplate">DeploymentTemplate</a></em></td>
+<td>Deployment template defaults inherited by all components (field-level merge).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podTemplate</code> <em><a href="#podtemplate">PodTemplate</a></em></td>
+<td>Pod template defaults inherited by all components (field-level merge).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>replicas</code> <em>integer</em></td>
+<td>Default replica count for all scalable components; per-component replicas override this.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>autoscaling</code> <em><a href="#autoscalingspec">AutoscalingSpec</a></em></td>
+<td>Default autoscaling for all scalable components (component-level overrides this).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podDisruptionBudget</code> <em><a href="#pdbspec">PDBSpec</a></em></td>
+<td>Default pod disruption budget for all scalable components (component-level overrides this).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>environment</code> <em>string</em></td>
+<td>Environment mode: "dev" or "prod". Controls validation strictness.<br />In prod mode, CRD validation rejects plain text secrets (secretKey, metastore.uri, metastore.password).</td>
+<td>prod</td>
+<td>Enum: [dev prod] <br />Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>secretKey</code> <em>string</em></td>
+<td>Plain text secret key for session signing. Only allowed in dev mode.<br />In prod, use secretKeyFrom to reference a Kubernetes Secret.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>secretKeyFrom</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#secretkeyselector-v1-core">SecretKeySelector</a></em></td>
+<td>Reference to a Secret key containing the secret key for session signing.<br />Mutually exclusive with secretKey.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>metastore</code> <em><a href="#metastorespec">MetastoreSpec</a></em></td>
+<td>Metastore database connection configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>valkey</code> <em><a href="#valkeyspec">ValkeySpec</a></em></td>
+<td>Valkey cache, broker, and results backend configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>config</code> <em>string</em></td>
+<td>Raw Python appended after operator-generated superset_config.py.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>webServer</code> <em><a href="#webservercomponentspec">WebServerComponentSpec</a></em></td>
+<td>Web server (gunicorn) component. Presence enables it; absence disables.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>celeryWorker</code> <em><a href="#celeryworkercomponentspec">CeleryWorkerComponentSpec</a></em></td>
+<td>Celery async task worker component. Requires Valkey for broker/backend.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>celeryBeat</code> <em><a href="#celerybeatcomponentspec">CeleryBeatComponentSpec</a></em></td>
+<td>Celery periodic task scheduler (singleton, always 1 replica). Requires Valkey.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>celeryFlower</code> <em><a href="#celeryflowercomponentspec">CeleryFlowerComponentSpec</a></em></td>
+<td>Celery Flower monitoring UI component.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>websocketServer</code> <em><a href="#websocketservercomponentspec">WebsocketServerComponentSpec</a></em></td>
+<td>WebSocket server for real-time updates (Node.js, no Python config).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>mcpServer</code> <em><a href="#mcpservercomponentspec">McpServerComponentSpec</a></em></td>
+<td>FastMCP server component for AI tooling integration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>init</code> <em><a href="#initspec">InitSpec</a></em></td>
+<td>Initialization configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>networking</code> <em><a href="#networkingspec">NetworkingSpec</a></em></td>
+<td>Networking configuration (Ingress or Gateway API).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>monitoring</code> <em><a href="#monitoringspec">MonitoringSpec</a></em></td>
+<td>Monitoring configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>networkPolicy</code> <em><a href="#networkpolicyspec">NetworkPolicySpec</a></em></td>
+<td>Network policy configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>serviceAccount</code> <em><a href="#serviceaccountspec">ServiceAccountSpec</a></em></td>
+<td>ServiceAccount configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>suspend</code> <em>boolean</em></td>
+<td>Suspend stops reconciliation when true.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>forceReload</code> <em>string</em></td>
+<td>ForceReload is an opaque string injected into all pod templates. Changing its value<br />triggers a rolling restart of all components. Use a timestamp or incrementing value<br />(e.g. "2026-04-24T12:00:00Z") to force a restart after rotating referenced Secrets.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetstatus">SupersetStatus<a class="headerlink" href="#supersetstatus" title="Permanent link">&para;</a></h4>
+<p>SupersetStatus defines the observed state of Superset.</p>
+<p><em>Appears in:</em>
+- <a href="#superset">Superset</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>conditions</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#condition-v1-meta">Condition</a> array</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>observedGeneration</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>components</code> <em><a href="#componentstatusmap">ComponentStatusMap</a></em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>init</code> <em><a href="#inittaskstatus">InitTaskStatus</a></em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>version</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>migrationRevision</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>configChecksum</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>phase</code> <em>string</em></td>
+<td>High-level phase.</td>
+<td></td>
+<td>Enum: [Initializing Running Degraded Suspended] <br />Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetwebserver">SupersetWebServer<a class="headerlink" href="#supersetwebserver" title="Permanent link">&para;</a></h4>
+<p>SupersetWebServer is the Schema for the supersetwebservers API.
+It manages the Superset web server (gunicorn) Deployment.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>apiVersion</code> <em>string</em></td>
+<td><code>superset.apache.org/v1alpha1</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>kind</code> <em>string</em></td>
+<td><code>SupersetWebServer</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>metadata</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#objectmeta-v1-meta">ObjectMeta</a></em></td>
+<td>Refer to Kubernetes API documentation for fields of <code>metadata</code>.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>spec</code> <em><a href="#supersetwebserverspec">SupersetWebServerSpec</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>status</code> <em><a href="#supersetwebserverstatus">SupersetWebServerStatus</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetwebserverspec">SupersetWebServerSpec<a class="headerlink" href="#supersetwebserverspec" title="Permanent link">&para;</a></h4>
+<p>SupersetWebServerSpec is the fully-resolved, flat spec for a web server.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetwebserver">SupersetWebServer</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>image</code> <em><a href="#imagespec">ImageSpec</a></em></td>
+<td>Container image configuration.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>replicas</code> <em>integer</em></td>
+<td>Desired replica count.</td>
+<td>1</td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>deploymentTemplate</code> <em><a href="#deploymenttemplate">DeploymentTemplate</a></em></td>
+<td>Fully-resolved deployment template.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podTemplate</code> <em><a href="#podtemplate">PodTemplate</a></em></td>
+<td>Fully-resolved pod template.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>serviceAccountName</code> <em>string</em></td>
+<td>ServiceAccountName to set on the pod.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>autoscaling</code> <em><a href="#autoscalingspec">AutoscalingSpec</a></em></td>
+<td>Autoscaling configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podDisruptionBudget</code> <em><a href="#pdbspec">PDBSpec</a></em></td>
+<td>PodDisruptionBudget configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>config</code> <em>string</em></td>
+<td>The fully rendered superset_config.py content.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>configChecksum</code> <em>string</em></td>
+<td>Checksum stamped as pod template annotation for rolling restarts.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>service</code> <em><a href="#componentservicespec">ComponentServiceSpec</a></em></td>
+<td>Service configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetwebserverstatus">SupersetWebServerStatus<a class="headerlink" href="#supersetwebserverstatus" title="Permanent link">&para;</a></h4>
+<p>SupersetWebServerStatus defines the observed state of SupersetWebServer.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetwebserver">SupersetWebServer</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ready</code> <em>string</em></td>
+<td>"2/2" format showing ready vs desired replicas.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>conditions</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#condition-v1-meta">Condition</a> array</em></td>
+<td>Standard conditions.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>observedGeneration</code> <em>integer</em></td>
+<td>ObservedGeneration for leader election consistency.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetwebsocketserver">SupersetWebsocketServer<a class="headerlink" href="#supersetwebsocketserver" title="Permanent link">&para;</a></h4>
+<p>SupersetWebsocketServer is the Schema for the supersetwebsocketservers API.
+It manages the Superset websocket server Deployment.</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>apiVersion</code> <em>string</em></td>
+<td><code>superset.apache.org/v1alpha1</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>kind</code> <em>string</em></td>
+<td><code>SupersetWebsocketServer</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>metadata</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#objectmeta-v1-meta">ObjectMeta</a></em></td>
+<td>Refer to Kubernetes API documentation for fields of <code>metadata</code>.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>spec</code> <em><a href="#supersetwebsocketserverspec">SupersetWebsocketServerSpec</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>status</code> <em><a href="#supersetwebsocketserverstatus">SupersetWebsocketServerStatus</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetwebsocketserverspec">SupersetWebsocketServerSpec<a class="headerlink" href="#supersetwebsocketserverspec" title="Permanent link">&para;</a></h4>
+<p>SupersetWebsocketServerSpec is the fully-resolved, flat spec for a websocket server.
+The websocket server is a Node.js application — it does NOT use superset_config.py.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetwebsocketserver">SupersetWebsocketServer</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>image</code> <em><a href="#imagespec">ImageSpec</a></em></td>
+<td>Container image configuration.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>replicas</code> <em>integer</em></td>
+<td>Desired replica count.</td>
+<td>1</td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>deploymentTemplate</code> <em><a href="#deploymenttemplate">DeploymentTemplate</a></em></td>
+<td>Fully-resolved deployment template.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podTemplate</code> <em><a href="#podtemplate">PodTemplate</a></em></td>
+<td>Fully-resolved pod template.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>serviceAccountName</code> <em>string</em></td>
+<td>ServiceAccountName to set on the pod.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>autoscaling</code> <em><a href="#autoscalingspec">AutoscalingSpec</a></em></td>
+<td>Autoscaling configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podDisruptionBudget</code> <em><a href="#pdbspec">PDBSpec</a></em></td>
+<td>PodDisruptionBudget configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>service</code> <em><a href="#componentservicespec">ComponentServiceSpec</a></em></td>
+<td>Service configuration.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="supersetwebsocketserverstatus">SupersetWebsocketServerStatus<a class="headerlink" href="#supersetwebsocketserverstatus" title="Permanent link">&para;</a></h4>
+<p>SupersetWebsocketServerStatus defines the observed state of SupersetWebsocketServer.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetwebsocketserver">SupersetWebsocketServer</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ready</code> <em>string</em></td>
+<td>"2/2" format showing ready vs desired replicas.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>conditions</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#condition-v1-meta">Condition</a> array</em></td>
+<td>Standard conditions.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>observedGeneration</code> <em>integer</em></td>
+<td>ObservedGeneration for leader election consistency.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="valkeycachespec">ValkeyCacheSpec<a class="headerlink" href="#valkeycachespec" title="Permanent link">&para;</a></h4>
+<p>ValkeyCacheSpec tunes a Superset Flask-Caching backend backed by Valkey.</p>
+<p><em>Appears in:</em>
+- <a href="#valkeyspec">ValkeySpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>disabled</code> <em>boolean</em></td>
+<td>Disable this cache section. When true, the operator does not render<br />this config — Superset falls back to its built-in default.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>database</code> <em>integer</em></td>
+<td>Valkey database number.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>keyPrefix</code> <em>string</em></td>
+<td>Cache key prefix.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>defaultTimeout</code> <em>integer</em></td>
+<td>Default cache timeout in seconds.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="valkeyceleryspec">ValkeyCelerySpec<a class="headerlink" href="#valkeyceleryspec" title="Permanent link">&para;</a></h4>
+<p>ValkeyCelerySpec tunes a Celery Valkey connection.</p>
+<p><em>Appears in:</em>
+- <a href="#valkeyspec">ValkeySpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>disabled</code> <em>boolean</em></td>
+<td>Disable this Celery backend. When true, the operator does not render this config.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>database</code> <em>integer</em></td>
+<td>Valkey database number.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="valkeyresultsbackendspec">ValkeyResultsBackendSpec<a class="headerlink" href="#valkeyresultsbackendspec" title="Permanent link">&para;</a></h4>
+<p>ValkeyResultsBackendSpec tunes the SQL Lab async results backend.</p>
+<p><em>Appears in:</em>
+- <a href="#valkeyspec">ValkeySpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>disabled</code> <em>boolean</em></td>
+<td>Disable the results backend. When true, the operator does not render this config.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>database</code> <em>integer</em></td>
+<td>Valkey database number.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>keyPrefix</code> <em>string</em></td>
+<td>Cache key prefix for results.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="valkeysslspec">ValkeySSLSpec<a class="headerlink" href="#valkeysslspec" title="Permanent link">&para;</a></h4>
+<p>ValkeySSLSpec configures TLS for the Valkey connection.</p>
+<p><em>Appears in:</em>
+- <a href="#valkeyspec">ValkeySpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>certRequired</code> <em>string</em></td>
+<td>Certificate verification mode.</td>
+<td>required</td>
+<td>Enum: [required optional none] <br />Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>keyFile</code> <em>string</em></td>
+<td>Path to the client private key file (for mTLS).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>certFile</code> <em>string</em></td>
+<td>Path to the client certificate file (for mTLS).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>caCertFile</code> <em>string</em></td>
+<td>Path to the CA certificate file for server verification.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="valkeyspec">ValkeySpec<a class="headerlink" href="#valkeyspec" title="Permanent link">&para;</a></h4>
+<p>ValkeySpec configures Valkey as the shared cache backend, Celery message
+broker, and SQL Lab results backend for Superset. When set, all sections
+are enabled with sensible defaults — only host is required.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetspec">SupersetSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>host</code> <em>string</em></td>
+<td>Valkey server hostname.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>port</code> <em>integer</em></td>
+<td>Valkey server port.</td>
+<td>6379</td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>password</code> <em>string</em></td>
+<td>Plain text password. Only allowed in dev mode — use passwordFrom in prod.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>passwordFrom</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#secretkeyselector-v1-core">SecretKeySelector</a></em></td>
+<td>Reference to a Secret key containing the Valkey password.<br />Mutually exclusive with password.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>ssl</code> <em><a href="#valkeysslspec">ValkeySSLSpec</a></em></td>
+<td>SSL/TLS configuration. When set, enables SSL for the Valkey connection.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>cache</code> <em><a href="#valkeycachespec">ValkeyCacheSpec</a></em></td>
+<td>General cache (CACHE_CONFIG). Default: db=1, prefix="superset_", timeout=300s.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>dataCache</code> <em><a href="#valkeycachespec">ValkeyCacheSpec</a></em></td>
+<td>Data/query results cache (DATA_CACHE_CONFIG). Default: db=2, prefix="superset_data_", timeout=86400s.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>filterStateCache</code> <em><a href="#valkeycachespec">ValkeyCacheSpec</a></em></td>
+<td>Dashboard filter state cache (FILTER_STATE_CACHE_CONFIG). Default: db=3, prefix="superset_filter_", timeout=3600s.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>exploreFormDataCache</code> <em><a href="#valkeycachespec">ValkeyCacheSpec</a></em></td>
+<td>Chart builder form state cache (EXPLORE_FORM_DATA_CACHE_CONFIG). Default: db=4, prefix="superset_explore_", timeout=3600s.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>thumbnailCache</code> <em><a href="#valkeycachespec">ValkeyCacheSpec</a></em></td>
+<td>Thumbnail cache (THUMBNAIL_CACHE_CONFIG). Default: db=5, prefix="superset_thumbnail_", timeout=3600s.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>celeryBroker</code> <em><a href="#valkeyceleryspec">ValkeyCelerySpec</a></em></td>
+<td>Celery broker (CeleryConfig.broker_url). Default: db=0.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>celeryResultBackend</code> <em><a href="#valkeyceleryspec">ValkeyCelerySpec</a></em></td>
+<td>Celery result backend (CeleryConfig.result_backend). Default: db=0.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>resultsBackend</code> <em><a href="#valkeyresultsbackendspec">ValkeyResultsBackendSpec</a></em></td>
+<td>SQL Lab async results backend (RESULTS_BACKEND). Default: db=6, prefix="superset_results_".</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="webservercomponentspec">WebServerComponentSpec<a class="headerlink" href="#webservercomponentspec" title="Permanent link">&para;</a></h4>
+<p>WebServerComponentSpec defines the web server component on the parent CRD.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetspec">SupersetSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>deploymentTemplate</code> <em><a href="#deploymenttemplate">DeploymentTemplate</a></em></td>
+<td>Deployment template (Deployment-level configuration).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podTemplate</code> <em><a href="#podtemplate">PodTemplate</a></em></td>
+<td>Pod template (Pod and container configuration).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>replicas</code> <em>integer</em></td>
+<td>Desired replica count; overridden by autoscaling when active. Defaults to spec.replicas if unset.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>autoscaling</code> <em><a href="#autoscalingspec">AutoscalingSpec</a></em></td>
+<td>HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podDisruptionBudget</code> <em><a href="#pdbspec">PDBSpec</a></em></td>
+<td>PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>image</code> <em><a href="#imageoverridespec">ImageOverrideSpec</a></em></td>
+<td>Image tag and/or repository overrides; inherits from spec.image if unset.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>config</code> <em>string</em></td>
+<td>Per-component raw Python appended after top-level config.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>service</code> <em><a href="#componentservicespec">ComponentServiceSpec</a></em></td>
+<td>Service configuration (type, port, annotations).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="websocketservercomponentspec">WebsocketServerComponentSpec<a class="headerlink" href="#websocketservercomponentspec" title="Permanent link">&para;</a></h4>
+<p>WebsocketServerComponentSpec defines the websocket server component on the parent CRD.</p>
+<p><em>Appears in:</em>
+- <a href="#supersetspec">SupersetSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>deploymentTemplate</code> <em><a href="#deploymenttemplate">DeploymentTemplate</a></em></td>
+<td>Deployment template (Deployment-level configuration).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podTemplate</code> <em><a href="#podtemplate">PodTemplate</a></em></td>
+<td>Pod template (Pod and container configuration).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>replicas</code> <em>integer</em></td>
+<td>Desired replica count; overridden by autoscaling when active. Defaults to spec.replicas if unset.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>autoscaling</code> <em><a href="#autoscalingspec">AutoscalingSpec</a></em></td>
+<td>HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>podDisruptionBudget</code> <em><a href="#pdbspec">PDBSpec</a></em></td>
+<td>PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>image</code> <em><a href="#imageoverridespec">ImageOverrideSpec</a></em></td>
+<td>Image tag and/or repository overrides; inherits from spec.image if unset.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>service</code> <em><a href="#componentservicespec">ComponentServiceSpec</a></em></td>
+<td>Service configuration (type, port, annotations).</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["content.code.copy", "navigation.sections", "navigation.expand", "navigation.top", "search.highlight"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
