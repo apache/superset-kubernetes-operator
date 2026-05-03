@@ -55,14 +55,15 @@ jobs:
       - uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.3.0
         with:
           go-version-file: go.mod
-      - name: Generate manifests and sync Helm CRDs
+      - name: Generate manifests, sync Helm CRDs, and generate API docs
         run: |
           make manifests generate
           cp config/crd/bases/*.yaml charts/superset-operator/crds/
+          make docs-api
       - name: Check for uncommitted changes
         run: |
           if [ -n "$(git status --porcelain)" ]; then
-            echo "Generated files are not up to date. Run 'make manifests generate', sync Helm CRDs, and commit the changes."
+            echo "Generated files are not up to date. Run 'make manifests generate', sync Helm CRDs, run 'make docs-api', and commit the changes."
             git diff
             exit 1
           fi
