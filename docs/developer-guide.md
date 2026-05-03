@@ -133,6 +133,7 @@ kind delete cluster --name superset
 | `make uninstall` | Remove CRDs only |
 | `make manifests` | Regenerate CRD YAML and RBAC from kubebuilder markers |
 | `make generate` | Regenerate DeepCopy methods |
+| `make codegen` | Regenerate all generated artifacts (CRDs, DeepCopy, Helm CRDs, API docs) |
 | `make build` | Build the operator binary |
 | `make docker-build IMG=<image>` | Build container image for the local platform |
 | `make docker-buildx IMG=<image>` | Build and push multi-platform image (linux/arm64, linux/amd64) |
@@ -184,6 +185,12 @@ To verify the docs build cleanly (same check that runs in CI):
 ```sh
 make docs-build
 ```
+
+### API Reference
+
+The [API reference](api-reference.md) is generated from Go type definitions using [`crd-ref-docs`](https://github.com/elastic/crd-ref-docs). After modifying types in `api/v1alpha1/`, run `make codegen` to regenerate all generated artifacts (CRDs, DeepCopy, Helm CRDs, API docs). CI verifies nothing is stale.
+
+The API reference only documents operator-defined types. Built-in Kubernetes types (e.g., `Affinity`, `Container`, `Volume`) are linked out to [pkg.go.dev](https://pkg.go.dev) rather than rendered inline. When adding new fields that reference a K8s type, add a corresponding `knownTypes` entry in `hack/api-ref-config.yaml` so it renders as a link.
 
 ## Architecture
 

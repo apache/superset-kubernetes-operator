@@ -22,9 +22,87 @@ processor:
 render:
   kubernetesVersion: 1.31
   knownTypes:
+    # Gateway API
     - name: ParentReference
       package: sigs.k8s.io/gateway-api/apis/v1
       link: https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.ParentReference
     - name: Hostname
       package: sigs.k8s.io/gateway-api/apis/v1
       link: https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.Hostname
+
+    # k8s.io/api/core/v1
+    - name: Affinity
+      package: k8s.io/api/core/v1
+      link: https://pkg.go.dev/k8s.io/api/core/v1#Affinity
+    - name: Container
+      package: k8s.io/api/core/v1
+      link: https://pkg.go.dev/k8s.io/api/core/v1#Container
+    - name: ContainerPort
+      package: k8s.io/api/core/v1
+      link: https://pkg.go.dev/k8s.io/api/core/v1#ContainerPort
+    - name: EnvFromSource
+      package: k8s.io/api/core/v1
+      link: https://pkg.go.dev/k8s.io/api/core/v1#EnvFromSource
+    - name: EnvVar
+      package: k8s.io/api/core/v1
+      link: https://pkg.go.dev/k8s.io/api/core/v1#EnvVar
+    - name: HostAlias
+      package: k8s.io/api/core/v1
+      link: https://pkg.go.dev/k8s.io/api/core/v1#HostAlias
+    - name: Lifecycle
+      package: k8s.io/api/core/v1
+      link: https://pkg.go.dev/k8s.io/api/core/v1#Lifecycle
+    - name: LocalObjectReference
+      package: k8s.io/api/core/v1
+      link: https://pkg.go.dev/k8s.io/api/core/v1#LocalObjectReference
+    - name: PodDNSConfig
+      package: k8s.io/api/core/v1
+      link: https://pkg.go.dev/k8s.io/api/core/v1#PodDNSConfig
+    - name: PodSecurityContext
+      package: k8s.io/api/core/v1
+      link: https://pkg.go.dev/k8s.io/api/core/v1#PodSecurityContext
+    - name: Probe
+      package: k8s.io/api/core/v1
+      link: https://pkg.go.dev/k8s.io/api/core/v1#Probe
+    - name: ResourceRequirements
+      package: k8s.io/api/core/v1
+      link: https://pkg.go.dev/k8s.io/api/core/v1#ResourceRequirements
+    - name: SecretKeySelector
+      package: k8s.io/api/core/v1
+      link: https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector
+    - name: SecurityContext
+      package: k8s.io/api/core/v1
+      link: https://pkg.go.dev/k8s.io/api/core/v1#SecurityContext
+    - name: Toleration
+      package: k8s.io/api/core/v1
+      link: https://pkg.go.dev/k8s.io/api/core/v1#Toleration
+    - name: TopologySpreadConstraint
+      package: k8s.io/api/core/v1
+      link: https://pkg.go.dev/k8s.io/api/core/v1#TopologySpreadConstraint
+    - name: Volume
+      package: k8s.io/api/core/v1
+      link: https://pkg.go.dev/k8s.io/api/core/v1#Volume
+    - name: VolumeMount
+      package: k8s.io/api/core/v1
+      link: https://pkg.go.dev/k8s.io/api/core/v1#VolumeMount
+
+    # k8s.io/api/apps/v1
+    - name: DeploymentStrategy
+      package: k8s.io/api/apps/v1
+      link: https://pkg.go.dev/k8s.io/api/apps/v1#DeploymentStrategy
+
+    # k8s.io/api/autoscaling/v2
+    - name: MetricSpec
+      package: k8s.io/api/autoscaling/v2
+      link: https://pkg.go.dev/k8s.io/api/autoscaling/v2#MetricSpec
+
+    # k8s.io/apimachinery/pkg/apis/meta/v1
+    - name: Condition
+      package: k8s.io/apimachinery/pkg/apis/meta/v1
+      link: https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition
+    - name: Duration
+      package: k8s.io/apimachinery/pkg/apis/meta/v1
+      link: https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration
+    - name: Time
+      package: k8s.io/apimachinery/pkg/apis/meta/v1
+      link: https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time

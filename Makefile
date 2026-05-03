@@ -125,25 +125,29 @@ docs-build: ## Build documentation site.
 
 .PHONY: docs-api
 docs-api: crd-ref-docs ## Generate API reference documentation from Go types.
-	$(CRD_REF_DOCS) --source-path=api/v1alpha1 --config=hack/api-ref-config.yaml --renderer=markdown --output-path=docs/api-reference.md
+	$(CRD_REF_DOCS) --source-path=api/v1alpha1 --config=hack/api-ref-config.yaml --renderer=markdown --max-depth=15 --output-path=docs/api-reference.md
 
 ##@ Helm
 
 HELM_CHART_DIR ?= charts/superset-operator
 
-.PHONY: helm
-helm: manifests ## Sync CRDs into Helm chart and package it.
+.PHONY: helm-sync-crds
+helm-sync-crds: ## Sync generated CRDs into the Helm chart.
 	mkdir -p $(HELM_CHART_DIR)/crds
 	cp config/crd/bases/*.yaml $(HELM_CHART_DIR)/crds/
+
+.PHONY: helm
+helm: manifests helm-sync-crds ## Sync CRDs into Helm chart and package it.
 	helm package $(HELM_CHART_DIR)
 
 .PHONY: helm-lint
-helm-lint: ## Lint the Helm chart (syncs CRDs first).
-	mkdir -p $(HELM_CHART_DIR)/crds
-	cp config/crd/bases/*.yaml $(HELM_CHART_DIR)/crds/
+helm-lint: helm-sync-crds ## Lint the Helm chart (syncs CRDs first).
 	helm lint $(HELM_CHART_DIR)
 
 ##@ Development
+
+.PHONY: codegen
+codegen: manifests generate helm-sync-crds docs-api ## Regenerate all generated artifacts (CRDs, DeepCopy, Helm CRDs, API docs).
 
 .PHONY: clean
 clean: ## Remove build artifacts, downloaded tools, and test cache.
