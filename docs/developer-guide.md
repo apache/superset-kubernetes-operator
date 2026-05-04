@@ -218,6 +218,25 @@ The parent controller orchestrates all reconciliation:
 
 ## Testing Philosophy
 
+### Guiding principle: test the way the software is used
+
+Inspired by the [React Testing Library](https://testing-library.com/docs/guiding-principles)
+philosophy, our tests should resemble the way the operator is used in
+practice. For a Kubernetes operator, the "user" is the person writing a CR
+and `kubectl apply`-ing it. Tests should therefore:
+
+- **Start from a realistic CR** and assert on the **observable outputs** —
+  child CRs, Deployments, Services, ConfigMaps, status conditions — not
+  internal implementation details.
+- **Avoid testing private functions in isolation** unless they contain
+  genuinely complex logic (merge semantics, backoff math). If a behavior is
+  only meaningful through reconciliation, test it through reconciliation.
+- **Refactor freely without rewriting tests.** If renaming an internal
+  helper or restructuring a package breaks tests, those tests were coupled
+  to implementation, not behavior.
+
+### Pyramid strategy
+
 We use a **pyramid testing strategy** where the vast majority of logic is
 covered by fast, deterministic unit tests. Integration and e2e tests are
 reserved for verifying the system works end-to-end, not for testing
