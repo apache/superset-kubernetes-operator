@@ -233,7 +233,8 @@ and `kubectl apply`-ing it. Tests should therefore:
   only meaningful through reconciliation, test it through reconciliation.
 - **Refactor freely without rewriting tests.** If renaming an internal
   helper or restructuring a package breaks tests, those tests were coupled
-  to implementation, not behavior.
+  to implementation, not behavior, and should be rewritten to assert on
+  observable outputs or removed entirely.
 
 ### Pyramid strategy
 
