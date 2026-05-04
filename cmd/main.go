@@ -177,7 +177,7 @@ func main() {
 	if err := (&controller.SupersetReconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("superset-controller"), //nolint:staticcheck // TODO: migrate to events API
+		Recorder: mgr.GetEventRecorder("superset-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Superset")
 		os.Exit(1)
@@ -185,7 +185,7 @@ func main() {
 	for _, def := range controller.ChildControllerDefs() {
 		if err := controller.NewChildReconciler(
 			mgr.GetClient(), mgr.GetScheme(),
-			mgr.GetEventRecorderFor(def.Name+"-controller"), def, //nolint:staticcheck // TODO: migrate to events API
+			mgr.GetEventRecorder(def.Name+"-controller"), def,
 		).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", def.Name)
 			os.Exit(1)
@@ -194,7 +194,7 @@ func main() {
 	if err := (&controller.SupersetInitReconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("superset-init-controller"), //nolint:staticcheck // TODO: migrate to events API
+		Recorder: mgr.GetEventRecorder("superset-init-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "SupersetInit")
 		os.Exit(1)

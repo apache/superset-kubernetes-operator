@@ -31,7 +31,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -57,7 +57,7 @@ type ChildCR interface {
 type ChildReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 	Config   childReconcilerConfig
 	NewObj   func() ChildCR
 }
@@ -124,7 +124,7 @@ func reconcileChildResources(
 	ctx context.Context,
 	c client.Client,
 	scheme *runtime.Scheme,
-	recorder record.EventRecorder,
+	recorder events.EventRecorder,
 	owner client.Object,
 	spec *supersetv1alpha1.FlatComponentSpec,
 	cfg childReconcilerConfig,
@@ -139,7 +139,7 @@ func reconcileChildResources(
 	// ConfigMap (if hasConfig).
 	if cfg.hasConfig {
 		if err := reconcileChildConfigMap(ctx, c, scheme, owner, config, resourceBaseName); err != nil {
-			recorder.Eventf(owner, corev1.EventTypeWarning, "ReconcileError", "Failed to reconcile ConfigMap: %v", err)
+			recorder.Eventf(owner, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile ConfigMap: %v", err)
 			return fmt.Errorf("reconciling ConfigMap: %w", err)
 		}
 	}
@@ -150,7 +150,7 @@ func reconcileChildResources(
 		checksums = buildChecksumAnnotations(configChecksum)
 	}
 	if err := reconcileChildDeployment(ctx, c, scheme, owner, spec, cfg.deployConfig, checksums, cfg.componentName, resourceBaseName); err != nil {
-		recorder.Eventf(owner, corev1.EventTypeWarning, "ReconcileError", "Failed to reconcile Deployment: %v", err)
+		recorder.Eventf(owner, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile Deployment: %v", err)
 		return fmt.Errorf("reconciling Deployment: %w", err)
 	}
 
@@ -158,7 +158,7 @@ func reconcileChildResources(
 	if cfg.defaultPort > 0 {
 		containerPort := resolveContainerPort(spec, cfg.defaultPort)
 		if err := reconcileChildService(ctx, c, scheme, owner, service, cfg.componentName, containerPort, cfg.defaultPort, resourceBaseName); err != nil {
-			recorder.Eventf(owner, corev1.EventTypeWarning, "ReconcileError", "Failed to reconcile Service: %v", err)
+			recorder.Eventf(owner, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile Service: %v", err)
 			return fmt.Errorf("reconciling Service: %w", err)
 		}
 	}
@@ -166,7 +166,7 @@ func reconcileChildResources(
 	// Scaling (if hasScaling).
 	if cfg.hasScaling {
 		if err := reconcileScaling(ctx, c, scheme, owner, autoscaling, pdb, cfg.componentName, resourceBaseName); err != nil {
-			recorder.Eventf(owner, corev1.EventTypeWarning, "ReconcileError", "Failed to reconcile Scaling: %v", err)
+			recorder.Eventf(owner, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile Scaling: %v", err)
 			return fmt.Errorf("reconciling Scaling: %w", err)
 		}
 	}

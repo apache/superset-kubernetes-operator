@@ -34,7 +34,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -51,7 +51,7 @@ import (
 type SupersetReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 }
 
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersets,verbs=get;list;watch
@@ -70,7 +70,7 @@ type SupersetReconciler struct {
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersetmcpservers/status,verbs=get
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersetinits,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersetinits/status,verbs=get
-// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch;update
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 
@@ -121,7 +121,7 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 	// Phase 2: Reconcile shared resources.
 	if err := r.reconcileServiceAccount(ctx, superset); err != nil {
-		r.Recorder.Eventf(superset, corev1.EventTypeWarning, "ReconcileError", "Failed to reconcile ServiceAccount: %v", err)
+		r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile ServiceAccount: %v", err)
 		return ctrl.Result{}, fmt.Errorf("reconciling ServiceAccount: %w", err)
 	}
 
@@ -132,7 +132,7 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 	requeueAfter, initComplete, err := r.reconcileInit(ctx, superset, configChecksum, topLevel, saName)
 	if err != nil {
-		r.Recorder.Eventf(superset, corev1.EventTypeWarning, "ReconcileError", "Failed to reconcile Init: %v", err)
+		r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile Init: %v", err)
 		return ctrl.Result{}, fmt.Errorf("reconciling Init: %w", err)
 	}
 	if !initComplete {
@@ -153,24 +153,24 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	// Phase 3: Resolve and reconcile each component (table-driven).
 	for _, desc := range componentDescriptors {
 		if err := r.reconcileComponent(ctx, superset, desc, topLevel, configChecksum, saName); err != nil {
-			r.Recorder.Eventf(superset, corev1.EventTypeWarning, "ReconcileError", "Failed to reconcile %s: %v", desc.componentType, err)
+			r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile %s: %v", desc.componentType, err)
 			return ctrl.Result{}, fmt.Errorf("reconciling %s: %w", desc.componentType, err)
 		}
 	}
 
 	// Phase 4: Reconcile networking, monitoring, network policies.
 	if err := r.reconcileNetworking(ctx, superset); err != nil {
-		r.Recorder.Eventf(superset, corev1.EventTypeWarning, "ReconcileError", "Failed to reconcile Networking: %v", err)
+		r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile Networking: %v", err)
 		return ctrl.Result{}, fmt.Errorf("reconciling Networking: %w", err)
 	}
 
 	if err := r.reconcileMonitoring(ctx, superset); err != nil {
-		r.Recorder.Eventf(superset, corev1.EventTypeWarning, "ReconcileError", "Failed to reconcile Monitoring: %v", err)
+		r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile Monitoring: %v", err)
 		return ctrl.Result{}, fmt.Errorf("reconciling Monitoring: %w", err)
 	}
 
 	if err := r.reconcileNetworkPolicies(ctx, superset); err != nil {
-		r.Recorder.Eventf(superset, corev1.EventTypeWarning, "ReconcileError", "Failed to reconcile NetworkPolicies: %v", err)
+		r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile NetworkPolicies: %v", err)
 		return ctrl.Result{}, fmt.Errorf("reconciling NetworkPolicies: %w", err)
 	}
 

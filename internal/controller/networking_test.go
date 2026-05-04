@@ -26,7 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -92,7 +92,7 @@ func TestReconcileNetworking_NothingEnabled(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	if err := r.reconcileNetworking(context.Background(), superset); err != nil {
 		t.Fatalf("reconcileNetworking: %v", err)
@@ -122,7 +122,7 @@ func TestReconcileNetworking_GatewayEnabled_CreatesHTTPRoute(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	if err := r.reconcileNetworking(context.Background(), superset); err != nil {
 		t.Fatalf("reconcileNetworking: %v", err)
@@ -178,7 +178,7 @@ func TestReconcileHTTPRoute_WithWebsocket(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	if err := r.reconcileHTTPRoute(context.Background(), superset); err != nil {
 		t.Fatalf("reconcileHTTPRoute: %v", err)
@@ -226,7 +226,7 @@ func TestReconcileHTTPRoute_WithMcpServer(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	if err := r.reconcileHTTPRoute(context.Background(), superset); err != nil {
 		t.Fatalf("reconcileHTTPRoute: %v", err)
@@ -274,7 +274,7 @@ func TestReconcileHTTPRoute_WithCeleryFlower(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	if err := r.reconcileHTTPRoute(context.Background(), superset); err != nil {
 		t.Fatalf("reconcileHTTPRoute: %v", err)
@@ -335,7 +335,7 @@ func TestReconcileHTTPRoute_CustomGatewayPaths(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	if err := r.reconcileHTTPRoute(context.Background(), superset); err != nil {
 		t.Fatalf("reconcileHTTPRoute: %v", err)
@@ -406,7 +406,7 @@ func TestReconcileIngress_CreatesIngress(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	if err := r.reconcileIngress(context.Background(), superset); err != nil {
 		t.Fatalf("reconcileIngress: %v", err)
@@ -456,7 +456,7 @@ func TestReconcileIngress_HostFallback(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	if err := r.reconcileIngress(context.Background(), superset); err != nil {
 		t.Fatalf("reconcileIngress: %v", err)
@@ -506,7 +506,7 @@ func TestReconcileIngress_WithTLS(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	if err := r.reconcileIngress(context.Background(), superset); err != nil {
 		t.Fatalf("reconcileIngress: %v", err)
@@ -540,7 +540,7 @@ func TestReconcileNetworking_GatewayDisabled_CleansUpHTTPRoute(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, existingRoute).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	if err := r.reconcileNetworking(context.Background(), superset); err != nil {
 		t.Fatalf("reconcileNetworking: %v", err)
@@ -568,7 +568,7 @@ func TestReconcileNetworking_IngressDisabled_CleansUpIngress(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, existingIngress).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	if err := r.reconcileNetworking(context.Background(), superset); err != nil {
 		t.Fatalf("reconcileNetworking: %v", err)
@@ -594,7 +594,7 @@ func TestDeleteByLabels_SkipsUnlabeledResource(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, unlabeledIngress).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	err := r.deleteByLabels(context.Background(), "default", parentLabels("test"),
 		func() client.ObjectList { return &networkingv1.IngressList{} }, "")

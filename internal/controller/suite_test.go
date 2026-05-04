@@ -98,19 +98,19 @@ var _ = BeforeSuite(func() {
 	err = (&SupersetReconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("superset-controller"),
+		Recorder: mgr.GetEventRecorder("superset-controller"),
 	}).SetupWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
 	// Register child reconcilers.
 	for _, def := range ChildControllerDefs() {
 		Expect(NewChildReconciler(mgr.GetClient(), mgr.GetScheme(),
-			mgr.GetEventRecorderFor("test"), def).SetupWithManager(mgr)).To(Succeed())
+			mgr.GetEventRecorder("test"), def).SetupWithManager(mgr)).To(Succeed())
 	}
 	Expect((&SupersetInitReconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("test"),
+		Recorder: mgr.GetEventRecorder("test"),
 	}).SetupWithManager(mgr)).To(Succeed())
 
 	// Start manager in background goroutine.

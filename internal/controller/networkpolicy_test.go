@@ -27,7 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
@@ -42,7 +42,7 @@ func TestReconcileNetworkPolicies_Disabled(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	if err := r.reconcileNetworkPolicies(context.Background(), superset); err != nil {
 		t.Fatalf("reconcileNetworkPolicies: %v", err)
@@ -63,7 +63,7 @@ func TestReconcileNetworkPolicies_CreatesForEnabledComponents(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	if err := r.reconcileNetworkPolicies(context.Background(), superset); err != nil {
 		t.Fatalf("reconcileNetworkPolicies: %v", err)
@@ -103,7 +103,7 @@ func TestReconcileComponentNetworkPolicy_WebServer(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	npName := "test-web-server" + common.SuffixNetworkPolicy
 	err := r.reconcileComponentNetworkPolicy(
@@ -196,7 +196,7 @@ func TestReconcileNetworkPolicies_CustomContainerPort(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	if err := r.reconcileNetworkPolicies(context.Background(), superset); err != nil {
 		t.Fatalf("reconcileNetworkPolicies: %v", err)
@@ -277,7 +277,7 @@ func TestReconcileComponentNetworkPolicy_InternalOnly(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	npName := "test-celery-worker" + common.SuffixNetworkPolicy
 	// Port 0 means internal only — no external ingress rule.
@@ -336,7 +336,7 @@ func TestReconcileNetworkPolicies_ExtraRules(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	npName := "test-web-server" + common.SuffixNetworkPolicy
 	err := r.reconcileComponentNetworkPolicy(
@@ -383,7 +383,7 @@ func TestReconcileNetworkPolicies_DeletesWhenDisabled(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, existingNP).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	if err := r.reconcileNetworkPolicies(context.Background(), superset); err != nil {
 		t.Fatalf("reconcileNetworkPolicies: %v", err)
@@ -412,7 +412,7 @@ func TestNetworkPolicySelectorMatchesDeploymentLabels(t *testing.T) {
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).
 		WithStatusSubresource(&supersetv1alpha1.Superset{}, &supersetv1alpha1.SupersetWebServer{}).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	if err := r.reconcileNetworkPolicies(context.Background(), superset); err != nil {
 		t.Fatalf("reconcileNetworkPolicies: %v", err)

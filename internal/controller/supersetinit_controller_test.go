@@ -28,7 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -300,7 +300,7 @@ func TestInitReconcile_CreatesConfigMapAndPod(t *testing.T) {
 	r := &SupersetInitReconciler{
 		Client:   c,
 		Scheme:   scheme,
-		Recorder: record.NewFakeRecorder(10),
+		Recorder: events.NewFakeRecorder(10),
 	}
 
 	result, err := r.Reconcile(context.Background(), reconcile.Request{
@@ -380,7 +380,7 @@ func TestInitReconcile_PodLabelsAndAnnotations(t *testing.T) {
 	r := &SupersetInitReconciler{
 		Client:   c,
 		Scheme:   scheme,
-		Recorder: record.NewFakeRecorder(10),
+		Recorder: events.NewFakeRecorder(10),
 	}
 
 	_, err := r.Reconcile(context.Background(), reconcile.Request{
@@ -435,7 +435,7 @@ func TestInitReconcile_PodSucceeded(t *testing.T) {
 		WithStatusSubresource(initCR).
 		Build()
 
-	r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	result, err := r.Reconcile(context.Background(), reconcile.Request{
 		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
@@ -491,7 +491,7 @@ func TestInitReconcile_PodFailed_Retries(t *testing.T) {
 		WithStatusSubresource(initCR).
 		Build()
 
-	r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	result, err := r.Reconcile(context.Background(), reconcile.Request{
 		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
@@ -544,7 +544,7 @@ func TestInitReconcile_PodFailed_ExhaustsRetries(t *testing.T) {
 		WithStatusSubresource(initCR).
 		Build()
 
-	r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	_, err := r.Reconcile(context.Background(), reconcile.Request{
 		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
@@ -580,7 +580,7 @@ func TestInitReconcile_AlreadyComplete_Noop(t *testing.T) {
 		WithStatusSubresource(initCR).
 		Build()
 
-	r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	result, err := r.Reconcile(context.Background(), reconcile.Request{
 		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
@@ -606,7 +606,7 @@ func TestInitReconcile_ConfigChanged_ReRunsInit(t *testing.T) {
 		WithStatusSubresource(initCR).
 		Build()
 
-	r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	result, err := r.Reconcile(context.Background(), reconcile.Request{
 		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
@@ -658,7 +658,7 @@ func TestInitReconcile_FailedExhausted_ConfigChanged_ReRunsInit(t *testing.T) {
 		WithStatusSubresource(initCR).
 		Build()
 
-	r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	result, err := r.Reconcile(context.Background(), reconcile.Request{
 		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
@@ -697,7 +697,7 @@ func TestInitReconcile_FailedExhausted_ConfigChanged_ReRunsInit(t *testing.T) {
 func TestInitReconcile_NotFound(t *testing.T) {
 	scheme := testScheme(t)
 	c := fake.NewClientBuilder().WithScheme(scheme).Build()
-	r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	result, err := r.Reconcile(context.Background(), reconcile.Request{
 		NamespacedName: types.NamespacedName{Name: "nonexistent", Namespace: "default"},
@@ -873,7 +873,7 @@ func TestApplyRetentionPolicy(t *testing.T) {
 			}
 
 			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(initCR, pod).Build()
-			r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+			r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 			r.applyRetentionPolicy(context.Background(), initCR, pod)
 

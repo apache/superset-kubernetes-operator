@@ -30,7 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -115,7 +115,7 @@ func TestReconcile_MinimalSuperset_CreatesWebServer(t *testing.T) {
 	}
 
 	c := reconcileOnce(t, scheme, superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
 
 	ww := &supersetv1alpha1.SupersetWebServer{}
@@ -146,7 +146,7 @@ func TestReconcile_CeleryEnabled_CreatesAllCeleryChildren(t *testing.T) {
 	}
 
 	c := reconcileOnce(t, scheme, superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
 
 	ctx := context.Background()
@@ -180,7 +180,7 @@ func TestReconcile_SuspendAndResume(t *testing.T) {
 	}
 
 	c := reconcileOnce(t, scheme, superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	ctx := context.Background()
 
 	// Suspend: condition should be True, no child CRs created.
@@ -233,7 +233,7 @@ func TestReconcile_ComponentDisabled_DeletesChildCR(t *testing.T) {
 	}
 
 	c := reconcileOnce(t, scheme, superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	ctx := context.Background()
 
 	doReconcile(t, r, "test")
@@ -276,7 +276,7 @@ func TestReconcile_ImageOverride(t *testing.T) {
 	}
 
 	c := reconcileOnce(t, scheme, superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
 
 	ww := &supersetv1alpha1.SupersetWebServer{}
@@ -306,7 +306,7 @@ func TestReconcile_MetastoreModes(t *testing.T) {
 		}
 
 		c := reconcileOnce(t, scheme, superset).Build()
-		r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+		r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 		doReconcile(t, r, "test-pt")
 
 		ww := &supersetv1alpha1.SupersetWebServer{}
@@ -340,7 +340,7 @@ func TestReconcile_MetastoreModes(t *testing.T) {
 		}
 
 		c := reconcileOnce(t, scheme, superset).Build()
-		r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+		r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 		doReconcile(t, r, "test-st")
 
 		ww := &supersetv1alpha1.SupersetWebServer{}
@@ -397,7 +397,7 @@ func TestReconcile_AllComponents_FullFeatures(t *testing.T) {
 	}
 
 	c := reconcileOnce(t, scheme, superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(20)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(20)}
 	doReconcile(t, r, "full")
 
 	ctx := context.Background()
@@ -621,7 +621,7 @@ func TestReconcile_TopLevelAutoscalingPDB_Inherited(t *testing.T) {
 	}
 
 	c := reconcileOnce(t, scheme, superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "hpa")
 
 	ctx := context.Background()
@@ -679,7 +679,7 @@ func TestReconcile_PerComponentConfigMerging(t *testing.T) {
 	}
 
 	c := reconcileOnce(t, scheme, superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "cfg")
 
 	ctx := context.Background()
@@ -725,7 +725,7 @@ func TestReconcile_InitGatesComponentDeployment(t *testing.T) {
 	c := reconcileOnce(t, scheme, superset).
 		WithStatusSubresource(&supersetv1alpha1.SupersetInit{}).
 		Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
 
 	ctx := context.Background()
@@ -756,7 +756,7 @@ func TestReconcile_InitGatesOnStaleChecksum(t *testing.T) {
 	c := reconcileOnce(t, scheme, superset).
 		WithStatusSubresource(&supersetv1alpha1.SupersetInit{}).
 		Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
 
 	ctx := context.Background()
@@ -827,7 +827,7 @@ func TestReconcile_InitCommand_PropagatedToChildCR(t *testing.T) {
 	}
 
 	c := reconcileOnce(t, scheme, superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
 
 	ctx := context.Background()
@@ -864,7 +864,7 @@ func TestReconcile_InitNilSpec_DefaultCommand(t *testing.T) {
 	}
 
 	c := reconcileOnce(t, scheme, superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
 
 	ctx := context.Background()
@@ -905,7 +905,7 @@ func TestReconcile_InitChecksumChangesOnImageAndCommand(t *testing.T) {
 		WithObjects(superset).
 		WithStatusSubresource(&supersetv1alpha1.Superset{}, &supersetv1alpha1.SupersetInit{}).
 		Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	ctx := context.Background()
 	topLevel := convertTopLevelSpec(&superset.Spec)
@@ -961,7 +961,7 @@ func TestReconcile_InitChecksum_StableWhenAutoscalingChanges(t *testing.T) {
 		WithObjects(superset).
 		WithStatusSubresource(&supersetv1alpha1.Superset{}, &supersetv1alpha1.SupersetInit{}).
 		Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	ctx := context.Background()
 	topLevel := convertTopLevelSpec(&superset.Spec)
@@ -1027,7 +1027,7 @@ func TestReconcile_InitAdminUser_CommandAndEnvVars(t *testing.T) {
 	c := reconcileOnce(t, scheme, superset).
 		WithStatusSubresource(&supersetv1alpha1.SupersetInit{}).
 		Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
 
 	initCR := &supersetv1alpha1.SupersetInit{}
@@ -1089,7 +1089,7 @@ func TestReconcile_InitLoadExamples_CommandConstruction(t *testing.T) {
 	c := reconcileOnce(t, scheme, superset).
 		WithStatusSubresource(&supersetv1alpha1.SupersetInit{}).
 		Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
 
 	initCR := &supersetv1alpha1.SupersetInit{}
@@ -1127,7 +1127,7 @@ func TestReconcile_InitAdminAndExamples_Combined(t *testing.T) {
 	c := reconcileOnce(t, scheme, superset).
 		WithStatusSubresource(&supersetv1alpha1.SupersetInit{}).
 		Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
 
 	initCR := &supersetv1alpha1.SupersetInit{}
@@ -1167,7 +1167,7 @@ func TestReconcile_ServiceAccount_CreateFalseWithName(t *testing.T) {
 
 	cb := reconcileOnce(t, scheme, superset)
 	c := cb.Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
 
 	// ServiceAccount should NOT be created.
@@ -1208,7 +1208,7 @@ func TestReconcile_ServiceAccount_CleanupOnCreateDisabled(t *testing.T) {
 
 	cb := reconcileOnce(t, scheme, superset)
 	c := cb.Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
 
 	// SA should exist.
@@ -1250,7 +1250,7 @@ func TestReconcile_ServiceAccount_PrunesOldSAOnNameChange(t *testing.T) {
 
 	cb := reconcileOnce(t, scheme, superset)
 	c := cb.Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
 
 	ctx := context.Background()
@@ -1308,7 +1308,7 @@ func TestReconcile_ServiceAccount_RefusesAdoptionOfExistingUnownedSA(t *testing.
 		WithObjects(superset, unownedSA).
 		WithStatusSubresource(&supersetv1alpha1.Superset{}).
 		Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	_, err := r.Reconcile(context.Background(), reconcile.Request{
 		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
@@ -1346,7 +1346,7 @@ func TestReconcile_InitTerminalFailure_NoRequeue(t *testing.T) {
 		WithObjects(initCR).
 		WithStatusSubresource(&supersetv1alpha1.SupersetInit{}).
 		Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	result, err := r.Reconcile(context.Background(), reconcile.Request{
 		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},

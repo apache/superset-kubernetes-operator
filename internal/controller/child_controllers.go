@@ -21,7 +21,7 @@ package controller
 import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
@@ -43,7 +43,7 @@ import (
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch;update
 // +kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
 
@@ -160,7 +160,7 @@ func ChildControllerDefs() []ChildControllerDef {
 }
 
 // NewChildReconciler creates a ChildReconciler from a ChildControllerDef.
-func NewChildReconciler(c client.Client, s *runtime.Scheme, r record.EventRecorder, def ChildControllerDef) *ChildReconciler {
+func NewChildReconciler(c client.Client, s *runtime.Scheme, r events.EventRecorder, def ChildControllerDef) *ChildReconciler {
 	return &ChildReconciler{
 		Client:   c,
 		Scheme:   s,

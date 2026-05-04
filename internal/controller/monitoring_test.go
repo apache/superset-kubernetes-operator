@@ -26,7 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
@@ -55,7 +55,7 @@ func TestReconcileMonitoring_GracefulSkipWhenCRDAbsent(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	// ServiceMonitor CRD is not registered in fake scheme — reconcileMonitoring
 	// should gracefully skip (return nil for NoMatchError).
@@ -93,7 +93,7 @@ func TestReconcileMonitoring_ServiceMonitorShape(t *testing.T) {
 	seed.SetNamespace("default")
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, seed).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	if err := r.reconcileMonitoring(context.Background(), superset); err != nil {
 		t.Fatalf("reconcileMonitoring: %v", err)
@@ -169,7 +169,7 @@ func TestDeleteServiceMonitors(t *testing.T) {
 
 	t.Run("not found", func(t *testing.T) {
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
-		r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+		r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 		if err := r.deleteServiceMonitors(context.Background(), superset); err != nil {
 			t.Fatalf("expected no error: %v", err)
@@ -184,7 +184,7 @@ func TestDeleteServiceMonitors(t *testing.T) {
 		sm.SetLabels(parentLabels("test"))
 
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, sm).Build()
-		r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+		r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 		if err := r.deleteServiceMonitors(context.Background(), superset); err != nil {
 			t.Fatalf("deleteServiceMonitors: %v", err)
@@ -205,7 +205,7 @@ func TestDeleteServiceMonitors(t *testing.T) {
 		sm.SetNamespace("default")
 
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, sm).Build()
-		r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10)}
+		r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 		if err := r.deleteServiceMonitors(context.Background(), superset); err != nil {
 			t.Fatalf("deleteServiceMonitors: %v", err)

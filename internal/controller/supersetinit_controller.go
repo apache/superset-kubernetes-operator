@@ -28,7 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -44,14 +44,14 @@ import (
 type SupersetInitReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
+	Recorder events.EventRecorder
 }
 
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersetinits,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersetinits/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
+// +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch;update
 
 func (r *SupersetInitReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
@@ -70,14 +70,14 @@ func (r *SupersetInitReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	// Reconcile the ConfigMap for superset_config.py.
 	if err := reconcileChildConfigMap(ctx, r.Client, r.Scheme, initCR, initCR.Spec.Config, resourceBaseName); err != nil {
-		r.Recorder.Eventf(initCR, corev1.EventTypeWarning, "ReconcileError", "Failed to reconcile ConfigMap: %v", err)
+		r.Recorder.Eventf(initCR, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile ConfigMap: %v", err)
 		return ctrl.Result{}, fmt.Errorf("reconciling ConfigMap: %w", err)
 	}
 
 	// Run the init pod lifecycle.
 	result, err := r.reconcileInitPod(ctx, initCR)
 	if err != nil {
-		r.Recorder.Eventf(initCR, corev1.EventTypeWarning, "ReconcileError", "Failed to reconcile init pod: %v", err)
+		r.Recorder.Eventf(initCR, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile init pod: %v", err)
 		return ctrl.Result{}, fmt.Errorf("reconciling init pod: %w", err)
 	}
 
@@ -154,7 +154,7 @@ func (r *SupersetInitReconciler) reconcileInitPod(ctx context.Context, initCR *s
 				initCR.Status.State = initStateFailed
 				initCR.Status.ConfigChecksum = initCR.Spec.ConfigChecksum
 				r.applyRetentionPolicy(ctx, initCR, existingPod)
-				r.Recorder.Eventf(initCR, corev1.EventTypeWarning, "InitFailed",
+				r.Recorder.Eventf(initCR, nil, corev1.EventTypeWarning, "InitFailed", "Reconcile",
 					"Init failed after %d attempts: %s", initCR.Status.Attempts, initCR.Status.Message)
 				setCondition(&initCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
 					metav1.ConditionFalse, "InitFailed", initCR.Status.Message, initCR.Generation)
@@ -168,7 +168,7 @@ func (r *SupersetInitReconciler) reconcileInitPod(ctx context.Context, initCR *s
 
 			backoff := calculateBackoff(initCR.Status.Attempts)
 			initCR.Status.State = initStatePending
-			r.Recorder.Eventf(initCR, corev1.EventTypeWarning, "InitRetry",
+			r.Recorder.Eventf(initCR, nil, corev1.EventTypeWarning, "InitRetry", "Reconcile",
 				"Init failed (attempt %d/%d), retrying in %s", initCR.Status.Attempts, maxRetries, backoff)
 			setCondition(&initCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
 				metav1.ConditionFalse, "InitRetrying", fmt.Sprintf("Retrying after attempt %d", initCR.Status.Attempts), initCR.Generation)
@@ -186,7 +186,7 @@ func (r *SupersetInitReconciler) reconcileInitPod(ctx context.Context, initCR *s
 						initCR.Status.State = initStateFailed
 						initCR.Status.ConfigChecksum = initCR.Spec.ConfigChecksum
 						r.applyRetentionPolicy(ctx, initCR, existingPod)
-						r.Recorder.Eventf(initCR, corev1.EventTypeWarning, "InitFailed",
+						r.Recorder.Eventf(initCR, nil, corev1.EventTypeWarning, "InitFailed", "Reconcile",
 							"Init timed out after %d attempts", initCR.Status.Attempts)
 						setCondition(&initCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
 							metav1.ConditionFalse, "InitTimedOut", initCR.Status.Message, initCR.Generation)
@@ -241,7 +241,7 @@ func (r *SupersetInitReconciler) reconcileInitPod(ctx context.Context, initCR *s
 	initCR.Status.Image = image
 	initCR.Status.Message = ""
 
-	r.Recorder.Eventf(initCR, corev1.EventTypeNormal, "InitStarted",
+	r.Recorder.Eventf(initCR, nil, corev1.EventTypeNormal, "InitStarted", "Reconcile",
 		"Started init pod: %s", pod.Name)
 
 	setCondition(&initCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
@@ -265,7 +265,7 @@ func (r *SupersetInitReconciler) resetForConfigChange(ctx context.Context, log l
 	initCR.Status.PodName = ""
 	initCR.Status.Duration = ""
 	initCR.Status.ConfigChecksum = ""
-	r.Recorder.Event(initCR, corev1.EventTypeNormal, "ConfigChanged", "Config changed, re-running initialization")
+	r.Recorder.Eventf(initCR, nil, corev1.EventTypeNormal, "ConfigChanged", "Reconcile", "Config changed, re-running initialization")
 	return nil
 }
 

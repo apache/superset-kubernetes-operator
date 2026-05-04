@@ -32,7 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -606,7 +606,7 @@ func TestReconcileChildResources_Configs(t *testing.T) {
 				WithObjects(tt.owner).
 				Build()
 
-			recorder := record.NewFakeRecorder(10)
+			recorder := events.NewFakeRecorder(10)
 
 			spec := makeSpec()
 
