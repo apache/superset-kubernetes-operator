@@ -734,7 +734,7 @@ merged** independently with the top-level — you only specify what's different.
 
 | Behavior | Fields |
 |----------|--------|
-| **Component wins if set** | `resources`, `affinity`, `securityContext`, `podSecurityContext`, `priorityClassName`, `strategy`, `revisionHistoryLimit`, probes, `lifecycle`, `dnsPolicy`, `dnsConfig`, `runtimeClassName`, `shareProcessNamespace`, `enableServiceLinks`, `terminationGracePeriodSeconds`, `minReadySeconds`, `progressDeadlineSeconds` |
+| **Component wins if set** | `resources` (both pod-level and container-level), `affinity`, `securityContext`, `podSecurityContext`, `priorityClassName`, `strategy`, `revisionHistoryLimit`, probes, `lifecycle`, `dnsPolicy`, `dnsConfig`, `runtimeClassName`, `shareProcessNamespace`, `enableServiceLinks`, `terminationGracePeriodSeconds`, `minReadySeconds`, `progressDeadlineSeconds` |
 | **Merge by name** | `env`, `volumes`, `volumeMounts`, `sidecars`, `initContainers` |
 | **Merge by key** | `annotations`, `labels`, `nodeSelector`, `hostAliases` (by IP) |
 | **Append** | `tolerations`, `topologySpreadConstraints`, `envFrom` |
@@ -778,6 +778,7 @@ top-level for shared entries and component-level for component-specific ones.
 | `runtimeClassName` | RuntimeClass (e.g., gVisor, Kata) |
 | `shareProcessNamespace` | Share PID namespace between containers |
 | `enableServiceLinks` | Inject service environment variables |
+| `resources` | Pod-level resource requirements (Kubernetes 1.34+, requires PodLevelResources feature gate) |
 
 **Container level** (`podTemplate.container.*`):
 
@@ -794,6 +795,28 @@ top-level for shared entries and component-level for component-specific ones.
 | `readinessProbe` | Readiness probe |
 | `startupProbe` | Startup probe |
 | `lifecycle` | preStop/postStart lifecycle hooks |
+
+**Pod-level resources** (Kubernetes 1.34+): When `podTemplate.resources` is set,
+it defines the total resource budget for the entire pod, enabling resource
+sharing among containers (main + sidecars). Container-level
+`podTemplate.container.resources` remains available for per-container limits.
+
+```yaml
+spec:
+  podTemplate:
+    resources:
+      requests:
+        cpu: "4"
+        memory: "8Gi"
+      limits:
+        cpu: "8"
+        memory: "16Gi"
+    container:
+      resources:
+        requests:
+          cpu: "2"
+          memory: "4Gi"
+```
 
 ### Init pod
 

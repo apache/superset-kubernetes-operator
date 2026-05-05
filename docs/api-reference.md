@@ -772,6 +772,7 @@ _Appears in:_
 | `runtimeClassName` _string_ | RuntimeClass for pods. |  | Optional: \{\} <br /> |
 | `shareProcessNamespace` _boolean_ | Share a single process namespace between all containers in a pod. |  | Optional: \{\} <br /> |
 | `enableServiceLinks` _boolean_ | Controls whether service environment variables are injected into pods. |  | Optional: \{\} <br /> |
+| `resources` _[ResourceRequirements](https://pkg.go.dev/k8s.io/api/core/v1#ResourceRequirements)_ | Pod-level resource requirements (CPU, memory). When set, defines the total<br />resources for the entire pod, enabling resource sharing among containers.<br />Requires Kubernetes 1.34+ with the PodLevelResources feature gate. |  | Optional: \{\} <br /> |
 | `container` _[ContainerTemplate](#containertemplate)_ | Main container configuration. |  | Optional: \{\} <br /> |
 
 

@@ -205,6 +205,7 @@ func MergePodTemplate(comp, tl *supersetv1alpha1.PodTemplate, operatorLabels map
 		RuntimeClassName:              ResolveOverridableValue(c.RuntimeClassName, t.RuntimeClassName),
 		ShareProcessNamespace:         ResolveOverridableValue(c.ShareProcessNamespace, t.ShareProcessNamespace),
 		EnableServiceLinks:            ResolveOverridableValue(c.EnableServiceLinks, t.EnableServiceLinks),
+		Resources:                     ResolveOverridableValue(c.Resources, t.Resources),
 		Volumes:                       MergeVolumes(t.Volumes, c.Volumes, op.Volumes),
 		Sidecars:                      MergeContainers(t.Sidecars, c.Sidecars),
 		InitContainers:                MergeContainers(t.InitContainers, c.InitContainers, op.InitContainers),

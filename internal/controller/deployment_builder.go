@@ -144,6 +144,7 @@ func buildDeploymentSpec(
 		ShareProcessNamespace:         pt.ShareProcessNamespace,
 		EnableServiceLinks:            pt.EnableServiceLinks,
 		DNSConfig:                     pt.DNSConfig,
+		Resources:                     pt.Resources,
 	}
 	if pt.PriorityClassName != nil {
 		podSpec.PriorityClassName = *pt.PriorityClassName

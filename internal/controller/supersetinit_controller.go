@@ -372,6 +372,7 @@ func buildInitPod(spec *supersetv1alpha1.FlatComponentSpec) corev1.PodSpec {
 		ShareProcessNamespace:         pt.ShareProcessNamespace,
 		EnableServiceLinks:            pt.EnableServiceLinks,
 		DNSConfig:                     pt.DNSConfig,
+		Resources:                     pt.Resources,
 	}
 	if pt.PriorityClassName != nil {
 		podSpec.PriorityClassName = *pt.PriorityClassName

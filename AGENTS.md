@@ -76,6 +76,7 @@ The operator uses a **two-tier CRD architecture** where the parent `Superset` re
 - `internal/common/` — Shared types (ComponentType, Ptr), naming functions (ChildName, ConfigMapName, ComponentLabels), constants (labels, suffixes, ports)
 - `internal/controller/` — Reconciler implementations
   - `child_reconciler.go` — generic `ChildReconciler` with `ChildCR` interface: shared sub-resource lifecycle (ConfigMap, Deployment, Service, Scaling) used by all 6 child controllers
+  - `child_controllers.go` — `ChildControllerDefs()`: registers all 6 generic child controllers with per-component DeploymentConfig (default commands, ports, scaling flags)
   - `component_descriptors.go` — table-driven component descriptors for parent→child conversion
   - `deployment_builder.go` — builds Deployment from FlatComponentSpec + DeploymentConfig
   - `initpod.go` — InitPod lifecycle helpers (backoff, retention, failure messages)

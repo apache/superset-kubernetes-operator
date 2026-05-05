@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
@@ -150,6 +151,46 @@ func TestBuildDeploymentSpec_HPAEnabled_NoReplicas(t *testing.T) {
 
 	if result.Replicas != nil {
 		t.Errorf("expected nil replicas when HPA is enabled, got %d", *result.Replicas)
+	}
+}
+
+func TestBuildDeploymentSpec_PodLevelResources(t *testing.T) {
+	spec := &supersetv1alpha1.FlatComponentSpec{
+		Image: supersetv1alpha1.ImageSpec{
+			Repository: "apache/superset",
+			Tag:        "latest",
+			PullPolicy: corev1.PullIfNotPresent,
+		},
+		PodTemplate: &supersetv1alpha1.PodTemplate{
+			Resources: &corev1.ResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("2"),
+					corev1.ResourceMemory: resource.MustParse("4Gi"),
+				},
+				Limits: corev1.ResourceList{
+					corev1.ResourceCPU:    resource.MustParse("4"),
+					corev1.ResourceMemory: resource.MustParse("8Gi"),
+				},
+			},
+		},
+	}
+	labels := map[string]string{"app": "test"}
+	cfg := DeploymentConfig{
+		ContainerName:  "test",
+		DefaultCommand: []string{"test"},
+	}
+
+	result := buildDeploymentSpec(spec, cfg, nil, labels)
+
+	podResources := result.Template.Spec.Resources
+	if podResources == nil {
+		t.Fatal("expected pod-level resources to be set")
+	}
+	if podResources.Requests.Cpu().String() != "2" {
+		t.Errorf("expected pod CPU request 2, got %s", podResources.Requests.Cpu())
+	}
+	if podResources.Limits.Memory().String() != "8Gi" {
+		t.Errorf("expected pod memory limit 8Gi, got %s", podResources.Limits.Memory())
 	}
 }
 

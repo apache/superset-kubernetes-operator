@@ -1214,6 +1214,11 @@ func (in *PodTemplate) DeepCopyInto(out *PodTemplate) {
 		*out = new(bool)
 		**out = **in
 	}
+	if in.Resources != nil {
+		in, out := &in.Resources, &out.Resources
+		*out = new(v1.ResourceRequirements)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.Container != nil {
 		in, out := &in.Container, &out.Container
 		*out = new(ContainerTemplate)

@@ -486,6 +486,11 @@ type PodTemplate struct {
 	// Controls whether service environment variables are injected into pods.
 	// +optional
 	EnableServiceLinks *bool `json:"enableServiceLinks,omitempty"`
+	// Pod-level resource requirements (CPU, memory). When set, defines the total
+	// resources for the entire pod, enabling resource sharing among containers.
+	// Requires Kubernetes 1.34+ with the PodLevelResources feature gate.
+	// +optional
+	Resources *corev1.ResourceRequirements `json:"resources,omitempty"`
 	// Main container configuration.
 	// +optional
 	Container *ContainerTemplate `json:"container,omitempty"`

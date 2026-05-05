@@ -227,16 +227,22 @@ The parent controller orchestrates all reconciliation:
 
 ## Testing Philosophy
 
-### Guiding principle: test the way the software is used
+### Guiding principle: assert on observable outputs
 
-Inspired by the [React Testing Library](https://testing-library.com/docs/guiding-principles)
-philosophy, our tests should resemble the way the operator is used in
-practice. For a Kubernetes operator, the "user" is the person writing a CR
-and `kubectl apply`-ing it. Tests should therefore:
+For a Kubernetes operator, the "user" is the person writing a CR and
+`kubectl apply`-ing it. **Integration and e2e tests** should mirror this
+directly: apply a CR and assert on what the user observes — child CRs,
+Deployments, Services, ConfigMaps, status conditions.
 
-- **Start from a realistic CR** and assert on the **observable outputs** —
-  child CRs, Deployments, Services, ConfigMaps, status conditions — not
-  internal implementation details.
+**Unit tests** serve a different purpose: they provide rich permutation
+coverage of business logic (merge semantics, config rendering, preset
+resolution) that would be too slow or combinatorially expensive to exercise
+at higher tiers. They are inherently non-user-facing, but the same principle
+applies — assert on the *output* of a function (the resolved spec, the
+rendered config) rather than on *how* the function arrived at that output.
+
+Across all tiers:
+
 - **Avoid testing private functions in isolation** unless they contain
   genuinely complex logic (merge semantics, backoff math). If a behavior is
   only meaningful through reconciliation, test it through reconciliation.
@@ -245,28 +251,16 @@ and `kubectl apply`-ing it. Tests should therefore:
   to implementation, not behavior, and should be rewritten to assert on
   observable outputs or removed entirely.
 
-### Pyramid strategy
+### Test pyramid
 
 We use a **pyramid testing strategy** where the vast majority of logic is
 covered by fast, deterministic unit tests. Integration and e2e tests are
 reserved for verifying the system works end-to-end, not for testing
 individual behaviors.
 
-### Test granularity
-
-- **Prefer broad happy-path tests** that cover critical assertions in a single test function. For example, one comprehensive test that creates all components and verifies config, env vars, and status is better than 10 separate tests each checking one field.
-- **Use granular tests only for complex utilities** with many edge cases (e.g., merge functions, backoff calculation, condition management). These benefit from table-driven tests covering boundary conditions.
-- **Every assertion should protect against a plausible regression.** If you can't name the scenario where removing it would let a bug through, it doesn't belong. Avoid adding narrow standalone tests when the assertion fits naturally in an existing comprehensive test.
-- **When fixing a regression, always add a test that would have caught it.** Regressions that broke silently indicate a gap in test coverage — close the gap as part of the fix.
-- **Use subtests (`t.Run`)** to group related scenarios within a single test function instead of creating separate top-level tests.
-
-### Test Pyramid
-
-- **Unit tests** — Fast, deterministic, fake client or pure functions. Cover all business logic.
+- **Unit tests** — Fast, deterministic, fake client or pure functions. Cover all business logic and permutations.
 - **Integration tests** — Minimal envtest tests (real API server). Verify CRD registration, CEL validation, reconciler lifecycle.
 - **E2E tests** — 1-2 comprehensive scenarios on a Kind cluster. Verify full operator lifecycle.
-
-### Why unit tests over integration tests
 
 | Concern | Unit test | Integration test |
 |---|---|---|
@@ -279,6 +273,14 @@ individual behaviors.
 **Rule of thumb**: If you can test it with a fake client, do. Reserve
 envtest/e2e for things that genuinely need a real API server (CEL
 validation, CRD defaulting, multi-controller interaction).
+
+### Test granularity
+
+- **Prefer broad happy-path tests** that cover critical assertions in a single test function. For example, one comprehensive test that creates all components and verifies config, env vars, and status is better than 10 separate tests each checking one field.
+- **Use granular tests only for complex utilities** with many edge cases (e.g., merge functions, backoff calculation, condition management). These benefit from table-driven tests covering boundary conditions.
+- **Every assertion should protect against a plausible regression.** If you can't name the scenario where removing it would let a bug through, it doesn't belong. Avoid adding narrow standalone tests when the assertion fits naturally in an existing comprehensive test.
+- **When fixing a regression, always add a test that would have caught it.** Regressions that broke silently indicate a gap in test coverage — close the gap as part of the fix.
+- **Use subtests (`t.Run`)** to group related scenarios within a single test function instead of creating separate top-level tests.
 
 ### What goes where
 
@@ -473,21 +475,21 @@ New Deployment/Pod/Container fields go into the template hierarchy:
 
 2. Add component spec to parent in `superset_types.go`
 
-3. Create `internal/controller/supersetnewcomponent_controller.go`:
-   - Follow the pattern in `supersetceleryflower_controller.go`
-   - Define a `DeploymentConfig` with component-specific defaults
-   - Use shared helpers from `child_reconciler.go`
-   - Add RBAC markers
+3. Add a child controller definition in `internal/controller/child_controllers.go`:
+   - Add a `ChildControllerDef` entry to `ChildControllerDefs()` with component name,
+     `DeploymentConfig` (container name, default command, ports), `hasConfig`, `hasScaling`
+   - Ensure the child CRD type implements the `ChildCR` interface from `child_reconciler.go`
+   - Add RBAC markers at the top of the file
 
-4. Register in parent controller:
-   - Add `reconcileXxx` method and call in `Reconcile()`
-   - Add `convertXxxComponent` function
-   - Add status check in `updateStatus()`
-   - Add `Owns()` in `SetupWithManager()`
+4. Register in parent controller (`internal/controller/component_descriptors.go`):
+   - Add a `componentDescriptor` entry with `extract`, `newChild`, `newList`,
+     `applySpec`, and `setStatus` functions
+   - Add the descriptor to the `componentDescriptors` slice
+   - Add `Owns()` in parent `SetupWithManager()`
 
-5. Register in `cmd/main.go`
-6. Run `make manifests generate`
-7. Add sample CR and unit tests
+5. Run `make manifests generate` (child controller registration in `cmd/main.go`
+   is automatic via the `ChildControllerDefs()` loop)
+6. Add sample CR and unit tests
 
 ## Package Structure
 
@@ -517,6 +519,8 @@ internal/
 | `internal/resolution/resolver.go` | ResolveChildSpec — core flattening engine |
 | `internal/config/renderer.go` | RenderConfig — per-component Python generation |
 | `internal/controller/child_reconciler.go` | Shared helpers for all child controllers |
+| `internal/controller/child_controllers.go` | `ChildControllerDefs()` — table-driven child controller registration |
+| `internal/controller/component_descriptors.go` | Parent-side component descriptors for child CR creation |
 | `internal/controller/superset_controller.go` | Parent reconciler (orchestrates everything) |
 | `internal/controller/deployment_builder.go` | Deployment construction from flat spec |
 | `internal/controller/initpod.go` | InitPod lifecycle manager |
