@@ -6,6 +6,3 @@ images:
 - name: ghcr.io/apache/superset-kubernetes-operator
   newName: ghcr.io/apache/superset-kubernetes-operator
   newTag: latest
-- name: controller
-  newName: localhost/superset-operator
-  newTag: dev

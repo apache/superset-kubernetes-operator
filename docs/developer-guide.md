@@ -31,10 +31,19 @@ instance running on your laptop.
 
 | Tool | Version | Install |
 |---|---|---|
-| Docker (or Podman) | 20+ | [docs.docker.com](https://docs.docker.com/get-docker/) |
+| Docker daemon | 20+ | [Docker Desktop](https://docs.docker.com/get-docker/), [Colima](https://github.com/abiosoft/colima) (`brew install colima`), or [Podman](https://podman.io) |
 | kubectl | 1.27+ | [kubernetes.io](https://kubernetes.io/docs/tasks/tools/) |
-| Kind | 0.20+ | `go install sigs.k8s.io/kind@latest` or `brew install kind` |
-| Go | 1.26+ | [go.dev](https://go.dev/dl/) |
+| Kind | 0.30+ | `brew install kind` or `go install sigs.k8s.io/kind@latest` |
+| Go | 1.26+ | `brew install go` or [go.dev](https://go.dev/dl/) |
+
+#### macOS notes
+
+- **Colima** is a lightweight alternative to Docker Desktop. Start it with enough headroom for Kind plus a Superset deployment:
+  ```bash
+  colima start --cpu 4 --memory 8 --disk 50
+  ```
+  The Docker CLI auto-switches to the `colima` context.
+- If you previously ran Docker Desktop and have switched to Colima, the leftover `credsStore: desktop` in `~/.docker/config.json` will fail every `docker pull` with a keychain error in non-interactive shells. Remove the `credsStore` and `plugins`/`features.hooks` keys from that file (they only apply to Docker Desktop).
 
 ### 1. Create a Kind cluster
 
@@ -290,6 +299,16 @@ validation, CRD defaulting, multi-controller interaction).
 - Operator health: controller pod running, metrics endpoint serving
 - CR lifecycle: apply Superset CR → child CRs created → Deployments + ConfigMaps exist → status populated
 - Multi-component: all component types reconciled with correct sub-resources
+
+### Running E2E tests locally
+
+`make test-e2e` creates a throwaway Kind cluster (`superset-kubernetes-operator-test-e2e`), builds the operator image, loads it into the cluster, runs the Ginkgo specs, and tears the cluster down.
+
+```bash
+make test-e2e
+```
+
+The Kind node image is pinned in the Makefile (`KIND_NODE_IMAGE`) and matches the Kind binary version used in CI. Override `E2E_PROJECT_IMAGE` or `E2E_CURL_IMAGE` if your environment requires a mirror registry, or set `E2E_SKIP_BUILD_LOAD=1` to reuse an image you've already loaded into Kind during iteration.
 
 ### Writing a new unit test
 
