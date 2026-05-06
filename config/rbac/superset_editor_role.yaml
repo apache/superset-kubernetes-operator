@@ -20,7 +20,7 @@ rules:
   - supersetcelerybeats
   - supersetceleryflowers
   - supersetceleryworkers
-  - supersetinits
+  - supersettasks
   - supersetmcpservers
   - supersetwebservers
   - supersetwebsocketservers
@@ -39,7 +39,7 @@ rules:
   - supersetcelerybeats/status
   - supersetceleryflowers/status
   - supersetceleryworkers/status
-  - supersetinits/status
+  - supersettasks/status
   - supersetmcpservers/status
   - supersetwebservers/status
   - supersetwebsocketservers/status

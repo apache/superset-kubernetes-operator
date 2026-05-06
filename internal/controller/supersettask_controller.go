@@ -38,52 +38,52 @@ import (
 	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
-// SupersetInitReconciler reconciles a SupersetInit object.
+// SupersetTaskReconciler reconciles a SupersetTask object.
 // It manages the initialization lifecycle (database migrations, init commands)
 // by running bare Pods instead of Deployments.
-type SupersetInitReconciler struct {
+type SupersetTaskReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Recorder events.EventRecorder
 }
 
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetinits,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetinits/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=superset.apache.org,resources=supersettasks,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=superset.apache.org,resources=supersettasks/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch;update
 
-func (r *SupersetInitReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *SupersetTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	initCR := &supersetv1alpha1.SupersetInit{}
-	if err := r.Get(ctx, req.NamespacedName, initCR); err != nil {
+	taskCR := &supersetv1alpha1.SupersetTask{}
+	if err := r.Get(ctx, req.NamespacedName, taskCR); err != nil {
 		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
 	}
 
-	log.Info("Reconciling SupersetInit", "name", initCR.Name)
+	log.Info("Reconciling SupersetTask", "name", taskCR.Name)
 
-	resourceBaseName := common.ResourceBaseName(initCR.Name, common.ComponentInit)
+	resourceBaseName := common.ResourceBaseName(taskCR.Name, common.ComponentInit)
 
 	// Reconcile the ConfigMap for superset_config.py.
-	if err := reconcileChildConfigMap(ctx, r.Client, r.Scheme, initCR, initCR.Spec.Config, resourceBaseName); err != nil {
-		r.Recorder.Eventf(initCR, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile ConfigMap: %v", err)
+	if err := reconcileChildConfigMap(ctx, r.Client, r.Scheme, taskCR, taskCR.Spec.Config, resourceBaseName); err != nil {
+		r.Recorder.Eventf(taskCR, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile ConfigMap: %v", err)
 		return ctrl.Result{}, fmt.Errorf("reconciling ConfigMap: %w", err)
 	}
 
 	// Run the init pod lifecycle.
-	result, err := r.reconcileInitPod(ctx, initCR)
+	result, err := r.reconcileInitPod(ctx, taskCR)
 	if err != nil {
-		r.Recorder.Eventf(initCR, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile init pod: %v", err)
+		r.Recorder.Eventf(taskCR, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile init pod: %v", err)
 		return ctrl.Result{}, fmt.Errorf("reconciling init pod: %w", err)
 	}
 
 	// Update status.
-	initCR.Status.ObservedGeneration = initCR.Generation
-	if err := r.Status().Update(ctx, initCR); err != nil {
+	taskCR.Status.ObservedGeneration = taskCR.Generation
+	if err := r.Status().Update(ctx, taskCR); err != nil {
 		return ctrl.Result{}, fmt.Errorf("updating status: %w", err)
 	}
 
@@ -91,19 +91,19 @@ func (r *SupersetInitReconciler) Reconcile(ctx context.Context, req ctrl.Request
 }
 
 // reconcileInitPod handles the init pod lifecycle state machine.
-func (r *SupersetInitReconciler) reconcileInitPod(ctx context.Context, initCR *supersetv1alpha1.SupersetInit) (ctrl.Result, error) {
+func (r *SupersetTaskReconciler) reconcileInitPod(ctx context.Context, taskCR *supersetv1alpha1.SupersetTask) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	resourceBaseName := common.ResourceBaseName(initCR.Name, common.ComponentInit)
-	maxRetries := getInitMaxRetries(initCR)
-	timeout := getInitTimeout(initCR)
-	image := fmt.Sprintf("%s:%s", initCR.Spec.Image.Repository, initCR.Spec.Image.Tag)
+	resourceBaseName := common.ResourceBaseName(taskCR.Name, common.ComponentInit)
+	maxRetries := getTaskMaxRetries(taskCR)
+	timeout := getTaskTimeout(taskCR)
+	image := fmt.Sprintf("%s:%s", taskCR.Spec.Image.Repository, taskCR.Spec.Image.Tag)
 
 	// If already complete or permanently failed, check for config changes.
-	if initCR.Status.State == initStateComplete ||
-		(initCR.Status.State == initStateFailed && initCR.Status.Attempts >= maxRetries) {
-		if initCR.Spec.ConfigChecksum != "" && initCR.Status.ConfigChecksum != initCR.Spec.ConfigChecksum {
-			if err := r.resetForConfigChange(ctx, log, initCR, resourceBaseName); err != nil {
+	if taskCR.Status.State == initStateComplete ||
+		(taskCR.Status.State == initStateFailed && taskCR.Status.Attempts >= maxRetries) {
+		if taskCR.Spec.ConfigChecksum != "" && taskCR.Status.ConfigChecksum != taskCR.Spec.ConfigChecksum {
+			if err := r.resetForConfigChange(ctx, log, taskCR, resourceBaseName); err != nil {
 				return ctrl.Result{}, err
 			}
 		} else {
@@ -112,52 +112,52 @@ func (r *SupersetInitReconciler) reconcileInitPod(ctx context.Context, initCR *s
 	}
 
 	// Initialize status if empty.
-	if initCR.Status.State == "" {
-		initCR.Status.State = initStatePending
-		initCR.Status.Image = image
+	if taskCR.Status.State == "" {
+		taskCR.Status.State = initStatePending
+		taskCR.Status.Image = image
 	}
 
 	// Look for an existing pod for this init task.
-	existingPod, err := r.findInitPod(ctx, initCR, resourceBaseName)
+	existingPod, err := r.findInitPod(ctx, taskCR, resourceBaseName)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
 	if existingPod != nil {
-		initCR.Status.PodName = existingPod.Name
+		taskCR.Status.PodName = existingPod.Name
 
 		switch existingPod.Status.Phase {
 		case corev1.PodSucceeded:
 			log.Info("Init pod succeeded", "pod", existingPod.Name)
 			now := metav1.Now()
-			initCR.Status.State = initStateComplete
-			initCR.Status.CompletedAt = &now
-			if initCR.Status.StartedAt != nil {
-				initCR.Status.Duration = now.Sub(initCR.Status.StartedAt.Time).Round(time.Second).String()
+			taskCR.Status.State = initStateComplete
+			taskCR.Status.CompletedAt = &now
+			if taskCR.Status.StartedAt != nil {
+				taskCR.Status.Duration = now.Sub(taskCR.Status.StartedAt.Time).Round(time.Second).String()
 			}
-			initCR.Status.Message = "Completed successfully"
-			initCR.Status.ConfigChecksum = initCR.Spec.ConfigChecksum
+			taskCR.Status.Message = "Completed successfully"
+			taskCR.Status.ConfigChecksum = taskCR.Spec.ConfigChecksum
 
-			r.applyRetentionPolicy(ctx, initCR, existingPod)
+			r.applyRetentionPolicy(ctx, taskCR, existingPod)
 
-			setCondition(&initCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-				metav1.ConditionTrue, "InitComplete", "Initialization completed successfully", initCR.Generation)
+			setCondition(&taskCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+				metav1.ConditionTrue, "InitComplete", "Initialization completed successfully", taskCR.Generation)
 
 			return ctrl.Result{}, nil
 
 		case corev1.PodFailed:
-			log.Info("Init pod failed", "pod", existingPod.Name, "attempt", initCR.Status.Attempts)
-			initCR.Status.Attempts++
-			initCR.Status.Message = podFailureMessage(existingPod)
+			log.Info("Init pod failed", "pod", existingPod.Name, "attempt", taskCR.Status.Attempts)
+			taskCR.Status.Attempts++
+			taskCR.Status.Message = podFailureMessage(existingPod)
 
-			if initCR.Status.Attempts >= maxRetries {
-				initCR.Status.State = initStateFailed
-				initCR.Status.ConfigChecksum = initCR.Spec.ConfigChecksum
-				r.applyRetentionPolicy(ctx, initCR, existingPod)
-				r.Recorder.Eventf(initCR, nil, corev1.EventTypeWarning, "InitFailed", "Reconcile",
-					"Init failed after %d attempts: %s", initCR.Status.Attempts, initCR.Status.Message)
-				setCondition(&initCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-					metav1.ConditionFalse, "InitFailed", initCR.Status.Message, initCR.Generation)
+			if taskCR.Status.Attempts >= maxRetries {
+				taskCR.Status.State = initStateFailed
+				taskCR.Status.ConfigChecksum = taskCR.Spec.ConfigChecksum
+				r.applyRetentionPolicy(ctx, taskCR, existingPod)
+				r.Recorder.Eventf(taskCR, nil, corev1.EventTypeWarning, "InitFailed", "Reconcile",
+					"Init failed after %d attempts: %s", taskCR.Status.Attempts, taskCR.Status.Message)
+				setCondition(&taskCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+					metav1.ConditionFalse, "InitFailed", taskCR.Status.Message, taskCR.Generation)
 				return ctrl.Result{}, nil
 			}
 
@@ -166,42 +166,42 @@ func (r *SupersetInitReconciler) reconcileInitPod(ctx context.Context, initCR *s
 				return ctrl.Result{}, err
 			}
 
-			backoff := calculateBackoff(initCR.Status.Attempts)
-			initCR.Status.State = initStatePending
-			r.Recorder.Eventf(initCR, nil, corev1.EventTypeWarning, "InitRetry", "Reconcile",
-				"Init failed (attempt %d/%d), retrying in %s", initCR.Status.Attempts, maxRetries, backoff)
-			setCondition(&initCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-				metav1.ConditionFalse, "InitRetrying", fmt.Sprintf("Retrying after attempt %d", initCR.Status.Attempts), initCR.Generation)
+			backoff := calculateBackoff(taskCR.Status.Attempts)
+			taskCR.Status.State = initStatePending
+			r.Recorder.Eventf(taskCR, nil, corev1.EventTypeWarning, "InitRetry", "Reconcile",
+				"Init failed (attempt %d/%d), retrying in %s", taskCR.Status.Attempts, maxRetries, backoff)
+			setCondition(&taskCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+				metav1.ConditionFalse, "InitRetrying", fmt.Sprintf("Retrying after attempt %d", taskCR.Status.Attempts), taskCR.Generation)
 			return ctrl.Result{RequeueAfter: backoff}, nil
 
 		case corev1.PodRunning, corev1.PodPending:
-			initCR.Status.State = initStateRunning
+			taskCR.Status.State = initStateRunning
 			// Check timeout.
-			if initCR.Status.StartedAt != nil {
-				if time.Since(initCR.Status.StartedAt.Time) > timeout {
+			if taskCR.Status.StartedAt != nil {
+				if time.Since(taskCR.Status.StartedAt.Time) > timeout {
 					log.Info("Init pod timed out", "timeout", timeout)
-					initCR.Status.Message = fmt.Sprintf("Timed out after %s", timeout)
-					initCR.Status.Attempts++
-					if initCR.Status.Attempts >= maxRetries {
-						initCR.Status.State = initStateFailed
-						initCR.Status.ConfigChecksum = initCR.Spec.ConfigChecksum
-						r.applyRetentionPolicy(ctx, initCR, existingPod)
-						r.Recorder.Eventf(initCR, nil, corev1.EventTypeWarning, "InitFailed", "Reconcile",
-							"Init timed out after %d attempts", initCR.Status.Attempts)
-						setCondition(&initCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-							metav1.ConditionFalse, "InitTimedOut", initCR.Status.Message, initCR.Generation)
+					taskCR.Status.Message = fmt.Sprintf("Timed out after %s", timeout)
+					taskCR.Status.Attempts++
+					if taskCR.Status.Attempts >= maxRetries {
+						taskCR.Status.State = initStateFailed
+						taskCR.Status.ConfigChecksum = taskCR.Spec.ConfigChecksum
+						r.applyRetentionPolicy(ctx, taskCR, existingPod)
+						r.Recorder.Eventf(taskCR, nil, corev1.EventTypeWarning, "InitFailed", "Reconcile",
+							"Init timed out after %d attempts", taskCR.Status.Attempts)
+						setCondition(&taskCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+							metav1.ConditionFalse, "InitTimedOut", taskCR.Status.Message, taskCR.Generation)
 						return ctrl.Result{}, nil
 					}
 					if err := r.Delete(ctx, existingPod); client.IgnoreNotFound(err) != nil {
 						return ctrl.Result{}, err
 					}
-					backoff := calculateBackoff(initCR.Status.Attempts)
-					initCR.Status.State = initStatePending
+					backoff := calculateBackoff(taskCR.Status.Attempts)
+					taskCR.Status.State = initStatePending
 					return ctrl.Result{RequeueAfter: backoff}, nil
 				}
 			}
-			setCondition(&initCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-				metav1.ConditionFalse, "InitInProgress", "Initialization is in progress", initCR.Generation)
+			setCondition(&taskCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+				metav1.ConditionFalse, "InitInProgress", "Initialization is in progress", taskCR.Generation)
 			return ctrl.Result{RequeueAfter: initRequeueInterval}, nil
 		}
 
@@ -209,14 +209,14 @@ func (r *SupersetInitReconciler) reconcileInitPod(ctx context.Context, initCR *s
 	}
 
 	// No existing pod found. Create one.
-	log.Info("Creating init pod", "attempt", initCR.Status.Attempts+1)
+	log.Info("Creating init pod", "attempt", taskCR.Status.Attempts+1)
 
-	podSpec := buildInitPod(&initCR.Spec.FlatComponentSpec)
-	pt := safePodTemplatePtr(initCR.Spec.PodTemplate)
+	podSpec := buildInitPod(&taskCR.Spec.FlatComponentSpec)
+	pt := safePodTemplatePtr(taskCR.Spec.PodTemplate)
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: resourceBaseName + "-",
-			Namespace:    initCR.Namespace,
+			Namespace:    taskCR.Namespace,
 			Labels: mergeLabels(pt.Labels, map[string]string{
 				labelInitInstance: resourceBaseName,
 				labelInitTask:     initTaskName,
@@ -226,7 +226,7 @@ func (r *SupersetInitReconciler) reconcileInitPod(ctx context.Context, initCR *s
 		Spec: podSpec,
 	}
 
-	if err := controllerutil.SetControllerReference(initCR, pod, r.Scheme); err != nil {
+	if err := controllerutil.SetControllerReference(taskCR, pod, r.Scheme); err != nil {
 		return ctrl.Result{}, fmt.Errorf("setting controller reference on init pod: %w", err)
 	}
 
@@ -235,45 +235,45 @@ func (r *SupersetInitReconciler) reconcileInitPod(ctx context.Context, initCR *s
 	}
 
 	now := metav1.Now()
-	initCR.Status.State = initStateRunning
-	initCR.Status.PodName = pod.Name
-	initCR.Status.StartedAt = &now
-	initCR.Status.Image = image
-	initCR.Status.Message = ""
+	taskCR.Status.State = initStateRunning
+	taskCR.Status.PodName = pod.Name
+	taskCR.Status.StartedAt = &now
+	taskCR.Status.Image = image
+	taskCR.Status.Message = ""
 
-	r.Recorder.Eventf(initCR, nil, corev1.EventTypeNormal, "InitStarted", "Reconcile",
+	r.Recorder.Eventf(taskCR, nil, corev1.EventTypeNormal, "InitStarted", "Reconcile",
 		"Started init pod: %s", pod.Name)
 
-	setCondition(&initCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-		metav1.ConditionFalse, "InitInProgress", "Initialization is in progress", initCR.Generation)
+	setCondition(&taskCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+		metav1.ConditionFalse, "InitInProgress", "Initialization is in progress", taskCR.Generation)
 
 	return ctrl.Result{RequeueAfter: initRequeueInterval}, nil
 }
 
 // resetForConfigChange deletes existing init pods and resets status to
 // Pending so init re-runs with the new configuration.
-func (r *SupersetInitReconciler) resetForConfigChange(ctx context.Context, log logr.Logger, initCR *supersetv1alpha1.SupersetInit, resourceBaseName string) error {
-	log.Info("Config changed, resetting init to re-run", "oldChecksum", initCR.Status.ConfigChecksum, "newChecksum", initCR.Spec.ConfigChecksum)
-	if err := r.deleteInitPods(ctx, initCR, resourceBaseName); err != nil {
+func (r *SupersetTaskReconciler) resetForConfigChange(ctx context.Context, log logr.Logger, taskCR *supersetv1alpha1.SupersetTask, resourceBaseName string) error {
+	log.Info("Config changed, resetting init to re-run", "oldChecksum", taskCR.Status.ConfigChecksum, "newChecksum", taskCR.Spec.ConfigChecksum)
+	if err := r.deleteInitPods(ctx, taskCR, resourceBaseName); err != nil {
 		return err
 	}
-	initCR.Status.State = initStatePending
-	initCR.Status.Attempts = 0
-	initCR.Status.Message = "Config changed, re-running initialization"
-	initCR.Status.CompletedAt = nil
-	initCR.Status.StartedAt = nil
-	initCR.Status.PodName = ""
-	initCR.Status.Duration = ""
-	initCR.Status.ConfigChecksum = ""
-	r.Recorder.Eventf(initCR, nil, corev1.EventTypeNormal, "ConfigChanged", "Reconcile", "Config changed, re-running initialization")
+	taskCR.Status.State = initStatePending
+	taskCR.Status.Attempts = 0
+	taskCR.Status.Message = "Config changed, re-running initialization"
+	taskCR.Status.CompletedAt = nil
+	taskCR.Status.StartedAt = nil
+	taskCR.Status.PodName = ""
+	taskCR.Status.Duration = ""
+	taskCR.Status.ConfigChecksum = ""
+	r.Recorder.Eventf(taskCR, nil, corev1.EventTypeNormal, "ConfigChanged", "Reconcile", "Config changed, re-running initialization")
 	return nil
 }
 
-// findInitPod finds the most recent existing init pod for this SupersetInit CR.
-func (r *SupersetInitReconciler) findInitPod(ctx context.Context, initCR *supersetv1alpha1.SupersetInit, resourceBaseName string) (*corev1.Pod, error) {
+// findInitPod finds the most recent existing init pod for this SupersetTask CR.
+func (r *SupersetTaskReconciler) findInitPod(ctx context.Context, taskCR *supersetv1alpha1.SupersetTask, resourceBaseName string) (*corev1.Pod, error) {
 	podList := &corev1.PodList{}
 	if err := r.List(ctx, podList,
-		client.InNamespace(initCR.Namespace),
+		client.InNamespace(taskCR.Namespace),
 		client.MatchingLabels{
 			labelInitInstance: resourceBaseName,
 			labelInitTask:     initTaskName,
@@ -302,9 +302,9 @@ func (r *SupersetInitReconciler) findInitPod(ctx context.Context, initCR *supers
 }
 
 // applyRetentionPolicy handles pod cleanup after task completion.
-func (r *SupersetInitReconciler) applyRetentionPolicy(ctx context.Context, initCR *supersetv1alpha1.SupersetInit, pod *corev1.Pod) {
+func (r *SupersetTaskReconciler) applyRetentionPolicy(ctx context.Context, taskCR *supersetv1alpha1.SupersetTask, pod *corev1.Pod) {
 	log := logf.FromContext(ctx)
-	policy := getInitRetentionPolicy(initCR)
+	policy := getTaskRetentionPolicy(taskCR)
 
 	if ShouldDeletePod(policy, pod.Status.Phase) {
 		if err := r.Delete(ctx, pod); client.IgnoreNotFound(err) != nil {
@@ -313,13 +313,13 @@ func (r *SupersetInitReconciler) applyRetentionPolicy(ctx context.Context, initC
 	}
 }
 
-// deleteInitPods deletes all init pods for the given SupersetInit CR.
+// deleteInitPods deletes all init pods for the given SupersetTask CR.
 // Used when resetting init state after a config change to ensure retained
 // pods from a previous run don't get mistaken for the new run.
-func (r *SupersetInitReconciler) deleteInitPods(ctx context.Context, initCR *supersetv1alpha1.SupersetInit, resourceBaseName string) error {
+func (r *SupersetTaskReconciler) deleteInitPods(ctx context.Context, taskCR *supersetv1alpha1.SupersetTask, resourceBaseName string) error {
 	podList := &corev1.PodList{}
 	if err := r.List(ctx, podList,
-		client.InNamespace(initCR.Namespace),
+		client.InNamespace(taskCR.Namespace),
 		client.MatchingLabels{
 			labelInitInstance: resourceBaseName,
 			labelInitTask:     initTaskName,
@@ -391,32 +391,32 @@ func buildInitPod(spec *supersetv1alpha1.FlatComponentSpec) corev1.PodSpec {
 
 // --- Helper functions for reading spec values from the init CR ---
 
-func getInitMaxRetries(initCR *supersetv1alpha1.SupersetInit) int32 {
-	if initCR.Spec.MaxRetries != nil {
-		return *initCR.Spec.MaxRetries
+func getTaskMaxRetries(taskCR *supersetv1alpha1.SupersetTask) int32 {
+	if taskCR.Spec.MaxRetries != nil {
+		return *taskCR.Spec.MaxRetries
 	}
 	return defaultMaxRetries
 }
 
-func getInitTimeout(initCR *supersetv1alpha1.SupersetInit) time.Duration {
-	if initCR.Spec.Timeout != nil {
-		return initCR.Spec.Timeout.Duration
+func getTaskTimeout(taskCR *supersetv1alpha1.SupersetTask) time.Duration {
+	if taskCR.Spec.Timeout != nil {
+		return taskCR.Spec.Timeout.Duration
 	}
 	return defaultInitTimeout
 }
 
-func getInitRetentionPolicy(initCR *supersetv1alpha1.SupersetInit) string {
-	if initCR.Spec.PodRetention != nil && initCR.Spec.PodRetention.Policy != nil {
-		return *initCR.Spec.PodRetention.Policy
+func getTaskRetentionPolicy(taskCR *supersetv1alpha1.SupersetTask) string {
+	if taskCR.Spec.PodRetention != nil && taskCR.Spec.PodRetention.Policy != nil {
+		return *taskCR.Spec.PodRetention.Policy
 	}
 	return defaultRetentionPolicy
 }
 
-func (r *SupersetInitReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *SupersetTaskReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&supersetv1alpha1.SupersetInit{}).
+		For(&supersetv1alpha1.SupersetTask{}).
 		Owns(&corev1.Pod{}).
 		Owns(&corev1.ConfigMap{}).
-		Named("supersetinit").
+		Named("supersettask").
 		Complete(r)
 }

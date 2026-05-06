@@ -29,7 +29,7 @@ runs as a non-root, distroless container with read-only root filesystem, dropped
 capabilities, and least-privilege RBAC.
 
 **Init pod caveat:** When an init pod fails, a truncated termination message
-(max 256 characters) may appear in the SupersetInit status and Events. If the
+(max 256 characters) may appear in the SupersetTask status and Events. If the
 init command's error output includes credentials, a fragment could be exposed.
 This only applies to the init container's own output, not to operator-managed
 secret references.

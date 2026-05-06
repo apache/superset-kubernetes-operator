@@ -69,4 +69,4 @@ spec:
   celeryWorker:
     replicas: 2
   celeryBeat: {}
-  init: {}
+  lifecycle: {}

@@ -93,14 +93,14 @@ Components fall into two categories:
 
 | CRD Kind | Parent field | Suffix | Creates |
 |---|---|---|---|
-| `SupersetInit` | `init` | `-init` | Pods, ConfigMap |
+| `SupersetTask` | `lifecycle` | `-migrate`, `-init` | Pods, ConfigMap |
 | `SupersetCeleryBeat` | `celeryBeat` | `-celery-beat` | Deployment, ConfigMap |
 
 **Presence = enabled**: Setting `celeryWorker: {}` deploys workers with
 defaults. Omitting `celeryWorker` entirely means no workers. No
-`enabled: true/false` toggles. The exception is `init`, which is enabled by
-default even when `spec.init` is nil; disable it explicitly with
-`spec.init.disabled: true`.
+`enabled: true/false` toggles. The exception is lifecycle tasks, which are
+enabled by default even when `spec.lifecycle` is nil; disable them explicitly
+with `spec.lifecycle.disabled: true`.
 
 ---
 
@@ -130,9 +130,9 @@ Merge semantics per field type:
 - **command/args** — component-only, not inherited from top-level
 - **Operator-managed labels** (`app.kubernetes.io/*`) — applied last, cannot be overridden
 
-Init uses `podTemplate` only (no `deploymentTemplate`) since it creates bare
-Pods. See the [User Guide](user-guide.md#deployment-template) for the full
-field reference and examples.
+Lifecycle tasks use `podTemplate` only (no `deploymentTemplate`) since they
+create bare Pods. See the [User Guide](user-guide.md#deployment-template) for
+the full field reference and examples.
 
 ### Example: How resources resolve for celeryWorker
 
@@ -280,17 +280,54 @@ never appear in ConfigMaps or CRD status fields.
 
 ---
 
-## Init Lifecycle
+## Lifecycle Tasks
 
-Initialization is managed by a dedicated `SupersetInit` child CRD. The parent
-controller creates a `SupersetInit` CR, and the `SupersetInitReconciler`
+Lifecycle management is handled by dedicated `SupersetTask` child CRDs. The
+parent controller creates two sequential tasks — "migrate" (`superset db upgrade`)
+and "init" (`superset init`) — each as a separate `SupersetTask` CR named
+`{parentName}-migrate` and `{parentName}-init`. The `SupersetTaskReconciler`
 manages bare Pods (`restartPolicy: Never`) with retry, backoff, timeout, and
-retention. The default command runs `superset db upgrade && superset init`;
-it is customizable via `spec.init.command`. The init child CR inherits
-scheduling, security, volumes, and env from the top-level `podTemplate`.
-Init gates all component deployment — other child CRs are not created until
-init completes. See [Internals](internals.md#init-pod-lifecycle)
-for the full state machine, retry semantics, and pod retention policies.
+retention for each task.
+
+Tasks run sequentially: the migrate task must complete before the init task
+starts. Both must succeed before component deployment proceeds. The task
+commands are independently customizable via `spec.lifecycle.migrate.command`
+and `spec.lifecycle.init.command`.
+
+### Task Strategies
+
+Each task has a `strategy` that controls when it runs:
+
+| Strategy | Behavior |
+|---|---|
+| `VersionChange` (default) | Task runs only when the Superset image changes |
+| `Always` | Task runs on every reconciliation |
+| `Never` | Task never runs (effectively disabled) |
+
+With the default `VersionChange` strategy, config-only changes trigger rolling
+restarts of component Deployments (via checksum annotations) but do not spawn
+task pods. This avoids unnecessary migration runs on routine config updates.
+
+### Image-Change Detection and Upgrade Modes
+
+The operator tracks the last successfully deployed image version. When a new
+image is detected:
+
+- **Automatic** (default `upgradeMode`) — tasks run immediately
+- **Supervised** — tasks wait for an annotation-based approval before running,
+  allowing operators to review and approve upgrades manually
+
+### Downgrade Blocking
+
+The operator performs semver comparison on image tags. If the new tag is lower
+than the currently deployed version, the reconciler blocks the change and sets
+an error condition. This prevents accidental database downgrades.
+
+The lifecycle child CRs inherit scheduling, security, volumes, and env from
+the top-level `podTemplate`. Lifecycle gates all component deployment — other
+child CRs are not created until both tasks complete. See
+[Internals](internals.md#init-pod-lifecycle) for the full state machine, retry
+semantics, and pod retention policies.
 
 ---
 
@@ -309,9 +346,9 @@ table and per-component isolation details.
 ## Resource Ownership
 
 All resources use Kubernetes owner references for automatic cleanup. The parent
-`Superset` CR owns child CRDs (SupersetInit, SupersetWebServer, etc.),
+`Superset` CR owns child CRDs (SupersetTask, SupersetWebServer, etc.),
 networking resources (Ingress/HTTPRoute), ServiceMonitor, and NetworkPolicies.
 Each child CR in turn owns its managed resources (Deployment, ConfigMap, Service,
-HPA, PDB for component CRDs; Pods and ConfigMap for SupersetInit). Deleting
+HPA, PDB for component CRDs; Pods and ConfigMap for SupersetTask). Deleting
 the parent cascades to everything. Removing a component from the parent spec
 deletes its child CR, which cascades to all owned resources.

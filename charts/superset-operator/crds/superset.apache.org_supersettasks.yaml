@@ -4,17 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.1
-  name: supersetinits.superset.apache.org
+  name: supersettasks.superset.apache.org
 spec:
   group: superset.apache.org
   names:
-    kind: SupersetInit
-    listKind: SupersetInitList
-    plural: supersetinits
-    singular: supersetinit
+    kind: SupersetTask
+    listKind: SupersetTaskList
+    plural: supersettasks
+    singular: supersettask
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
+    - jsonPath: .spec.type
+      name: Type
+      type: string
     - jsonPath: .status.state
       name: State
       type: string
@@ -321,6 +324,11 @@ spec:
                 x-kubernetes-validations:
                 - message: maxReplicas must be >= minReplicas
                   rule: '!has(self.minReplicas) || self.maxReplicas >= self.minReplicas'
+              command:
+                items:
+                  type: string
+                type: array
+                x-kubernetes-list-type: atomic
               config:
                 type: string
               configChecksum:
@@ -3985,8 +3993,15 @@ spec:
                 type: string
               timeout:
                 type: string
+              type:
+                enum:
+                - Migrate
+                - Init
+                type: string
             required:
+            - command
             - image
+            - type
             type: object
           status:
             properties:
@@ -4058,9 +4073,10 @@ spec:
             type: object
         type: object
         x-kubernetes-validations:
-        - message: metadata.name must be at most 58 characters (sub-resource suffix
-            '-init' requires 5 characters within the 63-character Service name limit)
-          rule: size(self.metadata.name) <= 58
+        - message: metadata.name must be at most 54 characters (sub-resource suffix
+            '-migrate' requires 9 characters within the 63-character Service name
+            limit)
+          rule: size(self.metadata.name) <= 54
         - message: metadata.name must be a valid DNS label (lowercase alphanumeric
             and hyphens only, no dots or underscores); the operator derives Service
             names from CR names

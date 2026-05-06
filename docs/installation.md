@@ -109,9 +109,9 @@ spec:
 EOF
 ```
 
-The operator will create a SupersetInit child CR to perform database migrations,
-then create the web server child CR and its resources. Check init status with
-`kubectl get supersetinits`.
+The operator will create SupersetTask child CRs to perform database migration
+and initialization, then create the web server child CR and its resources.
+Check task status with `kubectl get supersettasks`.
 
 ## 4. Watch it come up
 

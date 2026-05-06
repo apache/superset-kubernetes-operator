@@ -191,30 +191,30 @@ func TestBuildInitPod(t *testing.T) {
 
 func TestGetInitMaxRetries(t *testing.T) {
 	// Default.
-	initCR := &supersetv1alpha1.SupersetInit{}
-	if got := getInitMaxRetries(initCR); got != 3 {
+	initCR := &supersetv1alpha1.SupersetTask{}
+	if got := getTaskMaxRetries(initCR); got != 3 {
 		t.Errorf("expected default 3, got %d", got)
 	}
 
 	// Custom.
 	maxRetries := int32(5)
 	initCR.Spec.MaxRetries = &maxRetries
-	if got := getInitMaxRetries(initCR); got != 5 {
+	if got := getTaskMaxRetries(initCR); got != 5 {
 		t.Errorf("expected 5, got %d", got)
 	}
 }
 
 func TestGetInitTimeout(t *testing.T) {
 	// Default.
-	initCR := &supersetv1alpha1.SupersetInit{}
-	if got := getInitTimeout(initCR); got != 300*time.Second {
+	initCR := &supersetv1alpha1.SupersetTask{}
+	if got := getTaskTimeout(initCR); got != 300*time.Second {
 		t.Errorf("expected 300s, got %s", got)
 	}
 
 	// Custom.
 	timeout := metav1.Duration{Duration: 600 * time.Second}
 	initCR.Spec.Timeout = &timeout
-	if got := getInitTimeout(initCR); got != 600*time.Second {
+	if got := getTaskTimeout(initCR); got != 600*time.Second {
 		t.Errorf("expected 600s, got %s", got)
 	}
 }
@@ -222,18 +222,18 @@ func TestGetInitTimeout(t *testing.T) {
 func TestGetInitRetentionPolicy(t *testing.T) {
 	tests := []struct {
 		name   string
-		initCR *supersetv1alpha1.SupersetInit
+		initCR *supersetv1alpha1.SupersetTask
 		want   string
 	}{
 		{
 			"default",
-			&supersetv1alpha1.SupersetInit{},
+			&supersetv1alpha1.SupersetTask{},
 			"Delete",
 		},
 		{
 			"retain",
-			&supersetv1alpha1.SupersetInit{
-				Spec: supersetv1alpha1.SupersetInitSpec{
+			&supersetv1alpha1.SupersetTask{
+				Spec: supersetv1alpha1.SupersetTaskSpec{
 					PodRetention: &supersetv1alpha1.PodRetentionSpec{
 						Policy: strPtr("Retain"),
 					},
@@ -243,8 +243,8 @@ func TestGetInitRetentionPolicy(t *testing.T) {
 		},
 		{
 			"retain on failure",
-			&supersetv1alpha1.SupersetInit{
-				Spec: supersetv1alpha1.SupersetInitSpec{
+			&supersetv1alpha1.SupersetTask{
+				Spec: supersetv1alpha1.SupersetTaskSpec{
 					PodRetention: &supersetv1alpha1.PodRetentionSpec{
 						Policy: strPtr("RetainOnFailure"),
 					},
@@ -256,9 +256,9 @@ func TestGetInitRetentionPolicy(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := getInitRetentionPolicy(tt.initCR)
+			got := getTaskRetentionPolicy(tt.initCR)
 			if got != tt.want {
-				t.Errorf("getInitRetentionPolicy() = %s, want %s", got, tt.want)
+				t.Errorf("getTaskRetentionPolicy() = %s, want %s", got, tt.want)
 			}
 		})
 	}
@@ -266,10 +266,10 @@ func TestGetInitRetentionPolicy(t *testing.T) {
 
 // --- Init controller lifecycle tests ---
 
-func minimalInitCR() *supersetv1alpha1.SupersetInit {
-	return &supersetv1alpha1.SupersetInit{
+func minimalInitCR() *supersetv1alpha1.SupersetTask {
+	return &supersetv1alpha1.SupersetTask{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-init-1"},
-		Spec: supersetv1alpha1.SupersetInitSpec{
+		Spec: supersetv1alpha1.SupersetTaskSpec{
 			FlatComponentSpec: supersetv1alpha1.FlatComponentSpec{
 				Image: supersetv1alpha1.ImageSpec{
 					Repository: "apache/superset",
@@ -297,7 +297,7 @@ func TestInitReconcile_CreatesConfigMapAndPod(t *testing.T) {
 		WithStatusSubresource(initCR).
 		Build()
 
-	r := &SupersetInitReconciler{
+	r := &SupersetTaskReconciler{
 		Client:   c,
 		Scheme:   scheme,
 		Recorder: events.NewFakeRecorder(10),
@@ -343,7 +343,7 @@ func TestInitReconcile_CreatesConfigMapAndPod(t *testing.T) {
 	}
 
 	// Status should be updated.
-	updatedCR := &supersetv1alpha1.SupersetInit{}
+	updatedCR := &supersetv1alpha1.SupersetTask{}
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, updatedCR); err != nil {
 		t.Fatalf("get updated CR: %v", err)
 	}
@@ -377,7 +377,7 @@ func TestInitReconcile_PodLabelsAndAnnotations(t *testing.T) {
 		WithStatusSubresource(initCR).
 		Build()
 
-	r := &SupersetInitReconciler{
+	r := &SupersetTaskReconciler{
 		Client:   c,
 		Scheme:   scheme,
 		Recorder: events.NewFakeRecorder(10),
@@ -435,7 +435,7 @@ func TestInitReconcile_PodSucceeded(t *testing.T) {
 		WithStatusSubresource(initCR).
 		Build()
 
-	r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	r := &SupersetTaskReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	result, err := r.Reconcile(context.Background(), reconcile.Request{
 		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
@@ -447,7 +447,7 @@ func TestInitReconcile_PodSucceeded(t *testing.T) {
 		t.Errorf("expected no requeue on completion, got %v", result.RequeueAfter)
 	}
 
-	updatedCR := &supersetv1alpha1.SupersetInit{}
+	updatedCR := &supersetv1alpha1.SupersetTask{}
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, updatedCR); err != nil {
 		t.Fatalf("get updated CR: %v", err)
 	}
@@ -491,7 +491,7 @@ func TestInitReconcile_PodFailed_Retries(t *testing.T) {
 		WithStatusSubresource(initCR).
 		Build()
 
-	r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	r := &SupersetTaskReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	result, err := r.Reconcile(context.Background(), reconcile.Request{
 		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
@@ -503,7 +503,7 @@ func TestInitReconcile_PodFailed_Retries(t *testing.T) {
 		t.Error("expected RequeueAfter > 0 for retry")
 	}
 
-	updatedCR := &supersetv1alpha1.SupersetInit{}
+	updatedCR := &supersetv1alpha1.SupersetTask{}
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, updatedCR); err != nil {
 		t.Fatalf("get updated CR: %v", err)
 	}
@@ -544,7 +544,7 @@ func TestInitReconcile_PodFailed_ExhaustsRetries(t *testing.T) {
 		WithStatusSubresource(initCR).
 		Build()
 
-	r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	r := &SupersetTaskReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	_, err := r.Reconcile(context.Background(), reconcile.Request{
 		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
@@ -553,7 +553,7 @@ func TestInitReconcile_PodFailed_ExhaustsRetries(t *testing.T) {
 		t.Fatalf("reconcile: %v", err)
 	}
 
-	updatedCR := &supersetv1alpha1.SupersetInit{}
+	updatedCR := &supersetv1alpha1.SupersetTask{}
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, updatedCR); err != nil {
 		t.Fatalf("get updated CR: %v", err)
 	}
@@ -580,7 +580,7 @@ func TestInitReconcile_AlreadyComplete_Noop(t *testing.T) {
 		WithStatusSubresource(initCR).
 		Build()
 
-	r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	r := &SupersetTaskReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	result, err := r.Reconcile(context.Background(), reconcile.Request{
 		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
@@ -606,7 +606,7 @@ func TestInitReconcile_ConfigChanged_ReRunsInit(t *testing.T) {
 		WithStatusSubresource(initCR).
 		Build()
 
-	r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	r := &SupersetTaskReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	result, err := r.Reconcile(context.Background(), reconcile.Request{
 		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
@@ -618,7 +618,7 @@ func TestInitReconcile_ConfigChanged_ReRunsInit(t *testing.T) {
 		t.Error("expected requeue for config change")
 	}
 
-	updatedCR := &supersetv1alpha1.SupersetInit{}
+	updatedCR := &supersetv1alpha1.SupersetTask{}
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, updatedCR); err != nil {
 		t.Fatalf("get updated CR: %v", err)
 	}
@@ -658,7 +658,7 @@ func TestInitReconcile_FailedExhausted_ConfigChanged_ReRunsInit(t *testing.T) {
 		WithStatusSubresource(initCR).
 		Build()
 
-	r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	r := &SupersetTaskReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	result, err := r.Reconcile(context.Background(), reconcile.Request{
 		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
@@ -670,7 +670,7 @@ func TestInitReconcile_FailedExhausted_ConfigChanged_ReRunsInit(t *testing.T) {
 		t.Error("expected requeue for config change after failure")
 	}
 
-	updatedCR := &supersetv1alpha1.SupersetInit{}
+	updatedCR := &supersetv1alpha1.SupersetTask{}
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, updatedCR); err != nil {
 		t.Fatalf("get updated CR: %v", err)
 	}
@@ -697,7 +697,7 @@ func TestInitReconcile_FailedExhausted_ConfigChanged_ReRunsInit(t *testing.T) {
 func TestInitReconcile_NotFound(t *testing.T) {
 	scheme := testScheme(t)
 	c := fake.NewClientBuilder().WithScheme(scheme).Build()
-	r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	r := &SupersetTaskReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	result, err := r.Reconcile(context.Background(), reconcile.Request{
 		NamespacedName: types.NamespacedName{Name: "nonexistent", Namespace: "default"},
@@ -733,7 +733,7 @@ func TestFindInitPod_ReturnsMostRecent(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(initCR, pod1, pod2).Build()
-	r := &SupersetInitReconciler{Client: c, Scheme: scheme}
+	r := &SupersetTaskReconciler{Client: c, Scheme: scheme}
 
 	pod, err := r.findInitPod(context.Background(), initCR, "test-init")
 	if err != nil {
@@ -752,7 +752,7 @@ func TestFindInitPod_NoPods(t *testing.T) {
 	initCR := minimalInitCR()
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(initCR).Build()
-	r := &SupersetInitReconciler{Client: c, Scheme: scheme}
+	r := &SupersetTaskReconciler{Client: c, Scheme: scheme}
 
 	pod, err := r.findInitPod(context.Background(), initCR, "test-init")
 	if err != nil {
@@ -772,9 +772,9 @@ func TestIsInitDisabled(t *testing.T) {
 		want     bool
 	}{
 		{"nil init spec", &supersetv1alpha1.Superset{}, false},
-		{"nil disabled", &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Init: &supersetv1alpha1.InitSpec{}}}, false},
-		{"disabled false", &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Init: &supersetv1alpha1.InitSpec{Disabled: boolPtr(false)}}}, false},
-		{"disabled true", &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Init: &supersetv1alpha1.InitSpec{Disabled: boolPtr(true)}}}, true},
+		{"nil disabled", &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Lifecycle: &supersetv1alpha1.LifecycleSpec{}}}, false},
+		{"disabled false", &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(false)}}}, false},
+		{"disabled true", &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)}}}, true},
 	}
 
 	for _, tt := range tests {
@@ -873,7 +873,7 @@ func TestApplyRetentionPolicy(t *testing.T) {
 			}
 
 			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(initCR, pod).Build()
-			r := &SupersetInitReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+			r := &SupersetTaskReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 			r.applyRetentionPolicy(context.Background(), initCR, pod)
 

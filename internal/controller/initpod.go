@@ -39,17 +39,23 @@ const (
 	retentionRetainOnFail = "RetainOnFailure"
 
 	initRequeueInterval = 10 * time.Second
+	taskRequeueInterval = initRequeueInterval
 
 	initTaskName = common.InitTaskInit
 
 	labelInitTask     = common.LabelKeyInitTask
 	labelInitInstance = common.LabelKeyInitInstance
 
-	// Init state constants.
+	// Task/init state constants.
 	initStatePending  = "Pending"
 	initStateRunning  = "Running"
 	initStateComplete = "Complete"
 	initStateFailed   = "Failed"
+
+	taskStatePending  = initStatePending
+	taskStateRunning  = initStateRunning
+	taskStateComplete = initStateComplete
+	taskStateFailed   = initStateFailed
 
 	// Phase constants.
 	phaseInitializing = "Initializing"
@@ -104,10 +110,8 @@ func ShouldDeletePod(policy string, phase corev1.PodPhase) bool {
 	}
 }
 
-// isInitDisabled checks if initialization is disabled on the parent Superset CR.
+// isInitDisabled checks if lifecycle is disabled on the parent Superset CR.
+// Kept as a compatibility alias; the main logic uses isLifecycleDisabled.
 func isInitDisabled(superset *supersetv1alpha1.Superset) bool {
-	if superset.Spec.Init == nil {
-		return false
-	}
-	return superset.Spec.Init.Disabled != nil && *superset.Spec.Init.Disabled
+	return isLifecycleDisabled(superset)
 }

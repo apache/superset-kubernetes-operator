@@ -11963,31 +11963,8 @@ spec:
                 required:
                 - tag
                 type: object
-              init:
+              lifecycle:
                 properties:
-                  adminUser:
-                    properties:
-                      email:
-                        default: admin@example.com
-                        type: string
-                      firstName:
-                        default: Superset
-                        type: string
-                      lastName:
-                        default: Admin
-                        type: string
-                      password:
-                        default: admin
-                        type: string
-                      username:
-                        default: admin
-                        type: string
-                    type: object
-                  command:
-                    items:
-                      type: string
-                    type: array
-                    x-kubernetes-list-type: atomic
                   config:
                     type: string
                   disabled:
@@ -11999,13 +11976,70 @@ spec:
                       tag:
                         type: string
                     type: object
-                  loadExamples:
-                    type: boolean
-                  maxRetries:
-                    default: 3
-                    format: int32
-                    minimum: 1
-                    type: integer
+                  init:
+                    properties:
+                      adminUser:
+                        properties:
+                          email:
+                            default: admin@example.com
+                            type: string
+                          firstName:
+                            default: Superset
+                            type: string
+                          lastName:
+                            default: Admin
+                            type: string
+                          password:
+                            default: admin
+                            type: string
+                          username:
+                            default: admin
+                            type: string
+                        type: object
+                      command:
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      loadExamples:
+                        type: boolean
+                      maxRetries:
+                        default: 3
+                        format: int32
+                        minimum: 1
+                        type: integer
+                      strategy:
+                        default: VersionChange
+                        enum:
+                        - VersionChange
+                        - Always
+                        - Never
+                        type: string
+                      timeout:
+                        type: string
+                    type: object
+                  migrate:
+                    properties:
+                      command:
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      maxRetries:
+                        default: 3
+                        format: int32
+                        minimum: 1
+                        type: integer
+                      strategy:
+                        default: VersionChange
+                        enum:
+                        - VersionChange
+                        - Always
+                        - Never
+                        type: string
+                      timeout:
+                        type: string
+                    type: object
                   podRetention:
                     properties:
                       policy:
@@ -15612,13 +15646,18 @@ spec:
                         - aggressive
                         type: string
                     type: object
-                  timeout:
+                  upgradeMode:
+                    default: Automatic
+                    enum:
+                    - Automatic
+                    - Supervised
                     type: string
                 type: object
                 x-kubernetes-validations:
-                - message: command is mutually exclusive with adminUser and loadExamples
-                  rule: '!has(self.command) || size(self.command) == 0 || (!has(self.adminUser)
-                    && !has(self.loadExamples))'
+                - message: init.command is mutually exclusive with init.adminUser
+                    and init.loadExamples
+                  rule: '!has(self.init) || !has(self.init.command) || size(self.init.command)
+                    == 0 || (!has(self.init.adminUser) && !has(self.init.loadExamples))'
               mcpServer:
                 properties:
                   autoscaling:
@@ -31733,12 +31772,14 @@ spec:
                 valkey.passwordFrom in prod
               rule: (has(self.environment) && self.environment == 'dev') || !has(self.valkey)
                 || !has(self.valkey.password)
-            - message: init.adminUser is only allowed when environment is dev
-              rule: (has(self.environment) && self.environment == 'dev') || !has(self.init)
-                || !has(self.init.adminUser)
-            - message: init.loadExamples is only allowed when environment is dev
-              rule: (has(self.environment) && self.environment == 'dev') || !has(self.init)
-                || !has(self.init.loadExamples)
+            - message: lifecycle.init.adminUser is only allowed when environment is
+                dev
+              rule: (has(self.environment) && self.environment == 'dev') || !has(self.lifecycle)
+                || !has(self.lifecycle.init) || !has(self.lifecycle.init.adminUser)
+            - message: lifecycle.init.loadExamples is only allowed when environment
+                is dev
+              rule: (has(self.environment) && self.environment == 'dev') || !has(self.lifecycle)
+                || !has(self.lifecycle.init) || !has(self.lifecycle.init.loadExamples)
             - message: spec.networking.ingress requires spec.webServer to be set (all
                 Ingress rules target the web server service)
               rule: '!has(self.networking) || !has(self.networking.ingress) || has(self.webServer)'
@@ -31865,48 +31906,95 @@ spec:
                 type: array
               configChecksum:
                 type: string
-              init:
-                properties:
-                  attempts:
-                    format: int32
-                    type: integer
-                  completedAt:
-                    format: date-time
-                    type: string
-                  duration:
-                    type: string
-                  image:
-                    type: string
-                  message:
-                    type: string
-                  podName:
-                    type: string
-                  previousRevision:
-                    type: string
-                  revision:
-                    type: string
-                  startedAt:
-                    format: date-time
-                    type: string
-                  state:
-                    enum:
-                    - Pending
-                    - Running
-                    - Complete
-                    - Failed
-                    type: string
-                type: object
-              migrationRevision:
+              lastLifecycleImage:
                 type: string
+              lifecycle:
+                properties:
+                  init:
+                    properties:
+                      attempts:
+                        format: int32
+                        type: integer
+                      completedAt:
+                        format: date-time
+                        type: string
+                      duration:
+                        type: string
+                      image:
+                        type: string
+                      message:
+                        type: string
+                      podName:
+                        type: string
+                      startedAt:
+                        format: date-time
+                        type: string
+                      state:
+                        enum:
+                        - Pending
+                        - Running
+                        - Complete
+                        - Failed
+                        type: string
+                    type: object
+                  migrate:
+                    properties:
+                      attempts:
+                        format: int32
+                        type: integer
+                      completedAt:
+                        format: date-time
+                        type: string
+                      duration:
+                        type: string
+                      image:
+                        type: string
+                      message:
+                        type: string
+                      podName:
+                        type: string
+                      startedAt:
+                        format: date-time
+                        type: string
+                      state:
+                        enum:
+                        - Pending
+                        - Running
+                        - Complete
+                        - Failed
+                        type: string
+                    type: object
+                  phase:
+                    type: string
+                  upgrade:
+                    properties:
+                      direction:
+                        enum:
+                        - Upgrade
+                        - Downgrade
+                        - Unknown
+                        type: string
+                      fromVersion:
+                        type: string
+                      startedAt:
+                        format: date-time
+                        type: string
+                      toVersion:
+                        type: string
+                    type: object
+                type: object
               observedGeneration:
                 format: int64
                 type: integer
               phase:
                 enum:
                 - Initializing
+                - Upgrading
                 - Running
                 - Degraded
                 - Suspended
+                - Blocked
+                - AwaitingApproval
                 type: string
               version:
                 type: string
@@ -31938,10 +32026,10 @@ spec:
         - message: metadata.name must be at most 52 characters when mcpServer is enabled
             (sub-resource suffix '-mcp-server' is 11 chars)
           rule: '!has(self.spec.mcpServer) || size(self.metadata.name) <= 52'
-        - message: metadata.name must be at most 58 characters when init is enabled
-            (sub-resource suffix '-init' is 5 chars)
-          rule: (has(self.spec.init) && has(self.spec.init.disabled) && self.spec.init.disabled
-            == true) || size(self.metadata.name) <= 58
+        - message: metadata.name must be at most 55 characters when lifecycle is enabled
+            (task suffix '-migrate' is 8 chars)
+          rule: (has(self.spec.lifecycle) && has(self.spec.lifecycle.disabled) &&
+            self.spec.lifecycle.disabled == true) || size(self.metadata.name) <= 55
     served: true
     storage: true
     subresources:

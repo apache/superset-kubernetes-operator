@@ -20,7 +20,7 @@ under the License.
 # Internals — Reconciliation & Runtime
 
 This document describes how the operator behaves at runtime: the
-reconciliation lifecycle, init pod management, retry semantics, status
+reconciliation lifecycle, task pod management, retry semantics, status
 reporting, and resource cleanup. For the structural overview (CRD hierarchy,
 configuration model, config rendering), see [Architecture](architecture.md).
 
@@ -33,7 +33,7 @@ five sequential phases:
 
 1. **Preflight** — Fetch the Superset CR, check the suspend flag
 2. **Shared Resources** — ServiceAccount
-3. **Init Lifecycle** — Create/update SupersetInit child CR (gates everything below)
+3. **Lifecycle Tasks** — Create/update SupersetTask child CRs (gates everything below)
 4. **Component Reconciliation** — Resolve shared spec (top-level + per-component) into flat child specs, create/update/delete child CRs, reconcile networking/monitoring/network policies
 5. **Status Aggregation** — Read child CR statuses, set conditions and phase
 
@@ -44,7 +44,7 @@ reconciler returns gracefully — Kubernetes garbage collection handles cleanup
 via owner references.
 
 If `spec.suspend` is `true`, the controller sets the `Suspended` condition to
-`True`, updates status, and returns immediately. No init pods run, no child CRs
+`True`, updates status, and returns immediately. No task pods run, no child CRs
 are created or updated, and no resources are deleted. This allows users to
 pause reconciliation without removing the CR.
 
@@ -54,16 +54,22 @@ pause reconciliation without removing the CR.
 default). Uses the name from `spec.serviceAccount.name` or falls back to the
 parent CR name. Owned by the parent CR and garbage-collected on parent deletion.
 
-### Phase 3: Init Lifecycle
+### Phase 3: Lifecycle Tasks
 
-The parent controller creates or updates a `SupersetInit` child CR. The
-dedicated `SupersetInitReconciler` manages the Pod lifecycle (ConfigMap
+The parent controller creates or updates two `SupersetTask` child CRs:
+`{parentName}-migrate` and `{parentName}-init`. The dedicated
+`SupersetTaskReconciler` manages the Pod lifecycle for each task (ConfigMap
 creation, bare Pod creation, retry with backoff, timeout, retention). See
 [Init Pod Lifecycle](#init-pod-lifecycle) below for the full state machine.
 
-Components do not deploy until initialization completes (or is
-explicitly disabled via `spec.init.disabled: true`). If init is in progress or
-has failed, `Reconcile()` returns early with a requeue, skipping Phase 4.
+Tasks run sequentially: migrate must complete before init starts. The task
+strategy (default: `VersionChange`) determines whether tasks are triggered —
+with the default strategy, tasks only run when the Superset image changes.
+
+Components do not deploy until both lifecycle tasks complete (or lifecycle is
+explicitly disabled via `spec.lifecycle.disabled: true`). If a task is in
+progress or has failed, `Reconcile()` returns early with a requeue, skipping
+Phase 4.
 
 ### Phase 4: Component Reconciliation
 
@@ -103,28 +109,56 @@ correct GVK per component type), extracts the `ready` field (format:
 
 ## Init Pod Lifecycle
 
-The parent controller creates a `SupersetInit` child CR, and the dedicated
-`SupersetInitReconciler` manages bare Pods (`restartPolicy: Never`). The init
+The parent controller creates `SupersetTask` child CRs, and the dedicated
+`SupersetTaskReconciler` manages bare Pods (`restartPolicy: Never`). The task
 controller acts as the retry controller, giving it full control over backoff,
 timeout, naming, and cleanup.
 
-### Default Command
+### Default Commands
 
-The init pod runs a single command that defaults to:
+The lifecycle is split into two sequential tasks:
 
-```sh
-superset db upgrade && superset init
-```
+- **migrate** — `superset db upgrade` (database schema migration)
+- **init** — `superset init` (application initialization: roles, permissions, app state)
 
-This handles database migration and application initialization (roles,
-permissions, app state) in one step. The command is customizable via
-`spec.init.command`:
+Each task's command is independently customizable via `spec.lifecycle.migrate.command`
+and `spec.lifecycle.init.command`:
 
 ```yaml
 spec:
-  init:
-    command: ["/bin/sh", "-c", "superset db upgrade && custom-migrate && superset init"]
+  lifecycle:
+    migrate:
+      command: ["/bin/sh", "-c", "superset db upgrade && custom-migrate"]
+    init:
+      command: ["/bin/sh", "-c", "superset init && custom-seed"]
 ```
+
+### Task Strategies
+
+Each task has a `strategy` field controlling when it runs:
+
+| Strategy | Behavior |
+|---|---|
+| `VersionChange` (default) | Runs only when the Superset image tag changes |
+| `Always` | Runs on every reconciliation |
+| `Never` | Never runs (task effectively disabled) |
+
+With `VersionChange`, config-only changes trigger rolling restarts via checksum
+annotations but do not spawn task pods.
+
+### Image-Change Detection
+
+The operator tracks the last successfully deployed image. When an image change
+is detected:
+
+- In **Automatic** upgrade mode (default), tasks run immediately
+- In **Supervised** upgrade mode, tasks wait for annotation-based approval
+
+### Downgrade Blocking
+
+The operator performs semver comparison on image tags. If the new tag is lower
+than the currently deployed version, the reconciler blocks the change and sets
+an error condition to prevent accidental database downgrades.
 
 ### Why Bare Pods
 
@@ -137,25 +171,25 @@ spec:
 
 ### Gating
 
-If the init pod has not completed successfully, the
+If the lifecycle tasks have not completed successfully, the
 reconciler returns early and no child CRs are created or updated. Set
-`spec.init.disabled: true` to skip initialization entirely.
+`spec.lifecycle.disabled: true` to skip lifecycle tasks entirely.
 
 ### Pod State Machine
 
-Init pods transition through these states:
+Task pods transition through these states:
 
 - **Pending** — No pod exists yet. The operator creates one.
 - **Running** — Pod is executing. If it exceeds the timeout, it counts as a failed attempt.
-- **Succeeded** → **Complete** — Init is done; components can deploy.
-- **Failed** — If `attempts < maxRetries`, the operator deletes the pod and requeues with exponential backoff. If `attempts >= maxRetries`, the init is permanently failed.
+- **Succeeded** → **Complete** — Task is done; the next task (or components) can proceed.
+- **Failed** — If `attempts < maxRetries`, the operator deletes the pod and requeues with exponential backoff. If `attempts >= maxRetries`, the task is permanently failed.
 
 ### Retry and Backoff
 
 | Setting | Default | Description |
 |---|---|---|
-| `spec.init.maxRetries` | `3` | Maximum attempts before permanent failure |
-| `spec.init.timeout` | `300s` | Maximum time per attempt |
+| `spec.lifecycle.maxRetries` | `3` | Maximum attempts before permanent failure |
+| `spec.lifecycle.timeout` | `300s` | Maximum time per attempt |
 
 **Backoff calculation:**
 
@@ -166,9 +200,9 @@ failed attempt.
 
 ### Pod Naming and Discovery
 
-Pods use `generateName` (`{parent}-init-{random}`, e.g. `my-superset-init-x7k2m`)
+Pods use `generateName` (`{parent}-{task}-{random}`, e.g. `my-superset-migrate-x7k2m`)
 for unique names per attempt. The operator discovers pods by label
-(`superset.apache.org/instance` and `superset.apache.org/init-task`) and uses
+(`superset.apache.org/instance` and `superset.apache.org/task`) and uses
 the most recently created one when multiple exist.
 
 ### Pod Retention
@@ -182,19 +216,19 @@ policy determines what happens to the pod:
 | `Retain` | Keep pod | Keep pod |
 | `RetainOnFailure` | Delete pod | Keep pod |
 
-Configured via `spec.init.podRetention.policy`. Retaining failed pods is useful
+Configured via `spec.lifecycle.podRetention.policy`. Retaining failed pods is useful
 for debugging migration failures.
 
-### Init Pod Spec
+### Task Pod Spec
 
-Init pods inherit scheduling, security, volumes, and env from the top-level
+Task pods inherit scheduling, security, volumes, and env from the top-level
 `podTemplate`, just like other components. Key fields:
 
 - **Image**: From `spec.image`
-- **Command**: From `spec.init.command` (default: `superset db upgrade && superset init`)
-- **Config**: Mounted from the init ConfigMap (`{parent}-init-config`)
+- **Command**: From `spec.lifecycle.migrate.command` or `spec.lifecycle.init.command` (defaults: `superset db upgrade` and `superset init`)
+- **Config**: Mounted from the task ConfigMap (`{parent}-{task}-config`)
 - **Env vars**: Database credentials, secret key (via plain env vars in dev mode, or `valueFrom.secretKeyRef` when `*From` fields are used)
-- **Resources**: From `spec.init.podTemplate.container.resources` if set
+- **Resources**: From `spec.lifecycle.podTemplate.container.resources` if set
 - **Service account**: Inherited from parent spec
 - **Restart policy**: Always `Never` — the operator handles retries
 
@@ -202,7 +236,7 @@ Init pods inherit scheduling, security, volumes, and env from the top-level
 
 ## Child Controller Pattern
 
-Each child CRD (SupersetInit, SupersetWebServer, SupersetCeleryWorker, etc.)
+Each child CRD (SupersetTask, SupersetWebServer, SupersetCeleryWorker, etc.)
 has its own controller that reconciles the Kubernetes resources for that
 component.
 
@@ -211,15 +245,15 @@ McpServer) manage a Deployment and support replicas, HPA, and PDB. Their specs
 embed `ScalableComponentSpec`, which has `DeploymentTemplate`, `PodTemplate`,
 and scaling fields.
 
-**Singleton components** (Init, CeleryBeat) run exactly one instance. Init
-manages bare Pods with retry logic (uses `PodTemplate` only). CeleryBeat manages
-a Deployment but forces `replicas: 1` (has both `DeploymentTemplate` and
-`PodTemplate` but no scaling fields).
+**Singleton components** (SupersetTask, CeleryBeat) run exactly one instance.
+SupersetTask manages bare Pods with retry logic (uses `PodTemplate` only).
+CeleryBeat manages a Deployment but forces `replicas: 1` (has both
+`DeploymentTemplate` and `PodTemplate` but no scaling fields).
 
 All deployment controllers follow the same pattern: reconcile ConfigMap (if
 applicable), reconcile Deployment, reconcile Service (if the component exposes
 a port), reconcile scaling (HPA + PDB for scalable components), and update
-status. The init controller reconciles a ConfigMap and manages bare Pods.
+status. The task controller reconciles a ConfigMap and manages bare Pods.
 
 ### Why ConfigMaps
 
@@ -245,7 +279,8 @@ from the spec and mounts it at `/app/superset/config/`.
 
 | Component | ConfigMap | Workload | Service | HPA | PDB |
 |---|---|---|---|---|---|
-| Init | superset_config.py | bare Pod | — | — | — |
+| Migrate (task) | superset_config.py | bare Pod | — | — | — |
+| Init (task) | superset_config.py | bare Pod | — | — | — |
 | WebServer | superset_config.py | Deployment (gunicorn) | port 8088 | if set | if set |
 | CeleryWorker | superset_config.py | Deployment (celery worker) | — | if set | if set |
 | CeleryBeat | superset_config.py | Deployment (celery beat) | — | — | — |
@@ -291,7 +326,7 @@ every reconciliation cycle safe to re-run.
 
 ## Labels and Annotations
 
-The operator sets reserved labels on child CRs (SupersetInit, SupersetWebServer,
+The operator sets reserved labels on child CRs (SupersetTask, SupersetWebServer,
 etc.) and NetworkPolicies for resource discovery and orphan cleanup.
 
 ### Operator-Managed Labels
@@ -434,10 +469,10 @@ per enabled component:
 ## Garbage Collection
 
 The operator uses Kubernetes owner references for automatic cleanup. The parent
-`Superset` CR owns child CRDs (SupersetInit, SupersetWebServer, etc.),
+`Superset` CR owns child CRDs (SupersetTask, SupersetWebServer, etc.),
 networking resources, ServiceMonitor, and NetworkPolicies. Each child CR owns
 its managed resources — deployment CRDs own their Deployment, ConfigMap,
-Service, HPA, and PDB; the SupersetInit CRD owns its ConfigMap and Pods.
+Service, HPA, and PDB; the SupersetTask CRDs own their ConfigMap and Pods.
 Deleting the parent cascades to all child CRs, which cascade to all their
 owned resources. Removing a component from the parent spec (e.g. deleting
 `spec.celeryWorker`) deletes its child CR, cascading to all owned resources.
@@ -508,18 +543,27 @@ status:
 
 ### Init Status
 
-Init task progress is tracked per-task:
+Lifecycle task progress is tracked per-task:
 
 ```yaml
 status:
-  init:
-    state: Complete       # Pending | Running | Complete | Failed
-    podName: my-superset-init-x7k2m
-    startedAt: "2026-03-16T10:00:00Z"
-    completedAt: "2026-03-16T10:00:22Z"
-    duration: "22s"
-    attempts: 1
-    image: apache/superset:latest
+  lifecycle:
+    migrate:
+      state: Complete       # Pending | Running | Complete | Failed
+      podName: my-superset-migrate-x7k2m
+      startedAt: "2026-03-16T10:00:00Z"
+      completedAt: "2026-03-16T10:00:12Z"
+      duration: "12s"
+      attempts: 1
+      image: apache/superset:latest
+    init:
+      state: Complete
+      podName: my-superset-init-a9b3k
+      startedAt: "2026-03-16T10:00:13Z"
+      completedAt: "2026-03-16T10:00:22Z"
+      duration: "9s"
+      attempts: 1
+      image: apache/superset:latest
 ```
 
 ---

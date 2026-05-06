@@ -209,13 +209,13 @@ behavior (reconciliation lifecycle, init pod state machine, retry semantics).
 Key points:
 
 - **Two-tier CRD**: Parent `Superset` resolves shared spec (top-level + per-component) into flat child CRDs
-- **7 child types**: SupersetInit, SupersetWebServer, SupersetCeleryWorker, SupersetCeleryBeat, SupersetCeleryFlower, SupersetWebsocketServer, SupersetMcpServer
+- **7 child types**: SupersetTask, SupersetWebServer, SupersetCeleryWorker, SupersetCeleryBeat, SupersetCeleryFlower, SupersetWebsocketServer, SupersetMcpServer
 - **3 pure Go packages**: `internal/resolution/` (spec flattening), `internal/config/` (Python rendering), `internal/common/` (shared types)
 - **Parent resolves, children execute**: All layering logic in the parent controller; child CRs are fully flattened
 
 The parent controller orchestrates all reconciliation:
 
-- `reconcileInit()` — SupersetInit CR → bare Pod (db upgrade + superset init) + ConfigMap
+- `reconcileLifecycle()` — SupersetTask CRs → bare Pods (migrate: `superset db upgrade`, init: `superset init`) + ConfigMaps
 - `reconcileServiceAccount()` — ServiceAccount
 - `reconcileComponent()` — Table-driven loop over `componentDescriptors`: resolves each enabled component into a flat child CR (WebServer, CeleryWorker, CeleryBeat, CeleryFlower, WebsocketServer, McpServer). Each child controller then reconciles its own sub-resources (Deployment, ConfigMap, Service, HPA, PDB).
 - `reconcileNetworking()` — HTTPRoute or Ingress
@@ -290,7 +290,7 @@ validation, CRD defaulting, multi-controller interaction).
 - Parent controller: reconciliation logic, child CR creation/deletion,
   config env var injection, image overrides, status aggregation, suspend
 - Child controller helpers: ConfigMap, Deployment, Service reconciliation
-- InitPod: pod spec building, retention policy, backoff calculation
+- Task pods: pod spec building, retention policy, backoff calculation
 
 **Integration tests** (Ginkgo + envtest):
 - CRD schema validation works (kubebuilder markers produce correct OpenAPI)
@@ -326,7 +326,7 @@ func TestReconcile_MyScenario(t *testing.T) {
             Image:       supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
             Environment: strPtr("dev"),
             SecretKey:   strPtr("test-secret-key"),
-            Init: &supersetv1alpha1.InitSpec{
+            Lifecycle: &supersetv1alpha1.LifecycleSpec{
                 Disabled: boolPtr(true),
             },
         },
@@ -354,7 +354,7 @@ func TestReconcile_MyScenario(t *testing.T) {
 ```
 
 Key patterns:
-- Use `boolPtr(true)` for `Init.Disabled` to bypass init pod lifecycle
+- Use `boolPtr(true)` for `Lifecycle.Disabled` to bypass lifecycle task execution
 - Register all types in the scheme via `testScheme(t)` helper
 - Use `WithStatusSubresource` for objects whose status is updated
 - Assert on child CR fields, not on intermediate state
@@ -523,7 +523,8 @@ internal/
 | `internal/controller/component_descriptors.go` | Parent-side component descriptors for child CR creation |
 | `internal/controller/superset_controller.go` | Parent reconciler (orchestrates everything) |
 | `internal/controller/deployment_builder.go` | Deployment construction from flat spec |
-| `internal/controller/initpod.go` | InitPod lifecycle manager |
+| `internal/controller/supersettask_controller.go` | SupersetTask lifecycle manager |
+| `internal/controller/initpod.go` | Task pod spec building, retention, backoff |
 | `internal/controller/reconcile_test.go` | Parent controller unit tests (fake client) |
 
 ---

@@ -43,9 +43,11 @@ spec:
   config: |
     FEATURE_FLAGS = {"ENABLE_TEMPLATE_PROCESSING": True}
   webServer: {}
-  init:
-    adminUser: {}
-    loadExamples: true
+  lifecycle:
+    migrate:
+      adminUser: {}
+    init:
+      loadExamples: true
 ```
 
 ### Prod Mode Example
@@ -412,14 +414,56 @@ spec:
 
 The MCP server receives a `superset_config.py` with core config (`SECRET_KEY`, structured DB URI if applicable) and top-level/per-component `config` — but not web server port. It runs as a separate Deployment with its own Service.
 
-### Init Configuration
+### Lifecycle Configuration
 
-The `spec.init` section supports `podTemplate` with the same Pod and container
-fields as other components (tolerations, nodeSelector, volumes, etc. on
-`podTemplate`; env, resources, securityContext, etc. on `podTemplate.container`),
-so init pods inherit top-level scheduling and security settings and can be
-customized independently. Init is enabled by default even when `spec.init` is
-nil; disable it explicitly with `spec.init.disabled: true`.
+The `spec.lifecycle` section controls database migration and application
+initialization. The operator runs two sequential tasks:
+
+1. **migrate** — `superset db upgrade` (database schema migration)
+2. **init** — `superset init` (application initialization: roles, permissions)
+
+Lifecycle is enabled by default even when `spec.lifecycle` is nil; disable it
+explicitly with `spec.lifecycle.disabled: true`.
+
+#### Task Strategies
+
+Each task has a `strategy` that controls when it runs:
+
+| Strategy | Behavior |
+|---|---|
+| `VersionChange` (default) | Task runs only when the Superset image changes |
+| `Always` | Task runs on every reconciliation |
+| `Never` | Task never runs (effectively disabled) |
+
+With the default `VersionChange` strategy, config-only changes trigger rolling
+restarts of component Deployments but do not spawn task pods.
+
+#### Upgrade Mode
+
+The `upgradeMode` field controls how image upgrades are handled:
+
+- **Automatic** (default) — tasks run immediately when an image change is detected
+- **Supervised** — tasks wait for an annotation-based approval before running
+
+The operator also performs semver comparison on image tags and blocks downgrades
+to prevent accidental database corruption.
+
+#### Custom Commands
+
+```yaml
+spec:
+  lifecycle:
+    migrate:
+      command: ["/bin/sh", "-c", "superset db upgrade && custom-migrate"]
+    init:
+      command: ["/bin/sh", "-c", "superset init && custom-seed"]
+```
+
+The `spec.lifecycle` section supports `podTemplate` with the same Pod and
+container fields as other components (tolerations, nodeSelector, volumes, etc.
+on `podTemplate`; env, resources, securityContext, etc. on
+`podTemplate.container`), so task pods inherit top-level scheduling and security
+settings and can be customized independently.
 
 #### Admin User (Dev Mode Only)
 
@@ -428,13 +472,14 @@ In dev mode, the operator can create an admin user during initialization:
 ```yaml
 spec:
   environment: dev
-  init:
-    adminUser:
-      username: admin           # default
-      password: admin           # default
-      firstName: Superset       # default
-      lastName: Admin           # default
-      email: admin@example.com  # default
+  lifecycle:
+    init:
+      adminUser:
+        username: admin           # default
+        password: admin           # default
+        firstName: Superset       # default
+        lastName: Admin           # default
+        email: admin@example.com  # default
 ```
 
 All fields have defaults, so `adminUser: {}` creates a user with
@@ -449,8 +494,9 @@ Load Superset's example dashboards and datasets during initialization:
 ```yaml
 spec:
   environment: dev
-  init:
-    loadExamples: true
+  lifecycle:
+    init:
+      loadExamples: true
 ```
 
 The operator appends a `superset load-examples` step to the init command. This
@@ -459,8 +505,8 @@ examples require an admin user with username `admin` — if you customize
 `adminUser.username`, example loading may fail.
 
 Both `adminUser` and `loadExamples` are mutually exclusive with a custom
-`init.command` — when using these fields, the operator constructs the full
-init command automatically.
+`lifecycle.init.command` — when using these fields, the operator constructs the
+full init command automatically.
 
 ### Health Probes
 
@@ -616,11 +662,13 @@ will report `Phase: Running` with condition reason `NoComponentsEnabled`.
 
 ### Child CR and Sub-Resource Names
 
-Child CRs share the parent's name (differentiated by Kind). For example, a
-parent named `my-superset` creates `SupersetWebServer/my-superset`,
-`SupersetCeleryWorker/my-superset`, etc. Sub-resources (Deployments, Services,
-ConfigMaps) are named `{parentName}-{componentType}` (e.g.
-`my-superset-web-server`).
+Component child CRs share the parent's name (differentiated by Kind). For
+example, a parent named `my-superset` creates `SupersetWebServer/my-superset`,
+`SupersetCeleryWorker/my-superset`, etc. Lifecycle task CRs are named
+`{parentName}-migrate` and `{parentName}-init` (e.g.
+`SupersetTask/my-superset-migrate`, `SupersetTask/my-superset-init`).
+Sub-resources (Deployments, Services, ConfigMaps) are named
+`{parentName}-{componentType}` (e.g. `my-superset-web-server`).
 
 The parent name must be a valid DNS label: lowercase alphanumeric and hyphens
 only (`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`), at most 63 characters. Since
@@ -818,20 +866,21 @@ spec:
           memory: "4Gi"
 ```
 
-### Init pod
+### Lifecycle task pods
 
-The init pod uses `podTemplate` instead of `deploymentTemplate` (since it creates
-bare Pods, not Deployments):
+The lifecycle task pods use `podTemplate` instead of `deploymentTemplate` (since
+they create bare Pods, not Deployments):
 
 ```yaml
 spec:
-  init:
+  lifecycle:
     podTemplate:
       container:
         resources:
           limits:
             memory: "2Gi"
-    command: ["/bin/sh", "-c", "superset db upgrade && superset init"]
+    migrate:
+      command: ["/bin/sh", "-c", "superset db upgrade"]
 ```
 
 ## Monitoring

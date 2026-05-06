@@ -13,8 +13,8 @@ Package v1alpha1 contains API Schema definitions for the superset v1alpha1 API g
 - [SupersetCeleryBeat](#supersetcelerybeat)
 - [SupersetCeleryFlower](#supersetceleryflower)
 - [SupersetCeleryWorker](#supersetceleryworker)
-- [SupersetInit](#supersetinit)
 - [SupersetMcpServer](#supersetmcpserver)
+- [SupersetTask](#supersettask)
 - [SupersetWebServer](#supersetwebserver)
 - [SupersetWebsocketServer](#supersetwebsocketserver)
 
@@ -29,7 +29,7 @@ AdminUserSpec defines admin user credentials for dev-mode initialization.
 
 
 _Appears in:_
-- [InitSpec](#initspec)
+- [InitTaskSpec](#inittaskspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -57,9 +57,9 @@ _Appears in:_
 - [SupersetCeleryBeatSpec](#supersetcelerybeatspec)
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
-- [SupersetInitSpec](#supersetinitspec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
+- [SupersetTaskSpec](#supersettaskspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
 - [SupersetWebsocketServerSpec](#supersetwebsocketserverspec)
 - [WebServerComponentSpec](#webservercomponentspec)
@@ -325,9 +325,9 @@ _Appears in:_
 - [SupersetCeleryBeatSpec](#supersetcelerybeatspec)
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
-- [SupersetInitSpec](#supersetinitspec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
+- [SupersetTaskSpec](#supersettaskspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
 - [SupersetWebsocketServerSpec](#supersetwebsocketserverspec)
 - [WebServerComponentSpec](#webservercomponentspec)
@@ -354,8 +354,8 @@ _Appears in:_
 - [SupersetCeleryBeatSpec](#supersetcelerybeatspec)
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
-- [SupersetInitSpec](#supersetinitspec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
+- [SupersetTaskSpec](#supersettaskspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
 - [SupersetWebsocketServerSpec](#supersetwebsocketserverspec)
 
@@ -431,7 +431,7 @@ _Appears in:_
 - [CeleryFlowerComponentSpec](#celeryflowercomponentspec)
 - [CeleryWorkerComponentSpec](#celeryworkercomponentspec)
 - [ComponentSpec](#componentspec)
-- [InitSpec](#initspec)
+- [LifecycleSpec](#lifecyclespec)
 - [McpServerComponentSpec](#mcpservercomponentspec)
 - [WebServerComponentSpec](#webservercomponentspec)
 - [WebsocketServerComponentSpec](#websocketservercomponentspec)
@@ -455,9 +455,9 @@ _Appears in:_
 - [SupersetCeleryBeatSpec](#supersetcelerybeatspec)
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
-- [SupersetInitSpec](#supersetinitspec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
+- [SupersetTaskSpec](#supersettaskspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
 - [SupersetWebsocketServerSpec](#supersetwebsocketserverspec)
 
@@ -524,13 +524,33 @@ _Appears in:_
 | `tls` _[IngressTLS](https://pkg.go.dev/k8s.io/api/networking/v1#IngressTLS) array_ | TLS configuration (certificate secrets and hostnames). |  | Optional: \{\} <br /> |
 
 
-#### InitSpec
+#### InitTaskSpec
 
 
 
-InitSpec defines initialization configuration. The init pod runs a single
-command (default: superset db upgrade && superset init) that must complete
-before any component is deployed.
+InitTaskSpec defines when and how the application initialization task runs.
+
+
+
+_Appears in:_
+- [LifecycleSpec](#lifecyclespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `strategy` _string_ | Strategy controls when the init task runs.<br />VersionChange: only on image changes (default).<br />Always: every reconcile.<br />Never: skip entirely. | VersionChange | Enum: [VersionChange Always Never] <br />Optional: \{\} <br /> |
+| `command` _string array_ | Command override for the init task.<br />Default: ["sh", "-c", "superset init"]<br />Mutually exclusive with adminUser and loadExamples. |  |  |
+| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
+| `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
+| `adminUser` _[AdminUserSpec](#adminuserspec)_ | Admin user to create during initialization. Only allowed in dev mode.<br />When set, the operator appends a superset fab create-admin step to the init command. |  | Optional: \{\} <br /> |
+| `loadExamples` _boolean_ | Load example dashboards and data during initialization. Only allowed in dev mode.<br />When true, the operator appends a superset load-examples step to the init command. |  | Optional: \{\} <br /> |
+
+
+#### LifecycleSpec
+
+
+
+LifecycleSpec defines lifecycle management configuration for database migrations
+and application initialization tasks.
 
 
 
@@ -539,24 +559,22 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for the init pod. |  | Optional: \{\} <br /> |
-| `config` _string_ | Per-init raw Python appended after top-level config. |  | Optional: \{\} <br /> |
-| `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image override for init pods. |  | Optional: \{\} <br /> |
-| `command` _string array_ | Command to execute during initialization. When empty, the operator<br />constructs the command from base steps (db upgrade + init) and any<br />adminUser/loadExamples options. Mutually exclusive with adminUser<br />and loadExamples. |  |  |
-| `disabled` _boolean_ | Set to true to skip initialization entirely. |  | Optional: \{\} <br /> |
-| `adminUser` _[AdminUserSpec](#adminuserspec)_ | Admin user to create during initialization. Only allowed in dev mode.<br />When set, the operator appends a superset fab create-admin step to the init command. |  | Optional: \{\} <br /> |
-| `loadExamples` _boolean_ | Load example dashboards and data during initialization. Only allowed in dev mode.<br />When true, the operator appends a superset load-examples step to the init command. |  | Optional: \{\} <br /> |
-| `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
-| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout for the init pod. Default: 300s. |  | Optional: \{\} <br /> |
-| `maxRetries` _integer_ | Maximum number of retries before permanent failure. Default: 3. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
-| `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Pod retention policy for completed init pods. |  | Optional: \{\} <br /> |
+| `upgradeMode` _string_ | UpgradeMode controls whether upgrades require manual approval.<br />Automatic runs immediately on image change; Supervised waits for an<br />approval annotation before proceeding. | Automatic | Enum: [Automatic Supervised] <br />Optional: \{\} <br /> |
+| `disabled` _boolean_ | Set to true to skip all lifecycle tasks entirely. |  | Optional: \{\} <br /> |
+| `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image override for lifecycle task pods. |  | Optional: \{\} <br /> |
+| `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for lifecycle task pods. |  | Optional: \{\} <br /> |
+| `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Pod retention policy for completed task pods. |  | Optional: \{\} <br /> |
+| `config` _string_ | Per-lifecycle raw Python appended after top-level config. |  | Optional: \{\} <br /> |
+| `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-lifecycle SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
+| `migrate` _[MigrateTaskSpec](#migratetaskspec)_ | Database migration task configuration. |  | Optional: \{\} <br /> |
+| `init` _[InitTaskSpec](#inittaskspec)_ | Application initialization task configuration. |  | Optional: \{\} <br /> |
 
 
-#### InitTaskStatus
+#### LifecycleStatus
 
 
 
-InitTaskStatus reports the status of the init task.
+LifecycleStatus tracks the current lifecycle task execution state.
 
 
 
@@ -565,16 +583,10 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `state` _string_ |  |  | Enum: [Pending Running Complete Failed] <br />Optional: \{\} <br /> |
-| `revision` _string_ |  |  | Optional: \{\} <br /> |
-| `previousRevision` _string_ |  |  | Optional: \{\} <br /> |
-| `startedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
-| `completedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
-| `duration` _string_ |  |  | Optional: \{\} <br /> |
-| `attempts` _integer_ |  |  | Optional: \{\} <br /> |
-| `podName` _string_ |  |  | Optional: \{\} <br /> |
-| `image` _string_ |  |  | Optional: \{\} <br /> |
-| `message` _string_ |  |  | Optional: \{\} <br /> |
+| `phase` _string_ | Phase of the lifecycle: Idle, Migrating, Initializing, Complete, Blocked, AwaitingApproval. |  | Optional: \{\} <br /> |
+| `migrate` _[TaskRefStatus](#taskrefstatus)_ | Migrate task status summary. |  | Optional: \{\} <br /> |
+| `init` _[TaskRefStatus](#taskrefstatus)_ | Init task status summary. |  | Optional: \{\} <br /> |
+| `upgrade` _[UpgradeContext](#upgradecontext)_ | Upgrade context (populated during active upgrade). |  | Optional: \{\} <br /> |
 
 
 #### McpServerComponentSpec
@@ -625,6 +637,25 @@ _Appears in:_
 | `username` _string_ | Database username. |  | Optional: \{\} <br /> |
 | `password` _string_ | Database password. In prod mode, CRD validation rejects plain text passwords — use passwordFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
 | `passwordFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the database password.<br />Mutually exclusive with password. |  | Optional: \{\} <br /> |
+
+
+#### MigrateTaskSpec
+
+
+
+MigrateTaskSpec defines when and how the database migration task runs.
+
+
+
+_Appears in:_
+- [LifecycleSpec](#lifecyclespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `strategy` _string_ | Strategy controls when the migrate task runs.<br />VersionChange: only on image changes (default).<br />Always: every reconcile.<br />Never: skip (user manages migrations externally). | VersionChange | Enum: [VersionChange Always Never] <br />Optional: \{\} <br /> |
+| `command` _string array_ | Command override for the migration task.<br />Default: ["sh", "-c", "superset db upgrade"] |  |  |
+| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
+| `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 
 
 #### MonitoringSpec
@@ -694,9 +725,9 @@ _Appears in:_
 - [SupersetCeleryBeatSpec](#supersetcelerybeatspec)
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
-- [SupersetInitSpec](#supersetinitspec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
+- [SupersetTaskSpec](#supersettaskspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
 - [SupersetWebsocketServerSpec](#supersetwebsocketserverspec)
 - [WebServerComponentSpec](#webservercomponentspec)
@@ -717,8 +748,8 @@ PodRetentionSpec defines retention behavior for init pods.
 
 
 _Appears in:_
-- [InitSpec](#initspec)
-- [SupersetInitSpec](#supersetinitspec)
+- [LifecycleSpec](#lifecyclespec)
+- [SupersetTaskSpec](#supersettaskspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -738,15 +769,15 @@ _Appears in:_
 - [CeleryFlowerComponentSpec](#celeryflowercomponentspec)
 - [CeleryWorkerComponentSpec](#celeryworkercomponentspec)
 - [FlatComponentSpec](#flatcomponentspec)
-- [InitSpec](#initspec)
+- [LifecycleSpec](#lifecyclespec)
 - [McpServerComponentSpec](#mcpservercomponentspec)
 - [ScalableComponentSpec](#scalablecomponentspec)
 - [SupersetCeleryBeatSpec](#supersetcelerybeatspec)
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
-- [SupersetInitSpec](#supersetinitspec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
+- [SupersetTaskSpec](#supersettaskspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
 - [SupersetWebsocketServerSpec](#supersetwebsocketserverspec)
 - [WebServerComponentSpec](#webservercomponentspec)
@@ -789,7 +820,7 @@ Static defaults: poolRecycle=3600, poolPrePing=false.
 _Appears in:_
 - [CeleryBeatComponentSpec](#celerybeatcomponentspec)
 - [CeleryWorkerComponentSpec](#celeryworkercomponentspec)
-- [InitSpec](#initspec)
+- [LifecycleSpec](#lifecyclespec)
 - [McpServerComponentSpec](#mcpservercomponentspec)
 - [SupersetSpec](#supersetspec)
 - [WebServerComponentSpec](#webservercomponentspec)
@@ -1074,79 +1105,6 @@ _Appears in:_
 | `observedGeneration` _integer_ | ObservedGeneration for leader election consistency. |  | Optional: \{\} <br /> |
 
 
-#### SupersetInit
-
-
-
-SupersetInit is the Schema for the supersetinits API.
-It manages the initialization lifecycle (database migrations, init commands).
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `superset.apache.org/v1alpha1` | | |
-| `kind` _string_ | `SupersetInit` | | |
-| `metadata` _[ObjectMeta](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#ObjectMeta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[SupersetInitSpec](#supersetinitspec)_ |  |  |  |
-| `status` _[SupersetInitStatus](#supersetinitstatus)_ |  |  |  |
-
-
-#### SupersetInitSpec
-
-
-
-SupersetInitSpec defines the fully-resolved spec for initialization.
-
-
-
-_Appears in:_
-- [SupersetInit](#supersetinit)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `image` _[ImageSpec](#imagespec)_ | Container image configuration. |  |  |
-| `replicas` _integer_ | Desired replica count. | 1 | Optional: \{\} <br /> |
-| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Fully-resolved deployment template. |  | Optional: \{\} <br /> |
-| `podTemplate` _[PodTemplate](#podtemplate)_ | Fully-resolved pod template. |  | Optional: \{\} <br /> |
-| `serviceAccountName` _string_ | ServiceAccountName to set on the pod. |  | Optional: \{\} <br /> |
-| `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Autoscaling configuration. |  | Optional: \{\} <br /> |
-| `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
-| `config` _string_ | Rendered superset_config.py content. |  | Optional: \{\} <br /> |
-| `configChecksum` _string_ | Config checksum for detecting config changes. |  | Optional: \{\} <br /> |
-| `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
-| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per init pod attempt. |  | Optional: \{\} <br /> |
-| `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Pod retention policy for completed init pods. |  | Optional: \{\} <br /> |
-
-
-#### SupersetInitStatus
-
-
-
-SupersetInitStatus reports the status of initialization.
-
-
-
-_Appears in:_
-- [SupersetInit](#supersetinit)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `state` _string_ |  |  | Enum: [Pending Running Complete Failed] <br />Optional: \{\} <br /> |
-| `podName` _string_ |  |  | Optional: \{\} <br /> |
-| `startedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
-| `completedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
-| `duration` _string_ |  |  | Optional: \{\} <br /> |
-| `attempts` _integer_ |  |  | Optional: \{\} <br /> |
-| `image` _string_ |  |  | Optional: \{\} <br /> |
-| `message` _string_ |  |  | Optional: \{\} <br /> |
-| `configChecksum` _string_ | Config checksum that was active when init last completed.<br />Used to detect config changes and trigger re-initialization. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ |  |  | Optional: \{\} <br /> |
-| `observedGeneration` _integer_ |  |  | Optional: \{\} <br /> |
-
-
 #### SupersetMcpServer
 
 
@@ -1242,7 +1200,7 @@ _Appears in:_
 | `celeryFlower` _[CeleryFlowerComponentSpec](#celeryflowercomponentspec)_ | Celery Flower monitoring UI component. |  | Optional: \{\} <br /> |
 | `websocketServer` _[WebsocketServerComponentSpec](#websocketservercomponentspec)_ | WebSocket server for real-time updates (Node.js, no Python config). |  | Optional: \{\} <br /> |
 | `mcpServer` _[McpServerComponentSpec](#mcpservercomponentspec)_ | FastMCP server component for AI tooling integration. |  | Optional: \{\} <br /> |
-| `init` _[InitSpec](#initspec)_ | Initialization configuration. |  | Optional: \{\} <br /> |
+| `lifecycle` _[LifecycleSpec](#lifecyclespec)_ | Lifecycle configuration (database migration, init, upgrade mode). |  | Optional: \{\} <br /> |
 | `networking` _[NetworkingSpec](#networkingspec)_ | Networking configuration (Ingress or Gateway API). |  | Optional: \{\} <br /> |
 | `monitoring` _[MonitoringSpec](#monitoringspec)_ | Monitoring configuration. |  | Optional: \{\} <br /> |
 | `networkPolicy` _[NetworkPolicySpec](#networkpolicyspec)_ | Network policy configuration. |  | Optional: \{\} <br /> |
@@ -1267,11 +1225,86 @@ _Appears in:_
 | `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ |  |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ |  |  | Optional: \{\} <br /> |
 | `components` _[ComponentStatusMap](#componentstatusmap)_ |  |  | Optional: \{\} <br /> |
-| `init` _[InitTaskStatus](#inittaskstatus)_ |  |  | Optional: \{\} <br /> |
+| `lifecycle` _[LifecycleStatus](#lifecyclestatus)_ | Lifecycle tracks the current lifecycle state. |  | Optional: \{\} <br /> |
+| `lastLifecycleImage` _string_ | Last image (repository:tag) that successfully completed the lifecycle.<br />Used to detect image changes on subsequent reconciles. |  | Optional: \{\} <br /> |
 | `version` _string_ |  |  | Optional: \{\} <br /> |
-| `migrationRevision` _string_ |  |  | Optional: \{\} <br /> |
 | `configChecksum` _string_ |  |  | Optional: \{\} <br /> |
-| `phase` _string_ | High-level phase. |  | Enum: [Initializing Running Degraded Suspended] <br />Optional: \{\} <br /> |
+| `phase` _string_ | High-level phase. |  | Enum: [Initializing Upgrading Running Degraded Suspended Blocked AwaitingApproval] <br />Optional: \{\} <br /> |
+
+
+#### SupersetTask
+
+
+
+SupersetTask is the Schema for the supersettasks API.
+It manages lifecycle tasks (database migrations, init commands, probes).
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `superset.apache.org/v1alpha1` | | |
+| `kind` _string_ | `SupersetTask` | | |
+| `metadata` _[ObjectMeta](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#ObjectMeta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[SupersetTaskSpec](#supersettaskspec)_ |  |  |  |
+| `status` _[SupersetTaskStatus](#supersettaskstatus)_ |  |  |  |
+
+
+#### SupersetTaskSpec
+
+
+
+SupersetTaskSpec defines the fully-resolved spec for a lifecycle task.
+
+
+
+_Appears in:_
+- [SupersetTask](#supersettask)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `image` _[ImageSpec](#imagespec)_ | Container image configuration. |  |  |
+| `replicas` _integer_ | Desired replica count. | 1 | Optional: \{\} <br /> |
+| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Fully-resolved deployment template. |  | Optional: \{\} <br /> |
+| `podTemplate` _[PodTemplate](#podtemplate)_ | Fully-resolved pod template. |  | Optional: \{\} <br /> |
+| `serviceAccountName` _string_ | ServiceAccountName to set on the pod. |  | Optional: \{\} <br /> |
+| `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Autoscaling configuration. |  | Optional: \{\} <br /> |
+| `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
+| `type` _string_ | Type identifies the task purpose. |  | Enum: [Migrate Init] <br /> |
+| `command` _string array_ | Command to execute in the task pod. |  |  |
+| `config` _string_ | Rendered superset_config.py content. |  | Optional: \{\} <br /> |
+| `configChecksum` _string_ | Config checksum for detecting changes that require re-run. |  | Optional: \{\} <br /> |
+| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per task pod attempt. |  | Optional: \{\} <br /> |
+| `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
+| `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Pod retention policy for completed task pods. |  | Optional: \{\} <br /> |
+
+
+#### SupersetTaskStatus
+
+
+
+SupersetTaskStatus reports the status of a lifecycle task.
+
+
+
+_Appears in:_
+- [SupersetTask](#supersettask)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `state` _string_ |  |  | Enum: [Pending Running Complete Failed] <br />Optional: \{\} <br /> |
+| `podName` _string_ |  |  | Optional: \{\} <br /> |
+| `startedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
+| `completedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
+| `duration` _string_ |  |  | Optional: \{\} <br /> |
+| `attempts` _integer_ |  |  | Optional: \{\} <br /> |
+| `image` _string_ |  |  | Optional: \{\} <br /> |
+| `message` _string_ |  |  | Optional: \{\} <br /> |
+| `configChecksum` _string_ | Config checksum that was active when the task last completed.<br />Used to detect changes and trigger re-execution. |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ |  |  | Optional: \{\} <br /> |
+| `observedGeneration` _integer_ |  |  | Optional: \{\} <br /> |
 
 
 #### SupersetWebServer
@@ -1397,6 +1430,48 @@ _Appears in:_
 | `ready` _string_ | "2/2" format showing ready vs desired replicas. |  | Optional: \{\} <br /> |
 | `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ | Standard conditions. |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ | ObservedGeneration for leader election consistency. |  | Optional: \{\} <br /> |
+
+
+#### TaskRefStatus
+
+
+
+TaskRefStatus holds the projected status summary of a lifecycle task.
+
+
+
+_Appears in:_
+- [LifecycleStatus](#lifecyclestatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `state` _string_ |  |  | Enum: [Pending Running Complete Failed] <br />Optional: \{\} <br /> |
+| `startedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
+| `completedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
+| `duration` _string_ |  |  | Optional: \{\} <br /> |
+| `attempts` _integer_ |  |  | Optional: \{\} <br /> |
+| `podName` _string_ |  |  | Optional: \{\} <br /> |
+| `image` _string_ |  |  | Optional: \{\} <br /> |
+| `message` _string_ |  |  | Optional: \{\} <br /> |
+
+
+#### UpgradeContext
+
+
+
+UpgradeContext tracks the current upgrade operation.
+
+
+
+_Appears in:_
+- [LifecycleStatus](#lifecyclestatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `fromVersion` _string_ |  |  | Optional: \{\} <br /> |
+| `toVersion` _string_ |  |  | Optional: \{\} <br /> |
+| `direction` _string_ |  |  | Enum: [Upgrade Downgrade Unknown] <br />Optional: \{\} <br /> |
+| `startedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
 
 
 #### ValkeyCacheSpec

@@ -53,7 +53,7 @@ var _ = Describe("Integration", Ordered, func() {
 				Environment: &devEnv,
 				SecretKey:   strPtr("dev-test-key"),
 				Metastore:   &supersetv1alpha1.MetastoreSpec{URI: strPtr("postgresql+psycopg2://u:p@host/db")},
-				Init:        &supersetv1alpha1.InitSpec{Disabled: boolPtr(true)},
+				Init:        &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
 			},
 		}
 	}

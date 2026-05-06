@@ -43,7 +43,7 @@ func TestReconcileMonitoring_GracefulSkipWhenCRDAbsent(t *testing.T) {
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
-			Init:      &supersetv1alpha1.InitSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
 			Monitoring: &supersetv1alpha1.MonitoringSpec{
 				ServiceMonitor: &supersetv1alpha1.ServiceMonitorSpec{
 					Interval:      &interval,
@@ -75,7 +75,7 @@ func TestReconcileMonitoring_ServiceMonitorShape(t *testing.T) {
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
-			Init:      &supersetv1alpha1.InitSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
 			Monitoring: &supersetv1alpha1.MonitoringSpec{
 				ServiceMonitor: &supersetv1alpha1.ServiceMonitorSpec{
 					Interval:      &interval,

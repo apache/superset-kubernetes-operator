@@ -23,6 +23,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -68,8 +69,8 @@ type SupersetReconciler struct {
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersetwebsocketservers/status,verbs=get
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersetmcpservers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersetmcpservers/status,verbs=get
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetinits,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetinits/status,verbs=get
+// +kubebuilder:rbac:groups=superset.apache.org,resources=supersettasks,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=superset.apache.org,resources=supersettasks/status,verbs=get
 // +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch;update
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
@@ -125,17 +126,17 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, fmt.Errorf("reconciling ServiceAccount: %w", err)
 	}
 
-	// Phase 2.5: Init lifecycle via SupersetInit child CR.
-	// Gates component deployment on init completion.
+	// Phase 2.5: Lifecycle tasks (migrate + init) via SupersetTask child CRs.
+	// Gates component deployment on lifecycle completion.
 	topLevel := convertTopLevelSpec(&superset.Spec)
 	saName := resolveServiceAccountName(superset)
 
-	requeueAfter, initComplete, err := r.reconcileInit(ctx, superset, configChecksum, topLevel, saName)
+	requeueAfter, lifecycleComplete, err := r.reconcileLifecycle(ctx, superset, configChecksum, topLevel, saName)
 	if err != nil {
 		r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile Init: %v", err)
 		return ctrl.Result{}, fmt.Errorf("reconciling Init: %w", err)
 	}
-	if !initComplete {
+	if !lifecycleComplete {
 		// Update status before returning.
 		if statusErr := r.Status().Update(ctx, superset); statusErr != nil {
 			return ctrl.Result{}, fmt.Errorf("updating status during init: %w", statusErr)
@@ -216,10 +217,6 @@ func (r *SupersetReconciler) applyChildCR(
 
 // --- Conversion helpers: CRD types -> resolution engine types ---
 
-// defaultInitCommand is the fallback when spec.init is nil or has no
-// adminUser/loadExamples options that require dynamic command construction.
-var defaultInitCommand = []string{"/bin/sh", "-c", "superset db upgrade && superset init"}
-
 func convertTopLevelSpec(spec *supersetv1alpha1.SupersetSpec) *resolution.SharedInput {
 	return &resolution.SharedInput{
 		Replicas:            spec.Replicas,
@@ -230,13 +227,11 @@ func convertTopLevelSpec(spec *supersetv1alpha1.SupersetSpec) *resolution.Shared
 	}
 }
 
-// buildInitCommand constructs the init shell command from InitSpec fields.
-func buildInitCommand(init *supersetv1alpha1.InitSpec) []string {
-	script := "superset db upgrade && superset init"
+// buildInitCommand constructs the init shell command from InitTaskSpec fields.
+func buildInitCommand(init *supersetv1alpha1.InitTaskSpec) []string {
+	script := "superset init"
 
-	if init.AdminUser != nil {
-		// Wrap in a subshell with || true: create-admin exits non-zero when
-		// the user already exists, which is expected on re-init runs.
+	if init != nil && init.AdminUser != nil {
 		script += ` && (superset fab create-admin` +
 			` --username "$SUPERSET_OPERATOR__ADMIN_USERNAME"` +
 			` --password "$SUPERSET_OPERATOR__ADMIN_PASSWORD"` +
@@ -246,36 +241,19 @@ func buildInitCommand(init *supersetv1alpha1.InitSpec) []string {
 			` || true)`
 	}
 
-	if init.LoadExamples != nil && *init.LoadExamples {
+	if init != nil && init.LoadExamples != nil && *init.LoadExamples {
 		script += " && superset load-examples"
 	}
 
 	return []string{"/bin/sh", "-c", script}
 }
 
-func convertInitComponent(init *supersetv1alpha1.InitSpec) *resolution.ComponentInput {
-	if init == nil {
-		return &resolution.ComponentInput{
-			SharedInput: resolution.SharedInput{
-				PodTemplate: &supersetv1alpha1.PodTemplate{
-					Container: &supersetv1alpha1.ContainerTemplate{
-						Command: defaultInitCommand,
-					},
-				},
-			},
-		}
+func convertTaskComponent(lifecycle *supersetv1alpha1.LifecycleSpec, command []string) *resolution.ComponentInput {
+	var pt *supersetv1alpha1.PodTemplate
+	if lifecycle != nil {
+		pt = lifecycle.PodTemplate
 	}
 
-	pt := init.PodTemplate
-
-	// Determine effective command: explicit command takes precedence,
-	// otherwise build dynamically from adminUser/loadExamples fields.
-	cmd := init.Command
-	if len(cmd) == 0 {
-		cmd = buildInitCommand(init)
-	}
-
-	// Inject command into the PodTemplate's container.
 	var ct *supersetv1alpha1.ContainerTemplate
 	if pt != nil && pt.Container != nil {
 		copied := *pt.Container
@@ -283,7 +261,7 @@ func convertInitComponent(init *supersetv1alpha1.InitSpec) *resolution.Component
 	} else {
 		ct = &supersetv1alpha1.ContainerTemplate{}
 	}
-	ct.Command = cmd
+	ct.Command = command
 
 	if pt != nil {
 		copied := *pt
@@ -300,9 +278,37 @@ func convertInitComponent(init *supersetv1alpha1.InitSpec) *resolution.Component
 	}
 }
 
-// reconcileInit creates or updates the SupersetInit child CR and reads its status
-// to determine if initialization is complete. Returns (requeueAfter, initComplete, error).
-func (r *SupersetReconciler) reconcileInit(
+const (
+	taskTypeMigrate = "Migrate"
+	taskTypeInit    = "Init"
+
+	suffixMigrate = "-migrate"
+	suffixInit    = "-init"
+
+	strategyVersionChange = "VersionChange"
+	strategyAlways        = "Always"
+	strategyNever         = "Never"
+
+	upgradeModeAutomatic  = "Automatic"
+	upgradeModeSupervsied = "Supervised"
+
+	lifecyclePhaseIdle             = "Idle"
+	lifecyclePhaseMigrating        = "Migrating"
+	lifecyclePhaseInitializing     = "Initializing"
+	lifecyclePhaseComplete         = "Complete"
+	lifecyclePhaseBlocked          = "Blocked"
+	lifecyclePhaseAwaitingApproval = "AwaitingApproval"
+
+	annotationApproveUpgrade = "superset.apache.org/approve-upgrade"
+
+	phaseUpgrading        = "Upgrading"
+	phaseBlocked          = "Blocked"
+	phaseAwaitingApproval = "AwaitingApproval"
+)
+
+// reconcileLifecycle orchestrates the lifecycle tasks (migrate + init) and gates
+// component deployment. Returns (requeueAfter, lifecycleComplete, error).
+func (r *SupersetReconciler) reconcileLifecycle(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
 	configChecksum string,
@@ -310,50 +316,194 @@ func (r *SupersetReconciler) reconcileInit(
 	saName string,
 ) (time.Duration, bool, error) {
 	log := logf.FromContext(ctx)
-	childName := superset.Name
-	resourceBaseName := naming.ResourceBaseName(childName, naming.ComponentInit)
 
-	// Prune orphaned init CRs (e.g., after a custom name change).
-	keepName := childName
-	if isInitDisabled(superset) {
-		keepName = ""
-	}
-	if err := r.pruneOrphans(ctx, superset.Namespace, superset.Name,
-		naming.ComponentInit,
-		func() client.ObjectList { return &supersetv1alpha1.SupersetInitList{} },
-		keepName,
-	); err != nil {
-		return 0, false, fmt.Errorf("pruning orphaned init CRs: %w", err)
+	// Prune orphaned task CRs only when lifecycle is disabled.
+	if isLifecycleDisabled(superset) {
+		if err := r.pruneOrphans(ctx, superset.Namespace, superset.Name,
+			naming.ComponentInit,
+			func() client.ObjectList { return &supersetv1alpha1.SupersetTaskList{} },
+			"",
+		); err != nil {
+			return 0, false, fmt.Errorf("pruning orphaned task CRs: %w", err)
+		}
 	}
 
-	// If init is disabled, mark complete.
-	if isInitDisabled(superset) {
+	// If lifecycle is disabled, mark complete.
+	if isLifecycleDisabled(superset) {
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-			metav1.ConditionTrue, "InitDisabled", "Initialization is disabled", superset.Generation)
-		superset.Status.Init = nil
+			metav1.ConditionTrue, "LifecycleDisabled", "Lifecycle tasks are disabled", superset.Generation)
+		superset.Status.Lifecycle = nil
 		return 0, true, nil
 	}
 
-	// Build the init child spec using the standard resolution pipeline.
-	compConfigInput := buildConfigInput(&superset.Spec)
-	if superset.Spec.Init != nil && superset.Spec.Init.Config != nil {
-		compConfigInput.ComponentConfig = *superset.Spec.Init.Config
+	// Ensure lifecycle status exists.
+	if superset.Status.Lifecycle == nil {
+		superset.Status.Lifecycle = &supersetv1alpha1.LifecycleStatus{}
 	}
 
-	// Compute init engine options (always NullPool for short-lived init pods).
-	var initSQLASpec *supersetv1alpha1.SQLAlchemyEngineOptionsSpec
-	if superset.Spec.Init != nil {
-		initSQLASpec = superset.Spec.Init.SQLAlchemyEngineOptions
+	// Resolve the current lifecycle image.
+	var imageOverride *supersetv1alpha1.ImageOverrideSpec
+	if superset.Spec.Lifecycle != nil {
+		imageOverride = superset.Spec.Lifecycle.Image
+	}
+	currentImage := resolveLifecycleImage(&superset.Spec.Image, imageOverride)
+	lastImage := superset.Status.LastLifecycleImage
+	imageChanged := lastImage == "" || currentImage != lastImage
+
+	// Version comparison and downgrade blocking.
+	if imageChanged && lastImage != "" {
+		oldTag := tagFromImageRef(lastImage)
+		newTag := tagFromImageRef(currentImage)
+		direction := CompareVersions(oldTag, newTag)
+
+		if direction == DirectionDowngrade {
+			log.Info("Downgrade detected, blocking lifecycle", "from", oldTag, "to", newTag)
+			setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+				metav1.ConditionFalse, "DowngradeBlocked",
+				fmt.Sprintf("Downgrade from %s to %s is not supported. Alembic migrations are forward-only.", oldTag, newTag),
+				superset.Generation)
+			superset.Status.Phase = phaseBlocked
+			superset.Status.Lifecycle.Phase = lifecyclePhaseBlocked
+			superset.Status.Lifecycle.Upgrade = &supersetv1alpha1.UpgradeContext{
+				FromVersion: oldTag,
+				ToVersion:   newTag,
+				Direction:   string(DirectionDowngrade),
+			}
+			r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "DowngradeBlocked", "Lifecycle",
+				"Downgrade from %s to %s is not supported", oldTag, newTag)
+			return -1, false, nil
+		}
+
+		// Set upgrade context.
+		superset.Status.Lifecycle.Upgrade = &supersetv1alpha1.UpgradeContext{
+			FromVersion: oldTag,
+			ToVersion:   newTag,
+			Direction:   string(direction),
+			StartedAt:   nowPtr(),
+		}
+	}
+
+	// Supervised mode: check for approval annotation.
+	if imageChanged && lastImage != "" && getUpgradeMode(superset) == upgradeModeSupervsied {
+		annotations := superset.GetAnnotations()
+		if annotations == nil || annotations[annotationApproveUpgrade] != "true" {
+			log.Info("Upgrade awaiting approval")
+			setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+				metav1.ConditionFalse, "AwaitingApproval",
+				fmt.Sprintf("Upgrade from %s to %s detected. Approve with: kubectl annotate superset %s %s=true",
+					superset.Status.Lifecycle.Upgrade.FromVersion,
+					superset.Status.Lifecycle.Upgrade.ToVersion,
+					superset.Name, annotationApproveUpgrade),
+				superset.Generation)
+			superset.Status.Phase = phaseAwaitingApproval
+			superset.Status.Lifecycle.Phase = lifecyclePhaseAwaitingApproval
+			return 0, false, nil // Watch-based — no requeue needed
+		}
+	}
+
+	// Determine which tasks need to run.
+	migrateNeeded := r.taskNeeded(superset, taskTypeMigrate, imageChanged)
+	initNeeded := r.taskNeeded(superset, taskTypeInit, imageChanged)
+
+	// If neither task is needed, lifecycle is complete.
+	if !migrateNeeded && !initNeeded {
+		superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+			metav1.ConditionTrue, "LifecycleComplete", "Lifecycle tasks completed successfully", superset.Generation)
+		return 0, true, nil
+	}
+
+	// Orchestrate: migrate first, then init.
+	if migrateNeeded {
+		superset.Status.Lifecycle.Phase = lifecyclePhaseMigrating
+		if imageChanged {
+			superset.Status.Phase = phaseUpgrading
+		} else {
+			superset.Status.Phase = phaseInitializing
+		}
+
+		migrateCmd := defaultMigrateCommand(superset)
+		requeueAfter, complete, err := r.reconcileTask(ctx, superset, configChecksum, topLevel, saName, taskTypeMigrate, suffixMigrate, migrateCmd)
+		if err != nil {
+			return 0, false, fmt.Errorf("reconciling migrate task: %w", err)
+		}
+		if !complete {
+			return requeueAfter, false, nil
+		}
+	}
+
+	if initNeeded {
+		superset.Status.Lifecycle.Phase = lifecyclePhaseInitializing
+		if superset.Status.Phase != phaseUpgrading {
+			superset.Status.Phase = phaseInitializing
+		}
+
+		initCmd := defaultInitCommand(superset)
+		requeueAfter, complete, err := r.reconcileTask(ctx, superset, configChecksum, topLevel, saName, taskTypeInit, suffixInit, initCmd)
+		if err != nil {
+			return 0, false, fmt.Errorf("reconciling init task: %w", err)
+		}
+		if !complete {
+			return requeueAfter, false, nil
+		}
+	}
+
+	// Both tasks complete. Update lastLifecycleImage and clear upgrade context.
+	superset.Status.LastLifecycleImage = currentImage
+	superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
+	superset.Status.Lifecycle.Upgrade = nil
+
+	// Clear approval annotation if it was set.
+	if annotations := superset.GetAnnotations(); annotations != nil {
+		if _, ok := annotations[annotationApproveUpgrade]; ok {
+			delete(annotations, annotationApproveUpgrade)
+			superset.SetAnnotations(annotations)
+		}
+	}
+
+	setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+		metav1.ConditionTrue, "LifecycleComplete", "Lifecycle tasks completed successfully", superset.Generation)
+	return 0, true, nil
+}
+
+// reconcileTask creates or updates a single SupersetTask child CR and polls its status.
+// Returns (requeueAfter, taskComplete, error).
+func (r *SupersetReconciler) reconcileTask(
+	ctx context.Context,
+	superset *supersetv1alpha1.Superset,
+	configChecksum string,
+	topLevel *resolution.SharedInput,
+	saName string,
+	taskType string,
+	suffix string,
+	command []string,
+) (time.Duration, bool, error) {
+	log := logf.FromContext(ctx)
+	childName := superset.Name + suffix
+	resourceBaseName := naming.ResourceBaseName(childName, naming.ComponentInit)
+
+	// Build task config.
+	compConfigInput := buildConfigInput(&superset.Spec)
+	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Config != nil {
+		compConfigInput.ComponentConfig = *superset.Spec.Lifecycle.Config
+	}
+
+	var lifecycleSQLASpec *supersetv1alpha1.SQLAlchemyEngineOptionsSpec
+	if superset.Spec.Lifecycle != nil {
+		lifecycleSQLASpec = superset.Spec.Lifecycle.SQLAlchemyEngineOptions
 	}
 	compConfigInput.EngineOptions = supersetconfig.ComputeEngineOptions(
-		naming.ComponentInit, superset.Spec.SQLAlchemyEngineOptions, initSQLASpec, 0, 0,
+		naming.ComponentInit, superset.Spec.SQLAlchemyEngineOptions, lifecycleSQLASpec, 0, 0,
 	)
 
-	comp := convertInitComponent(superset.Spec.Init)
+	comp := convertTaskComponent(superset.Spec.Lifecycle, command)
 	renderedConfig := supersetconfig.RenderConfig(supersetconfig.ComponentInit, compConfigInput)
 
 	secretEnvVars := collectSecretEnvVars(&superset.Spec)
-	initEnvVars := collectInitEnvVars(&superset.Spec)
+	var initEnvVars []corev1.EnvVar
+	if taskType == taskTypeInit {
+		initEnvVars = collectLifecycleInitEnvVars(superset.Spec.Lifecycle)
+	}
 	operatorInjected := buildOperatorInjected(renderedConfig, resourceBaseName, superset.Spec.ForceReload, append(secretEnvVars, initEnvVars...))
 
 	flat := resolution.ResolveChildSpec(
@@ -362,17 +512,31 @@ func (r *SupersetReconciler) reconcileInit(
 	)
 
 	var imageOverride *supersetv1alpha1.ImageOverrideSpec
-	if superset.Spec.Init != nil {
-		imageOverride = superset.Spec.Init.Image
+	if superset.Spec.Lifecycle != nil {
+		imageOverride = superset.Spec.Lifecycle.Image
 	}
 	flatSpec := flatSpecFromResolution(flat, &superset.Spec.Image, imageOverride, saName)
 	flatSpec.Autoscaling = nil
 	flatSpec.PodDisruptionBudget = nil
 
-	// CreateOrUpdate the SupersetInit child CR.
-	child := &supersetv1alpha1.SupersetInit{
+	// CreateOrUpdate the SupersetTask child CR.
+	child := &supersetv1alpha1.SupersetTask{
 		ObjectMeta: metav1.ObjectMeta{Name: childName, Namespace: superset.Namespace},
 	}
+
+	taskChecksum := computeChecksum(struct {
+		SharedConfigChecksum string
+		Config               string
+		FlatSpec             supersetv1alpha1.FlatComponentSpec
+		TaskType             string
+		Command              []string
+	}{
+		SharedConfigChecksum: configChecksum,
+		Config:               renderedConfig,
+		FlatSpec:             flatSpec,
+		TaskType:             taskType,
+		Command:              command,
+	})
 
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, child, func() error {
 		if err := controllerutil.SetControllerReference(superset, child, r.Scheme); err != nil {
@@ -384,41 +548,33 @@ func (r *SupersetReconciler) reconcileInit(
 			naming.LabelKeyParent:    superset.Name,
 		}))
 		child.Spec.FlatComponentSpec = flatSpec
+		child.Spec.Type = taskType
+		child.Spec.Command = command
 		child.Spec.Config = renderedConfig
-		child.Spec.ConfigChecksum = computeChecksum(struct {
-			SharedConfigChecksum string
-			Config               string
-			FlatSpec             supersetv1alpha1.FlatComponentSpec
-		}{
-			SharedConfigChecksum: configChecksum,
-			Config:               renderedConfig,
-			FlatSpec:             flatSpec,
-		})
+		child.Spec.ConfigChecksum = taskChecksum
 
-		// Pass init-specific fields from the parent InitSpec.
-		if superset.Spec.Init != nil {
-			child.Spec.MaxRetries = superset.Spec.Init.MaxRetries
-			child.Spec.Timeout = superset.Spec.Init.Timeout
-			child.Spec.PodRetention = superset.Spec.Init.PodRetention
+		// Pass lifecycle-level settings.
+		if superset.Spec.Lifecycle != nil {
+			child.Spec.PodRetention = superset.Spec.Lifecycle.PodRetention
 		} else {
-			child.Spec.MaxRetries = nil
-			child.Spec.Timeout = nil
 			child.Spec.PodRetention = nil
 		}
+		child.Spec.MaxRetries = r.taskMaxRetries(superset, taskType)
+		child.Spec.Timeout = r.taskTimeout(superset, taskType)
+
 		return nil
 	})
 	if err != nil {
-		return 0, false, fmt.Errorf("creating/updating SupersetInit: %w", err)
+		return 0, false, fmt.Errorf("creating/updating SupersetTask %s: %w", childName, err)
 	}
 
-	// Read child status to determine if init is complete.
-	// Re-fetch to get the latest status.
+	// Re-fetch to get latest status.
 	if err := r.Get(ctx, client.ObjectKeyFromObject(child), child); err != nil {
-		return 0, false, fmt.Errorf("fetching SupersetInit status: %w", err)
+		return 0, false, fmt.Errorf("fetching SupersetTask %s status: %w", childName, err)
 	}
 
-	// Copy child status to parent status.Init.
-	superset.Status.Init = &supersetv1alpha1.InitTaskStatus{
+	// Project status to parent.
+	taskRef := &supersetv1alpha1.TaskRefStatus{
 		State:       child.Status.State,
 		StartedAt:   child.Status.StartedAt,
 		CompletedAt: child.Status.CompletedAt,
@@ -428,46 +584,186 @@ func (r *SupersetReconciler) reconcileInit(
 		Image:       child.Status.Image,
 		Message:     child.Status.Message,
 	}
+	switch taskType {
+	case taskTypeMigrate:
+		superset.Status.Lifecycle.Migrate = taskRef
+	case taskTypeInit:
+		superset.Status.Lifecycle.Init = taskRef
+	}
 
 	switch child.Status.State {
-	case initStateComplete:
+	case taskStateComplete:
 		if child.Spec.ConfigChecksum != "" && child.Status.ConfigChecksum != child.Spec.ConfigChecksum {
-			log.Info("Init complete for previous config, waiting for re-initialization")
+			log.Info("Task complete for previous config, waiting for re-execution", "task", taskType)
 			setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-				metav1.ConditionFalse, "InitConfigChanged", "Config changed, awaiting re-initialization", superset.Generation)
-			superset.Status.Phase = phaseInitializing
-			return initRequeueInterval, false, nil
+				metav1.ConditionFalse, "TaskConfigChanged", fmt.Sprintf("%s task config changed, awaiting re-execution", taskType), superset.Generation)
+			return taskRequeueInterval, false, nil
 		}
-		log.Info("Init complete")
-		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-			metav1.ConditionTrue, "InitComplete", "Initialization completed successfully", superset.Generation)
+		log.Info("Task complete", "task", taskType)
 		return 0, true, nil
 
-	case initStateFailed:
-		maxRetries := defaultMaxRetries
-		if superset.Spec.Init != nil && superset.Spec.Init.MaxRetries != nil {
-			maxRetries = *superset.Spec.Init.MaxRetries
-		}
+	case taskStateFailed:
+		maxRetries := r.taskMaxRetriesValue(superset, taskType)
 		if child.Status.Attempts >= maxRetries {
-			log.Info("Init permanently failed")
+			log.Info("Task permanently failed", "task", taskType)
 			setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-				metav1.ConditionFalse, "InitFailed", child.Status.Message, superset.Generation)
+				metav1.ConditionFalse, "TaskFailed", fmt.Sprintf("%s: %s", taskType, child.Status.Message), superset.Generation)
 			superset.Status.Phase = phaseInitializing
 			return -1, false, nil
 		}
-		// Still retrying.
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-			metav1.ConditionFalse, "InitRetrying", "Initialization is retrying", superset.Generation)
-		superset.Status.Phase = phaseInitializing
-		return initRequeueInterval, false, nil
+			metav1.ConditionFalse, "TaskRetrying", fmt.Sprintf("%s task is retrying", taskType), superset.Generation)
+		return taskRequeueInterval, false, nil
 
 	default:
-		// Pending, Running, or empty.
-		log.Info("Init not yet complete, gating component deployment")
+		log.Info("Task not yet complete", "task", taskType, "state", child.Status.State)
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-			metav1.ConditionFalse, "InitInProgress", "Initialization is in progress", superset.Generation)
-		superset.Status.Phase = phaseInitializing
-		return initRequeueInterval, false, nil
+			metav1.ConditionFalse, "TaskInProgress", fmt.Sprintf("%s task is in progress", taskType), superset.Generation)
+		return taskRequeueInterval, false, nil
+	}
+}
+
+// taskNeeded determines if a task should run based on its strategy and the current state.
+func (r *SupersetReconciler) taskNeeded(superset *supersetv1alpha1.Superset, taskType string, imageChanged bool) bool {
+	strategy := r.taskStrategy(superset, taskType)
+	switch strategy {
+	case strategyNever:
+		return false
+	case strategyAlways:
+		return true
+	case strategyVersionChange:
+		return imageChanged
+	default:
+		return imageChanged
+	}
+}
+
+func (r *SupersetReconciler) taskStrategy(superset *supersetv1alpha1.Superset, taskType string) string {
+	if superset.Spec.Lifecycle == nil {
+		return strategyVersionChange
+	}
+	switch taskType {
+	case taskTypeMigrate:
+		if superset.Spec.Lifecycle.Migrate != nil && superset.Spec.Lifecycle.Migrate.Strategy != nil {
+			return *superset.Spec.Lifecycle.Migrate.Strategy
+		}
+	case taskTypeInit:
+		if superset.Spec.Lifecycle.Init != nil && superset.Spec.Lifecycle.Init.Strategy != nil {
+			return *superset.Spec.Lifecycle.Init.Strategy
+		}
+	}
+	return strategyVersionChange
+}
+
+func (r *SupersetReconciler) taskMaxRetries(superset *supersetv1alpha1.Superset, taskType string) *int32 {
+	if superset.Spec.Lifecycle == nil {
+		return nil
+	}
+	switch taskType {
+	case taskTypeMigrate:
+		if superset.Spec.Lifecycle.Migrate != nil {
+			return superset.Spec.Lifecycle.Migrate.MaxRetries
+		}
+	case taskTypeInit:
+		if superset.Spec.Lifecycle.Init != nil {
+			return superset.Spec.Lifecycle.Init.MaxRetries
+		}
+	}
+	return nil
+}
+
+func (r *SupersetReconciler) taskMaxRetriesValue(superset *supersetv1alpha1.Superset, taskType string) int32 {
+	if ptr := r.taskMaxRetries(superset, taskType); ptr != nil {
+		return *ptr
+	}
+	return defaultMaxRetries
+}
+
+func (r *SupersetReconciler) taskTimeout(superset *supersetv1alpha1.Superset, taskType string) *metav1.Duration {
+	if superset.Spec.Lifecycle == nil {
+		return nil
+	}
+	switch taskType {
+	case taskTypeMigrate:
+		if superset.Spec.Lifecycle.Migrate != nil {
+			return superset.Spec.Lifecycle.Migrate.Timeout
+		}
+	case taskTypeInit:
+		if superset.Spec.Lifecycle.Init != nil {
+			return superset.Spec.Lifecycle.Init.Timeout
+		}
+	}
+	return nil
+}
+
+func defaultMigrateCommand(superset *supersetv1alpha1.Superset) []string {
+	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Migrate != nil && len(superset.Spec.Lifecycle.Migrate.Command) > 0 {
+		return superset.Spec.Lifecycle.Migrate.Command
+	}
+	return []string{"/bin/sh", "-c", "superset db upgrade"}
+}
+
+func defaultInitCommand(superset *supersetv1alpha1.Superset) []string {
+	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Init != nil && len(superset.Spec.Lifecycle.Init.Command) > 0 {
+		return superset.Spec.Lifecycle.Init.Command
+	}
+	var initSpec *supersetv1alpha1.InitTaskSpec
+	if superset.Spec.Lifecycle != nil {
+		initSpec = superset.Spec.Lifecycle.Init
+	}
+	return buildInitCommand(initSpec)
+}
+
+func getUpgradeMode(superset *supersetv1alpha1.Superset) string {
+	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.UpgradeMode != nil {
+		return *superset.Spec.Lifecycle.UpgradeMode
+	}
+	return upgradeModeAutomatic
+}
+
+func isLifecycleDisabled(superset *supersetv1alpha1.Superset) bool {
+	return superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Disabled != nil && *superset.Spec.Lifecycle.Disabled
+}
+
+func resolveLifecycleImage(parentImage *supersetv1alpha1.ImageSpec, override *supersetv1alpha1.ImageOverrideSpec) string {
+	repo := parentImage.Repository
+	tag := parentImage.Tag
+	if override != nil {
+		if override.Repository != nil {
+			repo = *override.Repository
+		}
+		if override.Tag != nil {
+			tag = *override.Tag
+		}
+	}
+	return ImageRef(repo, tag)
+}
+
+func tagFromImageRef(ref string) string {
+	parts := strings.SplitN(ref, ":", 2)
+	if len(parts) == 2 {
+		return parts[1]
+	}
+	return ref
+}
+
+func nowPtr() *metav1.Time {
+	now := metav1.Now()
+	return &now
+}
+
+// collectLifecycleInitEnvVars returns env vars for the init task (admin user credentials).
+func collectLifecycleInitEnvVars(lifecycle *supersetv1alpha1.LifecycleSpec) []corev1.EnvVar {
+	if lifecycle == nil || lifecycle.Init == nil || lifecycle.Init.AdminUser == nil {
+		return nil
+	}
+	admin := lifecycle.Init.AdminUser
+	return []corev1.EnvVar{
+		{Name: naming.EnvAdminUsername, Value: derefOrDefault(admin.Username, "admin")},
+		{Name: naming.EnvAdminPassword, Value: derefOrDefault(admin.Password, "admin")},
+		{Name: naming.EnvAdminFirstName, Value: derefOrDefault(admin.FirstName, "Superset")},
+		{Name: naming.EnvAdminLastName, Value: derefOrDefault(admin.LastName, "Admin")},
+		{Name: naming.EnvAdminEmail, Value: derefOrDefault(admin.Email, "admin@example.com")},
 	}
 }
 
@@ -665,21 +961,6 @@ func collectSecretEnvVars(spec *supersetv1alpha1.SupersetSpec) []corev1.EnvVar {
 	}
 
 	return envs
-}
-
-// collectInitEnvVars returns env vars specific to the init pod (admin user credentials).
-func collectInitEnvVars(spec *supersetv1alpha1.SupersetSpec) []corev1.EnvVar {
-	if spec.Init == nil || spec.Init.AdminUser == nil {
-		return nil
-	}
-	admin := spec.Init.AdminUser
-	return []corev1.EnvVar{
-		{Name: naming.EnvAdminUsername, Value: derefOrDefault(admin.Username, "admin")},
-		{Name: naming.EnvAdminPassword, Value: derefOrDefault(admin.Password, "admin")},
-		{Name: naming.EnvAdminFirstName, Value: derefOrDefault(admin.FirstName, "Superset")},
-		{Name: naming.EnvAdminLastName, Value: derefOrDefault(admin.LastName, "Admin")},
-		{Name: naming.EnvAdminEmail, Value: derefOrDefault(admin.Email, "admin@example.com")},
-	}
 }
 
 func derefOrDefault(ptr *string, def string) string {
@@ -1009,7 +1290,7 @@ func saCreateEnabled(sa *supersetv1alpha1.ServiceAccountSpec) bool {
 func (r *SupersetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	b := ctrl.NewControllerManagedBy(mgr).
 		For(&supersetv1alpha1.Superset{}).
-		Owns(&supersetv1alpha1.SupersetInit{}).
+		Owns(&supersetv1alpha1.SupersetTask{}).
 		Owns(&supersetv1alpha1.SupersetWebServer{}).
 		Owns(&supersetv1alpha1.SupersetCeleryWorker{}).
 		Owns(&supersetv1alpha1.SupersetCeleryBeat{}).

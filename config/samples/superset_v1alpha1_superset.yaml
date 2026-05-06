@@ -36,6 +36,7 @@ spec:
         "ENABLE_TEMPLATE_PROCESSING": True,
     }
   webServer: {}
-  init:
-    adminUser: {}
-    loadExamples: true
+  lifecycle:
+    init:
+      adminUser: {}
+      loadExamples: true

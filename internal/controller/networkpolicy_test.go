@@ -57,7 +57,7 @@ func TestReconcileNetworkPolicies_CreatesForEnabledComponents(t *testing.T) {
 			Image:         supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer:     &supersetv1alpha1.WebServerComponentSpec{},
 			CeleryBeat:    &supersetv1alpha1.CeleryBeatComponentSpec{},
-			Init:          &supersetv1alpha1.InitSpec{Disabled: boolPtr(true)},
+			Lifecycle:     &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
 			NetworkPolicy: &supersetv1alpha1.NetworkPolicySpec{},
 		},
 	}
@@ -97,7 +97,7 @@ func TestReconcileComponentNetworkPolicy_WebServer(t *testing.T) {
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:         supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer:     &supersetv1alpha1.WebServerComponentSpec{},
-			Init:          &supersetv1alpha1.InitSpec{Disabled: boolPtr(true)},
+			Lifecycle:     &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
 			NetworkPolicy: &supersetv1alpha1.NetworkPolicySpec{},
 		},
 	}
@@ -190,7 +190,7 @@ func TestReconcileNetworkPolicies_CustomContainerPort(t *testing.T) {
 					},
 				},
 			},
-			Init:          &supersetv1alpha1.InitSpec{Disabled: boolPtr(true)},
+			Lifecycle:     &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
 			NetworkPolicy: &supersetv1alpha1.NetworkPolicySpec{},
 		},
 	}
@@ -271,7 +271,7 @@ func TestReconcileComponentNetworkPolicy_InternalOnly(t *testing.T) {
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:         supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			CeleryWorker:  &supersetv1alpha1.CeleryWorkerComponentSpec{},
-			Init:          &supersetv1alpha1.InitSpec{Disabled: boolPtr(true)},
+			Lifecycle:     &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
 			NetworkPolicy: &supersetv1alpha1.NetworkPolicySpec{},
 		},
 	}
@@ -307,7 +307,7 @@ func TestReconcileNetworkPolicies_ExtraRules(t *testing.T) {
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
-			Init:      &supersetv1alpha1.InitSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
 			NetworkPolicy: &supersetv1alpha1.NetworkPolicySpec{
 				ExtraIngress: []networkingv1.NetworkPolicyIngressRule{
 					{
@@ -405,7 +405,7 @@ func TestNetworkPolicySelectorMatchesDeploymentLabels(t *testing.T) {
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:         supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer:     &supersetv1alpha1.WebServerComponentSpec{},
-			Init:          &supersetv1alpha1.InitSpec{Disabled: boolPtr(true)},
+			Lifecycle:     &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
 			NetworkPolicy: &supersetv1alpha1.NetworkPolicySpec{},
 		},
 	}

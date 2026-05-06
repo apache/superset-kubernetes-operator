@@ -31,8 +31,8 @@ import (
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'dev') || !has(self.metastore) || !has(self.metastore.uri)",message="metastore.uri is only allowed when environment is dev; use metastore.uriFrom in prod"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'dev') || !has(self.metastore) || !has(self.metastore.password)",message="metastore.password is only allowed when environment is dev; use metastore.passwordFrom in prod"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'dev') || !has(self.valkey) || !has(self.valkey.password)",message="valkey.password is only allowed when environment is dev; use valkey.passwordFrom in prod"
-// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'dev') || !has(self.init) || !has(self.init.adminUser)",message="init.adminUser is only allowed when environment is dev"
-// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'dev') || !has(self.init) || !has(self.init.loadExamples)",message="init.loadExamples is only allowed when environment is dev"
+// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'dev') || !has(self.lifecycle) || !has(self.lifecycle.init) || !has(self.lifecycle.init.adminUser)",message="lifecycle.init.adminUser is only allowed when environment is dev"
+// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'dev') || !has(self.lifecycle) || !has(self.lifecycle.init) || !has(self.lifecycle.init.loadExamples)",message="lifecycle.init.loadExamples is only allowed when environment is dev"
 // +kubebuilder:validation:XValidation:rule="!has(self.networking) || !has(self.networking.ingress) || has(self.webServer)",message="spec.networking.ingress requires spec.webServer to be set (all Ingress rules target the web server service)"
 // +kubebuilder:validation:XValidation:rule="!has(self.networking) || !has(self.networking.gateway) || has(self.webServer) || has(self.websocketServer) || has(self.mcpServer) || has(self.celeryFlower)",message="spec.networking.gateway requires at least one component with a routable service (webServer, websocketServer, mcpServer, or celeryFlower)"
 // +kubebuilder:validation:XValidation:rule="!has(self.monitoring) || !has(self.monitoring.serviceMonitor) || has(self.webServer)",message="spec.monitoring.serviceMonitor requires spec.webServer to be set (scrapes the web server service)"
@@ -110,9 +110,9 @@ type SupersetSpec struct {
 	// +optional
 	McpServer *McpServerComponentSpec `json:"mcpServer,omitempty"`
 
-	// Initialization configuration.
+	// Lifecycle configuration (database migration, init, upgrade mode).
 	// +optional
-	Init *InitSpec `json:"init,omitempty"`
+	Lifecycle *LifecycleSpec `json:"lifecycle,omitempty"`
 
 	// Networking configuration (Ingress or Gateway API).
 	// +optional
@@ -230,35 +230,106 @@ type McpServerComponentSpec struct {
 	SQLAlchemyEngineOptions *SQLAlchemyEngineOptionsSpec `json:"sqlaEngineOptions,omitempty"`
 }
 
-// --- Init spec ---
+// --- Lifecycle spec ---
 
-// InitSpec defines initialization configuration. The init pod runs a single
-// command (default: superset db upgrade && superset init) that must complete
-// before any component is deployed.
-// +kubebuilder:validation:XValidation:rule="!has(self.command) || size(self.command) == 0 || (!has(self.adminUser) && !has(self.loadExamples))",message="command is mutually exclusive with adminUser and loadExamples"
-type InitSpec struct {
-	// Pod and container template for the init pod.
+// LifecycleSpec defines lifecycle management configuration for database migrations
+// and application initialization tasks.
+// +kubebuilder:validation:XValidation:rule="!has(self.init) || !has(self.init.command) || size(self.init.command) == 0 || (!has(self.init.adminUser) && !has(self.init.loadExamples))",message="init.command is mutually exclusive with init.adminUser and init.loadExamples"
+type LifecycleSpec struct {
+	// UpgradeMode controls whether upgrades require manual approval.
+	// Automatic runs immediately on image change; Supervised waits for an
+	// approval annotation before proceeding.
 	// +optional
-	PodTemplate *PodTemplate `json:"podTemplate,omitempty"`
+	// +kubebuilder:validation:Enum=Automatic;Supervised
+	// +kubebuilder:default=Automatic
+	UpgradeMode *string `json:"upgradeMode,omitempty"`
 
-	// Per-init raw Python appended after top-level config.
+	// Set to true to skip all lifecycle tasks entirely.
 	// +optional
-	Config *string `json:"config,omitempty"`
+	Disabled *bool `json:"disabled,omitempty"`
 
-	// Image override for init pods.
+	// Image override for lifecycle task pods.
 	// +optional
 	Image *ImageOverrideSpec `json:"image,omitempty"`
 
-	// Command to execute during initialization. When empty, the operator
-	// constructs the command from base steps (db upgrade + init) and any
-	// adminUser/loadExamples options. Mutually exclusive with adminUser
-	// and loadExamples.
+	// Pod and container template for lifecycle task pods.
+	// +optional
+	PodTemplate *PodTemplate `json:"podTemplate,omitempty"`
+
+	// Pod retention policy for completed task pods.
+	// +optional
+	PodRetention *PodRetentionSpec `json:"podRetention,omitempty"`
+
+	// Per-lifecycle raw Python appended after top-level config.
+	// +optional
+	Config *string `json:"config,omitempty"`
+
+	// Per-lifecycle SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely).
+	// +optional
+	SQLAlchemyEngineOptions *SQLAlchemyEngineOptionsSpec `json:"sqlaEngineOptions,omitempty"`
+
+	// Database migration task configuration.
+	// +optional
+	Migrate *MigrateTaskSpec `json:"migrate,omitempty"`
+
+	// Application initialization task configuration.
+	// +optional
+	Init *InitTaskSpec `json:"init,omitempty"`
+}
+
+// MigrateTaskSpec defines when and how the database migration task runs.
+type MigrateTaskSpec struct {
+	// Strategy controls when the migrate task runs.
+	// VersionChange: only on image changes (default).
+	// Always: every reconcile.
+	// Never: skip (user manages migrations externally).
+	// +optional
+	// +kubebuilder:validation:Enum=VersionChange;Always;Never
+	// +kubebuilder:default=VersionChange
+	Strategy *string `json:"strategy,omitempty"`
+
+	// Command override for the migration task.
+	// Default: ["sh", "-c", "superset db upgrade"]
 	// +listType=atomic
 	Command []string `json:"command,omitempty"`
 
-	// Set to true to skip initialization entirely.
+	// Maximum timeout per attempt.
 	// +optional
-	Disabled *bool `json:"disabled,omitempty"`
+	Timeout *metav1.Duration `json:"timeout,omitempty"`
+
+	// Maximum number of retries before permanent failure.
+	// +optional
+	// +kubebuilder:default=3
+	// +kubebuilder:validation:Minimum=1
+	MaxRetries *int32 `json:"maxRetries,omitempty"`
+}
+
+// InitTaskSpec defines when and how the application initialization task runs.
+type InitTaskSpec struct {
+	// Strategy controls when the init task runs.
+	// VersionChange: only on image changes (default).
+	// Always: every reconcile.
+	// Never: skip entirely.
+	// +optional
+	// +kubebuilder:validation:Enum=VersionChange;Always;Never
+	// +kubebuilder:default=VersionChange
+	Strategy *string `json:"strategy,omitempty"`
+
+	// Command override for the init task.
+	// Default: ["sh", "-c", "superset init"]
+	// Mutually exclusive with adminUser and loadExamples.
+	// +listType=atomic
+	Command []string `json:"command,omitempty"`
+
+	// Maximum timeout per attempt.
+	// +optional
+	Timeout *metav1.Duration `json:"timeout,omitempty"`
+
+	// Maximum number of retries before permanent failure.
+	// +optional
+	// +kubebuilder:default=3
+	// +kubebuilder:validation:Minimum=1
+	MaxRetries *int32 `json:"maxRetries,omitempty"`
 
 	// Admin user to create during initialization. Only allowed in dev mode.
 	// When set, the operator appends a superset fab create-admin step to the init command.
@@ -269,24 +340,6 @@ type InitSpec struct {
 	// When true, the operator appends a superset load-examples step to the init command.
 	// +optional
 	LoadExamples *bool `json:"loadExamples,omitempty"`
-
-	// Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely).
-	// +optional
-	SQLAlchemyEngineOptions *SQLAlchemyEngineOptionsSpec `json:"sqlaEngineOptions,omitempty"`
-
-	// Maximum timeout for the init pod. Default: 300s.
-	// +optional
-	Timeout *metav1.Duration `json:"timeout,omitempty"`
-
-	// Maximum number of retries before permanent failure. Default: 3.
-	// +optional
-	// +kubebuilder:default=3
-	// +kubebuilder:validation:Minimum=1
-	MaxRetries *int32 `json:"maxRetries,omitempty"`
-
-	// Pod retention policy for completed init pods.
-	// +optional
-	PodRetention *PodRetentionSpec `json:"podRetention,omitempty"`
 }
 
 // AdminUserSpec defines admin user credentials for dev-mode initialization.
@@ -448,18 +501,71 @@ type SupersetStatus struct {
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 	// +optional
 	Components *ComponentStatusMap `json:"components,omitempty"`
+	// Lifecycle tracks the current lifecycle state.
 	// +optional
-	Init *InitTaskStatus `json:"init,omitempty"`
+	Lifecycle *LifecycleStatus `json:"lifecycle,omitempty"`
+	// Last image (repository:tag) that successfully completed the lifecycle.
+	// Used to detect image changes on subsequent reconciles.
+	// +optional
+	LastLifecycleImage string `json:"lastLifecycleImage,omitempty"`
 	// +optional
 	Version string `json:"version,omitempty"`
-	// +optional
-	MigrationRevision string `json:"migrationRevision,omitempty"`
 	// +optional
 	ConfigChecksum string `json:"configChecksum,omitempty"`
 	// High-level phase.
 	// +optional
-	// +kubebuilder:validation:Enum=Initializing;Running;Degraded;Suspended
+	// +kubebuilder:validation:Enum=Initializing;Upgrading;Running;Degraded;Suspended;Blocked;AwaitingApproval
 	Phase string `json:"phase,omitempty"`
+}
+
+// LifecycleStatus tracks the current lifecycle task execution state.
+type LifecycleStatus struct {
+	// Phase of the lifecycle: Idle, Migrating, Initializing, Complete, Blocked, AwaitingApproval.
+	// +optional
+	Phase string `json:"phase,omitempty"`
+	// Migrate task status summary.
+	// +optional
+	Migrate *TaskRefStatus `json:"migrate,omitempty"`
+	// Init task status summary.
+	// +optional
+	Init *TaskRefStatus `json:"init,omitempty"`
+	// Upgrade context (populated during active upgrade).
+	// +optional
+	Upgrade *UpgradeContext `json:"upgrade,omitempty"`
+}
+
+// TaskRefStatus holds the projected status summary of a lifecycle task.
+type TaskRefStatus struct {
+	// +optional
+	// +kubebuilder:validation:Enum=Pending;Running;Complete;Failed
+	State string `json:"state,omitempty"`
+	// +optional
+	StartedAt *metav1.Time `json:"startedAt,omitempty"`
+	// +optional
+	CompletedAt *metav1.Time `json:"completedAt,omitempty"`
+	// +optional
+	Duration string `json:"duration,omitempty"`
+	// +optional
+	Attempts int32 `json:"attempts,omitempty"`
+	// +optional
+	PodName string `json:"podName,omitempty"`
+	// +optional
+	Image string `json:"image,omitempty"`
+	// +optional
+	Message string `json:"message,omitempty"`
+}
+
+// UpgradeContext tracks the current upgrade operation.
+type UpgradeContext struct {
+	// +optional
+	FromVersion string `json:"fromVersion,omitempty"`
+	// +optional
+	ToVersion string `json:"toVersion,omitempty"`
+	// +optional
+	// +kubebuilder:validation:Enum=Upgrade;Downgrade;Unknown
+	Direction string `json:"direction,omitempty"`
+	// +optional
+	StartedAt *metav1.Time `json:"startedAt,omitempty"`
 }
 
 // ComponentStatusMap holds status for each component.
@@ -489,31 +595,6 @@ type ComponentRefStatus struct {
 	ConfigChecksum string `json:"configChecksum,omitempty"`
 }
 
-// InitTaskStatus reports the status of the init task.
-type InitTaskStatus struct {
-	// +optional
-	// +kubebuilder:validation:Enum=Pending;Running;Complete;Failed
-	State string `json:"state,omitempty"`
-	// +optional
-	Revision string `json:"revision,omitempty"`
-	// +optional
-	PreviousRevision string `json:"previousRevision,omitempty"`
-	// +optional
-	StartedAt *metav1.Time `json:"startedAt,omitempty"`
-	// +optional
-	CompletedAt *metav1.Time `json:"completedAt,omitempty"`
-	// +optional
-	Duration string `json:"duration,omitempty"`
-	// +optional
-	Attempts int32 `json:"attempts,omitempty"`
-	// +optional
-	PodName string `json:"podName,omitempty"`
-	// +optional
-	Image string `json:"image,omitempty"`
-	// +optional
-	Message string `json:"message,omitempty"`
-}
-
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Version",type=string,JSONPath=`.status.version`
@@ -528,7 +609,7 @@ type InitTaskStatus struct {
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.celeryFlower) || size(self.metadata.name) <= 49",message="metadata.name must be at most 49 characters when celeryFlower is enabled (sub-resource suffix '-celery-flower' is 14 chars)"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.websocketServer) || size(self.metadata.name) <= 46",message="metadata.name must be at most 46 characters when websocketServer is enabled (sub-resource suffix '-websocket-server' is 17 chars)"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.mcpServer) || size(self.metadata.name) <= 52",message="metadata.name must be at most 52 characters when mcpServer is enabled (sub-resource suffix '-mcp-server' is 11 chars)"
-// +kubebuilder:validation:XValidation:rule="(has(self.spec.init) && has(self.spec.init.disabled) && self.spec.init.disabled == true) || size(self.metadata.name) <= 58",message="metadata.name must be at most 58 characters when init is enabled (sub-resource suffix '-init' is 5 chars)"
+// +kubebuilder:validation:XValidation:rule="(has(self.spec.lifecycle) && has(self.spec.lifecycle.disabled) && self.spec.lifecycle.disabled == true) || size(self.metadata.name) <= 55",message="metadata.name must be at most 55 characters when lifecycle is enabled (task suffix '-migrate' is 8 chars)"
 
 // Superset is the top-level resource representing a complete Superset deployment.
 type Superset struct {

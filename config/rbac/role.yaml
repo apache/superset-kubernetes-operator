@@ -115,8 +115,8 @@ rules:
   - supersetcelerybeats
   - supersetceleryflowers
   - supersetceleryworkers
-  - supersetinits
   - supersetmcpservers
+  - supersettasks
   - supersetwebservers
   - supersetwebsocketservers
   verbs:
@@ -133,9 +133,9 @@ rules:
   - supersetcelerybeats/status
   - supersetceleryflowers/status
   - supersetceleryworkers/status
-  - supersetinits/status
   - supersetmcpservers/status
   - supersets/status
+  - supersettasks/status
   - supersetwebservers/status
   - supersetwebsocketservers/status
   verbs:

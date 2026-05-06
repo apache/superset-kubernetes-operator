@@ -22,17 +22,29 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// SupersetInitSpec defines the fully-resolved spec for initialization.
-type SupersetInitSpec struct {
+// SupersetTaskSpec defines the fully-resolved spec for a lifecycle task.
+type SupersetTaskSpec struct {
 	FlatComponentSpec `json:",inline"`
+
+	// Type identifies the task purpose.
+	// +kubebuilder:validation:Enum=Migrate;Init
+	Type string `json:"type"`
+
+	// Command to execute in the task pod.
+	// +listType=atomic
+	Command []string `json:"command"`
 
 	// Rendered superset_config.py content.
 	// +optional
 	Config string `json:"config,omitempty"`
 
-	// Config checksum for detecting config changes.
+	// Config checksum for detecting changes that require re-run.
 	// +optional
 	ConfigChecksum string `json:"configChecksum,omitempty"`
+
+	// Maximum timeout per task pod attempt.
+	// +optional
+	Timeout *metav1.Duration `json:"timeout,omitempty"`
 
 	// Maximum number of retries before permanent failure.
 	// +optional
@@ -40,17 +52,13 @@ type SupersetInitSpec struct {
 	// +kubebuilder:validation:Minimum=1
 	MaxRetries *int32 `json:"maxRetries,omitempty"`
 
-	// Maximum timeout per init pod attempt.
-	// +optional
-	Timeout *metav1.Duration `json:"timeout,omitempty"`
-
-	// Pod retention policy for completed init pods.
+	// Pod retention policy for completed task pods.
 	// +optional
 	PodRetention *PodRetentionSpec `json:"podRetention,omitempty"`
 }
 
-// SupersetInitStatus reports the status of initialization.
-type SupersetInitStatus struct {
+// SupersetTaskStatus reports the status of a lifecycle task.
+type SupersetTaskStatus struct {
 	// +optional
 	// +kubebuilder:validation:Enum=Pending;Running;Complete;Failed
 	State string `json:"state,omitempty"`
@@ -68,8 +76,8 @@ type SupersetInitStatus struct {
 	Image string `json:"image,omitempty"`
 	// +optional
 	Message string `json:"message,omitempty"`
-	// Config checksum that was active when init last completed.
-	// Used to detect config changes and trigger re-initialization.
+	// Config checksum that was active when the task last completed.
+	// Used to detect changes and trigger re-execution.
 	// +optional
 	ConfigChecksum string `json:"configChecksum,omitempty"`
 	// +optional
@@ -80,31 +88,32 @@ type SupersetInitStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Type",type=string,JSONPath=`.spec.type`
 // +kubebuilder:printcolumn:name="State",type=string,JSONPath=`.status.state`
 // +kubebuilder:printcolumn:name="Attempts",type=integer,JSONPath=`.status.attempts`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
-// +kubebuilder:validation:XValidation:rule="size(self.metadata.name) <= 58",message="metadata.name must be at most 58 characters (sub-resource suffix '-init' requires 5 characters within the 63-character Service name limit)"
+// +kubebuilder:validation:XValidation:rule="size(self.metadata.name) <= 54",message="metadata.name must be at most 54 characters (sub-resource suffix '-migrate' requires 9 characters within the 63-character Service name limit)"
 // +kubebuilder:validation:XValidation:rule="self.metadata.name.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')",message="metadata.name must be a valid DNS label (lowercase alphanumeric and hyphens only, no dots or underscores); the operator derives Service names from CR names"
 
-// SupersetInit is the Schema for the supersetinits API.
-// It manages the initialization lifecycle (database migrations, init commands).
-type SupersetInit struct {
+// SupersetTask is the Schema for the supersettasks API.
+// It manages lifecycle tasks (database migrations, init commands, probes).
+type SupersetTask struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   SupersetInitSpec   `json:"spec,omitempty"`
-	Status SupersetInitStatus `json:"status,omitempty"`
+	Spec   SupersetTaskSpec   `json:"spec,omitempty"`
+	Status SupersetTaskStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// SupersetInitList contains a list of SupersetInit.
-type SupersetInitList struct {
+// SupersetTaskList contains a list of SupersetTask.
+type SupersetTaskList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []SupersetInit `json:"items"`
+	Items           []SupersetTask `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&SupersetInit{}, &SupersetInitList{})
+	SchemeBuilder.Register(&SupersetTask{}, &SupersetTaskList{})
 }

@@ -25,6 +25,6 @@ resources:
 - superset_admin_role.yaml
 - superset_editor_role.yaml
 - superset_viewer_role.yaml
-- supersetinit_admin_role.yaml
-- supersetinit_editor_role.yaml
-- supersetinit_viewer_role.yaml
+- supersettask_admin_role.yaml
+- supersettask_editor_role.yaml
+- supersettask_viewer_role.yaml

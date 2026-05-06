@@ -108,7 +108,7 @@ func TestReconcileNetworking_GatewayEnabled_CreatesHTTPRoute(t *testing.T) {
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
-			Init:      &supersetv1alpha1.InitSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Gateway: &supersetv1alpha1.GatewaySpec{
 					GatewayRef: gatewayv1.ParentReference{
@@ -164,7 +164,7 @@ func TestReconcileHTTPRoute_WithWebsocket(t *testing.T) {
 			Image:           supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer:       &supersetv1alpha1.WebServerComponentSpec{},
 			WebsocketServer: &supersetv1alpha1.WebsocketServerComponentSpec{},
-			Init:            &supersetv1alpha1.InitSpec{Disabled: boolPtr(true)},
+			Lifecycle:       &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Gateway: &supersetv1alpha1.GatewaySpec{
 					GatewayRef: gatewayv1.ParentReference{
@@ -213,7 +213,7 @@ func TestReconcileHTTPRoute_WithMcpServer(t *testing.T) {
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
 			McpServer: &supersetv1alpha1.McpServerComponentSpec{},
-			Init:      &supersetv1alpha1.InitSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Gateway: &supersetv1alpha1.GatewaySpec{
 					GatewayRef: gatewayv1.ParentReference{
@@ -261,7 +261,7 @@ func TestReconcileHTTPRoute_WithCeleryFlower(t *testing.T) {
 			Image:        supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer:    &supersetv1alpha1.WebServerComponentSpec{},
 			CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{},
-			Init:         &supersetv1alpha1.InitSpec{Disabled: boolPtr(true)},
+			Lifecycle:    &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Gateway: &supersetv1alpha1.GatewaySpec{
 					GatewayRef: gatewayv1.ParentReference{
@@ -322,7 +322,7 @@ func TestReconcileHTTPRoute_CustomGatewayPaths(t *testing.T) {
 				ComponentSpec:         supersetv1alpha1.ComponentSpec{},
 				Service:               &supersetv1alpha1.ComponentServiceSpec{GatewayPath: &customMcpPath},
 			},
-			Init: &supersetv1alpha1.InitSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Gateway: &supersetv1alpha1.GatewaySpec{
 					GatewayRef: gatewayv1.ParentReference{
@@ -388,7 +388,7 @@ func TestReconcileIngress_CreatesIngress(t *testing.T) {
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
-			Init:      &supersetv1alpha1.InitSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Ingress: &supersetv1alpha1.IngressSpec{
 					ClassName: &className,
@@ -446,7 +446,7 @@ func TestReconcileIngress_HostFallback(t *testing.T) {
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
-			Init:      &supersetv1alpha1.InitSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Ingress: &supersetv1alpha1.IngressSpec{
 					Host: "fallback.example.com",
@@ -488,7 +488,7 @@ func TestReconcileIngress_WithTLS(t *testing.T) {
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
-			Init:      &supersetv1alpha1.InitSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Ingress: &supersetv1alpha1.IngressSpec{
 					Hosts: []supersetv1alpha1.IngressHost{

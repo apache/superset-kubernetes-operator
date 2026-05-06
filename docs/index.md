@@ -99,9 +99,10 @@ $ kubectl get supersets
 NAME           PHASE     VERSION   AGE
 my-superset    Running   latest     5m
 
-$ kubectl get supersetinits
-NAME                PHASE      ATTEMPTS   AGE
-my-superset         Complete   1          5m
+$ kubectl get supersettasks
+NAME                     PHASE      ATTEMPTS   AGE
+my-superset-migrate      Complete   1          5m
+my-superset-init         Complete   1          5m
 
 $ kubectl get pods -l app.kubernetes.io/name=superset
 NAME                                          READY   STATUS    AGE
