@@ -195,6 +195,26 @@ To verify the docs build cleanly (same check that runs in CI):
 make docs-build
 ```
 
+### Diagrams
+
+Use Mermaid for flow diagrams. Keep them compact with the following conventions:
+
+- Use `flowchart TD` (top-down) for state machines and lifecycle flows
+- Set font size to 12px via init config: `%%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '12px'}}}%%`
+- Use short node labels (abbreviate where clear from context)
+- Prefer single-letter node IDs (`A`, `B`, `C`) for readability of the source
+
+Example:
+````markdown
+```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '12px'}}}%%
+flowchart TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Action]
+    B -->|No| D[Skip]
+```
+````
+
 ### API Reference
 
 The [API reference](api-reference.md) is generated from Go type definitions using [`crd-ref-docs`](https://github.com/elastic/crd-ref-docs). After modifying types in `api/v1alpha1/`, run `make codegen` to regenerate all generated artifacts (CRDs, DeepCopy, Helm CRDs, API docs). CI verifies nothing is stale.

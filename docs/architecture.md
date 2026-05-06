@@ -317,6 +317,39 @@ image is detected:
 - **Supervised** — tasks wait for an annotation-based approval before running,
   allowing operators to review and approve upgrades manually
 
+The `upgradeStrategy` controls component behavior during migrations:
+
+- **Rolling** (default) — components stay up while tasks run
+- **Drain** — all component child CRs are deleted before tasks run, eliminating
+  metastore deadlocks and ensuring components restart against the new schema
+
+### Lifecycle Flow
+
+The following diagram shows the lifecycle state machine. Optional steps activate
+based on `upgradeMode` and `upgradeStrategy` settings.
+
+```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '12px'}}}%%
+flowchart TD
+    A[Image changed] --> B{Downgrade?}
+    B -->|Yes| C[Blocked]
+    B -->|No| D{upgradeMode}
+    D -->|Automatic| F
+    D -->|Supervised| E[Await approval]
+    E --> F{migrate strategy}
+    F -->|Never| I
+    F -->|VersionChange / Always| G{upgradeStrategy}
+    G -->|Rolling| H[Migrate pod]
+    G -->|Drain| G1[Delete child CRs] --> G2[Wait for GC] --> H
+    H --> I{init strategy}
+    I -->|Never| K[Complete]
+    I -->|VersionChange / Always| J[Init pod]
+    J --> K
+```
+
+For first deployments (no previous image), the flow starts at the strategy check
+(no downgrade comparison or approval needed).
+
 ### Downgrade Blocking
 
 The operator performs semver comparison on image tags. If the new tag is lower

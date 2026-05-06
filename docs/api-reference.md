@@ -560,6 +560,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `upgradeMode` _string_ | UpgradeMode controls whether upgrades require manual approval.<br />Automatic runs immediately on image change; Supervised waits for an<br />approval annotation before proceeding. | Automatic | Enum: [Automatic Supervised] <br />Optional: \{\} <br /> |
+| `upgradeStrategy` _string_ | UpgradeStrategy controls component behavior during database migrations.<br />Rolling (default): tasks run while existing components stay up.<br />Drain: all components scale to 0 before tasks run, avoiding metastore deadlocks. | Rolling | Enum: [Rolling Drain] <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Set to true to skip all lifecycle tasks entirely. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image override for lifecycle task pods. |  | Optional: \{\} <br /> |
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for lifecycle task pods. |  | Optional: \{\} <br /> |

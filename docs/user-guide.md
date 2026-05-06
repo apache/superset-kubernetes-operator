@@ -448,6 +448,35 @@ The `upgradeMode` field controls how image upgrades are handled:
 The operator also performs semver comparison on image tags and blocks downgrades
 to prevent accidental database corruption.
 
+#### Upgrade Strategy
+
+The `upgradeStrategy` field controls component behavior during database migrations:
+
+- **Rolling** (default) — lifecycle tasks run while existing components stay up. This works well for most minor/patch upgrades where migrations are additive and backward-compatible.
+- **Drain** — all component child CRs are deleted before tasks run, ensuring no application pods are connected to the metastore during schema changes. After tasks complete, components are recreated with the new image.
+
+Use `Drain` when:
+- Migrations alter or drop existing columns/tables (breaking backward compatibility)
+- You've experienced metastore deadlocks from concurrent access during migrations
+- You want to ensure components always start fresh against the new schema (no stale state or incompatible ORM mappings)
+
+```yaml
+spec:
+  lifecycle:
+    upgradeStrategy: Drain
+    migrate:
+      strategy: VersionChange
+    init:
+      strategy: VersionChange
+```
+
+During a drain, Ingress/HTTPRoute and NetworkPolicy resources are preserved (they
+are owned by the parent CR, not child CRs). Once lifecycle tasks complete,
+components are recreated and traffic resumes automatically.
+
+See the [lifecycle flow diagram](architecture.md#lifecycle-flow) for a visual
+overview of how upgrade mode, upgrade strategy, and task strategies interact.
+
 #### Custom Commands
 
 ```yaml

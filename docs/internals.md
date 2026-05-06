@@ -66,6 +66,11 @@ Tasks run sequentially: migrate must complete before init starts. The task
 strategy (default: `VersionChange`) determines whether tasks are triggered —
 with the default strategy, tasks only run when the Superset image changes.
 
+When `upgradeStrategy: Drain` is set, the operator deletes all component child
+CRs before running tasks. This cascades to Deployments, Services, and HPAs via
+garbage collection, ensuring no application pods access the metastore during
+schema changes. After tasks complete, Phase 4 recreates all components fresh.
+
 Components do not deploy until both lifecycle tasks complete (or lifecycle is
 explicitly disabled via `spec.lifecycle.disabled: true`). If a task is in
 progress or has failed, `Reconcile()` returns early with a requeue, skipping

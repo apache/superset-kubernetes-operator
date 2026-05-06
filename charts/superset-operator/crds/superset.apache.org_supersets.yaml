@@ -15652,6 +15652,12 @@ spec:
                     - Automatic
                     - Supervised
                     type: string
+                  upgradeStrategy:
+                    default: Rolling
+                    enum:
+                    - Rolling
+                    - Drain
+                    type: string
                 type: object
                 x-kubernetes-validations:
                 - message: init.command is mutually exclusive with init.adminUser

@@ -244,6 +244,14 @@ type LifecycleSpec struct {
 	// +kubebuilder:default=Automatic
 	UpgradeMode *string `json:"upgradeMode,omitempty"`
 
+	// UpgradeStrategy controls component behavior during database migrations.
+	// Rolling (default): tasks run while existing components stay up.
+	// Drain: all components scale to 0 before tasks run, avoiding metastore deadlocks.
+	// +optional
+	// +kubebuilder:validation:Enum=Rolling;Drain
+	// +kubebuilder:default=Rolling
+	UpgradeStrategy *string `json:"upgradeStrategy,omitempty"`
+
 	// Set to true to skip all lifecycle tasks entirely.
 	// +optional
 	Disabled *bool `json:"disabled,omitempty"`

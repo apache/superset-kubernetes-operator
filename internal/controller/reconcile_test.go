@@ -23,6 +23,7 @@ import (
 	"strings"
 	"testing"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -55,6 +56,9 @@ func testScheme(t *testing.T) *runtime.Scheme {
 	}
 	if err := corev1.AddToScheme(s); err != nil {
 		t.Fatalf("AddToScheme(corev1): %v", err)
+	}
+	if err := appsv1.AddToScheme(s); err != nil {
+		t.Fatalf("AddToScheme(appsv1): %v", err)
 	}
 	if err := networkingv1.AddToScheme(s); err != nil {
 		t.Fatalf("AddToScheme(networkingv1): %v", err)
@@ -1377,5 +1381,257 @@ func TestReconcile_InitTerminalFailure_NoRequeue(t *testing.T) {
 
 	if result.RequeueAfter != 0 {
 		t.Errorf("expected no requeue for terminal init failure, got RequeueAfter=%v", result.RequeueAfter)
+	}
+}
+
+func TestReconcile_DowngradeBlocked(t *testing.T) {
+	scheme := testScheme(t)
+
+	spec := minimalSupersetSpec()
+	spec.Image.Tag = "4.0.0"
+	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{}
+
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec:       spec,
+		Status: supersetv1alpha1.SupersetStatus{
+			LastLifecycleImage: "apache/superset:4.1.0",
+		},
+	}
+
+	c := reconcileOnce(t, scheme, superset).
+		WithStatusSubresource(&supersetv1alpha1.SupersetTask{}).
+		Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	result, err := r.Reconcile(context.Background(), reconcile.Request{
+		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
+	})
+	if err != nil {
+		t.Fatalf("reconcile failed: %v", err)
+	}
+	if result.RequeueAfter != 0 {
+		t.Errorf("expected no requeue for blocked downgrade, got RequeueAfter=%v", result.RequeueAfter)
+	}
+
+	updated := &supersetv1alpha1.Superset{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, updated); err != nil {
+		t.Fatalf("get superset: %v", err)
+	}
+	if updated.Status.Phase != "Blocked" {
+		t.Errorf("expected phase Blocked, got %q", updated.Status.Phase)
+	}
+
+	tasks := &supersetv1alpha1.SupersetTaskList{}
+	if err := c.List(context.Background(), tasks); err != nil {
+		t.Fatalf("list tasks: %v", err)
+	}
+	if len(tasks.Items) != 0 {
+		t.Errorf("expected no task CRs for blocked downgrade, got %d", len(tasks.Items))
+	}
+}
+
+func TestReconcile_SupervisedMode_AwaitsApproval(t *testing.T) {
+	scheme := testScheme(t)
+
+	supervised := "Supervised"
+	spec := minimalSupersetSpec()
+	spec.Image.Tag = "4.1.0"
+	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		UpgradeMode: &supervised,
+	}
+
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec:       spec,
+		Status: supersetv1alpha1.SupersetStatus{
+			LastLifecycleImage: "apache/superset:4.0.0",
+		},
+	}
+
+	c := reconcileOnce(t, scheme, superset).
+		WithStatusSubresource(&supersetv1alpha1.SupersetTask{}).
+		Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r, "test")
+
+	ctx := context.Background()
+	updated := &supersetv1alpha1.Superset{}
+	if err := c.Get(ctx, types.NamespacedName{Name: "test", Namespace: "default"}, updated); err != nil {
+		t.Fatalf("get superset: %v", err)
+	}
+	if updated.Status.Phase != "AwaitingApproval" {
+		t.Errorf("expected phase AwaitingApproval, got %q", updated.Status.Phase)
+	}
+
+	tasks := &supersetv1alpha1.SupersetTaskList{}
+	if err := c.List(ctx, tasks); err != nil {
+		t.Fatalf("list tasks: %v", err)
+	}
+	if len(tasks.Items) != 0 {
+		t.Errorf("expected no task CRs before approval, got %d", len(tasks.Items))
+	}
+
+	// Approve and reconcile again.
+	updated.Annotations = map[string]string{"superset.apache.org/approve-upgrade": "true"}
+	if err := c.Update(ctx, updated); err != nil {
+		t.Fatalf("update superset with approval: %v", err)
+	}
+	doReconcile(t, r, "test")
+
+	migrateCR := &supersetv1alpha1.SupersetTask{}
+	if err := c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, migrateCR); err != nil {
+		t.Fatalf("expected migrate CR after approval: %v", err)
+	}
+}
+
+func TestReconcile_ImageUnchanged_SkipsLifecycleTasks(t *testing.T) {
+	scheme := testScheme(t)
+
+	spec := minimalSupersetSpec()
+	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{}
+
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec:       spec,
+		Status: supersetv1alpha1.SupersetStatus{
+			LastLifecycleImage: "apache/superset:latest",
+		},
+	}
+
+	c := reconcileOnce(t, scheme, superset).
+		WithStatusSubresource(&supersetv1alpha1.SupersetTask{}).
+		Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r, "test")
+
+	tasks := &supersetv1alpha1.SupersetTaskList{}
+	if err := c.List(context.Background(), tasks); err != nil {
+		t.Fatalf("list tasks: %v", err)
+	}
+	if len(tasks.Items) != 0 {
+		t.Errorf("expected no task CRs when image unchanged, got %d", len(tasks.Items))
+	}
+
+	ww := &supersetv1alpha1.SupersetWebServer{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, ww); err != nil {
+		t.Fatalf("expected web server when lifecycle already complete: %v", err)
+	}
+}
+
+func TestReconcile_StrategyNever_SkipsMigrateTask(t *testing.T) {
+	scheme := testScheme(t)
+
+	never := "Never"
+	spec := minimalSupersetSpec()
+	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		Migrate: &supersetv1alpha1.MigrateTaskSpec{Strategy: &never},
+	}
+
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec:       spec,
+	}
+
+	c := reconcileOnce(t, scheme, superset).
+		WithStatusSubresource(&supersetv1alpha1.SupersetTask{}).
+		Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r, "test")
+
+	ctx := context.Background()
+
+	migrateCR := &supersetv1alpha1.SupersetTask{}
+	err := c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, migrateCR)
+	if !errors.IsNotFound(err) {
+		t.Fatalf("expected migrate CR to not exist (strategy=Never), got err: %v", err)
+	}
+
+	initCR := &supersetv1alpha1.SupersetTask{}
+	if err := c.Get(ctx, types.NamespacedName{Name: "test-init", Namespace: "default"}, initCR); err != nil {
+		t.Fatalf("expected init CR to exist: %v", err)
+	}
+}
+
+func TestReconcile_StrategyAlways_RunsOnConfigChange(t *testing.T) {
+	scheme := testScheme(t)
+
+	always := "Always"
+	never := "Never"
+	spec := minimalSupersetSpec()
+	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		Migrate: &supersetv1alpha1.MigrateTaskSpec{Strategy: &always},
+		Init:    &supersetv1alpha1.InitTaskSpec{Strategy: &never},
+	}
+
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec:       spec,
+		Status: supersetv1alpha1.SupersetStatus{
+			LastLifecycleImage: "apache/superset:latest",
+		},
+	}
+
+	c := reconcileOnce(t, scheme, superset).
+		WithStatusSubresource(&supersetv1alpha1.SupersetTask{}).
+		Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r, "test")
+
+	ctx := context.Background()
+
+	migrateCR := &supersetv1alpha1.SupersetTask{}
+	if err := c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, migrateCR); err != nil {
+		t.Fatalf("expected migrate CR with strategy=Always even when image unchanged: %v", err)
+	}
+}
+
+func TestReconcile_DrainStrategy_DeletesChildCRs(t *testing.T) {
+	scheme := testScheme(t)
+
+	drain := "Drain"
+	spec := minimalSupersetSpec()
+	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		UpgradeStrategy: &drain,
+	}
+
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec:       spec,
+	}
+
+	// Pre-create a WebServer child CR (simulating existing deployment).
+	webServer := &supersetv1alpha1.SupersetWebServer{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "default",
+			Labels:    map[string]string{common.LabelKeyParent: "test"},
+		},
+	}
+
+	c := reconcileOnce(t, scheme, superset).
+		WithObjects(webServer).
+		WithStatusSubresource(&supersetv1alpha1.SupersetTask{}, &supersetv1alpha1.SupersetWebServer{}).
+		Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r, "test")
+
+	ctx := context.Background()
+
+	// WebServer child CR should be deleted (drain deletes children before migrate).
+	ws := &supersetv1alpha1.SupersetWebServer{}
+	err := c.Get(ctx, types.NamespacedName{Name: "test", Namespace: "default"}, ws)
+	if !errors.IsNotFound(err) {
+		t.Fatalf("expected WebServer child CR to be deleted during drain, got err: %v", err)
+	}
+
+	// Status should show lifecycle is in progress (drain completed immediately
+	// in fake client since no Deployments exist, so it moved to migrate phase).
+	updated := &supersetv1alpha1.Superset{}
+	if err := c.Get(ctx, types.NamespacedName{Name: "test", Namespace: "default"}, updated); err != nil {
+		t.Fatalf("get superset: %v", err)
+	}
+	if updated.Status.Phase != "Upgrading" && updated.Status.Phase != "Draining" {
+		t.Errorf("expected phase Upgrading or Draining, got %q", updated.Status.Phase)
 	}
 }

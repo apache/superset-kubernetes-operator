@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -74,6 +75,7 @@ type SupersetReconciler struct {
 // +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch;update
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=list;watch
 
 func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
@@ -293,6 +295,7 @@ const (
 	upgradeModeSupervsied = "Supervised"
 
 	lifecyclePhaseIdle             = "Idle"
+	lifecyclePhaseDraining         = "Draining"
 	lifecyclePhaseMigrating        = "Migrating"
 	lifecyclePhaseInitializing     = "Initializing"
 	lifecyclePhaseComplete         = "Complete"
@@ -301,7 +304,11 @@ const (
 
 	annotationApproveUpgrade = "superset.apache.org/approve-upgrade"
 
+	upgradeStrategyRolling = "Rolling"
+	upgradeStrategyDrain   = "Drain"
+
 	phaseUpgrading        = "Upgrading"
+	phaseDraining         = "Draining"
 	phaseBlocked          = "Blocked"
 	phaseAwaitingApproval = "AwaitingApproval"
 )
@@ -354,20 +361,10 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		return gateResult, false, nil
 	}
 
-	// Determine which tasks need to run.
-	migrateNeeded := r.taskNeeded(superset, taskTypeMigrate, imageChanged)
-	initNeeded := r.taskNeeded(superset, taskTypeInit, imageChanged)
-
-	// Prune task CRs when strategy is Never.
-	if !migrateNeeded && r.taskStrategy(superset, taskTypeMigrate) == strategyNever {
-		if err := r.deleteTaskCR(ctx, superset.Name+suffixMigrate, superset.Namespace); err != nil {
-			return 0, false, fmt.Errorf("deleting migrate task CR: %w", err)
-		}
-	}
-	if !initNeeded && r.taskStrategy(superset, taskTypeInit) == strategyNever {
-		if err := r.deleteTaskCR(ctx, superset.Name+suffixInit, superset.Namespace); err != nil {
-			return 0, false, fmt.Errorf("deleting init task CR: %w", err)
-		}
+	// Determine which tasks need to run and prune disabled task CRs.
+	migrateNeeded, initNeeded, err := r.resolveTaskNeeds(ctx, superset, imageChanged)
+	if err != nil {
+		return 0, false, err
 	}
 
 	// If neither task is needed, lifecycle is complete.
@@ -376,6 +373,22 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
 			metav1.ConditionTrue, "LifecycleComplete", "Lifecycle tasks completed successfully", superset.Generation)
 		return 0, true, nil
+	}
+
+	// Drain strategy: delete all component child CRs before running tasks.
+	// Only drain when migrate is needed — init alone doesn't alter the schema.
+	if migrateNeeded && getUpgradeStrategy(superset) == upgradeStrategyDrain {
+		superset.Status.Lifecycle.Phase = lifecyclePhaseDraining
+		superset.Status.Phase = phaseDraining
+		drained, err := r.drainComponents(ctx, superset)
+		if err != nil {
+			return 0, false, fmt.Errorf("draining components: %w", err)
+		}
+		if !drained {
+			setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+				metav1.ConditionFalse, "Draining", "Scaling components to zero before migration", superset.Generation)
+			return taskRequeueInterval, false, nil
+		}
 	}
 
 	// Orchestrate: migrate first, then init.
@@ -675,6 +688,25 @@ func (r *SupersetReconciler) taskNeeded(superset *supersetv1alpha1.Superset, tas
 	}
 }
 
+// resolveTaskNeeds determines which tasks need to run and prunes CRs for disabled tasks.
+func (r *SupersetReconciler) resolveTaskNeeds(ctx context.Context, superset *supersetv1alpha1.Superset, imageChanged bool) (bool, bool, error) {
+	migrateNeeded := r.taskNeeded(superset, taskTypeMigrate, imageChanged)
+	initNeeded := r.taskNeeded(superset, taskTypeInit, imageChanged)
+
+	if !migrateNeeded && r.taskStrategy(superset, taskTypeMigrate) == strategyNever {
+		if err := r.deleteTaskCR(ctx, superset.Name+suffixMigrate, superset.Namespace); err != nil {
+			return false, false, fmt.Errorf("deleting migrate task CR: %w", err)
+		}
+	}
+	if !initNeeded && r.taskStrategy(superset, taskTypeInit) == strategyNever {
+		if err := r.deleteTaskCR(ctx, superset.Name+suffixInit, superset.Namespace); err != nil {
+			return false, false, fmt.Errorf("deleting init task CR: %w", err)
+		}
+	}
+
+	return migrateNeeded, initNeeded, nil
+}
+
 func (r *SupersetReconciler) taskStrategy(superset *supersetv1alpha1.Superset, taskType string) string {
 	if superset.Spec.Lifecycle == nil {
 		return strategyVersionChange
@@ -758,6 +790,13 @@ func getUpgradeMode(superset *supersetv1alpha1.Superset) string {
 	return upgradeModeAutomatic
 }
 
+func getUpgradeStrategy(superset *supersetv1alpha1.Superset) string {
+	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.UpgradeStrategy != nil {
+		return *superset.Spec.Lifecycle.UpgradeStrategy
+	}
+	return upgradeStrategyRolling
+}
+
 func isLifecycleDisabled(superset *supersetv1alpha1.Superset) bool {
 	return superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Disabled != nil && *superset.Spec.Lifecycle.Disabled
 }
@@ -771,6 +810,48 @@ func (r *SupersetReconciler) deleteTaskCR(ctx context.Context, name, namespace s
 		return err
 	}
 	return r.Delete(ctx, task)
+}
+
+// drainComponents deletes all component child CRs, which cascades to their
+// Deployments, Services, and HPAs via ownerReference garbage collection.
+// Returns (drained, error) where drained=true means no component Deployments remain.
+func (r *SupersetReconciler) drainComponents(ctx context.Context, superset *supersetv1alpha1.Superset) (bool, error) {
+	log := logf.FromContext(ctx)
+
+	// Delete child CRs for each component type (not task CRs).
+	for _, desc := range componentDescriptors {
+		if desc.extract(&superset.Spec) == nil {
+			continue
+		}
+		childName := superset.Name
+		childObj := desc.newChild()
+		childObj.SetName(childName)
+		childObj.SetNamespace(superset.Namespace)
+		if err := r.Delete(ctx, childObj); err != nil {
+			if !errors.IsNotFound(err) {
+				return false, fmt.Errorf("deleting child CR %s/%s: %w", desc.componentType, childName, err)
+			}
+		} else {
+			log.Info("Deleted child CR for drain", "component", desc.componentType)
+		}
+	}
+
+	// Check if any component Deployments still exist (waiting for GC).
+	deployList := &appsv1.DeploymentList{}
+	if err := r.List(ctx, deployList,
+		client.InNamespace(superset.Namespace),
+		client.MatchingLabels{naming.LabelKeyParent: superset.Name},
+	); err != nil {
+		return false, fmt.Errorf("listing deployments: %w", err)
+	}
+
+	if len(deployList.Items) > 0 {
+		log.Info("Waiting for component Deployments to be garbage collected", "remaining", len(deployList.Items))
+		return false, nil
+	}
+
+	log.Info("All components drained")
+	return true, nil
 }
 
 func resolveLifecycleImage(parentImage *supersetv1alpha1.ImageSpec, override *supersetv1alpha1.ImageOverrideSpec) string {

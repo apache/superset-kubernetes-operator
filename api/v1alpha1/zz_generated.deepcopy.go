@@ -852,6 +852,11 @@ func (in *LifecycleSpec) DeepCopyInto(out *LifecycleSpec) {
 		*out = new(string)
 		**out = **in
 	}
+	if in.UpgradeStrategy != nil {
+		in, out := &in.UpgradeStrategy, &out.UpgradeStrategy
+		*out = new(string)
+		**out = **in
+	}
 	if in.Disabled != nil {
 		in, out := &in.Disabled, &out.Disabled
 		*out = new(bool)
