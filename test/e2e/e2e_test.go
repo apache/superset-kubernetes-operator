@@ -283,7 +283,7 @@ spec:
   metastore:
     uri: postgresql+psycopg2://superset:superset@postgres:5432/superset
   webServer: {}
-  init:
+  lifecycle:
     disabled: true
 `
 			crFile := filepath.Join("/tmp", "test-simple-superset.yaml")
@@ -395,7 +395,7 @@ spec:
   celeryFlower: {}
   websocketServer: {}
   mcpServer: {}
-  init:
+  lifecycle:
     disabled: true
 `
 			crFile := filepath.Join("/tmp", "test-full-superset.yaml")
