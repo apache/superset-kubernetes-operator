@@ -47,6 +47,7 @@ jobs:
           scopes: |
             api
             controller
+            lifecycle
             resolution
             config
             helm
