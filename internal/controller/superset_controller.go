@@ -315,7 +315,6 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	topLevel *resolution.SharedInput,
 	saName string,
 ) (time.Duration, bool, error) {
-	log := logf.FromContext(ctx)
 
 	// Prune orphaned task CRs only when lifecycle is disabled.
 	if isLifecycleDisabled(superset) {
@@ -350,60 +349,26 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	lastImage := superset.Status.LastLifecycleImage
 	imageChanged := lastImage == "" || currentImage != lastImage
 
-	// Version comparison and downgrade blocking.
-	if imageChanged && lastImage != "" {
-		oldTag := tagFromImageRef(lastImage)
-		newTag := tagFromImageRef(currentImage)
-		direction := CompareVersions(oldTag, newTag)
-
-		if direction == DirectionDowngrade {
-			log.Info("Downgrade detected, blocking lifecycle", "from", oldTag, "to", newTag)
-			setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-				metav1.ConditionFalse, "DowngradeBlocked",
-				fmt.Sprintf("Downgrade from %s to %s is not supported. Alembic migrations are forward-only.", oldTag, newTag),
-				superset.Generation)
-			superset.Status.Phase = phaseBlocked
-			superset.Status.Lifecycle.Phase = lifecyclePhaseBlocked
-			superset.Status.Lifecycle.Upgrade = &supersetv1alpha1.UpgradeContext{
-				FromVersion: oldTag,
-				ToVersion:   newTag,
-				Direction:   string(DirectionDowngrade),
-			}
-			r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "DowngradeBlocked", "Lifecycle",
-				"Downgrade from %s to %s is not supported", oldTag, newTag)
-			return -1, false, nil
-		}
-
-		// Set upgrade context.
-		superset.Status.Lifecycle.Upgrade = &supersetv1alpha1.UpgradeContext{
-			FromVersion: oldTag,
-			ToVersion:   newTag,
-			Direction:   string(direction),
-			StartedAt:   nowPtr(),
-		}
-	}
-
-	// Supervised mode: check for approval annotation.
-	if imageChanged && lastImage != "" && getUpgradeMode(superset) == upgradeModeSupervsied {
-		annotations := superset.GetAnnotations()
-		if annotations == nil || annotations[annotationApproveUpgrade] != "true" {
-			log.Info("Upgrade awaiting approval")
-			setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-				metav1.ConditionFalse, "AwaitingApproval",
-				fmt.Sprintf("Upgrade from %s to %s detected. Approve with: kubectl annotate superset %s %s=true",
-					superset.Status.Lifecycle.Upgrade.FromVersion,
-					superset.Status.Lifecycle.Upgrade.ToVersion,
-					superset.Name, annotationApproveUpgrade),
-				superset.Generation)
-			superset.Status.Phase = phaseAwaitingApproval
-			superset.Status.Lifecycle.Phase = lifecyclePhaseAwaitingApproval
-			return 0, false, nil // Watch-based — no requeue needed
-		}
+	// Check upgrade gates (version comparison, downgrade blocking, supervised approval).
+	if gateResult, gated := r.checkUpgradeGates(ctx, superset, imageChanged, lastImage, currentImage); gated {
+		return gateResult, false, nil
 	}
 
 	// Determine which tasks need to run.
 	migrateNeeded := r.taskNeeded(superset, taskTypeMigrate, imageChanged)
 	initNeeded := r.taskNeeded(superset, taskTypeInit, imageChanged)
+
+	// Prune task CRs when strategy is Never.
+	if !migrateNeeded && r.taskStrategy(superset, taskTypeMigrate) == strategyNever {
+		if err := r.deleteTaskCR(ctx, superset.Name+suffixMigrate, superset.Namespace); err != nil {
+			return 0, false, fmt.Errorf("deleting migrate task CR: %w", err)
+		}
+	}
+	if !initNeeded && r.taskStrategy(superset, taskTypeInit) == strategyNever {
+		if err := r.deleteTaskCR(ctx, superset.Name+suffixInit, superset.Namespace); err != nil {
+			return 0, false, fmt.Errorf("deleting init task CR: %w", err)
+		}
+	}
 
 	// If neither task is needed, lifecycle is complete.
 	if !migrateNeeded && !initNeeded {
@@ -453,17 +418,89 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
 	superset.Status.Lifecycle.Upgrade = nil
 
-	// Clear approval annotation if it was set.
+	// Clear approval annotation if it was set. Use a metadata-only patch
+	// to avoid coupling annotation cleanup to the full object state.
 	if annotations := superset.GetAnnotations(); annotations != nil {
 		if _, ok := annotations[annotationApproveUpgrade]; ok {
+			patch := client.MergeFrom(superset.DeepCopy())
 			delete(annotations, annotationApproveUpgrade)
 			superset.SetAnnotations(annotations)
+			if err := r.Patch(ctx, superset, patch); err != nil {
+				return 0, false, fmt.Errorf("clearing approval annotation: %w", err)
+			}
 		}
 	}
 
 	setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
 		metav1.ConditionTrue, "LifecycleComplete", "Lifecycle tasks completed successfully", superset.Generation)
 	return 0, true, nil
+}
+
+// checkUpgradeGates handles version comparison, downgrade blocking, and supervised approval.
+// Returns (requeueAfter, gated) — if gated is true, the caller should return early.
+func (r *SupersetReconciler) checkUpgradeGates(
+	ctx context.Context,
+	superset *supersetv1alpha1.Superset,
+	imageChanged bool,
+	lastImage, currentImage string,
+) (time.Duration, bool) {
+	log := logf.FromContext(ctx)
+
+	if !imageChanged || lastImage == "" {
+		return 0, false
+	}
+
+	oldTag := tagFromImageRef(lastImage)
+	newTag := tagFromImageRef(currentImage)
+	direction := CompareVersions(oldTag, newTag)
+
+	if direction == DirectionDowngrade {
+		log.Info("Downgrade detected, blocking lifecycle", "from", oldTag, "to", newTag)
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+			metav1.ConditionFalse, "DowngradeBlocked",
+			fmt.Sprintf("Downgrade from %s to %s is not supported. Alembic migrations are forward-only.", oldTag, newTag),
+			superset.Generation)
+		superset.Status.Phase = phaseBlocked
+		superset.Status.Lifecycle.Phase = lifecyclePhaseBlocked
+		superset.Status.Lifecycle.Upgrade = &supersetv1alpha1.UpgradeContext{
+			FromVersion: oldTag,
+			ToVersion:   newTag,
+			Direction:   string(DirectionDowngrade),
+		}
+		r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "DowngradeBlocked", "Lifecycle",
+			"Downgrade from %s to %s is not supported", oldTag, newTag)
+		return -1, true
+	}
+
+	// Set upgrade context only once (preserve StartedAt across reconciles).
+	if superset.Status.Lifecycle.Upgrade == nil {
+		superset.Status.Lifecycle.Upgrade = &supersetv1alpha1.UpgradeContext{
+			FromVersion: oldTag,
+			ToVersion:   newTag,
+			Direction:   string(direction),
+			StartedAt:   nowPtr(),
+		}
+	}
+
+	// Supervised mode: check for approval annotation.
+	if getUpgradeMode(superset) == upgradeModeSupervsied {
+		annotations := superset.GetAnnotations()
+		if annotations == nil || annotations[annotationApproveUpgrade] != "true" {
+			log.Info("Upgrade awaiting approval")
+			setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+				metav1.ConditionFalse, "AwaitingApproval",
+				fmt.Sprintf("Upgrade from %s to %s detected. Approve with: kubectl annotate superset %s %s=true",
+					superset.Status.Lifecycle.Upgrade.FromVersion,
+					superset.Status.Lifecycle.Upgrade.ToVersion,
+					superset.Name, annotationApproveUpgrade),
+				superset.Generation)
+			superset.Status.Phase = phaseAwaitingApproval
+			superset.Status.Lifecycle.Phase = lifecyclePhaseAwaitingApproval
+			return 0, true
+		}
+	}
+
+	return 0, false
 }
 
 // reconcileTask creates or updates a single SupersetTask child CR and polls its status.
@@ -480,7 +517,7 @@ func (r *SupersetReconciler) reconcileTask(
 ) (time.Duration, bool, error) {
 	log := logf.FromContext(ctx)
 	childName := superset.Name + suffix
-	resourceBaseName := naming.ResourceBaseName(childName, naming.ComponentInit)
+	resourceBaseName := childName
 
 	// Build task config.
 	compConfigInput := buildConfigInput(&superset.Spec)
@@ -723,6 +760,17 @@ func getUpgradeMode(superset *supersetv1alpha1.Superset) string {
 
 func isLifecycleDisabled(superset *supersetv1alpha1.Superset) bool {
 	return superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Disabled != nil && *superset.Spec.Lifecycle.Disabled
+}
+
+func (r *SupersetReconciler) deleteTaskCR(ctx context.Context, name, namespace string) error {
+	task := &supersetv1alpha1.SupersetTask{}
+	if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, task); err != nil {
+		if errors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+	return r.Delete(ctx, task)
 }
 
 func resolveLifecycleImage(parentImage *supersetv1alpha1.ImageSpec, override *supersetv1alpha1.ImageOverrideSpec) string {

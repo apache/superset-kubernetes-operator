@@ -32026,10 +32026,11 @@ spec:
         - message: metadata.name must be at most 52 characters when mcpServer is enabled
             (sub-resource suffix '-mcp-server' is 11 chars)
           rule: '!has(self.spec.mcpServer) || size(self.metadata.name) <= 52'
-        - message: metadata.name must be at most 55 characters when lifecycle is enabled
-            (task suffix '-migrate' is 8 chars)
+        - message: metadata.name must be at most 48 characters when lifecycle is enabled
+            (task name '{parent}-migrate' + ConfigMap suffix '-config' must fit within
+            63 chars)
           rule: (has(self.spec.lifecycle) && has(self.spec.lifecycle.disabled) &&
-            self.spec.lifecycle.disabled == true) || size(self.metadata.name) <= 55
+            self.spec.lifecycle.disabled == true) || size(self.metadata.name) <= 48
     served: true
     storage: true
     subresources:

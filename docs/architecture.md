@@ -301,7 +301,7 @@ Each task has a `strategy` that controls when it runs:
 | Strategy | Behavior |
 |---|---|
 | `VersionChange` (default) | Task runs only when the Superset image changes |
-| `Always` | Task runs on every reconciliation |
+| `Always` | Task runs on any spec change (image, config, or command) |
 | `Never` | Task never runs (effectively disabled) |
 
 With the default `VersionChange` strategy, config-only changes trigger rolling

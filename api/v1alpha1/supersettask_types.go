@@ -26,7 +26,7 @@ import (
 type SupersetTaskSpec struct {
 	FlatComponentSpec `json:",inline"`
 
-	// Type identifies the task purpose.
+	// Type identifies the task purpose. Future task types will require schema additions.
 	// +kubebuilder:validation:Enum=Migrate;Init
 	Type string `json:"type"`
 
@@ -92,7 +92,7 @@ type SupersetTaskStatus struct {
 // +kubebuilder:printcolumn:name="State",type=string,JSONPath=`.status.state`
 // +kubebuilder:printcolumn:name="Attempts",type=integer,JSONPath=`.status.attempts`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
-// +kubebuilder:validation:XValidation:rule="size(self.metadata.name) <= 54",message="metadata.name must be at most 54 characters (sub-resource suffix '-migrate' requires 9 characters within the 63-character Service name limit)"
+// +kubebuilder:validation:XValidation:rule="size(self.metadata.name) <= 56",message="metadata.name must be at most 56 characters (ConfigMap suffix '-config' is 7 chars within the 63-character name limit)"
 // +kubebuilder:validation:XValidation:rule="self.metadata.name.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')",message="metadata.name must be a valid DNS label (lowercase alphanumeric and hyphens only, no dots or underscores); the operator derives Service names from CR names"
 
 // SupersetTask is the Schema for the supersettasks API.

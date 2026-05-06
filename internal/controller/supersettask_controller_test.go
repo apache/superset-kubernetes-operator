@@ -268,7 +268,7 @@ func TestGetInitRetentionPolicy(t *testing.T) {
 
 func minimalInitCR() *supersetv1alpha1.SupersetTask {
 	return &supersetv1alpha1.SupersetTask{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-init-1"},
+		ObjectMeta: metav1.ObjectMeta{Name: "test-init", Namespace: "default", UID: "uid-init-1"},
 		Spec: supersetv1alpha1.SupersetTaskSpec{
 			FlatComponentSpec: supersetv1alpha1.FlatComponentSpec{
 				Image: supersetv1alpha1.ImageSpec{
@@ -304,7 +304,7 @@ func TestInitReconcile_CreatesConfigMapAndPod(t *testing.T) {
 	}
 
 	result, err := r.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
+		NamespacedName: types.NamespacedName{Name: "test-init", Namespace: "default"},
 	})
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
@@ -344,7 +344,7 @@ func TestInitReconcile_CreatesConfigMapAndPod(t *testing.T) {
 
 	// Status should be updated.
 	updatedCR := &supersetv1alpha1.SupersetTask{}
-	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, updatedCR); err != nil {
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-init", Namespace: "default"}, updatedCR); err != nil {
 		t.Fatalf("get updated CR: %v", err)
 	}
 	if updatedCR.Status.State != initStateRunning {
@@ -384,7 +384,7 @@ func TestInitReconcile_PodLabelsAndAnnotations(t *testing.T) {
 	}
 
 	_, err := r.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
+		NamespacedName: types.NamespacedName{Name: "test-init", Namespace: "default"},
 	})
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
@@ -438,7 +438,7 @@ func TestInitReconcile_PodSucceeded(t *testing.T) {
 	r := &SupersetTaskReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	result, err := r.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
+		NamespacedName: types.NamespacedName{Name: "test-init", Namespace: "default"},
 	})
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
@@ -448,7 +448,7 @@ func TestInitReconcile_PodSucceeded(t *testing.T) {
 	}
 
 	updatedCR := &supersetv1alpha1.SupersetTask{}
-	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, updatedCR); err != nil {
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-init", Namespace: "default"}, updatedCR); err != nil {
 		t.Fatalf("get updated CR: %v", err)
 	}
 	if updatedCR.Status.State != initStateComplete {
@@ -494,7 +494,7 @@ func TestInitReconcile_PodFailed_Retries(t *testing.T) {
 	r := &SupersetTaskReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	result, err := r.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
+		NamespacedName: types.NamespacedName{Name: "test-init", Namespace: "default"},
 	})
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
@@ -504,7 +504,7 @@ func TestInitReconcile_PodFailed_Retries(t *testing.T) {
 	}
 
 	updatedCR := &supersetv1alpha1.SupersetTask{}
-	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, updatedCR); err != nil {
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-init", Namespace: "default"}, updatedCR); err != nil {
 		t.Fatalf("get updated CR: %v", err)
 	}
 	if updatedCR.Status.Attempts != 1 {
@@ -547,14 +547,14 @@ func TestInitReconcile_PodFailed_ExhaustsRetries(t *testing.T) {
 	r := &SupersetTaskReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	_, err := r.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
+		NamespacedName: types.NamespacedName{Name: "test-init", Namespace: "default"},
 	})
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
 
 	updatedCR := &supersetv1alpha1.SupersetTask{}
-	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, updatedCR); err != nil {
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-init", Namespace: "default"}, updatedCR); err != nil {
 		t.Fatalf("get updated CR: %v", err)
 	}
 	if updatedCR.Status.State != initStateFailed {
@@ -583,7 +583,7 @@ func TestInitReconcile_AlreadyComplete_Noop(t *testing.T) {
 	r := &SupersetTaskReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	result, err := r.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
+		NamespacedName: types.NamespacedName{Name: "test-init", Namespace: "default"},
 	})
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
@@ -609,7 +609,7 @@ func TestInitReconcile_ConfigChanged_ReRunsInit(t *testing.T) {
 	r := &SupersetTaskReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	result, err := r.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
+		NamespacedName: types.NamespacedName{Name: "test-init", Namespace: "default"},
 	})
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
@@ -619,7 +619,7 @@ func TestInitReconcile_ConfigChanged_ReRunsInit(t *testing.T) {
 	}
 
 	updatedCR := &supersetv1alpha1.SupersetTask{}
-	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, updatedCR); err != nil {
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-init", Namespace: "default"}, updatedCR); err != nil {
 		t.Fatalf("get updated CR: %v", err)
 	}
 	if updatedCR.Status.State != initStateRunning {
@@ -661,7 +661,7 @@ func TestInitReconcile_FailedExhausted_ConfigChanged_ReRunsInit(t *testing.T) {
 	r := &SupersetTaskReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	result, err := r.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
+		NamespacedName: types.NamespacedName{Name: "test-init", Namespace: "default"},
 	})
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
@@ -671,7 +671,7 @@ func TestInitReconcile_FailedExhausted_ConfigChanged_ReRunsInit(t *testing.T) {
 	}
 
 	updatedCR := &supersetv1alpha1.SupersetTask{}
-	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, updatedCR); err != nil {
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-init", Namespace: "default"}, updatedCR); err != nil {
 		t.Fatalf("get updated CR: %v", err)
 	}
 	if updatedCR.Status.State != initStateRunning {

@@ -140,7 +140,7 @@ Each task has a `strategy` field controlling when it runs:
 | Strategy | Behavior |
 |---|---|
 | `VersionChange` (default) | Runs only when the Superset image tag changes |
-| `Always` | Runs on every reconciliation |
+| `Always` | Runs on any spec change (image, config, or command) |
 | `Never` | Never runs (task effectively disabled) |
 
 With `VersionChange`, config-only changes trigger rolling restarts via checksum

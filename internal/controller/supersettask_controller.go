@@ -66,7 +66,7 @@ func (r *SupersetTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 	log.Info("Reconciling SupersetTask", "name", taskCR.Name)
 
-	resourceBaseName := common.ResourceBaseName(taskCR.Name, common.ComponentInit)
+	resourceBaseName := taskCR.Name
 
 	// Reconcile the ConfigMap for superset_config.py.
 	if err := reconcileChildConfigMap(ctx, r.Client, r.Scheme, taskCR, taskCR.Spec.Config, resourceBaseName); err != nil {
@@ -94,7 +94,7 @@ func (r *SupersetTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request
 func (r *SupersetTaskReconciler) reconcileInitPod(ctx context.Context, taskCR *supersetv1alpha1.SupersetTask) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	resourceBaseName := common.ResourceBaseName(taskCR.Name, common.ComponentInit)
+	resourceBaseName := taskCR.Name
 	maxRetries := getTaskMaxRetries(taskCR)
 	timeout := getTaskTimeout(taskCR)
 	image := fmt.Sprintf("%s:%s", taskCR.Spec.Image.Repository, taskCR.Spec.Image.Tag)

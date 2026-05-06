@@ -281,7 +281,7 @@ type LifecycleSpec struct {
 type MigrateTaskSpec struct {
 	// Strategy controls when the migrate task runs.
 	// VersionChange: only on image changes (default).
-	// Always: every reconcile.
+	// Always: on any spec change (image, config, command).
 	// Never: skip (user manages migrations externally).
 	// +optional
 	// +kubebuilder:validation:Enum=VersionChange;Always;Never
@@ -308,7 +308,7 @@ type MigrateTaskSpec struct {
 type InitTaskSpec struct {
 	// Strategy controls when the init task runs.
 	// VersionChange: only on image changes (default).
-	// Always: every reconcile.
+	// Always: on any spec change (image, config, command).
 	// Never: skip entirely.
 	// +optional
 	// +kubebuilder:validation:Enum=VersionChange;Always;Never
@@ -609,7 +609,7 @@ type ComponentRefStatus struct {
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.celeryFlower) || size(self.metadata.name) <= 49",message="metadata.name must be at most 49 characters when celeryFlower is enabled (sub-resource suffix '-celery-flower' is 14 chars)"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.websocketServer) || size(self.metadata.name) <= 46",message="metadata.name must be at most 46 characters when websocketServer is enabled (sub-resource suffix '-websocket-server' is 17 chars)"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.mcpServer) || size(self.metadata.name) <= 52",message="metadata.name must be at most 52 characters when mcpServer is enabled (sub-resource suffix '-mcp-server' is 11 chars)"
-// +kubebuilder:validation:XValidation:rule="(has(self.spec.lifecycle) && has(self.spec.lifecycle.disabled) && self.spec.lifecycle.disabled == true) || size(self.metadata.name) <= 55",message="metadata.name must be at most 55 characters when lifecycle is enabled (task suffix '-migrate' is 8 chars)"
+// +kubebuilder:validation:XValidation:rule="(has(self.spec.lifecycle) && has(self.spec.lifecycle.disabled) && self.spec.lifecycle.disabled == true) || size(self.metadata.name) <= 48",message="metadata.name must be at most 48 characters when lifecycle is enabled (task name '{parent}-migrate' + ConfigMap suffix '-config' must fit within 63 chars)"
 
 // Superset is the top-level resource representing a complete Superset deployment.
 type Superset struct {

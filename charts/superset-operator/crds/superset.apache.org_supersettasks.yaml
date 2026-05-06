@@ -4073,10 +4073,9 @@ spec:
             type: object
         type: object
         x-kubernetes-validations:
-        - message: metadata.name must be at most 54 characters (sub-resource suffix
-            '-migrate' requires 9 characters within the 63-character Service name
-            limit)
-          rule: size(self.metadata.name) <= 54
+        - message: metadata.name must be at most 56 characters (ConfigMap suffix '-config'
+            is 7 chars within the 63-character name limit)
+          rule: size(self.metadata.name) <= 56
         - message: metadata.name must be a valid DNS label (lowercase alphanumeric
             and hyphens only, no dots or underscores); the operator derives Service
             names from CR names

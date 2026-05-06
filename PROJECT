@@ -53,7 +53,7 @@ resources:
   controller: true
   domain: apache.org
   group: superset
-  kind: SupersetInit
+  kind: SupersetTask
   path: github.com/apache/superset-kubernetes-operator/api/v1alpha1
   version: v1alpha1
 - api:

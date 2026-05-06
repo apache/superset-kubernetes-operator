@@ -537,7 +537,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `strategy` _string_ | Strategy controls when the init task runs.<br />VersionChange: only on image changes (default).<br />Always: every reconcile.<br />Never: skip entirely. | VersionChange | Enum: [VersionChange Always Never] <br />Optional: \{\} <br /> |
+| `strategy` _string_ | Strategy controls when the init task runs.<br />VersionChange: only on image changes (default).<br />Always: on any spec change (image, config, command).<br />Never: skip entirely. | VersionChange | Enum: [VersionChange Always Never] <br />Optional: \{\} <br /> |
 | `command` _string array_ | Command override for the init task.<br />Default: ["sh", "-c", "superset init"]<br />Mutually exclusive with adminUser and loadExamples. |  |  |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
@@ -652,7 +652,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `strategy` _string_ | Strategy controls when the migrate task runs.<br />VersionChange: only on image changes (default).<br />Always: every reconcile.<br />Never: skip (user manages migrations externally). | VersionChange | Enum: [VersionChange Always Never] <br />Optional: \{\} <br /> |
+| `strategy` _string_ | Strategy controls when the migrate task runs.<br />VersionChange: only on image changes (default).<br />Always: on any spec change (image, config, command).<br />Never: skip (user manages migrations externally). | VersionChange | Enum: [VersionChange Always Never] <br />Optional: \{\} <br /> |
 | `command` _string array_ | Command override for the migration task.<br />Default: ["sh", "-c", "superset db upgrade"] |  |  |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
@@ -1272,7 +1272,7 @@ _Appears in:_
 | `serviceAccountName` _string_ | ServiceAccountName to set on the pod. |  | Optional: \{\} <br /> |
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Autoscaling configuration. |  | Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
-| `type` _string_ | Type identifies the task purpose. |  | Enum: [Migrate Init] <br /> |
+| `type` _string_ | Type identifies the task purpose. Future task types will require schema additions. |  | Enum: [Migrate Init] <br /> |
 | `command` _string array_ | Command to execute in the task pod. |  |  |
 | `config` _string_ | Rendered superset_config.py content. |  | Optional: \{\} <br /> |
 | `configChecksum` _string_ | Config checksum for detecting changes that require re-run. |  | Optional: \{\} <br /> |
