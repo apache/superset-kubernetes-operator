@@ -32,7 +32,7 @@ This guide covers installing the operator and deploying a Superset instance.
 
 ## 1. Install the operator
 
-Install from the OCI Helm registry:
+### From the OCI Helm registry (recommended)
 
 ```bash
 helm install superset-operator \
@@ -42,13 +42,19 @@ helm install superset-operator \
   --create-namespace
 ```
 
-Or from a source checkout:
+Replace `<version>` with a published chart version (e.g., `0.1.0`). Use
+`0.0.0-dev` for the latest build from main.
+
+### From a source checkout
 
 ```bash
 helm install superset-operator charts/superset-operator \
   --namespace superset-operator-system \
   --create-namespace
 ```
+
+This installs CRDs from `charts/superset-operator/crds/` and deploys the
+operator using the image defined in `values.yaml`.
 
 See `charts/superset-operator/values.yaml` for all available Helm values and
 [Downloads](downloads.md) for published images and tag conventions.
