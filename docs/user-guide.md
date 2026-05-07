@@ -695,7 +695,7 @@ Component child CRs share the parent's name (differentiated by Kind). For
 example, a parent named `my-superset` creates `SupersetWebServer/my-superset`,
 `SupersetCeleryWorker/my-superset`, etc. Lifecycle task CRs are named
 `{parentName}-migrate` and `{parentName}-init` (e.g.
-`SupersetTask/my-superset-migrate`, `SupersetTask/my-superset-init`).
+`SupersetLifecycleTask/my-superset-migrate`, `SupersetLifecycleTask/my-superset-init`).
 Sub-resources (Deployments, Services, ConfigMaps) are named
 `{parentName}-{componentType}` (e.g. `my-superset-web-server`).
 

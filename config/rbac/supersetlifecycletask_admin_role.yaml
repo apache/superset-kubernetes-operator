@@ -11,17 +11,17 @@ metadata:
   labels:
     app.kubernetes.io/name: superset-kubernetes-operator
     app.kubernetes.io/managed-by: kustomize
-  name: supersettask-admin-role
+  name: supersetlifecycletask-admin-role
 rules:
 - apiGroups:
   - superset.apache.org
   resources:
-  - supersettasks
+  - supersetlifecycletasks
   verbs:
   - '*'
 - apiGroups:
   - superset.apache.org
   resources:
-  - supersettasks/status
+  - supersetlifecycletasks/status
   verbs:
   - get

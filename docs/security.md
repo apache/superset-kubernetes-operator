@@ -64,7 +64,7 @@ modes:
   `lifecycle.init.loadExamples` are permitted — these create a default admin account and
   load sample data during initialization. Admin credentials from `adminUser`
   are stored as plain-text environment variables on the parent Superset CR, the
-  child SupersetTask CR, and the resulting task Pod spec (visible to anyone with
+  child SupersetLifecycleTask CR, and the resulting task Pod spec (visible to anyone with
   read access to these resources in the namespace). The admin password also
   appears in the Pod's process arguments via shell expansion.
 
@@ -92,7 +92,7 @@ In prod mode, secrets follow this path:
    status fields, or Events
 
 **Task pod caveat:** When a task pod fails, the operator records a truncated
-version of the container's termination message in the SupersetTask CR status and
+version of the container's termination message in the SupersetLifecycleTask CR status and
 Kubernetes Events for debugging. If the task command writes sensitive data to
 its termination message (e.g., a database connection error that includes
 credentials), a truncated form may appear in status. This is bounded to 256
@@ -201,7 +201,7 @@ across namespaces. Each permission is justified below:
 | `configmaps` | CRUD | Stores generated `superset_config.py` per component |
 | `services` | CRUD | Exposes web server, Flower, websocket, MCP server |
 | `serviceaccounts` | CRUD | Creates per-instance ServiceAccount for pod identity |
-| `pods` | create, delete, get, list, watch | Manages bare task pods (not Deployments) for `SupersetTask` |
+| `pods` | create, delete, get, list, watch | Manages bare task pods (not Deployments) for `SupersetLifecycleTask` |
 | `events` | create, patch | Records reconciliation events |
 | `deployments` | CRUD | Manages component Deployments |
 | `horizontalpodautoscalers` | CRUD | Manages HPA for scalable components |

@@ -99,7 +99,7 @@ $ kubectl get supersets
 NAME           PHASE     VERSION   AGE
 my-superset    Running   latest     5m
 
-$ kubectl get supersettasks
+$ kubectl get supersetlifecycletasks
 NAME                     PHASE      ATTEMPTS   AGE
 my-superset-migrate      Complete   1          5m
 my-superset-init         Complete   1          5m

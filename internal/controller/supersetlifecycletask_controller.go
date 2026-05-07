@@ -38,25 +38,25 @@ import (
 	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
-// SupersetTaskReconciler reconciles a SupersetTask object.
+// SupersetLifecycleTaskReconciler reconciles a SupersetLifecycleTask object.
 // It manages the initialization lifecycle (database migrations, init commands)
 // by running bare Pods instead of Deployments.
-type SupersetTaskReconciler struct {
+type SupersetLifecycleTaskReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Recorder events.EventRecorder
 }
 
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersettasks,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersettasks/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetlifecycletasks,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetlifecycletasks/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch;update
 
-func (r *SupersetTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *SupersetLifecycleTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	taskCR := &supersetv1alpha1.SupersetTask{}
+	taskCR := &supersetv1alpha1.SupersetLifecycleTask{}
 	if err := r.Get(ctx, req.NamespacedName, taskCR); err != nil {
 		if errors.IsNotFound(err) {
 			return ctrl.Result{}, nil
@@ -64,7 +64,7 @@ func (r *SupersetTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, err
 	}
 
-	log.Info("Reconciling SupersetTask", "name", taskCR.Name)
+	log.Info("Reconciling SupersetLifecycleTask", "name", taskCR.Name)
 
 	resourceBaseName := taskCR.Name
 
@@ -91,7 +91,7 @@ func (r *SupersetTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request
 }
 
 // reconcileInitPod handles the init pod lifecycle state machine.
-func (r *SupersetTaskReconciler) reconcileInitPod(ctx context.Context, taskCR *supersetv1alpha1.SupersetTask) (ctrl.Result, error) {
+func (r *SupersetLifecycleTaskReconciler) reconcileInitPod(ctx context.Context, taskCR *supersetv1alpha1.SupersetLifecycleTask) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
 	resourceBaseName := taskCR.Name
@@ -252,7 +252,7 @@ func (r *SupersetTaskReconciler) reconcileInitPod(ctx context.Context, taskCR *s
 
 // resetForConfigChange deletes existing init pods and resets status to
 // Pending so init re-runs with the new configuration.
-func (r *SupersetTaskReconciler) resetForConfigChange(ctx context.Context, log logr.Logger, taskCR *supersetv1alpha1.SupersetTask, resourceBaseName string) error {
+func (r *SupersetLifecycleTaskReconciler) resetForConfigChange(ctx context.Context, log logr.Logger, taskCR *supersetv1alpha1.SupersetLifecycleTask, resourceBaseName string) error {
 	log.Info("Config changed, resetting init to re-run", "oldChecksum", taskCR.Status.ConfigChecksum, "newChecksum", taskCR.Spec.ConfigChecksum)
 	if err := r.deleteInitPods(ctx, taskCR, resourceBaseName); err != nil {
 		return err
@@ -269,8 +269,8 @@ func (r *SupersetTaskReconciler) resetForConfigChange(ctx context.Context, log l
 	return nil
 }
 
-// findInitPod finds the most recent existing init pod for this SupersetTask CR.
-func (r *SupersetTaskReconciler) findInitPod(ctx context.Context, taskCR *supersetv1alpha1.SupersetTask, resourceBaseName string) (*corev1.Pod, error) {
+// findInitPod finds the most recent existing init pod for this SupersetLifecycleTask CR.
+func (r *SupersetLifecycleTaskReconciler) findInitPod(ctx context.Context, taskCR *supersetv1alpha1.SupersetLifecycleTask, resourceBaseName string) (*corev1.Pod, error) {
 	podList := &corev1.PodList{}
 	if err := r.List(ctx, podList,
 		client.InNamespace(taskCR.Namespace),
@@ -302,7 +302,7 @@ func (r *SupersetTaskReconciler) findInitPod(ctx context.Context, taskCR *supers
 }
 
 // applyRetentionPolicy handles pod cleanup after task completion.
-func (r *SupersetTaskReconciler) applyRetentionPolicy(ctx context.Context, taskCR *supersetv1alpha1.SupersetTask, pod *corev1.Pod) {
+func (r *SupersetLifecycleTaskReconciler) applyRetentionPolicy(ctx context.Context, taskCR *supersetv1alpha1.SupersetLifecycleTask, pod *corev1.Pod) {
 	log := logf.FromContext(ctx)
 	policy := getTaskRetentionPolicy(taskCR)
 
@@ -313,10 +313,10 @@ func (r *SupersetTaskReconciler) applyRetentionPolicy(ctx context.Context, taskC
 	}
 }
 
-// deleteInitPods deletes all init pods for the given SupersetTask CR.
+// deleteInitPods deletes all init pods for the given SupersetLifecycleTask CR.
 // Used when resetting init state after a config change to ensure retained
 // pods from a previous run don't get mistaken for the new run.
-func (r *SupersetTaskReconciler) deleteInitPods(ctx context.Context, taskCR *supersetv1alpha1.SupersetTask, resourceBaseName string) error {
+func (r *SupersetLifecycleTaskReconciler) deleteInitPods(ctx context.Context, taskCR *supersetv1alpha1.SupersetLifecycleTask, resourceBaseName string) error {
 	podList := &corev1.PodList{}
 	if err := r.List(ctx, podList,
 		client.InNamespace(taskCR.Namespace),
@@ -391,32 +391,32 @@ func buildInitPod(spec *supersetv1alpha1.FlatComponentSpec) corev1.PodSpec {
 
 // --- Helper functions for reading spec values from the init CR ---
 
-func getTaskMaxRetries(taskCR *supersetv1alpha1.SupersetTask) int32 {
+func getTaskMaxRetries(taskCR *supersetv1alpha1.SupersetLifecycleTask) int32 {
 	if taskCR.Spec.MaxRetries != nil {
 		return *taskCR.Spec.MaxRetries
 	}
 	return defaultMaxRetries
 }
 
-func getTaskTimeout(taskCR *supersetv1alpha1.SupersetTask) time.Duration {
+func getTaskTimeout(taskCR *supersetv1alpha1.SupersetLifecycleTask) time.Duration {
 	if taskCR.Spec.Timeout != nil {
 		return taskCR.Spec.Timeout.Duration
 	}
 	return defaultInitTimeout
 }
 
-func getTaskRetentionPolicy(taskCR *supersetv1alpha1.SupersetTask) string {
+func getTaskRetentionPolicy(taskCR *supersetv1alpha1.SupersetLifecycleTask) string {
 	if taskCR.Spec.PodRetention != nil && taskCR.Spec.PodRetention.Policy != nil {
 		return *taskCR.Spec.PodRetention.Policy
 	}
 	return defaultRetentionPolicy
 }
 
-func (r *SupersetTaskReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *SupersetLifecycleTaskReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&supersetv1alpha1.SupersetTask{}).
+		For(&supersetv1alpha1.SupersetLifecycleTask{}).
 		Owns(&corev1.Pod{}).
 		Owns(&corev1.ConfigMap{}).
-		Named("supersettask").
+		Named("supersetlifecycletask").
 		Complete(r)
 }

@@ -191,12 +191,12 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	if err := (&controller.SupersetTaskReconciler{
+	if err := (&controller.SupersetLifecycleTaskReconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorder("superset-task-controller"),
+		Recorder: mgr.GetEventRecorder("superset-lifecycle-task-controller"),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "SupersetTask")
+		setupLog.Error(err, "unable to create controller", "controller", "SupersetLifecycleTask")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder

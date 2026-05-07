@@ -229,13 +229,13 @@ behavior (reconciliation lifecycle, init pod state machine, retry semantics).
 Key points:
 
 - **Two-tier CRD**: Parent `Superset` resolves shared spec (top-level + per-component) into flat child CRDs
-- **7 child types**: SupersetTask, SupersetWebServer, SupersetCeleryWorker, SupersetCeleryBeat, SupersetCeleryFlower, SupersetWebsocketServer, SupersetMcpServer
+- **7 child types**: SupersetLifecycleTask, SupersetWebServer, SupersetCeleryWorker, SupersetCeleryBeat, SupersetCeleryFlower, SupersetWebsocketServer, SupersetMcpServer
 - **3 pure Go packages**: `internal/resolution/` (spec flattening), `internal/config/` (Python rendering), `internal/common/` (shared types)
 - **Parent resolves, children execute**: All layering logic in the parent controller; child CRs are fully flattened
 
 The parent controller orchestrates all reconciliation:
 
-- `reconcileLifecycle()` — SupersetTask CRs → bare Pods (migrate: `superset db upgrade`, init: `superset init`) + ConfigMaps
+- `reconcileLifecycle()` — SupersetLifecycleTask CRs → bare Pods (migrate: `superset db upgrade`, init: `superset init`) + ConfigMaps
 - `reconcileServiceAccount()` — ServiceAccount
 - `reconcileComponent()` — Table-driven loop over `componentDescriptors`: resolves each enabled component into a flat child CR (WebServer, CeleryWorker, CeleryBeat, CeleryFlower, WebsocketServer, McpServer). Each child controller then reconciles its own sub-resources (Deployment, ConfigMap, Service, HPA, PDB).
 - `reconcileNetworking()` — HTTPRoute or Ingress
@@ -543,7 +543,7 @@ internal/
 | `internal/controller/component_descriptors.go` | Parent-side component descriptors for child CR creation |
 | `internal/controller/superset_controller.go` | Parent reconciler (orchestrates everything) |
 | `internal/controller/deployment_builder.go` | Deployment construction from flat spec |
-| `internal/controller/supersettask_controller.go` | SupersetTask lifecycle manager |
+| `internal/controller/supersetlifecycletask_controller.go` | SupersetLifecycleTask lifecycle manager |
 | `internal/controller/initpod.go` | Task pod spec building, retention, backoff |
 | `internal/controller/reconcile_test.go` | Parent controller unit tests (fake client) |
 

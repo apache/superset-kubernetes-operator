@@ -93,7 +93,7 @@ Components fall into two categories:
 
 | CRD Kind | Parent field | Suffix | Creates |
 |---|---|---|---|
-| `SupersetTask` | `lifecycle` | `-migrate`, `-init` | Pods, ConfigMap |
+| `SupersetLifecycleTask` | `lifecycle` | `-migrate`, `-init` | Pods, ConfigMap |
 | `SupersetCeleryBeat` | `celeryBeat` | `-celery-beat` | Deployment, ConfigMap |
 
 **Presence = enabled**: Setting `celeryWorker: {}` deploys workers with
@@ -282,10 +282,10 @@ never appear in ConfigMaps or CRD status fields.
 
 ## Lifecycle Tasks
 
-Lifecycle management is handled by dedicated `SupersetTask` child CRDs. The
+Lifecycle management is handled by dedicated `SupersetLifecycleTask` child CRDs. The
 parent controller creates two sequential tasks — "migrate" (`superset db upgrade`)
-and "init" (`superset init`) — each as a separate `SupersetTask` CR named
-`{parentName}-migrate` and `{parentName}-init`. The `SupersetTaskReconciler`
+and "init" (`superset init`) — each as a separate `SupersetLifecycleTask` CR named
+`{parentName}-migrate` and `{parentName}-init`. The `SupersetLifecycleTaskReconciler`
 manages bare Pods (`restartPolicy: Never`) with retry, backoff, timeout, and
 retention for each task.
 
@@ -379,9 +379,9 @@ table and per-component isolation details.
 ## Resource Ownership
 
 All resources use Kubernetes owner references for automatic cleanup. The parent
-`Superset` CR owns child CRDs (SupersetTask, SupersetWebServer, etc.),
+`Superset` CR owns child CRDs (SupersetLifecycleTask, SupersetWebServer, etc.),
 networking resources (Ingress/HTTPRoute), ServiceMonitor, and NetworkPolicies.
 Each child CR in turn owns its managed resources (Deployment, ConfigMap, Service,
-HPA, PDB for component CRDs; Pods and ConfigMap for SupersetTask). Deleting
+HPA, PDB for component CRDs; Pods and ConfigMap for SupersetLifecycleTask). Deleting
 the parent cascades to everything. Removing a component from the parent spec
 deletes its child CR, which cascades to all owned resources.
