@@ -33,7 +33,7 @@ five sequential phases:
 
 1. **Preflight** — Fetch the Superset CR, check the suspend flag
 2. **Shared Resources** — ServiceAccount
-3. **Lifecycle Tasks** — Create/update SupersetTask child CRs (gates everything below)
+3. **Lifecycle Tasks** — Create/update SupersetLifecycleTask child CRs (gates everything below)
 4. **Component Reconciliation** — Resolve shared spec (top-level + per-component) into flat child specs, create/update/delete child CRs, reconcile networking/monitoring/network policies
 5. **Status Aggregation** — Read child CR statuses, set conditions and phase
 
@@ -56,9 +56,9 @@ parent CR name. Owned by the parent CR and garbage-collected on parent deletion.
 
 ### Phase 3: Lifecycle Tasks
 
-The parent controller creates or updates two `SupersetTask` child CRs:
+The parent controller creates or updates two `SupersetLifecycleTask` child CRs:
 `{parentName}-migrate` and `{parentName}-init`. The dedicated
-`SupersetTaskReconciler` manages the Pod lifecycle for each task (ConfigMap
+`SupersetLifecycleTaskReconciler` manages the Pod lifecycle for each task (ConfigMap
 creation, bare Pod creation, retry with backoff, timeout, retention). See
 [Init Pod Lifecycle](#init-pod-lifecycle) below for the full state machine.
 
@@ -114,8 +114,8 @@ correct GVK per component type), extracts the `ready` field (format:
 
 ## Init Pod Lifecycle
 
-The parent controller creates `SupersetTask` child CRs, and the dedicated
-`SupersetTaskReconciler` manages bare Pods (`restartPolicy: Never`). The task
+The parent controller creates `SupersetLifecycleTask` child CRs, and the dedicated
+`SupersetLifecycleTaskReconciler` manages bare Pods (`restartPolicy: Never`). The task
 controller acts as the retry controller, giving it full control over backoff,
 timeout, naming, and cleanup.
 
@@ -241,7 +241,7 @@ Task pods inherit scheduling, security, volumes, and env from the top-level
 
 ## Child Controller Pattern
 
-Each child CRD (SupersetTask, SupersetWebServer, SupersetCeleryWorker, etc.)
+Each child CRD (SupersetLifecycleTask, SupersetWebServer, SupersetCeleryWorker, etc.)
 has its own controller that reconciles the Kubernetes resources for that
 component.
 
@@ -250,8 +250,8 @@ McpServer) manage a Deployment and support replicas, HPA, and PDB. Their specs
 embed `ScalableComponentSpec`, which has `DeploymentTemplate`, `PodTemplate`,
 and scaling fields.
 
-**Singleton components** (SupersetTask, CeleryBeat) run exactly one instance.
-SupersetTask manages bare Pods with retry logic (uses `PodTemplate` only).
+**Singleton components** (SupersetLifecycleTask, CeleryBeat) run exactly one instance.
+SupersetLifecycleTask manages bare Pods with retry logic (uses `PodTemplate` only).
 CeleryBeat manages a Deployment but forces `replicas: 1` (has both
 `DeploymentTemplate` and `PodTemplate` but no scaling fields).
 
@@ -331,7 +331,7 @@ every reconciliation cycle safe to re-run.
 
 ## Labels and Annotations
 
-The operator sets reserved labels on child CRs (SupersetTask, SupersetWebServer,
+The operator sets reserved labels on child CRs (SupersetLifecycleTask, SupersetWebServer,
 etc.) and NetworkPolicies for resource discovery and orphan cleanup.
 
 ### Operator-Managed Labels
@@ -474,10 +474,10 @@ per enabled component:
 ## Garbage Collection
 
 The operator uses Kubernetes owner references for automatic cleanup. The parent
-`Superset` CR owns child CRDs (SupersetTask, SupersetWebServer, etc.),
+`Superset` CR owns child CRDs (SupersetLifecycleTask, SupersetWebServer, etc.),
 networking resources, ServiceMonitor, and NetworkPolicies. Each child CR owns
 its managed resources — deployment CRDs own their Deployment, ConfigMap,
-Service, HPA, and PDB; the SupersetTask CRDs own their ConfigMap and Pods.
+Service, HPA, and PDB; the SupersetLifecycleTask CRDs own their ConfigMap and Pods.
 Deleting the parent cascades to all child CRs, which cascade to all their
 owned resources. Removing a component from the parent spec (e.g. deleting
 `spec.celeryWorker`) deletes its child CR, cascading to all owned resources.

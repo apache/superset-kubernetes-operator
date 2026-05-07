@@ -107,7 +107,7 @@ var _ = BeforeSuite(func() {
 		Expect(NewChildReconciler(mgr.GetClient(), mgr.GetScheme(),
 			mgr.GetEventRecorder("test"), def).SetupWithManager(mgr)).To(Succeed())
 	}
-	Expect((&SupersetTaskReconciler{
+	Expect((&SupersetLifecycleTaskReconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
 		Recorder: mgr.GetEventRecorder("test"),

@@ -13,8 +13,8 @@ Package v1alpha1 contains API Schema definitions for the superset v1alpha1 API g
 - [SupersetCeleryBeat](#supersetcelerybeat)
 - [SupersetCeleryFlower](#supersetceleryflower)
 - [SupersetCeleryWorker](#supersetceleryworker)
+- [SupersetLifecycleTask](#supersetlifecycletask)
 - [SupersetMcpServer](#supersetmcpserver)
-- [SupersetTask](#supersettask)
 - [SupersetWebServer](#supersetwebserver)
 - [SupersetWebsocketServer](#supersetwebsocketserver)
 
@@ -57,9 +57,9 @@ _Appears in:_
 - [SupersetCeleryBeatSpec](#supersetcelerybeatspec)
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
+- [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
-- [SupersetTaskSpec](#supersettaskspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
 - [SupersetWebsocketServerSpec](#supersetwebsocketserverspec)
 - [WebServerComponentSpec](#webservercomponentspec)
@@ -325,9 +325,9 @@ _Appears in:_
 - [SupersetCeleryBeatSpec](#supersetcelerybeatspec)
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
+- [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
-- [SupersetTaskSpec](#supersettaskspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
 - [SupersetWebsocketServerSpec](#supersetwebsocketserverspec)
 - [WebServerComponentSpec](#webservercomponentspec)
@@ -354,8 +354,8 @@ _Appears in:_
 - [SupersetCeleryBeatSpec](#supersetcelerybeatspec)
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
+- [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
-- [SupersetTaskSpec](#supersettaskspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
 - [SupersetWebsocketServerSpec](#supersetwebsocketserverspec)
 
@@ -455,9 +455,9 @@ _Appears in:_
 - [SupersetCeleryBeatSpec](#supersetcelerybeatspec)
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
+- [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
-- [SupersetTaskSpec](#supersettaskspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
 - [SupersetWebsocketServerSpec](#supersetwebsocketserverspec)
 
@@ -726,9 +726,9 @@ _Appears in:_
 - [SupersetCeleryBeatSpec](#supersetcelerybeatspec)
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
+- [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
-- [SupersetTaskSpec](#supersettaskspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
 - [SupersetWebsocketServerSpec](#supersetwebsocketserverspec)
 - [WebServerComponentSpec](#webservercomponentspec)
@@ -750,7 +750,7 @@ PodRetentionSpec defines retention behavior for init pods.
 
 _Appears in:_
 - [LifecycleSpec](#lifecyclespec)
-- [SupersetTaskSpec](#supersettaskspec)
+- [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -776,9 +776,9 @@ _Appears in:_
 - [SupersetCeleryBeatSpec](#supersetcelerybeatspec)
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
+- [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
-- [SupersetTaskSpec](#supersettaskspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
 - [SupersetWebsocketServerSpec](#supersetwebsocketserverspec)
 - [WebServerComponentSpec](#webservercomponentspec)
@@ -1106,6 +1106,81 @@ _Appears in:_
 | `observedGeneration` _integer_ | ObservedGeneration for leader election consistency. |  | Optional: \{\} <br /> |
 
 
+#### SupersetLifecycleTask
+
+
+
+SupersetLifecycleTask is the Schema for the supersetlifecycletasks API.
+It manages lifecycle tasks (database migrations, init commands).
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `superset.apache.org/v1alpha1` | | |
+| `kind` _string_ | `SupersetLifecycleTask` | | |
+| `metadata` _[ObjectMeta](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#ObjectMeta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)_ |  |  |  |
+| `status` _[SupersetLifecycleTaskStatus](#supersetlifecycletaskstatus)_ |  |  |  |
+
+
+#### SupersetLifecycleTaskSpec
+
+
+
+SupersetLifecycleTaskSpec defines the fully-resolved spec for a lifecycle task.
+
+
+
+_Appears in:_
+- [SupersetLifecycleTask](#supersetlifecycletask)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `image` _[ImageSpec](#imagespec)_ | Container image configuration. |  |  |
+| `replicas` _integer_ | Desired replica count. | 1 | Optional: \{\} <br /> |
+| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Fully-resolved deployment template. |  | Optional: \{\} <br /> |
+| `podTemplate` _[PodTemplate](#podtemplate)_ | Fully-resolved pod template. |  | Optional: \{\} <br /> |
+| `serviceAccountName` _string_ | ServiceAccountName to set on the pod. |  | Optional: \{\} <br /> |
+| `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Autoscaling configuration. |  | Optional: \{\} <br /> |
+| `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
+| `type` _string_ | Type identifies the task purpose. Future task types will require schema additions. |  | Enum: [Migrate Init] <br /> |
+| `command` _string array_ | Command to execute in the task pod. |  |  |
+| `config` _string_ | Rendered superset_config.py content. |  | Optional: \{\} <br /> |
+| `configChecksum` _string_ | Config checksum for detecting changes that require re-run. |  | Optional: \{\} <br /> |
+| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per task pod attempt. |  | Optional: \{\} <br /> |
+| `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
+| `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Pod retention policy for completed task pods. |  | Optional: \{\} <br /> |
+
+
+#### SupersetLifecycleTaskStatus
+
+
+
+SupersetLifecycleTaskStatus reports the status of a lifecycle task.
+
+
+
+_Appears in:_
+- [SupersetLifecycleTask](#supersetlifecycletask)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `state` _string_ |  |  | Enum: [Pending Running Complete Failed] <br />Optional: \{\} <br /> |
+| `podName` _string_ |  |  | Optional: \{\} <br /> |
+| `startedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
+| `completedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
+| `duration` _string_ |  |  | Optional: \{\} <br /> |
+| `attempts` _integer_ |  |  | Optional: \{\} <br /> |
+| `image` _string_ |  |  | Optional: \{\} <br /> |
+| `message` _string_ |  |  | Optional: \{\} <br /> |
+| `configChecksum` _string_ | Config checksum that was active when the task last completed.<br />Used to detect changes and trigger re-execution. |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ |  |  | Optional: \{\} <br /> |
+| `observedGeneration` _integer_ |  |  | Optional: \{\} <br /> |
+
+
 #### SupersetMcpServer
 
 
@@ -1231,81 +1306,6 @@ _Appears in:_
 | `version` _string_ |  |  | Optional: \{\} <br /> |
 | `configChecksum` _string_ |  |  | Optional: \{\} <br /> |
 | `phase` _string_ | High-level phase. |  | Enum: [Initializing Upgrading Running Degraded Suspended Blocked AwaitingApproval] <br />Optional: \{\} <br /> |
-
-
-#### SupersetTask
-
-
-
-SupersetTask is the Schema for the supersettasks API.
-It manages lifecycle tasks (database migrations, init commands, probes).
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `superset.apache.org/v1alpha1` | | |
-| `kind` _string_ | `SupersetTask` | | |
-| `metadata` _[ObjectMeta](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#ObjectMeta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[SupersetTaskSpec](#supersettaskspec)_ |  |  |  |
-| `status` _[SupersetTaskStatus](#supersettaskstatus)_ |  |  |  |
-
-
-#### SupersetTaskSpec
-
-
-
-SupersetTaskSpec defines the fully-resolved spec for a lifecycle task.
-
-
-
-_Appears in:_
-- [SupersetTask](#supersettask)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `image` _[ImageSpec](#imagespec)_ | Container image configuration. |  |  |
-| `replicas` _integer_ | Desired replica count. | 1 | Optional: \{\} <br /> |
-| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Fully-resolved deployment template. |  | Optional: \{\} <br /> |
-| `podTemplate` _[PodTemplate](#podtemplate)_ | Fully-resolved pod template. |  | Optional: \{\} <br /> |
-| `serviceAccountName` _string_ | ServiceAccountName to set on the pod. |  | Optional: \{\} <br /> |
-| `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Autoscaling configuration. |  | Optional: \{\} <br /> |
-| `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
-| `type` _string_ | Type identifies the task purpose. Future task types will require schema additions. |  | Enum: [Migrate Init] <br /> |
-| `command` _string array_ | Command to execute in the task pod. |  |  |
-| `config` _string_ | Rendered superset_config.py content. |  | Optional: \{\} <br /> |
-| `configChecksum` _string_ | Config checksum for detecting changes that require re-run. |  | Optional: \{\} <br /> |
-| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per task pod attempt. |  | Optional: \{\} <br /> |
-| `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
-| `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Pod retention policy for completed task pods. |  | Optional: \{\} <br /> |
-
-
-#### SupersetTaskStatus
-
-
-
-SupersetTaskStatus reports the status of a lifecycle task.
-
-
-
-_Appears in:_
-- [SupersetTask](#supersettask)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `state` _string_ |  |  | Enum: [Pending Running Complete Failed] <br />Optional: \{\} <br /> |
-| `podName` _string_ |  |  | Optional: \{\} <br /> |
-| `startedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
-| `completedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
-| `duration` _string_ |  |  | Optional: \{\} <br /> |
-| `attempts` _integer_ |  |  | Optional: \{\} <br /> |
-| `image` _string_ |  |  | Optional: \{\} <br /> |
-| `message` _string_ |  |  | Optional: \{\} <br /> |
-| `configChecksum` _string_ | Config checksum that was active when the task last completed.<br />Used to detect changes and trigger re-execution. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ |  |  | Optional: \{\} <br /> |
-| `observedGeneration` _integer_ |  |  | Optional: \{\} <br /> |
 
 
 #### SupersetWebServer

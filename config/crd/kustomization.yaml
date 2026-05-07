@@ -3,7 +3,7 @@
 # It should be run by config/default
 resources:
 - bases/superset.apache.org_supersets.yaml
-- bases/superset.apache.org_supersettasks.yaml
+- bases/superset.apache.org_supersetlifecycletasks.yaml
 - bases/superset.apache.org_supersetwebservers.yaml
 - bases/superset.apache.org_supersetceleryworkers.yaml
 - bases/superset.apache.org_supersetcelerybeats.yaml

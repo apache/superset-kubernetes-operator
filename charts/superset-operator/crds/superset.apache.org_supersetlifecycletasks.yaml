@@ -4,14 +4,14 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.20.1
-  name: supersettasks.superset.apache.org
+  name: supersetlifecycletasks.superset.apache.org
 spec:
   group: superset.apache.org
   names:
-    kind: SupersetTask
-    listKind: SupersetTaskList
-    plural: supersettasks
-    singular: supersettask
+    kind: SupersetLifecycleTask
+    listKind: SupersetLifecycleTaskList
+    plural: supersetlifecycletasks
+    singular: supersetlifecycletask
   scope: Namespaced
   versions:
   - additionalPrinterColumns:

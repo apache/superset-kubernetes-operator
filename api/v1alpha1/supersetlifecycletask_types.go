@@ -22,8 +22,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// SupersetTaskSpec defines the fully-resolved spec for a lifecycle task.
-type SupersetTaskSpec struct {
+// SupersetLifecycleTaskSpec defines the fully-resolved spec for a lifecycle task.
+type SupersetLifecycleTaskSpec struct {
 	FlatComponentSpec `json:",inline"`
 
 	// Type identifies the task purpose. Future task types will require schema additions.
@@ -57,8 +57,8 @@ type SupersetTaskSpec struct {
 	PodRetention *PodRetentionSpec `json:"podRetention,omitempty"`
 }
 
-// SupersetTaskStatus reports the status of a lifecycle task.
-type SupersetTaskStatus struct {
+// SupersetLifecycleTaskStatus reports the status of a lifecycle task.
+type SupersetLifecycleTaskStatus struct {
 	// +optional
 	// +kubebuilder:validation:Enum=Pending;Running;Complete;Failed
 	State string `json:"state,omitempty"`
@@ -95,25 +95,25 @@ type SupersetTaskStatus struct {
 // +kubebuilder:validation:XValidation:rule="size(self.metadata.name) <= 56",message="metadata.name must be at most 56 characters (ConfigMap suffix '-config' is 7 chars within the 63-character name limit)"
 // +kubebuilder:validation:XValidation:rule="self.metadata.name.matches('^[a-z0-9]([-a-z0-9]*[a-z0-9])?$')",message="metadata.name must be a valid DNS label (lowercase alphanumeric and hyphens only, no dots or underscores); the operator derives Service names from CR names"
 
-// SupersetTask is the Schema for the supersettasks API.
-// It manages lifecycle tasks (database migrations, init commands, probes).
-type SupersetTask struct {
+// SupersetLifecycleTask is the Schema for the supersetlifecycletasks API.
+// It manages lifecycle tasks (database migrations, init commands).
+type SupersetLifecycleTask struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   SupersetTaskSpec   `json:"spec,omitempty"`
-	Status SupersetTaskStatus `json:"status,omitempty"`
+	Spec   SupersetLifecycleTaskSpec   `json:"spec,omitempty"`
+	Status SupersetLifecycleTaskStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 
-// SupersetTaskList contains a list of SupersetTask.
-type SupersetTaskList struct {
+// SupersetLifecycleTaskList contains a list of SupersetLifecycleTask.
+type SupersetLifecycleTaskList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []SupersetTask `json:"items"`
+	Items           []SupersetLifecycleTask `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&SupersetTask{}, &SupersetTaskList{})
+	SchemeBuilder.Register(&SupersetLifecycleTask{}, &SupersetLifecycleTaskList{})
 }

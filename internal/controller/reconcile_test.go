@@ -727,7 +727,7 @@ func TestReconcile_InitGatesComponentDeployment(t *testing.T) {
 	}
 
 	c := reconcileOnce(t, scheme, superset).
-		WithStatusSubresource(&supersetv1alpha1.SupersetTask{}).
+		WithStatusSubresource(&supersetv1alpha1.SupersetLifecycleTask{}).
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
@@ -735,7 +735,7 @@ func TestReconcile_InitGatesComponentDeployment(t *testing.T) {
 	ctx := context.Background()
 
 	// Migrate task CR should exist (first task in the lifecycle).
-	migrateCR := &supersetv1alpha1.SupersetTask{}
+	migrateCR := &supersetv1alpha1.SupersetLifecycleTask{}
 	if err := c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, migrateCR); err != nil {
 		t.Fatalf("expected migrate CR to exist: %v", err)
 	}
@@ -760,7 +760,7 @@ func TestReconcile_InitGatesOnStaleChecksum(t *testing.T) {
 	}
 
 	c := reconcileOnce(t, scheme, superset).
-		WithStatusSubresource(&supersetv1alpha1.SupersetTask{}).
+		WithStatusSubresource(&supersetv1alpha1.SupersetLifecycleTask{}).
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
@@ -768,7 +768,7 @@ func TestReconcile_InitGatesOnStaleChecksum(t *testing.T) {
 	ctx := context.Background()
 
 	// Simulate init completing with the current checksum.
-	initCR := &supersetv1alpha1.SupersetTask{}
+	initCR := &supersetv1alpha1.SupersetLifecycleTask{}
 	if err := c.Get(ctx, types.NamespacedName{Name: "test-init", Namespace: "default"}, initCR); err != nil {
 		t.Fatalf("get init CR: %v", err)
 	}
@@ -840,7 +840,7 @@ func TestReconcile_InitCommand_PropagatedToChildCR(t *testing.T) {
 
 	ctx := context.Background()
 
-	initCR := &supersetv1alpha1.SupersetTask{}
+	initCR := &supersetv1alpha1.SupersetLifecycleTask{}
 	if err := c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, initCR); err != nil {
 		t.Fatalf("expected migrate CR to exist: %v", err)
 	}
@@ -879,7 +879,7 @@ func TestReconcile_InitNilSpec_DefaultCommand(t *testing.T) {
 
 	ctx := context.Background()
 
-	initCR := &supersetv1alpha1.SupersetTask{}
+	initCR := &supersetv1alpha1.SupersetLifecycleTask{}
 	if err := c.Get(ctx, types.NamespacedName{Name: "test-init", Namespace: "default"}, initCR); err != nil {
 		t.Fatalf("expected init CR to exist: %v", err)
 	}
@@ -916,7 +916,7 @@ func TestReconcile_InitChecksumChangesOnImageAndCommand(t *testing.T) {
 	c := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithObjects(superset).
-		WithStatusSubresource(&supersetv1alpha1.Superset{}, &supersetv1alpha1.SupersetTask{}).
+		WithStatusSubresource(&supersetv1alpha1.Superset{}, &supersetv1alpha1.SupersetLifecycleTask{}).
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
@@ -927,7 +927,7 @@ func TestReconcile_InitChecksumChangesOnImageAndCommand(t *testing.T) {
 		t.Fatalf("initial reconcileLifecycle: %v", err)
 	}
 
-	initCR := &supersetv1alpha1.SupersetTask{}
+	initCR := &supersetv1alpha1.SupersetLifecycleTask{}
 	if err := c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, initCR); err != nil {
 		t.Fatalf("get migrate CR: %v", err)
 	}
@@ -974,7 +974,7 @@ func TestReconcile_InitChecksum_StableWhenAutoscalingChanges(t *testing.T) {
 	c := fake.NewClientBuilder().
 		WithScheme(scheme).
 		WithObjects(superset).
-		WithStatusSubresource(&supersetv1alpha1.Superset{}, &supersetv1alpha1.SupersetTask{}).
+		WithStatusSubresource(&supersetv1alpha1.Superset{}, &supersetv1alpha1.SupersetLifecycleTask{}).
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
@@ -985,7 +985,7 @@ func TestReconcile_InitChecksum_StableWhenAutoscalingChanges(t *testing.T) {
 		t.Fatalf("initial reconcileLifecycle: %v", err)
 	}
 
-	initCR := &supersetv1alpha1.SupersetTask{}
+	initCR := &supersetv1alpha1.SupersetLifecycleTask{}
 	if err := c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, initCR); err != nil {
 		t.Fatalf("get migrate CR: %v", err)
 	}
@@ -1043,12 +1043,12 @@ func TestReconcile_InitAdminUser_CommandAndEnvVars(t *testing.T) {
 	}
 
 	c := reconcileOnce(t, scheme, superset).
-		WithStatusSubresource(&supersetv1alpha1.SupersetTask{}).
+		WithStatusSubresource(&supersetv1alpha1.SupersetLifecycleTask{}).
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
 
-	initCR := &supersetv1alpha1.SupersetTask{}
+	initCR := &supersetv1alpha1.SupersetLifecycleTask{}
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-init", Namespace: "default"}, initCR); err != nil {
 		t.Fatalf("expected init CR: %v", err)
 	}
@@ -1108,12 +1108,12 @@ func TestReconcile_InitLoadExamples_CommandConstruction(t *testing.T) {
 	}
 
 	c := reconcileOnce(t, scheme, superset).
-		WithStatusSubresource(&supersetv1alpha1.SupersetTask{}).
+		WithStatusSubresource(&supersetv1alpha1.SupersetLifecycleTask{}).
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
 
-	initCR := &supersetv1alpha1.SupersetTask{}
+	initCR := &supersetv1alpha1.SupersetLifecycleTask{}
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-init", Namespace: "default"}, initCR); err != nil {
 		t.Fatalf("expected init CR: %v", err)
 	}
@@ -1149,12 +1149,12 @@ func TestReconcile_InitAdminAndExamples_Combined(t *testing.T) {
 	}
 
 	c := reconcileOnce(t, scheme, superset).
-		WithStatusSubresource(&supersetv1alpha1.SupersetTask{}).
+		WithStatusSubresource(&supersetv1alpha1.SupersetLifecycleTask{}).
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
 
-	initCR := &supersetv1alpha1.SupersetTask{}
+	initCR := &supersetv1alpha1.SupersetLifecycleTask{}
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-init", Namespace: "default"}, initCR); err != nil {
 		t.Fatalf("expected init CR: %v", err)
 	}
@@ -1357,9 +1357,9 @@ func TestReconcile_InitTerminalFailure_NoRequeue(t *testing.T) {
 	}
 
 	// Pre-create the migrate task CR with terminal failure state (attempts >= maxRetries).
-	initCR := &supersetv1alpha1.SupersetTask{
+	initCR := &supersetv1alpha1.SupersetLifecycleTask{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-migrate", Namespace: "default"},
-		Status: supersetv1alpha1.SupersetTaskStatus{
+		Status: supersetv1alpha1.SupersetLifecycleTaskStatus{
 			State:    "Failed",
 			Attempts: defaultMaxRetries,
 			Message:  "init command failed",
@@ -1368,7 +1368,7 @@ func TestReconcile_InitTerminalFailure_NoRequeue(t *testing.T) {
 
 	c := reconcileOnce(t, scheme, superset).
 		WithObjects(initCR).
-		WithStatusSubresource(&supersetv1alpha1.SupersetTask{}).
+		WithStatusSubresource(&supersetv1alpha1.SupersetLifecycleTask{}).
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
@@ -1400,7 +1400,7 @@ func TestReconcile_DowngradeBlocked(t *testing.T) {
 	}
 
 	c := reconcileOnce(t, scheme, superset).
-		WithStatusSubresource(&supersetv1alpha1.SupersetTask{}).
+		WithStatusSubresource(&supersetv1alpha1.SupersetLifecycleTask{}).
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
@@ -1422,7 +1422,7 @@ func TestReconcile_DowngradeBlocked(t *testing.T) {
 		t.Errorf("expected phase Blocked, got %q", updated.Status.Phase)
 	}
 
-	tasks := &supersetv1alpha1.SupersetTaskList{}
+	tasks := &supersetv1alpha1.SupersetLifecycleTaskList{}
 	if err := c.List(context.Background(), tasks); err != nil {
 		t.Fatalf("list tasks: %v", err)
 	}
@@ -1450,7 +1450,7 @@ func TestReconcile_SupervisedMode_AwaitsApproval(t *testing.T) {
 	}
 
 	c := reconcileOnce(t, scheme, superset).
-		WithStatusSubresource(&supersetv1alpha1.SupersetTask{}).
+		WithStatusSubresource(&supersetv1alpha1.SupersetLifecycleTask{}).
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
@@ -1464,7 +1464,7 @@ func TestReconcile_SupervisedMode_AwaitsApproval(t *testing.T) {
 		t.Errorf("expected phase AwaitingApproval, got %q", updated.Status.Phase)
 	}
 
-	tasks := &supersetv1alpha1.SupersetTaskList{}
+	tasks := &supersetv1alpha1.SupersetLifecycleTaskList{}
 	if err := c.List(ctx, tasks); err != nil {
 		t.Fatalf("list tasks: %v", err)
 	}
@@ -1479,7 +1479,7 @@ func TestReconcile_SupervisedMode_AwaitsApproval(t *testing.T) {
 	}
 	doReconcile(t, r, "test")
 
-	migrateCR := &supersetv1alpha1.SupersetTask{}
+	migrateCR := &supersetv1alpha1.SupersetLifecycleTask{}
 	if err := c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, migrateCR); err != nil {
 		t.Fatalf("expected migrate CR after approval: %v", err)
 	}
@@ -1500,12 +1500,12 @@ func TestReconcile_ImageUnchanged_SkipsLifecycleTasks(t *testing.T) {
 	}
 
 	c := reconcileOnce(t, scheme, superset).
-		WithStatusSubresource(&supersetv1alpha1.SupersetTask{}).
+		WithStatusSubresource(&supersetv1alpha1.SupersetLifecycleTask{}).
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
 
-	tasks := &supersetv1alpha1.SupersetTaskList{}
+	tasks := &supersetv1alpha1.SupersetLifecycleTaskList{}
 	if err := c.List(context.Background(), tasks); err != nil {
 		t.Fatalf("list tasks: %v", err)
 	}
@@ -1534,20 +1534,20 @@ func TestReconcile_StrategyNever_SkipsMigrateTask(t *testing.T) {
 	}
 
 	c := reconcileOnce(t, scheme, superset).
-		WithStatusSubresource(&supersetv1alpha1.SupersetTask{}).
+		WithStatusSubresource(&supersetv1alpha1.SupersetLifecycleTask{}).
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
 
 	ctx := context.Background()
 
-	migrateCR := &supersetv1alpha1.SupersetTask{}
+	migrateCR := &supersetv1alpha1.SupersetLifecycleTask{}
 	err := c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, migrateCR)
 	if !errors.IsNotFound(err) {
 		t.Fatalf("expected migrate CR to not exist (strategy=Never), got err: %v", err)
 	}
 
-	initCR := &supersetv1alpha1.SupersetTask{}
+	initCR := &supersetv1alpha1.SupersetLifecycleTask{}
 	if err := c.Get(ctx, types.NamespacedName{Name: "test-init", Namespace: "default"}, initCR); err != nil {
 		t.Fatalf("expected init CR to exist: %v", err)
 	}
@@ -1573,14 +1573,14 @@ func TestReconcile_StrategyAlways_RunsOnConfigChange(t *testing.T) {
 	}
 
 	c := reconcileOnce(t, scheme, superset).
-		WithStatusSubresource(&supersetv1alpha1.SupersetTask{}).
+		WithStatusSubresource(&supersetv1alpha1.SupersetLifecycleTask{}).
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
 
 	ctx := context.Background()
 
-	migrateCR := &supersetv1alpha1.SupersetTask{}
+	migrateCR := &supersetv1alpha1.SupersetLifecycleTask{}
 	if err := c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, migrateCR); err != nil {
 		t.Fatalf("expected migrate CR with strategy=Always even when image unchanged: %v", err)
 	}
@@ -1611,7 +1611,7 @@ func TestReconcile_DrainStrategy_DeletesChildCRs(t *testing.T) {
 
 	c := reconcileOnce(t, scheme, superset).
 		WithObjects(webServer).
-		WithStatusSubresource(&supersetv1alpha1.SupersetTask{}, &supersetv1alpha1.SupersetWebServer{}).
+		WithStatusSubresource(&supersetv1alpha1.SupersetLifecycleTask{}, &supersetv1alpha1.SupersetWebServer{}).
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")

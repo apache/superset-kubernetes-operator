@@ -37,7 +37,7 @@ The operator uses a **two-tier CRD architecture** where the parent `Superset` re
 ### CRD Hierarchy
 
 - **Superset** (parent) — top-level CR with shared spec (top-level + per-component), environment, secretKey/secretKeyFrom, metastore (with uriFrom/passwordFrom), valkey (cache/broker/results), config, LifecycleSpec, NetworkingSpec, MonitoringSpec
-- **SupersetTask** — lifecycle task runner: bare Pods + ConfigMap. Two sequential tasks per upgrade: "migrate" (`superset db upgrade`) and "init" (`superset init`). Each task has an independent strategy (`VersionChange`/`Always`/`Never`). Named `{parentName}-migrate` and `{parentName}-init`.
+- **SupersetLifecycleTask** — lifecycle task runner: bare Pods + ConfigMap. Two sequential tasks per upgrade: "migrate" (`superset db upgrade`) and "init" (`superset init`). Each task has an independent strategy (`VersionChange`/`Always`/`Never`). Named `{parentName}-migrate` and `{parentName}-init`.
 - **SupersetWebServer** — gunicorn web server Deployment + Service + ConfigMap
 - **SupersetCeleryWorker** — async task worker Deployment + ConfigMap
 - **SupersetCeleryBeat** — periodic task scheduler Deployment + ConfigMap (singleton, always 1 replica)
@@ -56,7 +56,7 @@ The operator uses a **two-tier CRD architecture** where the parent `Superset` re
 - `api/v1alpha1/` — CRD type definitions
   - `shared_types.go` — ImageSpec, MetastoreSpec, ValkeySpec (ValkeySSLSpec, ValkeyCacheSpec, ValkeyCelerySpec, ValkeyResultsBackendSpec), GunicornSpec, CeleryWorkerProcessSpec, SQLAlchemyEngineOptionsSpec, FlatComponentSpec, DeploymentTemplate, PodTemplate, ContainerTemplate, ScalableComponentSpec, ComponentSpec, AutoscalingSpec, PDBSpec
   - `superset_types.go` — Parent CRD: SupersetSpec (environment, secretKey/secretKeyFrom, metastore with uriFrom/passwordFrom, valkey, config, sqlaEngineOptions, autoscaling, podDisruptionBudget), component specs (GunicornSpec on webServer, CeleryWorkerProcessSpec on celeryWorker, SQLAlchemyEngineOptionsSpec on all Python components except Flower), LifecycleSpec (migrate/init tasks, upgradeMode), AdminUserSpec, NetworkingSpec, MonitoringSpec, status types (LifecycleStatus, LastLifecycleImage)
-  - `supersettask_types.go` — Flat child CRD (Config + checksums, Pods + ConfigMap)
+  - `supersetlifecycletask_types.go` — Flat child CRD (Config + checksums, Pods + ConfigMap)
   - `supersetwebserver_types.go` — Flat child CRD (Config + Service + checksums)
   - `supersetceleryworker_types.go` — Flat child CRD (Config + checksums)
   - `supersetcelerybeat_types.go` — Flat child CRD (Config + checksums, singleton)
@@ -80,7 +80,7 @@ The operator uses a **two-tier CRD architecture** where the parent `Superset` re
   - `component_descriptors.go` — table-driven component descriptors for parent→child conversion
   - `deployment_builder.go` — builds Deployment from FlatComponentSpec + DeploymentConfig
   - `initpod.go` — Task pod lifecycle helpers (backoff, retention, failure messages)
-  - `supersettask_controller.go` — SupersetTask reconciler (pod state machine, retries, timeout)
+  - `supersetlifecycletask_controller.go` — SupersetLifecycleTask reconciler (pod state machine, retries, timeout)
   - `version.go` — Version comparison logic (upgrade/downgrade detection)
   - `helpers.go` — componentLabels(), mergeLabels(), mergeAnnotations()
   - `status.go` — condition helpers, ChildComponentStatus update
@@ -108,7 +108,7 @@ The operator uses a **two-tier CRD architecture** where the parent `Superset` re
 - **Env var tiers**: Operator-internal transport vars (`SUPERSET_OPERATOR__SECRET_KEY`, `SUPERSET_OPERATOR__DB_URI`, `SUPERSET_OPERATOR__DB_HOST`, `SUPERSET_OPERATOR__VALKEY_HOST`, `SUPERSET_OPERATOR__FORCE_RELOAD`, etc.) and standard env vars (`PYTHONPATH`).
 - **SECRET_KEY validation**: CEL requires either `secretKey` (dev mode) or `secretKeyFrom` (any mode) to be set.
 - **Deployment builder**: All child controllers use `buildDeploymentSpec()` with flat `FlatComponentSpec`. Reads all fields from the merged `DeploymentTemplate` hierarchy. No parent lookup needed.
-- **Generic child reconciler**: 6 child controllers (all except SupersetTask) use a shared `ChildReconciler` with a `ChildCR` interface. Each child CRD type implements accessor methods (`GetFlatSpec`, `GetConfig`, `GetService`, etc.).
+- **Generic child reconciler**: 6 child controllers (all except SupersetLifecycleTask) use a shared `ChildReconciler` with a `ChildCR` interface. Each child CRD type implements accessor methods (`GetFlatSpec`, `GetConfig`, `GetService`, etc.).
 - **Idempotent reconciliation**: Controllers use `controllerutil.CreateOrUpdate` for all resources.
 - **Ownership**: `controllerutil.SetControllerReference` for garbage collection cascade.
 - **Operator labels protected**: Operator labels (`app.kubernetes.io/*`, `superset.apache.org/parent`) are merged last — users cannot override them. Child CRs, workload pods, and NetworkPolicies carry `superset.apache.org/parent` + `app.kubernetes.io/component` for label-based orphan discovery and instance-scoped NetworkPolicy isolation.
@@ -117,7 +117,7 @@ The operator uses a **two-tier CRD architecture** where the parent `Superset` re
 - **HPA**: When `autoscaling` is set, Deployment replicas is nil (HPA manages). Supports custom metrics via `autoscalingv2.MetricSpec`. Top-level `autoscaling`/`podDisruptionBudget` provide defaults inherited by all scalable components; per-component values override (not merge). CeleryBeat and lifecycle tasks are excluded (singleton/bare pods).
 - **Beat singleton**: CeleryBeat always forces replicas=1 regardless of spec.
 - **Gateway API**: Uses `sigs.k8s.io/gateway-api` types. Graceful handling of missing CRDs via `meta.IsNoMatchError`.
-- **Lifecycle tasks**: `spec.lifecycle` on the parent CRD (type `LifecycleSpec`) defines two sequential tasks: "migrate" (`superset db upgrade`) and "init" (`superset init`). Each produces a `SupersetTask` child CR named `{parentName}-migrate` and `{parentName}-init`. Tasks run as bare Pods (restartPolicy: Never) with exponential backoff on failure. Each task has an independent `strategy`: `VersionChange` (default, runs only on image changes), `Always` (runs every reconcile), or `Never` (disabled). Config-only changes do not trigger task pods — components handle via rolling restart. Version comparison detects upgrade vs downgrade; downgrades are blocked (phase: `Blocked`). `upgradeMode: Automatic` (default) runs tasks immediately; `Supervised` waits for an annotation approval before proceeding (phase: `AwaitingApproval`). Lifecycle gates component deployment — components are not updated until all enabled tasks complete. Dev-mode-only `adminUser` and `loadExamples` fields append steps to the init task command. Parent status tracks `LastLifecycleImage` and `Lifecycle *LifecycleStatus` (with `Phase` enum: `Upgrading`, `Blocked`, `AwaitingApproval`, etc.).
+- **Lifecycle tasks**: `spec.lifecycle` on the parent CRD (type `LifecycleSpec`) defines two sequential tasks: "migrate" (`superset db upgrade`) and "init" (`superset init`). Each produces a `SupersetLifecycleTask` child CR named `{parentName}-migrate` and `{parentName}-init`. Tasks run as bare Pods (restartPolicy: Never) with exponential backoff on failure. Each task has an independent `strategy`: `VersionChange` (default, runs only on image changes), `Always` (runs every reconcile), or `Never` (disabled). Config-only changes do not trigger task pods — components handle via rolling restart. Version comparison detects upgrade vs downgrade; downgrades are blocked (phase: `Blocked`). `upgradeMode: Automatic` (default) runs tasks immediately; `Supervised` waits for an annotation approval before proceeding (phase: `AwaitingApproval`). Lifecycle gates component deployment — components are not updated until all enabled tasks complete. Dev-mode-only `adminUser` and `loadExamples` fields append steps to the init task command. Parent status tracks `LastLifecycleImage` and `Lifecycle *LifecycleStatus` (with `Phase` enum: `Upgrading`, `Blocked`, `AwaitingApproval`, etc.).
 - **CRD validation**: All validation uses CEL (`x-kubernetes-validations`) on CRD types — no admission webhooks. Rules cover: environment mode restrictions, secret mutual exclusivity, metastore/valkey validation, networking constraints, monitoring constraints. Defaults (repository, pullPolicy, environment) use kubebuilder default markers.
 - **Metrics**: Operator exposes controller-runtime default metrics (reconcile counts, durations, leader election) on HTTPS :8443 with Kubernetes auth/authz. No custom metrics — controller-runtime defaults are sufficient. Superset instance monitoring via optional `spec.monitoring.serviceMonitor` (creates a Prometheus ServiceMonitor targeting the web-server component using unstructured objects; gracefully skips if CRD is absent).
 - **Config mount path**: `/app/superset/config` for superset_config.py.
@@ -127,8 +127,8 @@ The operator uses a **two-tier CRD architecture** where the parent `Superset` re
 
 | Parent field | CRD Kind | Component suffix | Container name |
 |---|---|---|---|
-| `lifecycle` (migrate) | `SupersetTask` | `migrate` | `superset` |
-| `lifecycle` (init) | `SupersetTask` | `init` | `superset` |
+| `lifecycle` (migrate) | `SupersetLifecycleTask` | `migrate` | `superset` |
+| `lifecycle` (init) | `SupersetLifecycleTask` | `init` | `superset` |
 | `webServer` | `SupersetWebServer` | `web-server` | `superset` |
 | `celeryWorker` | `SupersetCeleryWorker` | `celery-worker` | `superset` |
 | `celeryBeat` | `SupersetCeleryBeat` | `celery-beat` | `superset` |
@@ -136,7 +136,7 @@ The operator uses a **two-tier CRD architecture** where the parent `Superset` re
 | `websocketServer` | `SupersetWebsocketServer` | `websocket-server` | `superset` |
 | `mcpServer` | `SupersetMcpServer` | `mcp-server` | `superset` |
 
-**Two-level naming:** Child CRs always use the parent name (differentiated by Kind), except lifecycle tasks which use `{parentName}-{taskName}` (e.g., `{parentName}-migrate`, `{parentName}-init`). Sub-resources (Deployments, Services, ConfigMaps) are named `{parentName}-{componentType}`. Each child controller computes sub-resource names locally from its CR name and known component type. Example: parent `my-superset` → child CR `SupersetWebServer/my-superset` → Deployment `my-superset-web-server`, Service `my-superset-web-server`. Task example: parent `my-superset` → `SupersetTask/my-superset-migrate`.
+**Two-level naming:** Child CRs always use the parent name (differentiated by Kind), except lifecycle tasks which use `{parentName}-{taskName}` (e.g., `{parentName}-migrate`, `{parentName}-init`). Sub-resources (Deployments, Services, ConfigMaps) are named `{parentName}-{componentType}`. Each child controller computes sub-resource names locally from its CR name and known component type. Example: parent `my-superset` → child CR `SupersetWebServer/my-superset` → Deployment `my-superset-web-server`, Service `my-superset-web-server`. Task example: parent `my-superset` → `SupersetLifecycleTask/my-superset-migrate`.
 
 All components use the reserved container name `superset` for the main container. Since each component runs in its own Pod, names never collide. This allows `kubectl exec -it <pod> -c superset` without needing to know the component type.
 

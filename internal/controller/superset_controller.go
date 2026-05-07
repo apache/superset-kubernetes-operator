@@ -70,8 +70,8 @@ type SupersetReconciler struct {
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersetwebsocketservers/status,verbs=get
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersetmcpservers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersetmcpservers/status,verbs=get
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersettasks,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersettasks/status,verbs=get
+// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetlifecycletasks,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetlifecycletasks/status,verbs=get
 // +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch;update
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
@@ -128,7 +128,7 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, fmt.Errorf("reconciling ServiceAccount: %w", err)
 	}
 
-	// Phase 2.5: Lifecycle tasks (migrate + init) via SupersetTask child CRs.
+	// Phase 2.5: Lifecycle tasks (migrate + init) via SupersetLifecycleTask child CRs.
 	// Gates component deployment on lifecycle completion.
 	topLevel := convertTopLevelSpec(&superset.Spec)
 	saName := resolveServiceAccountName(superset)
@@ -327,7 +327,7 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	if isLifecycleDisabled(superset) {
 		if err := r.pruneOrphans(ctx, superset.Namespace, superset.Name,
 			naming.ComponentInit,
-			func() client.ObjectList { return &supersetv1alpha1.SupersetTaskList{} },
+			func() client.ObjectList { return &supersetv1alpha1.SupersetLifecycleTaskList{} },
 			"",
 		); err != nil {
 			return 0, false, fmt.Errorf("pruning orphaned task CRs: %w", err)
@@ -516,7 +516,7 @@ func (r *SupersetReconciler) checkUpgradeGates(
 	return 0, false
 }
 
-// reconcileTask creates or updates a single SupersetTask child CR and polls its status.
+// reconcileTask creates or updates a single SupersetLifecycleTask child CR and polls its status.
 // Returns (requeueAfter, taskComplete, error).
 func (r *SupersetReconciler) reconcileTask(
 	ctx context.Context,
@@ -569,8 +569,8 @@ func (r *SupersetReconciler) reconcileTask(
 	flatSpec.Autoscaling = nil
 	flatSpec.PodDisruptionBudget = nil
 
-	// CreateOrUpdate the SupersetTask child CR.
-	child := &supersetv1alpha1.SupersetTask{
+	// CreateOrUpdate the SupersetLifecycleTask child CR.
+	child := &supersetv1alpha1.SupersetLifecycleTask{
 		ObjectMeta: metav1.ObjectMeta{Name: childName, Namespace: superset.Namespace},
 	}
 
@@ -615,12 +615,12 @@ func (r *SupersetReconciler) reconcileTask(
 		return nil
 	})
 	if err != nil {
-		return 0, false, fmt.Errorf("creating/updating SupersetTask %s: %w", childName, err)
+		return 0, false, fmt.Errorf("creating/updating SupersetLifecycleTask %s: %w", childName, err)
 	}
 
 	// Re-fetch to get latest status.
 	if err := r.Get(ctx, client.ObjectKeyFromObject(child), child); err != nil {
-		return 0, false, fmt.Errorf("fetching SupersetTask %s status: %w", childName, err)
+		return 0, false, fmt.Errorf("fetching SupersetLifecycleTask %s status: %w", childName, err)
 	}
 
 	// Project status to parent.
@@ -802,7 +802,7 @@ func isLifecycleDisabled(superset *supersetv1alpha1.Superset) bool {
 }
 
 func (r *SupersetReconciler) deleteTaskCR(ctx context.Context, name, namespace string) error {
-	task := &supersetv1alpha1.SupersetTask{}
+	task := &supersetv1alpha1.SupersetLifecycleTask{}
 	if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, task); err != nil {
 		if errors.IsNotFound(err) {
 			return nil
@@ -1419,7 +1419,7 @@ func saCreateEnabled(sa *supersetv1alpha1.ServiceAccountSpec) bool {
 func (r *SupersetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	b := ctrl.NewControllerManagedBy(mgr).
 		For(&supersetv1alpha1.Superset{}).
-		Owns(&supersetv1alpha1.SupersetTask{}).
+		Owns(&supersetv1alpha1.SupersetLifecycleTask{}).
 		Owns(&supersetv1alpha1.SupersetWebServer{}).
 		Owns(&supersetv1alpha1.SupersetCeleryWorker{}).
 		Owns(&supersetv1alpha1.SupersetCeleryBeat{}).
