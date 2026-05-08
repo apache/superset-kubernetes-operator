@@ -15,7 +15,7 @@
 
 # Build the manager binary
 # To update the digest: docker pull golang:1.26 && docker inspect --format='{{index .RepoDigests 0}}' golang:1.26
-FROM --platform=$BUILDPLATFORM golang:1.26@sha256:b54cbf583d390341599d7bcbc062425c081105cc5ef6d170ced98ef9d047c716 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26@sha256:efaccb5b497e90df3ebe5216cc25cd9f98e73874e2d638b56e38d4a3f098c41c AS builder
 ARG TARGETOS
 ARG TARGETARCH
 
