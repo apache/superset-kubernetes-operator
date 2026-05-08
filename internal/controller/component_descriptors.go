@@ -20,6 +20,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -58,7 +59,7 @@ type componentDescriptor struct {
 	extract   func(*supersetv1alpha1.SupersetSpec) *componentAccessor
 	newChild  func() client.Object
 	newList   func() client.ObjectList
-	applySpec func(obj client.Object, flat supersetv1alpha1.FlatComponentSpec, config, checksum string, a *componentAccessor)
+	applySpec func(obj client.Object, flat supersetv1alpha1.FlatComponentSpec, checksum string, a *componentAccessor)
 	setStatus func(*supersetv1alpha1.ComponentStatusMap, *supersetv1alpha1.ComponentRefStatus)
 }
 
@@ -197,6 +198,11 @@ func (r *SupersetReconciler) reconcileComponent(
 		secretEnvVars = collectSecretEnvVars(&superset.Spec)
 		operatorInjected = buildOperatorInjected(renderedConfig, resourceBaseName, superset.Spec.ForceReload, secretEnvVars)
 
+		// Create/update the component ConfigMap (owned by parent, not child CR).
+		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, renderedConfig, resourceBaseName); err != nil {
+			return fmt.Errorf("reconciling ConfigMap for %s: %w", desc.componentType, err)
+		}
+
 		// Inject Gunicorn env vars for web server.
 		if desc.componentType == naming.ComponentWebServer {
 			g := supersetconfig.ResolveGunicorn(accessor.gunicorn)
@@ -238,10 +244,10 @@ func (r *SupersetReconciler) reconcileComponent(
 
 	componentChecksum := computeChecksum(configChecksum + renderedConfig)
 
-	return r.applyChildCR(ctx, superset, childName, desc.componentType, flat, renderedConfig, componentChecksum, saName, accessor.image,
+	return r.applyChildCR(ctx, superset, childName, desc.componentType, flat, componentChecksum, saName, accessor.image,
 		desc.newChild,
-		func(obj client.Object, flatSpec supersetv1alpha1.FlatComponentSpec, config, checksum string) {
-			desc.applySpec(obj, flatSpec, config, checksum, accessor)
+		func(obj client.Object, flatSpec supersetv1alpha1.FlatComponentSpec, checksum string) {
+			desc.applySpec(obj, flatSpec, checksum, accessor)
 		},
 	)
 }
@@ -296,10 +302,9 @@ var webServerDescriptor = &componentDescriptor{
 	},
 	newChild: func() client.Object { return &supersetv1alpha1.SupersetWebServer{} },
 	newList:  func() client.ObjectList { return &supersetv1alpha1.SupersetWebServerList{} },
-	applySpec: func(obj client.Object, flat supersetv1alpha1.FlatComponentSpec, config, checksum string, a *componentAccessor) {
+	applySpec: func(obj client.Object, flat supersetv1alpha1.FlatComponentSpec, checksum string, a *componentAccessor) {
 		ww := obj.(*supersetv1alpha1.SupersetWebServer)
 		ww.Spec.FlatComponentSpec = flat
-		ww.Spec.Config = config
 		ww.Spec.ConfigChecksum = checksum
 		ww.Spec.Service = a.service
 	},
@@ -325,10 +330,9 @@ var celeryWorkerDescriptor = &componentDescriptor{
 	},
 	newChild: func() client.Object { return &supersetv1alpha1.SupersetCeleryWorker{} },
 	newList:  func() client.ObjectList { return &supersetv1alpha1.SupersetCeleryWorkerList{} },
-	applySpec: func(obj client.Object, flat supersetv1alpha1.FlatComponentSpec, config, checksum string, a *componentAccessor) {
+	applySpec: func(obj client.Object, flat supersetv1alpha1.FlatComponentSpec, checksum string, a *componentAccessor) {
 		cw := obj.(*supersetv1alpha1.SupersetCeleryWorker)
 		cw.Spec.FlatComponentSpec = flat
-		cw.Spec.Config = config
 		cw.Spec.ConfigChecksum = checksum
 	},
 	setStatus: func(m *supersetv1alpha1.ComponentStatusMap, s *supersetv1alpha1.ComponentRefStatus) {
@@ -356,12 +360,11 @@ var celeryBeatDescriptor = &componentDescriptor{
 	},
 	newChild: func() client.Object { return &supersetv1alpha1.SupersetCeleryBeat{} },
 	newList:  func() client.ObjectList { return &supersetv1alpha1.SupersetCeleryBeatList{} },
-	applySpec: func(obj client.Object, flat supersetv1alpha1.FlatComponentSpec, config, checksum string, _ *componentAccessor) {
+	applySpec: func(obj client.Object, flat supersetv1alpha1.FlatComponentSpec, checksum string, _ *componentAccessor) {
 		cb := obj.(*supersetv1alpha1.SupersetCeleryBeat)
 		flat.Autoscaling = nil
 		flat.PodDisruptionBudget = nil
 		cb.Spec.FlatComponentSpec = flat
-		cb.Spec.Config = config
 		cb.Spec.ConfigChecksum = checksum
 	},
 	setStatus: func(m *supersetv1alpha1.ComponentStatusMap, s *supersetv1alpha1.ComponentRefStatus) {
@@ -383,10 +386,9 @@ var celeryFlowerDescriptor = &componentDescriptor{
 	},
 	newChild: func() client.Object { return &supersetv1alpha1.SupersetCeleryFlower{} },
 	newList:  func() client.ObjectList { return &supersetv1alpha1.SupersetCeleryFlowerList{} },
-	applySpec: func(obj client.Object, flat supersetv1alpha1.FlatComponentSpec, config, checksum string, a *componentAccessor) {
+	applySpec: func(obj client.Object, flat supersetv1alpha1.FlatComponentSpec, checksum string, a *componentAccessor) {
 		cf := obj.(*supersetv1alpha1.SupersetCeleryFlower)
 		cf.Spec.FlatComponentSpec = flat
-		cf.Spec.Config = config
 		cf.Spec.ConfigChecksum = checksum
 		cf.Spec.Service = a.service
 	},
@@ -411,10 +413,9 @@ var mcpServerDescriptor = &componentDescriptor{
 	},
 	newChild: func() client.Object { return &supersetv1alpha1.SupersetMcpServer{} },
 	newList:  func() client.ObjectList { return &supersetv1alpha1.SupersetMcpServerList{} },
-	applySpec: func(obj client.Object, flat supersetv1alpha1.FlatComponentSpec, config, checksum string, a *componentAccessor) {
+	applySpec: func(obj client.Object, flat supersetv1alpha1.FlatComponentSpec, checksum string, a *componentAccessor) {
 		ms := obj.(*supersetv1alpha1.SupersetMcpServer)
 		ms.Spec.FlatComponentSpec = flat
-		ms.Spec.Config = config
 		ms.Spec.ConfigChecksum = checksum
 		ms.Spec.Service = a.service
 	},
@@ -437,7 +438,7 @@ var websocketServerDescriptor = &componentDescriptor{
 	},
 	newChild: func() client.Object { return &supersetv1alpha1.SupersetWebsocketServer{} },
 	newList:  func() client.ObjectList { return &supersetv1alpha1.SupersetWebsocketServerList{} },
-	applySpec: func(obj client.Object, flat supersetv1alpha1.FlatComponentSpec, _, _ string, a *componentAccessor) {
+	applySpec: func(obj client.Object, flat supersetv1alpha1.FlatComponentSpec, _ string, a *componentAccessor) {
 		wss := obj.(*supersetv1alpha1.SupersetWebsocketServer)
 		wss.Spec.FlatComponentSpec = flat
 		wss.Spec.Service = a.service

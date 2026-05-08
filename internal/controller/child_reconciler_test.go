@@ -309,7 +309,7 @@ func TestDescriptors_ApplySpecFunctions(t *testing.T) {
 				service:  svc,
 			}
 
-			desc.applySpec(obj, flat, "rendered-config", "sha256:abc", accessor)
+			desc.applySpec(obj, flat, "sha256:abc", accessor)
 
 			// Verify the flat spec was applied to the correct child type.
 			switch desc.componentType {
@@ -317,9 +317,6 @@ func TestDescriptors_ApplySpecFunctions(t *testing.T) {
 				ww := obj.(*supersetv1alpha1.SupersetWebServer)
 				if ww.Spec.Image.Tag != "4.1.0" {
 					t.Errorf("expected tag 4.1.0, got %s", ww.Spec.Image.Tag)
-				}
-				if ww.Spec.Config != "rendered-config" {
-					t.Errorf("expected config rendered-config, got %q", ww.Spec.Config)
 				}
 				if ww.Spec.ConfigChecksum != "sha256:abc" {
 					t.Errorf("expected checksum sha256:abc, got %q", ww.Spec.ConfigChecksum)
@@ -339,9 +336,6 @@ func TestDescriptors_ApplySpecFunctions(t *testing.T) {
 				if cw.Spec.Image.Tag != "4.1.0" {
 					t.Errorf("expected tag 4.1.0, got %s", cw.Spec.Image.Tag)
 				}
-				if cw.Spec.Config != "rendered-config" {
-					t.Errorf("expected config, got %q", cw.Spec.Config)
-				}
 				if cw.Spec.ConfigChecksum != "sha256:abc" {
 					t.Errorf("expected checksum, got %q", cw.Spec.ConfigChecksum)
 				}
@@ -354,9 +348,6 @@ func TestDescriptors_ApplySpecFunctions(t *testing.T) {
 
 			case common.ComponentCeleryBeat:
 				cb := obj.(*supersetv1alpha1.SupersetCeleryBeat)
-				if cb.Spec.Config != "rendered-config" {
-					t.Errorf("expected config, got %q", cb.Spec.Config)
-				}
 				if cb.Spec.ConfigChecksum != "sha256:abc" {
 					t.Errorf("expected checksum, got %q", cb.Spec.ConfigChecksum)
 				}
@@ -369,9 +360,6 @@ func TestDescriptors_ApplySpecFunctions(t *testing.T) {
 
 			case common.ComponentCeleryFlower:
 				cf := obj.(*supersetv1alpha1.SupersetCeleryFlower)
-				if cf.Spec.Config != "rendered-config" {
-					t.Errorf("expected config, got %q", cf.Spec.Config)
-				}
 				if cf.Spec.ConfigChecksum != "sha256:abc" {
 					t.Errorf("expected checksum, got %q", cf.Spec.ConfigChecksum)
 				}
@@ -387,9 +375,6 @@ func TestDescriptors_ApplySpecFunctions(t *testing.T) {
 
 			case common.ComponentMcpServer:
 				ms := obj.(*supersetv1alpha1.SupersetMcpServer)
-				if ms.Spec.Config != "rendered-config" {
-					t.Errorf("expected config, got %q", ms.Spec.Config)
-				}
 				if ms.Spec.ConfigChecksum != "sha256:abc" {
 					t.Errorf("expected checksum, got %q", ms.Spec.ConfigChecksum)
 				}
@@ -511,12 +496,10 @@ func TestReconcileChildResources_Configs(t *testing.T) {
 		name           string
 		cfg            childReconcilerConfig
 		owner          client.Object
-		config         string
 		configChecksum string
 		service        *supersetv1alpha1.ComponentServiceSpec
 		autoscaling    *supersetv1alpha1.AutoscalingSpec
 		pdb            *supersetv1alpha1.PDBSpec
-		expectCM       bool
 		expectService  bool
 		expectHPA      bool
 		expectPDB      bool
@@ -531,7 +514,6 @@ func TestReconcileChildResources_Configs(t *testing.T) {
 				hasScaling:    true,
 			},
 			owner:          &supersetv1alpha1.SupersetWebServer{ObjectMeta: metav1.ObjectMeta{Name: "test-ws", Namespace: "default"}},
-			config:         "import os\n",
 			configChecksum: "sha256:abc",
 			autoscaling: &supersetv1alpha1.AutoscalingSpec{
 				MaxReplicas: 5,
@@ -540,7 +522,6 @@ func TestReconcileChildResources_Configs(t *testing.T) {
 			pdb: &supersetv1alpha1.PDBSpec{
 				MinAvailable: &intstr.IntOrString{Type: intstr.Int, IntVal: 1},
 			},
-			expectCM:      true,
 			expectService: true,
 			expectHPA:     true,
 			expectPDB:     true,
@@ -555,9 +536,7 @@ func TestReconcileChildResources_Configs(t *testing.T) {
 				hasScaling:    true,
 			},
 			owner:          &supersetv1alpha1.SupersetCeleryWorker{ObjectMeta: metav1.ObjectMeta{Name: "test-cw", Namespace: "default"}},
-			config:         "import os\n",
 			configChecksum: "sha256:def",
-			expectCM:       true,
 			expectService:  false,
 			expectHPA:      false,
 			expectPDB:      false,
@@ -572,9 +551,7 @@ func TestReconcileChildResources_Configs(t *testing.T) {
 				hasScaling:    false,
 			},
 			owner:          &supersetv1alpha1.SupersetCeleryBeat{ObjectMeta: metav1.ObjectMeta{Name: "test-cb", Namespace: "default"}},
-			config:         "import os\n",
 			configChecksum: "sha256:ghi",
-			expectCM:       true,
 			expectService:  false,
 			expectHPA:      false,
 			expectPDB:      false,
@@ -589,8 +566,6 @@ func TestReconcileChildResources_Configs(t *testing.T) {
 				hasScaling:    true,
 			},
 			owner:         &supersetv1alpha1.SupersetWebsocketServer{ObjectMeta: metav1.ObjectMeta{Name: "test-wss", Namespace: "default"}},
-			config:        "",
-			expectCM:      false,
 			expectService: true,
 			expectHPA:     false,
 			expectPDB:     false,
@@ -613,7 +588,7 @@ func TestReconcileChildResources_Configs(t *testing.T) {
 			err := reconcileChildResources(
 				context.Background(), c, scheme, recorder, tt.owner,
 				spec, tt.cfg,
-				tt.config, tt.configChecksum,
+				tt.configChecksum,
 				tt.service, tt.autoscaling, tt.pdb,
 			)
 			if err != nil {
@@ -623,23 +598,6 @@ func TestReconcileChildResources_Configs(t *testing.T) {
 			ctx := context.Background()
 			resourceBaseName := common.ResourceBaseName(tt.owner.GetName(), common.ComponentType(tt.cfg.componentName))
 			ns := tt.owner.GetNamespace()
-
-			// Check ConfigMap.
-			cm := &corev1.ConfigMap{}
-			cmErr := c.Get(ctx, types.NamespacedName{Name: common.ConfigMapName(resourceBaseName), Namespace: ns}, cm)
-			if tt.expectCM {
-				if cmErr != nil {
-					t.Errorf("expected ConfigMap to exist: %v", cmErr)
-				} else if cm.Data["superset_config.py"] != tt.config {
-					t.Errorf("expected ConfigMap data %q, got %q", tt.config, cm.Data["superset_config.py"])
-				}
-			} else {
-				if cmErr == nil {
-					t.Error("expected NO ConfigMap")
-				} else if !errors.IsNotFound(cmErr) {
-					t.Errorf("unexpected error checking ConfigMap: %v", cmErr)
-				}
-			}
 
 			// Check Deployment (always created).
 			deploy := &appsv1.Deployment{}

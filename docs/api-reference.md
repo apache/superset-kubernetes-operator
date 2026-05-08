@@ -959,7 +959,6 @@ _Appears in:_
 | `serviceAccountName` _string_ | ServiceAccountName to set on the pod. |  | Optional: \{\} <br /> |
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Autoscaling configuration. |  | Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
-| `config` _string_ | The fully rendered superset_config.py content. |  | Optional: \{\} <br /> |
 | `configChecksum` _string_ | Checksum for rolling restarts. |  | Optional: \{\} <br /> |
 
 
@@ -1021,7 +1020,6 @@ _Appears in:_
 | `serviceAccountName` _string_ | ServiceAccountName to set on the pod. |  | Optional: \{\} <br /> |
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Autoscaling configuration. |  | Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
-| `config` _string_ | The fully rendered superset_config.py content. |  | Optional: \{\} <br /> |
 | `configChecksum` _string_ | Checksum for rolling restarts. |  | Optional: \{\} <br /> |
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration. |  | Optional: \{\} <br /> |
 
@@ -1084,7 +1082,6 @@ _Appears in:_
 | `serviceAccountName` _string_ | ServiceAccountName to set on the pod. |  | Optional: \{\} <br /> |
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Autoscaling configuration. |  | Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
-| `config` _string_ | The fully rendered superset_config.py content. |  | Optional: \{\} <br /> |
 | `configChecksum` _string_ | Checksum for rolling restarts. |  | Optional: \{\} <br /> |
 
 
@@ -1148,7 +1145,6 @@ _Appears in:_
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
 | `type` _string_ | Type identifies the task purpose. Future task types will require schema additions. |  | Enum: [Migrate Init] <br /> |
 | `command` _string array_ | Command to execute in the task pod. |  |  |
-| `config` _string_ | Rendered superset_config.py content. |  | Optional: \{\} <br /> |
 | `configChecksum` _string_ | Config checksum for detecting changes that require re-run. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per task pod attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
@@ -1221,7 +1217,6 @@ _Appears in:_
 | `serviceAccountName` _string_ | ServiceAccountName to set on the pod. |  | Optional: \{\} <br /> |
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Autoscaling configuration. |  | Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
-| `config` _string_ | The fully rendered superset_config.py content. |  | Optional: \{\} <br /> |
 | `configChecksum` _string_ | Checksum for rolling restarts. |  | Optional: \{\} <br /> |
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration. |  | Optional: \{\} <br /> |
 
@@ -1348,7 +1343,6 @@ _Appears in:_
 | `serviceAccountName` _string_ | ServiceAccountName to set on the pod. |  | Optional: \{\} <br /> |
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Autoscaling configuration. |  | Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
-| `config` _string_ | The fully rendered superset_config.py content. |  | Optional: \{\} <br /> |
 | `configChecksum` _string_ | Checksum stamped as pod template annotation for rolling restarts. |  | Optional: \{\} <br /> |
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration. |  | Optional: \{\} <br /> |
 

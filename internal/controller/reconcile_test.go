@@ -129,12 +129,6 @@ func TestReconcile_MinimalSuperset_CreatesWebServer(t *testing.T) {
 	if ww.Spec.Image.Repository != "apache/superset" {
 		t.Errorf("expected repository apache/superset, got %s", ww.Spec.Image.Repository)
 	}
-	if ww.Spec.Config == "" {
-		t.Error("expected non-empty Config on web server")
-	}
-	if !strings.Contains(ww.Spec.Config, "SUPERSET_WEBSERVER_PORT") {
-		t.Error("expected web server Config to contain SUPERSET_WEBSERVER_PORT")
-	}
 }
 
 func TestReconcile_CeleryEnabled_CreatesAllCeleryChildren(t *testing.T) {
@@ -159,16 +153,10 @@ func TestReconcile_CeleryEnabled_CreatesAllCeleryChildren(t *testing.T) {
 	if err := c.Get(ctx, types.NamespacedName{Name: "test", Namespace: "default"}, cw); err != nil {
 		t.Fatalf("expected celery worker: %v", err)
 	}
-	if cw.Spec.Config == "" {
-		t.Error("expected celery worker to have non-empty Config")
-	}
 
 	cb := &supersetv1alpha1.SupersetCeleryBeat{}
 	if err := c.Get(ctx, types.NamespacedName{Name: "test", Namespace: "default"}, cb); err != nil {
 		t.Fatalf("expected celery beat: %v", err)
-	}
-	if cb.Spec.Config == "" {
-		t.Error("expected celery beat to have non-empty Config")
 	}
 }
 
@@ -424,36 +412,21 @@ func TestReconcile_AllComponents_FullFeatures(t *testing.T) {
 		}
 	}
 
-	// Web server: config should contain WEB_SETTING, operator-generated, and port config.
+	// Web server child created.
 	ww := &supersetv1alpha1.SupersetWebServer{}
 	_ = c.Get(ctx, types.NamespacedName{Name: "full", Namespace: "default"}, ww)
-	if !strings.Contains(ww.Spec.Config, "WEB_SETTING") {
-		t.Error("web server config should contain WEB_SETTING")
-	}
-	if !strings.Contains(ww.Spec.Config, "Operator-generated") {
-		t.Error("web server config should contain operator-generated section")
-	}
-	if !strings.Contains(ww.Spec.Config, "SUPERSET_WEBSERVER_PORT") {
-		t.Error("web server config should contain SUPERSET_WEBSERVER_PORT")
-	}
 
-	// Celery worker: config should contain WORKER_SETTING.
+	// Celery worker child created.
 	cw := &supersetv1alpha1.SupersetCeleryWorker{}
 	_ = c.Get(ctx, types.NamespacedName{Name: "full", Namespace: "default"}, cw)
-	if !strings.Contains(cw.Spec.Config, "WORKER_SETTING") {
-		t.Error("celery worker config should contain WORKER_SETTING")
-	}
 
 	// WebsocketServer: no config volume (Node.js).
 	wss := &supersetv1alpha1.SupersetWebsocketServer{}
 	_ = c.Get(ctx, types.NamespacedName{Name: "full", Namespace: "default"}, wss)
 
-	// MCP server: config should contain MCP_SETTING.
+	// MCP server child created.
 	ms := &supersetv1alpha1.SupersetMcpServer{}
 	_ = c.Get(ctx, types.NamespacedName{Name: "full", Namespace: "default"}, ms)
-	if !strings.Contains(ms.Spec.Config, "MCP_SETTING") {
-		t.Error("mcp server config should contain MCP_SETTING")
-	}
 
 	// All Python components should have SECRET_KEY env vars.
 	cb := &supersetv1alpha1.SupersetCeleryBeat{}
@@ -534,21 +507,6 @@ func TestReconcile_AllComponents_FullFeatures(t *testing.T) {
 	}
 	if checksums["celery-beat"] == checksums["web-server"] {
 		t.Error("celery-beat (no per-component config) and web-server (has config) checksums should differ")
-	}
-
-	// Security: rendered config should not contain secret values.
-	for _, cfg := range []struct {
-		name, config string
-	}{
-		{"web-server", ww.Spec.Config},
-		{"celery-worker", cw.Spec.Config},
-		{"celery-beat", cb.Spec.Config},
-		{"celery-flower", cf.Spec.Config},
-		{"mcp-server", ms.Spec.Config},
-	} {
-		if strings.Contains(cfg.config, "test-secret-key") {
-			t.Errorf("%s config should not contain the literal secret key value", cfg.name)
-		}
 	}
 
 	// Security: all child CRs should have ServiceAccountName set.
@@ -676,25 +634,16 @@ func TestReconcile_PerComponentConfigMerging(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Web server should have both BASE and WEB.
+	// Web server should have a config checksum.
 	ww := &supersetv1alpha1.SupersetWebServer{}
 	if err := c.Get(ctx, types.NamespacedName{Name: "cfg", Namespace: "default"}, ww); err != nil {
 		t.Fatalf("expected web server: %v", err)
 	}
-	if !strings.Contains(ww.Spec.Config, "BASE") {
-		t.Error("web server config should contain BASE from spec.config")
-	}
-	if !strings.Contains(ww.Spec.Config, "WEB") {
-		t.Error("web server config should contain WEB from per-component config")
-	}
 
-	// Celery worker should have BASE but not WEB.
+	// Celery worker should have a config checksum.
 	cw := &supersetv1alpha1.SupersetCeleryWorker{}
 	if err := c.Get(ctx, types.NamespacedName{Name: "cfg", Namespace: "default"}, cw); err != nil {
 		t.Fatalf("expected celery worker: %v", err)
-	}
-	if !strings.Contains(cw.Spec.Config, "BASE") {
-		t.Error("celery worker config should contain BASE from spec.config")
 	}
 
 	// Components with different rendered config should have different checksums.

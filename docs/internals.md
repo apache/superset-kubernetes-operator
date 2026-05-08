@@ -283,9 +283,22 @@ the standard Kubernetes mechanism for projecting files into containers:
   making Deployment manifests difficult to read. ConfigMaps keep pod specs
   focused on container configuration
 
-The rendered config is already stored on the child CR's `spec.config` field, so
-the ConfigMap is technically a derived resource. The child controller creates it
-from the spec and mounts it at `/app/pythonpath/`.
+### Ownership and Checksum Flow
+
+ConfigMaps are created and owned by the parent Superset controller (not by
+child CRs). This means:
+
+- ConfigMaps survive child CR deletion (e.g., during drain)
+- The parent is the single writer of config content
+- Child controllers mount ConfigMaps by conventional name without managing them
+
+The parent computes a `ConfigChecksum` and passes it to child CRs via
+`spec.configChecksum`. Child controllers stamp this as a pod template annotation
+to trigger rolling restarts when config changes. This design follows the
+principle that the checksum should be computed by whoever writes the data — since
+the parent renders and writes the ConfigMap, it is the authority on when content
+changed. Passing the checksum to child CRs avoids requiring child controllers to
+watch or read ConfigMaps they don't own.
 
 ### What Each Component Creates
 

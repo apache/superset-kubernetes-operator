@@ -191,10 +191,10 @@ func (r *SupersetReconciler) applyChildCR(
 	childName string,
 	componentType naming.ComponentType,
 	flat *resolution.FlatSpec,
-	renderedConfig, configChecksum, saName string,
+	configChecksum, saName string,
 	imageOverride *supersetv1alpha1.ImageOverrideSpec,
 	newObj func() client.Object,
-	applySpec func(client.Object, supersetv1alpha1.FlatComponentSpec, string, string),
+	applySpec func(client.Object, supersetv1alpha1.FlatComponentSpec, string),
 ) error {
 	obj := newObj()
 	obj.SetName(childName)
@@ -210,7 +210,7 @@ func (r *SupersetReconciler) applyChildCR(
 			naming.LabelKeyParent:    superset.Name,
 		}))
 		flatSpec := flatSpecFromResolution(flat, &superset.Spec.Image, imageOverride, saName)
-		applySpec(obj, flatSpec, renderedConfig, configChecksum)
+		applySpec(obj, flatSpec, configChecksum)
 		return nil
 	})
 	return err
@@ -609,13 +609,17 @@ func (r *SupersetReconciler) reconcileTask(
 		child.Spec.FlatComponentSpec = flatSpec
 		child.Spec.Type = taskType
 		child.Spec.Command = command
-		child.Spec.Config = renderedConfig
 		child.Spec.ConfigChecksum = taskChecksum
 		if superset.Spec.Lifecycle != nil {
 			child.Spec.PodRetention = superset.Spec.Lifecycle.PodRetention
 		}
 		child.Spec.MaxRetries = r.taskMaxRetries(superset, taskType)
 		child.Spec.Timeout = r.taskTimeout(superset, taskType)
+
+		// Create the ConfigMap before the task CR so the pod can mount it.
+		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, renderedConfig, resourceBaseName); err != nil {
+			return 0, false, fmt.Errorf("reconciling ConfigMap for lifecycle task %s: %w", childName, err)
+		}
 
 		if err := r.Create(ctx, child); err != nil {
 			return 0, false, fmt.Errorf("creating SupersetLifecycleTask %s: %w", childName, err)
@@ -1467,4 +1471,43 @@ func (r *SupersetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return b.Complete(r)
+}
+
+// reconcileParentOwnedConfigMap creates or updates a ConfigMap owned by the
+// parent Superset CR. The ConfigMap contains superset_config.py and is mounted
+// by child component pods via a conventional name.
+func reconcileParentOwnedConfigMap(
+	ctx context.Context,
+	c client.Client,
+	scheme *runtime.Scheme,
+	parent *supersetv1alpha1.Superset,
+	config string,
+	resourceBaseName string,
+) error {
+	cmName := naming.ConfigMapName(resourceBaseName)
+
+	if config == "" {
+		cm := &corev1.ConfigMap{}
+		cm.Name = cmName
+		cm.Namespace = parent.Namespace
+		return client.IgnoreNotFound(c.Delete(ctx, cm))
+	}
+
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cmName,
+			Namespace: parent.Namespace,
+		},
+	}
+
+	_, err := controllerutil.CreateOrUpdate(ctx, c, cm, func() error {
+		if err := controllerutil.SetControllerReference(parent, cm, scheme); err != nil {
+			return err
+		}
+		cm.Data = map[string]string{
+			"superset_config.py": config,
+		}
+		return nil
+	})
+	return err
 }

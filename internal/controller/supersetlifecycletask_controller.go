@@ -65,14 +65,6 @@ func (r *SupersetLifecycleTaskReconciler) Reconcile(ctx context.Context, req ctr
 
 	log.Info("Reconciling SupersetLifecycleTask", "name", taskCR.Name)
 
-	resourceBaseName := taskCR.Name
-
-	// Reconcile the ConfigMap for superset_config.py.
-	if err := reconcileChildConfigMap(ctx, r.Client, r.Scheme, taskCR, taskCR.Spec.Config, resourceBaseName); err != nil {
-		r.Recorder.Eventf(taskCR, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile ConfigMap: %v", err)
-		return ctrl.Result{}, fmt.Errorf("reconciling ConfigMap: %w", err)
-	}
-
 	// Run the init pod lifecycle.
 	result, err := r.reconcileInitPod(ctx, taskCR)
 	if err != nil {

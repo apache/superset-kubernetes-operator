@@ -27,10 +27,6 @@ import (
 type SupersetCeleryBeatSpec struct {
 	FlatComponentSpec `json:",inline"`
 
-	// The fully rendered superset_config.py content.
-	// +optional
-	Config string `json:"config,omitempty"`
-
 	// Checksum for rolling restarts.
 	// +optional
 	ConfigChecksum string `json:"configChecksum,omitempty"`
@@ -70,9 +66,6 @@ type SupersetCeleryBeatList struct {
 
 // GetFlatSpec returns the flat component spec.
 func (s *SupersetCeleryBeat) GetFlatSpec() *FlatComponentSpec { return &s.Spec.FlatComponentSpec }
-
-// GetConfig returns the rendered superset_config.py content.
-func (s *SupersetCeleryBeat) GetConfig() string { return s.Spec.Config }
 
 // GetConfigChecksum returns the config checksum for rolling restarts.
 func (s *SupersetCeleryBeat) GetConfigChecksum() string { return s.Spec.ConfigChecksum }

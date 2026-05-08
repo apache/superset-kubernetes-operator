@@ -26,10 +26,6 @@ import (
 type SupersetMcpServerSpec struct {
 	FlatComponentSpec `json:",inline"`
 
-	// The fully rendered superset_config.py content.
-	// +optional
-	Config string `json:"config,omitempty"`
-
 	// Checksum for rolling restarts.
 	// +optional
 	ConfigChecksum string `json:"configChecksum,omitempty"`
@@ -73,9 +69,6 @@ type SupersetMcpServerList struct {
 
 // GetFlatSpec returns the flat component spec.
 func (s *SupersetMcpServer) GetFlatSpec() *FlatComponentSpec { return &s.Spec.FlatComponentSpec }
-
-// GetConfig returns the rendered superset_config.py content.
-func (s *SupersetMcpServer) GetConfig() string { return s.Spec.Config }
 
 // GetConfigChecksum returns the config checksum for rolling restarts.
 func (s *SupersetMcpServer) GetConfigChecksum() string { return s.Spec.ConfigChecksum }

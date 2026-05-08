@@ -281,13 +281,12 @@ func minimalInitCR() *supersetv1alpha1.SupersetLifecycleTask {
 					},
 				},
 			},
-			Config:         "# test config",
 			ConfigChecksum: "abc123",
 		},
 	}
 }
 
-func TestInitReconcile_CreatesConfigMapAndPod(t *testing.T) {
+func TestInitReconcile_CreatesPod(t *testing.T) {
 	scheme := testScheme(t)
 	initCR := minimalInitCR()
 
@@ -313,16 +312,6 @@ func TestInitReconcile_CreatesConfigMapAndPod(t *testing.T) {
 	// Should requeue to poll init pod status.
 	if result.RequeueAfter == 0 {
 		t.Error("expected RequeueAfter > 0")
-	}
-
-	// ConfigMap should exist.
-	cm := &corev1.ConfigMap{}
-	cmName := common.ConfigMapName("test-init")
-	if err := c.Get(context.Background(), types.NamespacedName{Name: cmName, Namespace: "default"}, cm); err != nil {
-		t.Fatalf("expected ConfigMap: %v", err)
-	}
-	if cm.Data["superset_config.py"] != "# test config" {
-		t.Errorf("expected config data, got %q", cm.Data["superset_config.py"])
 	}
 
 	// Pod should have been created.

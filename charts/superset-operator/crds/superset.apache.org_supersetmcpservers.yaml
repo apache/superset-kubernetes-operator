@@ -321,8 +321,6 @@ spec:
                 x-kubernetes-validations:
                 - message: maxReplicas must be >= minReplicas
                   rule: '!has(self.minReplicas) || self.maxReplicas >= self.minReplicas'
-              config:
-                type: string
               configChecksum:
                 type: string
               deploymentTemplate:

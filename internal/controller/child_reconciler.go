@@ -45,7 +45,6 @@ import (
 type ChildCR interface {
 	client.Object
 	GetFlatSpec() *supersetv1alpha1.FlatComponentSpec
-	GetConfig() string
 	GetConfigChecksum() string
 	GetService() *supersetv1alpha1.ComponentServiceSpec
 	GetAutoscaling() *supersetv1alpha1.AutoscalingSpec
@@ -78,7 +77,7 @@ func (r *ChildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl
 
 	if err := reconcileChildResources(ctx, r.Client, r.Scheme, r.Recorder, obj,
 		obj.GetFlatSpec(), r.Config,
-		obj.GetConfig(), obj.GetConfigChecksum(),
+		obj.GetConfigChecksum(),
 		obj.GetService(), obj.GetAutoscaling(), obj.GetPDB(),
 	); err != nil {
 		return ctrl.Result{}, err
@@ -128,21 +127,12 @@ func reconcileChildResources(
 	owner client.Object,
 	spec *supersetv1alpha1.FlatComponentSpec,
 	cfg childReconcilerConfig,
-	config string,
 	configChecksum string,
 	service *supersetv1alpha1.ComponentServiceSpec,
 	autoscaling *supersetv1alpha1.AutoscalingSpec,
 	pdb *supersetv1alpha1.PDBSpec,
 ) error {
 	resourceBaseName := common.ResourceBaseName(owner.GetName(), common.ComponentType(cfg.componentName))
-
-	// ConfigMap (if hasConfig).
-	if cfg.hasConfig {
-		if err := reconcileChildConfigMap(ctx, c, scheme, owner, config, resourceBaseName); err != nil {
-			recorder.Eventf(owner, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile ConfigMap: %v", err)
-			return fmt.Errorf("reconciling ConfigMap: %w", err)
-		}
-	}
 
 	// Deployment.
 	var checksums map[string]string
@@ -172,45 +162,6 @@ func reconcileChildResources(
 	}
 
 	return nil
-}
-
-// reconcileChildConfigMap creates, updates, or deletes a ConfigMap containing superset_config.py.
-// When config is empty, any existing ConfigMap is deleted.
-func reconcileChildConfigMap(
-	ctx context.Context,
-	c client.Client,
-	scheme *runtime.Scheme,
-	owner client.Object,
-	config string,
-	resourceBaseName string,
-) error {
-	cmName := common.ConfigMapName(resourceBaseName)
-	ns := owner.GetNamespace()
-
-	if config == "" {
-		cm := &corev1.ConfigMap{}
-		cm.Name = cmName
-		cm.Namespace = ns
-		return client.IgnoreNotFound(c.Delete(ctx, cm))
-	}
-
-	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cmName,
-			Namespace: ns,
-		},
-	}
-
-	_, err := controllerutil.CreateOrUpdate(ctx, c, cm, func() error {
-		if err := controllerutil.SetControllerReference(owner, cm, scheme); err != nil {
-			return err
-		}
-		cm.Data = map[string]string{
-			"superset_config.py": config,
-		}
-		return nil
-	})
-	return err
 }
 
 // reconcileChildDeployment creates or updates a Deployment from the flat component spec.

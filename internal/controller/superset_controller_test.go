@@ -258,9 +258,15 @@ var _ = Describe("Integration", Ordered, func() {
 				}, webServer)
 			}, timeout, interval).Should(Succeed())
 
-			By("verifying the child CR has rendered config")
-			Expect(webServer.Spec.Config).To(ContainSubstring("import os"))
-			Expect(webServer.Spec.Config).To(ContainSubstring("SUPERSET_WEBSERVER_PORT"))
+			By("verifying the ConfigMap has rendered config")
+			cm := &corev1.ConfigMap{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{
+					Name: common.ConfigMapName("lifecycle-web-server"), Namespace: ns,
+				}, cm)
+			}, timeout, interval).Should(Succeed())
+			Expect(cm.Data["superset_config.py"]).To(ContainSubstring("import os"))
+			Expect(cm.Data["superset_config.py"]).To(ContainSubstring("SUPERSET_WEBSERVER_PORT"))
 
 			By("waiting for the SupersetCeleryWorker child CR to be created")
 			worker := &supersetv1alpha1.SupersetCeleryWorker{}
@@ -271,7 +277,7 @@ var _ = Describe("Integration", Ordered, func() {
 			}, timeout, interval).Should(Succeed())
 
 			By("verifying ConfigMaps are created")
-			cm := &corev1.ConfigMap{}
+			cm = &corev1.ConfigMap{}
 			Eventually(func() error {
 				return k8sClient.Get(ctx, types.NamespacedName{
 					Name: "lifecycle-web-server-config", Namespace: ns,
@@ -314,13 +320,13 @@ var _ = Describe("Integration", Ordered, func() {
 
 			By("waiting for the child CR config to include the user config")
 			Eventually(func() string {
-				ws := &supersetv1alpha1.SupersetWebServer{}
+				cm := &corev1.ConfigMap{}
 				if err := k8sClient.Get(ctx, types.NamespacedName{
-					Name: "lifecycle", Namespace: ns,
-				}, ws); err != nil {
+					Name: common.ConfigMapName("lifecycle-web-server"), Namespace: ns,
+				}, cm); err != nil {
 					return ""
 				}
-				return ws.Spec.Config
+				return cm.Data["superset_config.py"]
 			}, timeout, interval).Should(ContainSubstring("CUSTOM_FLAG"))
 
 			By("verifying the checksum changed")

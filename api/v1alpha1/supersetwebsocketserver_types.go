@@ -67,9 +67,6 @@ type SupersetWebsocketServerList struct {
 // GetFlatSpec returns the flat component spec.
 func (s *SupersetWebsocketServer) GetFlatSpec() *FlatComponentSpec { return &s.Spec.FlatComponentSpec }
 
-// GetConfig returns empty string (websocket server is Node.js, no superset_config.py).
-func (s *SupersetWebsocketServer) GetConfig() string { return "" }
-
 // GetConfigChecksum returns empty string (websocket server has no config).
 func (s *SupersetWebsocketServer) GetConfigChecksum() string { return "" }
 

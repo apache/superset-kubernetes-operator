@@ -34,10 +34,6 @@ type SupersetLifecycleTaskSpec struct {
 	// +listType=atomic
 	Command []string `json:"command"`
 
-	// Rendered superset_config.py content.
-	// +optional
-	Config string `json:"config,omitempty"`
-
 	// Config checksum for detecting changes that require re-run.
 	// +optional
 	ConfigChecksum string `json:"configChecksum,omitempty"`
