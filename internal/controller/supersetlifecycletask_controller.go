@@ -106,6 +106,7 @@ func (r *SupersetLifecycleTaskReconciler) reconcileInitPod(ctx context.Context, 
 			if err := r.resetForConfigChange(ctx, log, taskCR, resourceBaseName); err != nil {
 				return ctrl.Result{}, err
 			}
+			taskCR.Status.Image = image
 		} else {
 			return ctrl.Result{}, nil
 		}
@@ -125,6 +126,22 @@ func (r *SupersetLifecycleTaskReconciler) reconcileInitPod(ctx context.Context, 
 
 	if existingPod != nil {
 		taskCR.Status.PodName = existingPod.Name
+
+		// If the desired image changed (e.g., tag was corrected), delete the
+		// stale pod so it gets recreated with the updated image.
+		if taskCR.Status.Image != "" && taskCR.Status.Image != image {
+			log.Info("Image changed, deleting stale pod", "old", taskCR.Status.Image, "new", image)
+			if err := r.Delete(ctx, existingPod); client.IgnoreNotFound(err) != nil {
+				return ctrl.Result{}, err
+			}
+			taskCR.Status.State = initStatePending
+			taskCR.Status.Image = image
+			taskCR.Status.PodName = ""
+			taskCR.Status.Message = "Image changed, re-running task"
+			r.Recorder.Eventf(taskCR, nil, corev1.EventTypeNormal, "ImageChanged", "Reconcile",
+				"Image changed from %s to %s, re-running task", taskCR.Status.Image, image)
+			return ctrl.Result{RequeueAfter: time.Second}, nil
+		}
 
 		switch existingPod.Status.Phase {
 		case corev1.PodSucceeded:

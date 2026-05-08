@@ -694,6 +694,112 @@ func TestInitReconcile_FailedExhausted_ConfigChanged_ReRunsInit(t *testing.T) {
 	}
 }
 
+func TestInitReconcile_ImageChanged_DeletesStalePod(t *testing.T) {
+	scheme := testScheme(t)
+	initCR := minimalInitCR()
+	initCR.Spec.Image.Tag = "new-tag"
+	initCR.Status.State = initStateRunning
+	initCR.Status.Image = "apache/superset:old-tag"
+
+	stalePod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-init-stale",
+			Namespace: "default",
+			Labels: map[string]string{
+				labelInitInstance: "test-init",
+				labelInitTask:     initTaskName,
+			},
+		},
+		Status: corev1.PodStatus{Phase: corev1.PodPending},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(initCR, stalePod).
+		WithStatusSubresource(initCR).
+		Build()
+
+	r := &SupersetLifecycleTaskReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	result, err := r.Reconcile(context.Background(), reconcile.Request{
+		NamespacedName: types.NamespacedName{Name: "test-init", Namespace: "default"},
+	})
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if result.RequeueAfter == 0 {
+		t.Error("expected RequeueAfter > 0 after image change")
+	}
+
+	// Stale pod should be deleted.
+	podList := &corev1.PodList{}
+	if err := c.List(context.Background(), podList); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	if len(podList.Items) != 0 {
+		t.Errorf("expected stale pod to be deleted, got %d pods", len(podList.Items))
+	}
+
+	// Status should be reset.
+	updatedCR := &supersetv1alpha1.SupersetLifecycleTask{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-init", Namespace: "default"}, updatedCR); err != nil {
+		t.Fatalf("get updated CR: %v", err)
+	}
+	if updatedCR.Status.State != initStatePending {
+		t.Errorf("expected state Pending, got %s", updatedCR.Status.State)
+	}
+	if updatedCR.Status.Image != "apache/superset:new-tag" {
+		t.Errorf("expected image apache/superset:new-tag, got %s", updatedCR.Status.Image)
+	}
+	if updatedCR.Status.PodName != "" {
+		t.Errorf("expected podName cleared, got %s", updatedCR.Status.PodName)
+	}
+}
+
+func TestInitReconcile_ImageUnchanged_NoReset(t *testing.T) {
+	scheme := testScheme(t)
+	initCR := minimalInitCR()
+	initCR.Spec.Image.Tag = "latest"
+	initCR.Status.State = initStateRunning
+	initCR.Status.Image = "apache/superset:latest"
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-init-abc",
+			Namespace: "default",
+			Labels: map[string]string{
+				labelInitInstance: "test-init",
+				labelInitTask:     initTaskName,
+			},
+		},
+		Status: corev1.PodStatus{Phase: corev1.PodPending},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(initCR, pod).
+		WithStatusSubresource(initCR).
+		Build()
+
+	r := &SupersetLifecycleTaskReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	_, err := r.Reconcile(context.Background(), reconcile.Request{
+		NamespacedName: types.NamespacedName{Name: "test-init", Namespace: "default"},
+	})
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+
+	// Pod should still exist (not deleted).
+	podList := &corev1.PodList{}
+	if err := c.List(context.Background(), podList); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	if len(podList.Items) != 1 {
+		t.Errorf("expected pod to still exist, got %d pods", len(podList.Items))
+	}
+}
+
 func TestInitReconcile_NotFound(t *testing.T) {
 	scheme := testScheme(t)
 	c := fake.NewClientBuilder().WithScheme(scheme).Build()

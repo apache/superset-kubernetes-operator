@@ -43,7 +43,17 @@ helm install superset-operator \
 ```
 
 Replace `<version>` with a published chart version (e.g., `0.1.0`). Use
-`0.0.0-dev` for the latest build from main.
+`0.0.0-dev` for the latest build from main. When using the `dev` version,
+set `image.pullPolicy=Always` to ensure you always get the latest image:
+
+```bash
+helm install superset-operator \
+  oci://ghcr.io/apache/superset-kubernetes-operator/charts/superset-operator \
+  --version 0.0.0-dev \
+  --namespace superset-operator-system \
+  --create-namespace \
+  --set image.pullPolicy=Always
+```
 
 ### From a source checkout
 
