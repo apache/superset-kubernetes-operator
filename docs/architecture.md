@@ -276,7 +276,7 @@ never appear in ConfigMaps or CRD status fields.
 
 ### Config Mount Structure
 
-- `/app/superset/config/` — ConfigMap with `superset_config.py`
+- `/app/pythonpath/` — ConfigMap with `superset_config.py`
 
 ---
 

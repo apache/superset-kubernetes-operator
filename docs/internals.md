@@ -278,7 +278,7 @@ the standard Kubernetes mechanism for projecting files into containers:
 
 The rendered config is already stored on the child CR's `spec.config` field, so
 the ConfigMap is technically a derived resource. The child controller creates it
-from the spec and mounts it at `/app/superset/config/`.
+from the spec and mounts it at `/app/pythonpath/`.
 
 ### What Each Component Creates
 
