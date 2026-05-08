@@ -444,18 +444,9 @@ func TestReconcile_AllComponents_FullFeatures(t *testing.T) {
 		t.Error("celery worker config should contain WORKER_SETTING")
 	}
 
-	// WebsocketServer: no PYTHONPATH (Node.js).
+	// WebsocketServer: no config volume (Node.js).
 	wss := &supersetv1alpha1.SupersetWebsocketServer{}
 	_ = c.Get(ctx, types.NamespacedName{Name: "full", Namespace: "default"}, wss)
-	hasPythonPath := false
-	for _, env := range specEnv(wss.Spec.FlatComponentSpec) {
-		if env.Name == "PYTHONPATH" {
-			hasPythonPath = true
-		}
-	}
-	if hasPythonPath {
-		t.Error("websocket server should not have PYTHONPATH env var")
-	}
 
 	// MCP server: config should contain MCP_SETTING.
 	ms := &supersetv1alpha1.SupersetMcpServer{}
@@ -464,7 +455,7 @@ func TestReconcile_AllComponents_FullFeatures(t *testing.T) {
 		t.Error("mcp server config should contain MCP_SETTING")
 	}
 
-	// All Python components should have PYTHONPATH and SECRET_KEY env vars.
+	// All Python components should have SECRET_KEY env vars.
 	cb := &supersetv1alpha1.SupersetCeleryBeat{}
 	_ = c.Get(ctx, types.NamespacedName{Name: "full", Namespace: "default"}, cb)
 	cf := &supersetv1alpha1.SupersetCeleryFlower{}
@@ -485,9 +476,6 @@ func TestReconcile_AllComponents_FullFeatures(t *testing.T) {
 		envMap := make(map[string]string)
 		for _, env := range pc.envs {
 			envMap[env.Name] = env.Value
-		}
-		if envMap["PYTHONPATH"] == "" {
-			t.Errorf("%s should have PYTHONPATH env var", pc.name)
 		}
 		if envMap["SUPERSET_OPERATOR__SECRET_KEY"] != "test-secret-key" {
 			t.Errorf("%s should have SUPERSET_OPERATOR__SECRET_KEY env var in dev mode", pc.name)

@@ -282,9 +282,6 @@ func TestBuildOperatorInjected(t *testing.T) {
 	}
 
 	envMap := envSliceToMap(injected.Env)
-	if envMap["PYTHONPATH"] == "" {
-		t.Error("expected PYTHONPATH env var")
-	}
 	if envMap["SUPERSET_OPERATOR__SECRET_KEY"] != "test" {
 		t.Errorf("expected SUPERSET_OPERATOR__SECRET_KEY=test from configEnvVars, got %s", envMap["SUPERSET_OPERATOR__SECRET_KEY"])
 	}
@@ -292,7 +289,7 @@ func TestBuildOperatorInjected(t *testing.T) {
 		t.Errorf("expected SUPERSET_OPERATOR__FORCE_RELOAD=v2, got %s", envMap["SUPERSET_OPERATOR__FORCE_RELOAD"])
 	}
 
-	// Empty config: no volumes, no mounts, no PYTHONPATH.
+	// Empty config: no volumes, no mounts.
 	empty := buildOperatorInjected("", "child", "", nil)
 	if len(empty.Volumes) != 0 {
 		t.Errorf("expected 0 volumes for empty config, got %d", len(empty.Volumes))

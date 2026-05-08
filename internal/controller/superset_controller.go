@@ -1128,11 +1128,6 @@ func buildOperatorInjected(renderedConfig, childName, forceReload string, config
 			MountPath: configMountPath,
 			ReadOnly:  true,
 		})
-
-		injected.Env = append(injected.Env, corev1.EnvVar{
-			Name:  naming.EnvPythonPath,
-			Value: configMountPath,
-		})
 	}
 
 	// Add config-derived env vars (secret key, metastore fields, etc.).

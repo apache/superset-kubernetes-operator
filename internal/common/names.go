@@ -76,7 +76,7 @@ const (
 // Config paths.
 const (
 	ConfigVolumeName = "superset-config"
-	ConfigMountPath  = "/app/superset/config"
+	ConfigMountPath  = "/app/pythonpath"
 )
 
 // Init task names.
@@ -110,9 +110,6 @@ const (
 	EnvAdminFirstName = "SUPERSET_OPERATOR__ADMIN_FIRST_NAME"
 	EnvAdminLastName  = "SUPERSET_OPERATOR__ADMIN_LAST_NAME"
 	EnvAdminEmail     = "SUPERSET_OPERATOR__ADMIN_EMAIL"
-
-	// Standard env vars.
-	EnvPythonPath = "PYTHONPATH"
 )
 
 // ChildName constructs a child resource name from parent name and suffix.

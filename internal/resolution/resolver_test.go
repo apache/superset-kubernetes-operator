@@ -189,7 +189,7 @@ func TestResolveChildSpec_ComponentMergesWithTopLevel(t *testing.T) {
 		"app.kubernetes.io/component": "celery-worker",
 	}
 	operator := &OperatorInjected{
-		Env: []corev1.EnvVar{{Name: "PYTHONPATH", Value: "/app/superset/config"}},
+		Env: []corev1.EnvVar{{Name: "SUPERSET_OPERATOR__SECRET_KEY", Value: "test"}},
 	}
 
 	result := ResolveChildSpec(ComponentCeleryWorker, topLevel, component, operatorLabels, operator)
@@ -280,8 +280,8 @@ func TestResolveChildSpec_ComponentMergesWithTopLevel(t *testing.T) {
 	if envMap["COMP_ONLY"] != "yes" {
 		t.Error("component COMP_ONLY should be present")
 	}
-	if envMap["PYTHONPATH"] != "/app/superset/config" {
-		t.Error("operator PYTHONPATH should be present")
+	if envMap["SUPERSET_OPERATOR__SECRET_KEY"] != "test" {
+		t.Error("operator SUPERSET_OPERATOR__SECRET_KEY should be present")
 	}
 
 	// Command: from component (no inheritance)
@@ -348,7 +348,7 @@ func TestResolveChildSpec_OperatorInjectedMerged(t *testing.T) {
 				},
 			}},
 		},
-		VolumeMounts:   []corev1.VolumeMount{{Name: "config", MountPath: "/app/superset/config"}},
+		VolumeMounts:   []corev1.VolumeMount{{Name: "config", MountPath: "/app/pythonpath"}},
 		InitContainers: []corev1.Container{{Name: "op-init", Image: "init:op"}},
 	}
 
@@ -377,7 +377,7 @@ func TestResolveChildSpec_OperatorInjectedMerged(t *testing.T) {
 	}
 
 	// VolumeMounts: operator injected
-	if len(ct.VolumeMounts) != 1 || ct.VolumeMounts[0].MountPath != "/app/superset/config" {
+	if len(ct.VolumeMounts) != 1 || ct.VolumeMounts[0].MountPath != "/app/pythonpath" {
 		t.Error("expected operator volume mount")
 	}
 
@@ -408,7 +408,7 @@ func TestResolveChildSpec_OperatorVolumesWinOnConflict(t *testing.T) {
 				},
 			}},
 		},
-		VolumeMounts: []corev1.VolumeMount{{Name: "superset-config", MountPath: "/app/superset/config"}},
+		VolumeMounts: []corev1.VolumeMount{{Name: "superset-config", MountPath: "/app/pythonpath"}},
 	}
 
 	result := ResolveChildSpec(ComponentWebServer, topLevel, nil, nil, operator)
@@ -425,7 +425,7 @@ func TestResolveChildSpec_OperatorVolumesWinOnConflict(t *testing.T) {
 	if len(ct.VolumeMounts) != 1 {
 		t.Fatalf("expected 1 volume mount (merged by name), got %d", len(ct.VolumeMounts))
 	}
-	if ct.VolumeMounts[0].MountPath != "/app/superset/config" {
+	if ct.VolumeMounts[0].MountPath != "/app/pythonpath" {
 		t.Errorf("expected operator mount path to win, got %s", ct.VolumeMounts[0].MountPath)
 	}
 }
