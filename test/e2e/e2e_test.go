@@ -24,7 +24,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -309,14 +308,14 @@ spec:
 				g.Expect(err).NotTo(HaveOccurred())
 			}, 30*time.Second, time.Second).Should(Succeed())
 
-			By("verifying the child CR config contains operator-generated content")
+			By("verifying the ConfigMap contains operator-generated content")
 			Eventually(func(g Gomega) {
-				cmd := exec.Command("kubectl", "get", "supersetwebserver",
-					crName, "-n", namespace,
-					"-o", "jsonpath={.spec.config}")
+				cmd := exec.Command("kubectl", "get", "configmap",
+					crName+"-web-server-config", "-n", namespace,
+					"-o", "jsonpath={.data.superset_config\\.py}")
 				output, err := utils.Run(cmd)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(output).NotTo(BeEmpty(), "spec.config should not be empty")
+				g.Expect(output).NotTo(BeEmpty(), "ConfigMap superset_config.py should not be empty")
 				g.Expect(output).To(ContainSubstring("import os"))
 				g.Expect(output).To(ContainSubstring("SUPERSET_WEBSERVER_PORT"))
 			}, 30*time.Second, time.Second).Should(Succeed())
@@ -431,22 +430,19 @@ spec:
 				g.Expect(output).To(Equal("2"))
 			}, 30*time.Second, time.Second).Should(Succeed())
 
-			By("verifying WebsocketServer child has empty config (no Python config for Node.js)")
+			By("verifying WebsocketServer has no ConfigMap (no Python config for Node.js)")
 			Eventually(func(g Gomega) {
-				cmd := exec.Command("kubectl", "get", "supersetwebsocketserver",
-					crName, "-n", namespace,
-					"-o", "jsonpath={.spec.config}")
-				output, err := utils.Run(cmd)
-				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(strings.TrimSpace(output)).To(BeEmpty(),
-					"WebsocketServer should have no Python config")
+				cmd := exec.Command("kubectl", "get", "configmap",
+					crName+"-websocket-server-config", "-n", namespace)
+				_, err := utils.Run(cmd)
+				g.Expect(err).To(HaveOccurred(), "WebsocketServer should have no ConfigMap")
 			}, 30*time.Second, time.Second).Should(Succeed())
 
-			By("verifying CeleryWorker config contains both base and component config")
+			By("verifying CeleryWorker ConfigMap contains both base and component config")
 			Eventually(func(g Gomega) {
-				cmd := exec.Command("kubectl", "get", "supersetceleryworker",
-					crName, "-n", namespace,
-					"-o", "jsonpath={.spec.config}")
+				cmd := exec.Command("kubectl", "get", "configmap",
+					crName+"-celery-worker-config", "-n", namespace,
+					"-o", "jsonpath={.data.superset_config\\.py}")
 				output, err := utils.Run(cmd)
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(output).To(ContainSubstring("FEATURE_FLAGS"),
