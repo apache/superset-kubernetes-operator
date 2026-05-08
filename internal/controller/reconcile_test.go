@@ -782,23 +782,24 @@ func TestReconcile_InitGatesOnStaleChecksum(t *testing.T) {
 		t.Fatalf("update superset: %v", err)
 	}
 
-	// Reconcile — parent writes new checksum to init spec, but init status
-	// still has the old checksum. The gate should hold.
+	// Reconcile — parent sees init CR with mismatched checksum → deletes it.
 	doReconcile(t, r, "test")
 
-	if err := c.Get(ctx, types.NamespacedName{Name: "test-init", Namespace: "default"}, initCR); err != nil {
-		t.Fatalf("get init CR after image change: %v", err)
+	// The old init CR should be deleted (parent uses delete+create pattern).
+	err := c.Get(ctx, types.NamespacedName{Name: "test-init", Namespace: "default"}, initCR)
+	if err == nil {
+		t.Fatal("expected init CR to be deleted after image change (checksum mismatch)")
 	}
-	if initCR.Spec.ConfigChecksum == initCR.Status.ConfigChecksum {
-		t.Fatal("expected spec and status checksums to differ after image change")
+	if !errors.IsNotFound(err) {
+		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Parent status should reflect the gate.
+	// Parent status should reflect the gate (lifecycle incomplete).
 	if err := c.Get(ctx, types.NamespacedName{Name: "test", Namespace: "default"}, updated); err != nil {
 		t.Fatalf("get superset: %v", err)
 	}
-	if updated.Status.Phase != "Initializing" {
-		t.Errorf("expected phase Initializing while init checksum is stale, got %s", updated.Status.Phase)
+	if updated.Status.Phase == "Running" {
+		t.Error("expected phase != Running while init is being re-run")
 	}
 }
 
@@ -915,12 +916,19 @@ func TestReconcile_InitChecksumChangesOnImageAndCommand(t *testing.T) {
 		t.Fatalf("initial reconcileLifecycle: %v", err)
 	}
 
+	// Get the migrate CR and simulate completion.
 	initCR := &supersetv1alpha1.SupersetLifecycleTask{}
 	if err := c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, initCR); err != nil {
 		t.Fatalf("get migrate CR: %v", err)
 	}
 	originalChecksum := initCR.Spec.ConfigChecksum
+	initCR.Status.State = "Complete"
+	initCR.Status.ConfigChecksum = originalChecksum
+	if err := c.Status().Update(ctx, initCR); err != nil {
+		t.Fatalf("update migrate status: %v", err)
+	}
 
+	// Change spec — image tag and command — to trigger a different checksum.
 	updated := &supersetv1alpha1.Superset{}
 	if err := c.Get(ctx, types.NamespacedName{Name: "test", Namespace: "default"}, updated); err != nil {
 		t.Fatalf("get superset: %v", err)
@@ -931,17 +939,20 @@ func TestReconcile_InitChecksumChangesOnImageAndCommand(t *testing.T) {
 		t.Fatalf("update superset: %v", err)
 	}
 
+	// Reconcile — parent sees checksum mismatch → deletes old CR.
 	topLevel = convertTopLevelSpec(&updated.Spec)
 	_, _, err = r.reconcileLifecycle(ctx, updated, computeChecksum("base"), topLevel, resolveServiceAccountName(updated))
 	if err != nil {
 		t.Fatalf("updated reconcileLifecycle: %v", err)
 	}
 
-	if err := c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, initCR); err != nil {
-		t.Fatalf("get updated migrate CR: %v", err)
+	// Old CR should be deleted (parent deletes on checksum mismatch).
+	err = c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, initCR)
+	if err == nil {
+		t.Fatal("expected migrate CR to be deleted when checksum changes")
 	}
-	if initCR.Spec.ConfigChecksum == originalChecksum {
-		t.Fatal("expected migrate checksum to change when image tag and command change")
+	if !errors.IsNotFound(err) {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -1340,25 +1351,33 @@ func TestReconcile_InitTerminalFailure_NoRequeue(t *testing.T) {
 	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{}
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-test-1"},
 		Spec:       spec,
 	}
 
-	// Pre-create the migrate task CR with terminal failure state (attempts >= maxRetries).
-	initCR := &supersetv1alpha1.SupersetLifecycleTask{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-migrate", Namespace: "default"},
-		Status: supersetv1alpha1.SupersetLifecycleTaskStatus{
-			State:    "Failed",
-			Attempts: defaultMaxRetries,
-			Message:  "init command failed",
-		},
-	}
-
-	c := reconcileOnce(t, scheme, superset).
-		WithObjects(initCR).
-		WithStatusSubresource(&supersetv1alpha1.SupersetLifecycleTask{}).
+	// First reconcile to create the migrate CR and learn the expected checksum.
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(superset).
+		WithStatusSubresource(&supersetv1alpha1.Superset{}, &supersetv1alpha1.SupersetLifecycleTask{}).
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r, "test")
+
+	ctx := context.Background()
+	migrateCR := &supersetv1alpha1.SupersetLifecycleTask{}
+	if err := c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, migrateCR); err != nil {
+		t.Fatalf("get migrate CR: %v", err)
+	}
+
+	// Simulate terminal failure with matching checksum (same config that was requested).
+	migrateCR.Status.State = "Failed"
+	migrateCR.Status.Attempts = defaultMaxRetries
+	migrateCR.Status.Message = "init command failed"
+	migrateCR.Status.ConfigChecksum = migrateCR.Spec.ConfigChecksum
+	if err := c.Status().Update(ctx, migrateCR); err != nil {
+		t.Fatalf("update migrate status: %v", err)
+	}
 
 	result, err := r.Reconcile(context.Background(), reconcile.Request{
 		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},

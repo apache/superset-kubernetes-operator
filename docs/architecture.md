@@ -48,11 +48,13 @@ status without filtering.
 ### How it works
 
 Each child CRD contains the fully resolved spec — `kubectl get supersetwebserver -o yaml`
-shows exactly what is running with no layering to trace. Child CRDs can also
-be created directly to bypass the parent's resolution system. Because child CRs
-carry the same fields as the parent (images, commands, env vars, volumes), their
-writers should be treated as equally trusted — see the
-[Security](security.md#trust-boundaries) for details.
+shows exactly what is running with no layering to trace. While child CRDs can
+technically be created directly, doing so bypasses the parent's lifecycle
+orchestration (task sequencing, drain strategies, component gating). Manual child
+CRs are not recommended for production use. Because child CRs carry the same
+fields as the parent (images, commands, env vars, volumes), their writers should
+be treated as equally trusted — see [Security](security.md#trust-boundaries)
+for details.
 
 ---
 
@@ -282,17 +284,31 @@ never appear in ConfigMaps or CRD status fields.
 
 ## Lifecycle Tasks
 
-Lifecycle management is handled by dedicated `SupersetLifecycleTask` child CRDs. The
-parent controller creates two sequential tasks — "migrate" (`superset db upgrade`)
-and "init" (`superset init`) — each as a separate `SupersetLifecycleTask` CR named
+Lifecycle management is handled by dedicated `SupersetLifecycleTask` child CRDs,
+exclusively created and managed by the parent Superset controller. The parent
+creates two sequential tasks — "migrate" (`superset db upgrade`) and "init"
+(`superset init`) — each as a separate `SupersetLifecycleTask` CR named
 `{parentName}-migrate` and `{parentName}-init`. The `SupersetLifecycleTaskReconciler`
 manages bare Pods (`restartPolicy: Never`) with retry, backoff, timeout, and
 retention for each task.
 
-Tasks run sequentially: the migrate task must complete before the init task
-starts. Both must succeed before component deployment proceeds. The task
-commands are independently customizable via `spec.lifecycle.migrate.command`
-and `spec.lifecycle.init.command`.
+### Orchestration Model
+
+The parent controller is the sole authority on lifecycle orchestration:
+
+- **Sequencing**: migrate must complete before init starts
+- **Gating**: components are not created/updated until all tasks complete
+- **Re-runs**: when config or image changes, the parent deletes the old task CR
+  and creates a fresh one (the task controller never autonomously resets tasks)
+- **Drain verification**: when using the Drain strategy, the parent verifies all
+  component pods are terminated before starting tasks
+
+The task controller is a pure pod lifecycle manager — it creates pods, watches
+their status, handles retries within configured limits, and reports completion.
+It does not make orchestration decisions.
+
+Manually creating `SupersetLifecycleTask` CRs is not supported — they will not
+participate in the parent's orchestration flow (sequencing, gating, drain).
 
 ### Task Strategies
 
@@ -340,7 +356,7 @@ flowchart TD
     F -->|Never| I
     F -->|VersionChange / Always| G{upgradeStrategy}
     G -->|Rolling| H[Migrate pod]
-    G -->|Drain| G1[Delete child CRs] --> G2[Wait for GC] --> H
+    G -->|Drain| G1[Delete child CRs] --> G2[Wait for pods to terminate] --> H
     H --> I{init strategy}
     I -->|Never| K[Complete]
     I -->|VersionChange / Always| J[Init pod]
@@ -357,8 +373,10 @@ than the currently deployed version, the reconciler blocks the change and sets
 an error condition. This prevents accidental database downgrades.
 
 The lifecycle child CRs inherit scheduling, security, volumes, and env from
-the top-level `podTemplate`. Lifecycle gates all component deployment — other
-child CRs are not created until both tasks complete. See
+the top-level `podTemplate`. Lifecycle gates all component deployment — component
+child CRs are not created or updated until both tasks complete. When using the
+Drain strategy, the parent verifies all component pods have terminated (not just
+Deployments deleted) before starting migration tasks. See
 [Internals](internals.md#init-pod-lifecycle) for the full state machine, retry
 semantics, and pod retention policies.
 

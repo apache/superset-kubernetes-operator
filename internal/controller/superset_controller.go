@@ -26,7 +26,6 @@ import (
 	"strings"
 	"time"
 
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -376,8 +375,9 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	}
 
 	// Drain strategy: delete all component child CRs before running tasks.
-	// Only drain when migrate is needed — init alone doesn't alter the schema.
-	if migrateNeeded && getUpgradeStrategy(superset) == upgradeStrategyDrain {
+	// Drain only on actual image upgrades — config-only changes don't alter the
+	// schema, so draining would be disruptive for no benefit.
+	if migrateNeeded && imageChanged && getUpgradeStrategy(superset) == upgradeStrategyDrain {
 		superset.Status.Lifecycle.Phase = lifecyclePhaseDraining
 		superset.Status.Phase = phaseDraining
 		drained, err := r.drainComponents(ctx, superset)
@@ -569,18 +569,15 @@ func (r *SupersetReconciler) reconcileTask(
 	flatSpec.Autoscaling = nil
 	flatSpec.PodDisruptionBudget = nil
 
-	// CreateOrUpdate the SupersetLifecycleTask child CR.
-	child := &supersetv1alpha1.SupersetLifecycleTask{
-		ObjectMeta: metav1.ObjectMeta{Name: childName, Namespace: superset.Namespace},
-	}
-
 	taskChecksum := computeChecksum(struct {
+		ParentUID            string
 		SharedConfigChecksum string
 		Config               string
 		FlatSpec             supersetv1alpha1.FlatComponentSpec
 		TaskType             string
 		Command              []string
 	}{
+		ParentUID:            string(superset.UID),
 		SharedConfigChecksum: configChecksum,
 		Config:               renderedConfig,
 		FlatSpec:             flatSpec,
@@ -588,39 +585,54 @@ func (r *SupersetReconciler) reconcileTask(
 		Command:              command,
 	})
 
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, child, func() error {
-		if err := controllerutil.SetControllerReference(superset, child, r.Scheme); err != nil {
-			return err
+	// Get the task CR. Use Get+Create/Delete pattern (never CreateOrUpdate)
+	// to avoid races with the task controller's status writes.
+	child := &supersetv1alpha1.SupersetLifecycleTask{}
+	err := r.Get(ctx, types.NamespacedName{Name: childName, Namespace: superset.Namespace}, child)
+
+	if errors.IsNotFound(err) {
+		// Task CR doesn't exist — create fresh.
+		child = &supersetv1alpha1.SupersetLifecycleTask{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      childName,
+				Namespace: superset.Namespace,
+				Labels: map[string]string{
+					naming.LabelKeyName:      naming.LabelValueApp,
+					naming.LabelKeyComponent: string(naming.ComponentInit),
+					naming.LabelKeyParent:    superset.Name,
+				},
+			},
 		}
-		child.SetLabels(mergeLabels(child.GetLabels(), map[string]string{
-			naming.LabelKeyName:      naming.LabelValueApp,
-			naming.LabelKeyComponent: string(naming.ComponentInit),
-			naming.LabelKeyParent:    superset.Name,
-		}))
+		if err := controllerutil.SetControllerReference(superset, child, r.Scheme); err != nil {
+			return 0, false, fmt.Errorf("setting controller reference on %s: %w", childName, err)
+		}
 		child.Spec.FlatComponentSpec = flatSpec
 		child.Spec.Type = taskType
 		child.Spec.Command = command
 		child.Spec.Config = renderedConfig
 		child.Spec.ConfigChecksum = taskChecksum
-
-		// Pass lifecycle-level settings.
 		if superset.Spec.Lifecycle != nil {
 			child.Spec.PodRetention = superset.Spec.Lifecycle.PodRetention
-		} else {
-			child.Spec.PodRetention = nil
 		}
 		child.Spec.MaxRetries = r.taskMaxRetries(superset, taskType)
 		child.Spec.Timeout = r.taskTimeout(superset, taskType)
 
-		return nil
-	})
+		if err := r.Create(ctx, child); err != nil {
+			return 0, false, fmt.Errorf("creating SupersetLifecycleTask %s: %w", childName, err)
+		}
+		log.Info("Created lifecycle task CR", "task", taskType)
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+			metav1.ConditionFalse, "TaskInProgress", fmt.Sprintf("%s task is in progress", taskType), superset.Generation)
+		return taskRequeueInterval, false, nil
+	}
 	if err != nil {
-		return 0, false, fmt.Errorf("creating/updating SupersetLifecycleTask %s: %w", childName, err)
+		return 0, false, fmt.Errorf("fetching SupersetLifecycleTask %s: %w", childName, err)
 	}
 
-	// Re-fetch to get latest status.
-	if err := r.Get(ctx, client.ObjectKeyFromObject(child), child); err != nil {
-		return 0, false, fmt.Errorf("fetching SupersetLifecycleTask %s status: %w", childName, err)
+	// Task CR is being deleted — wait for GC to finish.
+	if child.DeletionTimestamp != nil {
+		log.Info("Task CR is being deleted, waiting for GC", "task", taskType)
+		return taskRequeueInterval, false, nil
 	}
 
 	// Project status to parent.
@@ -641,25 +653,37 @@ func (r *SupersetReconciler) reconcileTask(
 		superset.Status.Lifecycle.Init = taskRef
 	}
 
+	maxRetries := r.taskMaxRetriesValue(superset, taskType)
+
 	switch child.Status.State {
 	case taskStateComplete:
-		if child.Spec.ConfigChecksum != "" && child.Status.ConfigChecksum != child.Spec.ConfigChecksum {
-			log.Info("Task complete for previous config, waiting for re-execution", "task", taskType)
-			setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-				metav1.ConditionFalse, "TaskConfigChanged", fmt.Sprintf("%s task config changed, awaiting re-execution", taskType), superset.Generation)
-			return taskRequeueInterval, false, nil
+		if child.Status.ConfigChecksum == taskChecksum {
+			log.Info("Task complete", "task", taskType)
+			return 0, true, nil
 		}
-		log.Info("Task complete", "task", taskType)
-		return 0, true, nil
+		// Completed for a different config — delete to trigger re-run.
+		log.Info("Task completed for previous config, deleting to re-run", "task", taskType,
+			"statusChecksum", child.Status.ConfigChecksum, "expectedChecksum", taskChecksum)
+		if err := r.Delete(ctx, child); err != nil {
+			return 0, false, fmt.Errorf("deleting stale task CR %s: %w", childName, err)
+		}
+		return taskRequeueInterval, false, nil
 
 	case taskStateFailed:
-		maxRetries := r.taskMaxRetriesValue(superset, taskType)
 		if child.Status.Attempts >= maxRetries {
-			log.Info("Task permanently failed", "task", taskType)
-			setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-				metav1.ConditionFalse, "TaskFailed", fmt.Sprintf("%s: %s", taskType, child.Status.Message), superset.Generation)
-			superset.Status.Phase = phaseInitializing
-			return -1, false, nil
+			if child.Status.ConfigChecksum == taskChecksum {
+				log.Info("Task permanently failed", "task", taskType)
+				setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+					metav1.ConditionFalse, "TaskFailed", fmt.Sprintf("%s: %s", taskType, child.Status.Message), superset.Generation)
+				superset.Status.Phase = phaseInitializing
+				return -1, false, nil
+			}
+			// Failed for a different config — delete to retry with new config.
+			log.Info("Task failed for previous config, deleting to re-run", "task", taskType)
+			if err := r.Delete(ctx, child); err != nil {
+				return 0, false, fmt.Errorf("deleting stale task CR %s: %w", childName, err)
+			}
+			return taskRequeueInterval, false, nil
 		}
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
 			metav1.ConditionFalse, "TaskRetrying", fmt.Sprintf("%s task is retrying", taskType), superset.Generation)
@@ -836,17 +860,25 @@ func (r *SupersetReconciler) drainComponents(ctx context.Context, superset *supe
 		}
 	}
 
-	// Check if any component Deployments still exist (waiting for GC).
-	deployList := &appsv1.DeploymentList{}
-	if err := r.List(ctx, deployList,
+	// Verify all component pods are terminated. Pods are the last resource in
+	// the GC cascade (CR → Deployment → ReplicaSet → Pod), so their absence
+	// confirms the full cascade is complete.
+	podList := &corev1.PodList{}
+	if err := r.List(ctx, podList,
 		client.InNamespace(superset.Namespace),
 		client.MatchingLabels{naming.LabelKeyParent: superset.Name},
 	); err != nil {
-		return false, fmt.Errorf("listing deployments: %w", err)
+		return false, fmt.Errorf("listing pods: %w", err)
 	}
 
-	if len(deployList.Items) > 0 {
-		log.Info("Waiting for component Deployments to be garbage collected", "remaining", len(deployList.Items))
+	componentPods := 0
+	for i := range podList.Items {
+		if podList.Items[i].Labels[naming.LabelKeyComponent] != string(naming.ComponentInit) {
+			componentPods++
+		}
+	}
+	if componentPods > 0 {
+		log.Info("Waiting for component pods to terminate", "remaining", componentPods)
 		return false, nil
 	}
 

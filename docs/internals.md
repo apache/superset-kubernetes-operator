@@ -56,20 +56,27 @@ parent CR name. Owned by the parent CR and garbage-collected on parent deletion.
 
 ### Phase 3: Lifecycle Tasks
 
-The parent controller creates or updates two `SupersetLifecycleTask` child CRs:
-`{parentName}-migrate` and `{parentName}-init`. The dedicated
-`SupersetLifecycleTaskReconciler` manages the Pod lifecycle for each task (ConfigMap
-creation, bare Pod creation, retry with backoff, timeout, retention). See
-[Init Pod Lifecycle](#init-pod-lifecycle) below for the full state machine.
+The parent controller creates `SupersetLifecycleTask` child CRs:
+`{parentName}-migrate` and `{parentName}-init`. The parent uses a Get+Create/Delete
+pattern (never CreateOrUpdate) to avoid races with the task controller's status
+writes. When a task needs to re-run (checksum mismatch), the parent deletes the
+old CR and creates a fresh one on the next reconcile.
+
+The dedicated `SupersetLifecycleTaskReconciler` manages the Pod lifecycle for
+each task (ConfigMap creation, bare Pod creation, retry with backoff, timeout,
+retention). It is a pure executor — it never autonomously resets or re-runs
+tasks. See [Init Pod Lifecycle](#init-pod-lifecycle) below for the full state
+machine.
 
 Tasks run sequentially: migrate must complete before init starts. The task
 strategy (default: `VersionChange`) determines whether tasks are triggered —
 with the default strategy, tasks only run when the Superset image changes.
 
 When `upgradeStrategy: Drain` is set, the operator deletes all component child
-CRs before running tasks. This cascades to Deployments, Services, and HPAs via
-garbage collection, ensuring no application pods access the metastore during
-schema changes. After tasks complete, Phase 4 recreates all components fresh.
+CRs before running tasks. The parent verifies all component pods have terminated
+(not just Deployments deleted) before proceeding to task execution. This
+ensures no application pods access the metastore during schema changes. After
+tasks complete, Phase 4 recreates all components fresh.
 
 Components do not deploy until both lifecycle tasks complete (or lifecycle is
 explicitly disabled via `spec.lifecycle.disabled: true`). If a task is in

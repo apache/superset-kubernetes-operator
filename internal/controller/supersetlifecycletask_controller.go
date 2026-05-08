@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-logr/logr"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -99,17 +98,19 @@ func (r *SupersetLifecycleTaskReconciler) reconcileInitPod(ctx context.Context, 
 	timeout := getTaskTimeout(taskCR)
 	image := fmt.Sprintf("%s:%s", taskCR.Spec.Image.Repository, taskCR.Spec.Image.Tag)
 
-	// If already complete or permanently failed, check for config changes.
+	// Terminal states: the parent controller is responsible for deleting and
+	// recreating the CR if a re-run is needed. The task controller never resets.
+	// Apply retention policy here (state already persisted from a previous reconcile).
 	if taskCR.Status.State == initStateComplete ||
 		(taskCR.Status.State == initStateFailed && taskCR.Status.Attempts >= maxRetries) {
-		if taskCR.Spec.ConfigChecksum != "" && taskCR.Status.ConfigChecksum != taskCR.Spec.ConfigChecksum {
-			if err := r.resetForConfigChange(ctx, log, taskCR, resourceBaseName); err != nil {
-				return ctrl.Result{}, err
-			}
-			taskCR.Status.Image = image
-		} else {
-			return ctrl.Result{}, nil
+		existingPod, err := r.findInitPod(ctx, taskCR, resourceBaseName)
+		if err != nil {
+			return ctrl.Result{}, err
 		}
+		if existingPod != nil {
+			r.applyRetentionPolicy(ctx, taskCR, existingPod)
+		}
+		return ctrl.Result{}, nil
 	}
 
 	// Initialize status if empty.
@@ -155,8 +156,6 @@ func (r *SupersetLifecycleTaskReconciler) reconcileInitPod(ctx context.Context, 
 			taskCR.Status.Message = "Completed successfully"
 			taskCR.Status.ConfigChecksum = taskCR.Spec.ConfigChecksum
 
-			r.applyRetentionPolicy(ctx, taskCR, existingPod)
-
 			setCondition(&taskCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
 				metav1.ConditionTrue, "InitComplete", "Initialization completed successfully", taskCR.Generation)
 
@@ -170,7 +169,6 @@ func (r *SupersetLifecycleTaskReconciler) reconcileInitPod(ctx context.Context, 
 			if taskCR.Status.Attempts >= maxRetries {
 				taskCR.Status.State = initStateFailed
 				taskCR.Status.ConfigChecksum = taskCR.Spec.ConfigChecksum
-				r.applyRetentionPolicy(ctx, taskCR, existingPod)
 				r.Recorder.Eventf(taskCR, nil, corev1.EventTypeWarning, "InitFailed", "Reconcile",
 					"Init failed after %d attempts: %s", taskCR.Status.Attempts, taskCR.Status.Message)
 				setCondition(&taskCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
@@ -202,7 +200,6 @@ func (r *SupersetLifecycleTaskReconciler) reconcileInitPod(ctx context.Context, 
 					if taskCR.Status.Attempts >= maxRetries {
 						taskCR.Status.State = initStateFailed
 						taskCR.Status.ConfigChecksum = taskCR.Spec.ConfigChecksum
-						r.applyRetentionPolicy(ctx, taskCR, existingPod)
 						r.Recorder.Eventf(taskCR, nil, corev1.EventTypeWarning, "InitFailed", "Reconcile",
 							"Init timed out after %d attempts", taskCR.Status.Attempts)
 						setCondition(&taskCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
@@ -267,25 +264,6 @@ func (r *SupersetLifecycleTaskReconciler) reconcileInitPod(ctx context.Context, 
 	return ctrl.Result{RequeueAfter: initRequeueInterval}, nil
 }
 
-// resetForConfigChange deletes existing init pods and resets status to
-// Pending so init re-runs with the new configuration.
-func (r *SupersetLifecycleTaskReconciler) resetForConfigChange(ctx context.Context, log logr.Logger, taskCR *supersetv1alpha1.SupersetLifecycleTask, resourceBaseName string) error {
-	log.Info("Config changed, resetting init to re-run", "oldChecksum", taskCR.Status.ConfigChecksum, "newChecksum", taskCR.Spec.ConfigChecksum)
-	if err := r.deleteInitPods(ctx, taskCR, resourceBaseName); err != nil {
-		return err
-	}
-	taskCR.Status.State = initStatePending
-	taskCR.Status.Attempts = 0
-	taskCR.Status.Message = "Config changed, re-running initialization"
-	taskCR.Status.CompletedAt = nil
-	taskCR.Status.StartedAt = nil
-	taskCR.Status.PodName = ""
-	taskCR.Status.Duration = ""
-	taskCR.Status.ConfigChecksum = ""
-	r.Recorder.Eventf(taskCR, nil, corev1.EventTypeNormal, "ConfigChanged", "Reconcile", "Config changed, re-running initialization")
-	return nil
-}
-
 // findInitPod finds the most recent existing init pod for this SupersetLifecycleTask CR.
 func (r *SupersetLifecycleTaskReconciler) findInitPod(ctx context.Context, taskCR *supersetv1alpha1.SupersetLifecycleTask, resourceBaseName string) (*corev1.Pod, error) {
 	podList := &corev1.PodList{}
@@ -328,28 +306,6 @@ func (r *SupersetLifecycleTaskReconciler) applyRetentionPolicy(ctx context.Conte
 			log.Error(err, "Failed to delete completed init pod", "pod", pod.Name)
 		}
 	}
-}
-
-// deleteInitPods deletes all init pods for the given SupersetLifecycleTask CR.
-// Used when resetting init state after a config change to ensure retained
-// pods from a previous run don't get mistaken for the new run.
-func (r *SupersetLifecycleTaskReconciler) deleteInitPods(ctx context.Context, taskCR *supersetv1alpha1.SupersetLifecycleTask, resourceBaseName string) error {
-	podList := &corev1.PodList{}
-	if err := r.List(ctx, podList,
-		client.InNamespace(taskCR.Namespace),
-		client.MatchingLabels{
-			labelInitInstance: resourceBaseName,
-			labelInitTask:     initTaskName,
-		},
-	); err != nil {
-		return fmt.Errorf("listing init pods for cleanup: %w", err)
-	}
-	for i := range podList.Items {
-		if err := r.Delete(ctx, &podList.Items[i]); client.IgnoreNotFound(err) != nil {
-			return fmt.Errorf("deleting init pod %s: %w", podList.Items[i].Name, err)
-		}
-	}
-	return nil
 }
 
 // buildInitPod builds a PodSpec from the flat component spec for an init pod.

@@ -462,6 +462,124 @@ func TestInitReconcile_PodSucceeded(t *testing.T) {
 	}
 }
 
+func TestInitReconcile_PodSucceeded_RetentionDeferredUntilNextReconcile(t *testing.T) {
+	scheme := testScheme(t)
+	initCR := minimalInitCR()
+	initCR.Status.State = initStateRunning
+	now := metav1.Now()
+	initCR.Status.StartedAt = &now
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-init-abc",
+			Namespace: "default",
+			Labels: map[string]string{
+				labelInitInstance: "test-init",
+				labelInitTask:     initTaskName,
+			},
+		},
+		Status: corev1.PodStatus{Phase: corev1.PodSucceeded},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(initCR, pod).
+		WithStatusSubresource(initCR).
+		Build()
+
+	r := &SupersetLifecycleTaskReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	// First reconcile: marks Complete but does NOT delete pod (retention deferred).
+	_, err := r.Reconcile(context.Background(), reconcile.Request{
+		NamespacedName: types.NamespacedName{Name: "test-init", Namespace: "default"},
+	})
+	if err != nil {
+		t.Fatalf("reconcile 1: %v", err)
+	}
+
+	// Pod must still exist after the first reconcile (status not yet confirmed persisted).
+	podList := &corev1.PodList{}
+	if err := c.List(context.Background(), podList); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	if len(podList.Items) != 1 {
+		t.Fatalf("expected pod to still exist after completion reconcile, got %d pods", len(podList.Items))
+	}
+
+	// Second reconcile: state=Complete is now persisted, retention applies.
+	_, err = r.Reconcile(context.Background(), reconcile.Request{
+		NamespacedName: types.NamespacedName{Name: "test-init", Namespace: "default"},
+	})
+	if err != nil {
+		t.Fatalf("reconcile 2: %v", err)
+	}
+
+	// Pod should now be deleted (default retention = Delete).
+	if err := c.List(context.Background(), podList); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	if len(podList.Items) != 0 {
+		t.Errorf("expected pod to be deleted after retention reconcile, got %d pods", len(podList.Items))
+	}
+}
+
+func TestInitReconcile_PodSucceeded_NoSpuriousSecondPod(t *testing.T) {
+	// Regression test: when a pod succeeds and the status update would conflict
+	// (simulated by running two reconciles), no second pod should be created.
+	scheme := testScheme(t)
+	initCR := minimalInitCR()
+	initCR.Status.State = initStateRunning
+	now := metav1.Now()
+	initCR.Status.StartedAt = &now
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-init-abc",
+			Namespace: "default",
+			Labels: map[string]string{
+				labelInitInstance: "test-init",
+				labelInitTask:     initTaskName,
+			},
+		},
+		Status: corev1.PodStatus{Phase: corev1.PodSucceeded},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(initCR, pod).
+		WithStatusSubresource(initCR).
+		Build()
+
+	r := &SupersetLifecycleTaskReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	// First reconcile: marks Complete.
+	_, err := r.Reconcile(context.Background(), reconcile.Request{
+		NamespacedName: types.NamespacedName{Name: "test-init", Namespace: "default"},
+	})
+	if err != nil {
+		t.Fatalf("reconcile 1: %v", err)
+	}
+
+	// Second reconcile: should hit terminal state check and return early.
+	_, err = r.Reconcile(context.Background(), reconcile.Request{
+		NamespacedName: types.NamespacedName{Name: "test-init", Namespace: "default"},
+	})
+	if err != nil {
+		t.Fatalf("reconcile 2: %v", err)
+	}
+
+	// Only the original pod should exist (no second pod created).
+	podList := &corev1.PodList{}
+	if err := c.List(context.Background(), podList); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	// Pod may have been deleted by retention in reconcile 2, but there should
+	// NOT be 2 pods (which would indicate a spurious second pod was created).
+	if len(podList.Items) > 1 {
+		t.Errorf("expected at most 1 pod, got %d — spurious pod creation detected", len(podList.Items))
+	}
+}
+
 func TestInitReconcile_PodFailed_Retries(t *testing.T) {
 	scheme := testScheme(t)
 	initCR := minimalInitCR()
@@ -593,7 +711,7 @@ func TestInitReconcile_AlreadyComplete_Noop(t *testing.T) {
 	}
 }
 
-func TestInitReconcile_ConfigChanged_ReRunsInit(t *testing.T) {
+func TestInitReconcile_Complete_WithChecksumMismatch_NoReset(t *testing.T) {
 	scheme := testScheme(t)
 	initCR := minimalInitCR()
 	initCR.Spec.ConfigChecksum = "new-checksum"
@@ -614,47 +732,31 @@ func TestInitReconcile_ConfigChanged_ReRunsInit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	if result.RequeueAfter == 0 {
-		t.Error("expected requeue for config change")
+	if result.RequeueAfter != 0 {
+		t.Error("expected no requeue for completed task (parent handles re-runs)")
 	}
 
-	updatedCR := &supersetv1alpha1.SupersetLifecycleTask{}
-	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-init", Namespace: "default"}, updatedCR); err != nil {
-		t.Fatalf("get updated CR: %v", err)
+	// No pod should be created — task controller returns early on terminal states.
+	podList := &corev1.PodList{}
+	if err := c.List(context.Background(), podList); err != nil {
+		t.Fatalf("list pods: %v", err)
 	}
-	if updatedCR.Status.State != initStateRunning {
-		t.Errorf("expected state Running after config change, got %s", updatedCR.Status.State)
-	}
-	if updatedCR.Status.Attempts != 0 {
-		t.Errorf("expected attempts reset to 0, got %d", updatedCR.Status.Attempts)
+	if len(podList.Items) != 0 {
+		t.Errorf("expected no pods created, got %d", len(podList.Items))
 	}
 }
 
-func TestInitReconcile_FailedExhausted_ConfigChanged_ReRunsInit(t *testing.T) {
+func TestInitReconcile_FailedExhausted_WithChecksumMismatch_NoReset(t *testing.T) {
 	scheme := testScheme(t)
 	initCR := minimalInitCR()
 	initCR.Spec.ConfigChecksum = "new-checksum"
-	initCR.Spec.PodRetention = &supersetv1alpha1.PodRetentionSpec{Policy: strPtr("RetainOnFailure")}
 	initCR.Status.State = initStateFailed
 	initCR.Status.Attempts = 3
 	initCR.Status.ConfigChecksum = "old-checksum"
-	initCR.Status.Message = "OOMKilled"
-
-	retainedPod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-init-old",
-			Namespace: "default",
-			Labels: map[string]string{
-				labelInitInstance: "test-init",
-				labelInitTask:     initTaskName,
-			},
-		},
-		Status: corev1.PodStatus{Phase: corev1.PodFailed},
-	}
 
 	c := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithObjects(initCR, retainedPod).
+		WithObjects(initCR).
 		WithStatusSubresource(initCR).
 		Build()
 
@@ -666,31 +768,17 @@ func TestInitReconcile_FailedExhausted_ConfigChanged_ReRunsInit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reconcile: %v", err)
 	}
-	if result.RequeueAfter == 0 {
-		t.Error("expected requeue for config change after failure")
+	if result.RequeueAfter != 0 {
+		t.Error("expected no requeue for exhausted task (parent handles re-runs)")
 	}
 
-	updatedCR := &supersetv1alpha1.SupersetLifecycleTask{}
-	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-init", Namespace: "default"}, updatedCR); err != nil {
-		t.Fatalf("get updated CR: %v", err)
-	}
-	if updatedCR.Status.State != initStateRunning {
-		t.Errorf("expected state Running after config change, got %s", updatedCR.Status.State)
-	}
-	if updatedCR.Status.Attempts != 0 {
-		t.Errorf("expected attempts reset to 0, got %d", updatedCR.Status.Attempts)
-	}
-
-	// Retained pod from the old run should be deleted, replaced by a fresh pod.
+	// No pod should be created — task controller returns early on terminal states.
 	podList := &corev1.PodList{}
 	if err := c.List(context.Background(), podList); err != nil {
 		t.Fatalf("list pods: %v", err)
 	}
-	if len(podList.Items) != 1 {
-		t.Fatalf("expected 1 pod (fresh), got %d", len(podList.Items))
-	}
-	if podList.Items[0].Name == "test-init-old" {
-		t.Error("expected the retained pod to be deleted and replaced by a fresh pod")
+	if len(podList.Items) != 0 {
+		t.Errorf("expected no pods created, got %d", len(podList.Items))
 	}
 }
 
