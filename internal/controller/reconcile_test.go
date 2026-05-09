@@ -357,7 +357,7 @@ func TestReconcile_AllComponents_FullFeatures(t *testing.T) {
 	scheme := testScheme(t)
 
 	spec := minimalSupersetSpec()
-	spec.Environment = common.Ptr("dev")
+	spec.Environment = common.Ptr("Development")
 	spec.SecretKey = common.Ptr("test-secret-key")
 	spec.SecretKeyFrom = nil
 	spec.Metastore = &supersetv1alpha1.MetastoreSpec{
@@ -549,7 +549,7 @@ func TestReconcile_TopLevelAutoscalingPDB_Inherited(t *testing.T) {
 
 	minAvail := intstr.FromInt32(1)
 	spec := minimalSupersetSpec()
-	spec.Environment = common.Ptr("dev")
+	spec.Environment = common.Ptr("Development")
 	spec.SecretKey = common.Ptr("test-key")
 	spec.SecretKeyFrom = nil
 	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)}
@@ -763,7 +763,7 @@ func TestReconcile_InitCommand_PropagatedToChildCR(t *testing.T) {
 	spec := minimalSupersetSpec()
 	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 		Migrate: &supersetv1alpha1.MigrateTaskSpec{
-			Command: customCmd,
+			BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Command: customCmd},
 		},
 	}
 
@@ -843,7 +843,7 @@ func TestReconcile_InitChecksumChangesOnImageAndCommand(t *testing.T) {
 	spec := minimalSupersetSpec()
 	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 		Migrate: &supersetv1alpha1.MigrateTaskSpec{
-			Command: []string{"/bin/sh", "-c", "superset db upgrade"},
+			BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Command: []string{"/bin/sh", "-c", "superset db upgrade"}},
 		},
 	}
 	superset := &supersetv1alpha1.Superset{
@@ -911,7 +911,7 @@ func TestReconcile_InitChecksum_StableWhenAutoscalingChanges(t *testing.T) {
 	spec := minimalSupersetSpec()
 	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 		Migrate: &supersetv1alpha1.MigrateTaskSpec{
-			Command: []string{"/bin/sh", "-c", "superset db upgrade"},
+			BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Command: []string{"/bin/sh", "-c", "superset db upgrade"}},
 		},
 	}
 	superset := &supersetv1alpha1.Superset{
@@ -973,7 +973,7 @@ func TestReconcile_InitChecksum_StableWhenAutoscalingChanges(t *testing.T) {
 func TestReconcile_InitAdminUser_CommandAndEnvVars(t *testing.T) {
 	scheme := testScheme(t)
 
-	dev := "dev"
+	dev := "Development"
 	spec := minimalSupersetSpec()
 	spec.Environment = &dev
 	spec.SecretKey = strPtr("test-secret")
@@ -1038,7 +1038,7 @@ func TestReconcile_InitAdminUser_CommandAndEnvVars(t *testing.T) {
 func TestReconcile_InitLoadExamples_CommandConstruction(t *testing.T) {
 	scheme := testScheme(t)
 
-	dev := "dev"
+	dev := "Development"
 	spec := minimalSupersetSpec()
 	spec.Environment = &dev
 	spec.SecretKey = strPtr("test-secret")
@@ -1078,7 +1078,7 @@ func TestReconcile_InitLoadExamples_CommandConstruction(t *testing.T) {
 func TestReconcile_InitAdminAndExamples_Combined(t *testing.T) {
 	scheme := testScheme(t)
 
-	dev := "dev"
+	dev := "Development"
 	spec := minimalSupersetSpec()
 	spec.Environment = &dev
 	spec.SecretKey = strPtr("test-secret")
@@ -1589,5 +1589,129 @@ func TestReconcile_DrainStrategy_DeletesChildCRs(t *testing.T) {
 	}
 	if updated.Status.Phase != "Upgrading" && updated.Status.Phase != "Draining" {
 		t.Errorf("expected phase Upgrading or Draining, got %q", updated.Status.Phase)
+	}
+}
+
+func TestReconcile_Clone_AlwaysDrains(t *testing.T) {
+	scheme := testScheme(t)
+
+	devEnv := "Development"
+	pw := "secret"
+	host := "pg-staging.svc"
+	db := "superset_staging"
+	user := "admin"
+	spec := supersetv1alpha1.SupersetSpec{
+		Image: supersetv1alpha1.ImageSpec{
+			Repository: "apache/superset",
+			Tag:        "4.0.0",
+		},
+		Environment: &devEnv,
+		SecretKey:   &pw,
+		Metastore: &supersetv1alpha1.MetastoreSpec{
+			Host:     &host,
+			Database: &db,
+			Username: &user,
+			Password: &pw,
+		},
+		WebServer: &supersetv1alpha1.WebServerComponentSpec{},
+		Lifecycle: &supersetv1alpha1.LifecycleSpec{
+			// Note: UpgradeStrategy is NOT set to Drain — clone should drain regardless.
+			Clone: &supersetv1alpha1.CloneTaskSpec{
+				Source: supersetv1alpha1.CloneSourceSpec{
+					Host:     "pg-prod.svc",
+					Database: "superset_prod",
+					Username: "reader",
+					Password: &pw,
+				},
+			},
+		},
+	}
+
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "staging", Namespace: "default"},
+		Spec:       spec,
+	}
+
+	// Pre-create a WebServer child CR to verify it gets drained.
+	webServer := &supersetv1alpha1.SupersetWebServer{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "staging",
+			Namespace: "default",
+			Labels:    map[string]string{common.LabelKeyParent: "staging"},
+		},
+	}
+
+	c := reconcileOnce(t, scheme, superset).
+		WithObjects(webServer).
+		WithStatusSubresource(&supersetv1alpha1.SupersetLifecycleTask{}, &supersetv1alpha1.SupersetWebServer{}).
+		Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r, "staging")
+
+	ctx := context.Background()
+
+	// WebServer child CR should be deleted (clone forces drain).
+	ws := &supersetv1alpha1.SupersetWebServer{}
+	err := c.Get(ctx, types.NamespacedName{Name: "staging", Namespace: "default"}, ws)
+	if !errors.IsNotFound(err) {
+		t.Fatalf("expected WebServer child CR to be deleted during clone drain, got err: %v", err)
+	}
+
+	// Status should show draining or cloning phase.
+	updated := &supersetv1alpha1.Superset{}
+	if err := c.Get(ctx, types.NamespacedName{Name: "staging", Namespace: "default"}, updated); err != nil {
+		t.Fatalf("get superset: %v", err)
+	}
+	if updated.Status.Phase != "Draining" && updated.Status.Lifecycle.Phase != "Cloning" && updated.Status.Lifecycle.Phase != "Draining" {
+		t.Errorf("expected lifecycle phase Draining or Cloning, got status.phase=%q lifecycle.phase=%q",
+			updated.Status.Phase, updated.Status.Lifecycle.Phase)
+	}
+}
+
+func TestReconcile_Clone_NoDrainWithoutClone(t *testing.T) {
+	// Verify that without clone and with same image, components are NOT drained
+	// (drain only fires on image change or when clone is enabled).
+	scheme := testScheme(t)
+
+	rolling := "Rolling"
+	spec := minimalSupersetSpec()
+	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		UpgradeStrategy: &rolling,
+	}
+
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec:       spec,
+		Status: supersetv1alpha1.SupersetStatus{
+			LastLifecycleImage: "apache/superset:latest",
+		},
+	}
+
+	// Pre-create a WebServer child CR.
+	webServer := &supersetv1alpha1.SupersetWebServer{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "default",
+			Labels:    map[string]string{common.LabelKeyParent: "test"},
+		},
+	}
+
+	c := reconcileOnce(t, scheme, superset).
+		WithObjects(webServer).
+		WithStatusSubresource(&supersetv1alpha1.SupersetLifecycleTask{}, &supersetv1alpha1.SupersetWebServer{}).
+		Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r, "test")
+
+	ctx := context.Background()
+
+	// WebServer child CR should NOT be deleted (no drain needed — same image, Rolling strategy).
+	ws := &supersetv1alpha1.SupersetWebServer{}
+	err := c.Get(ctx, types.NamespacedName{Name: "test", Namespace: "default"}, ws)
+	if errors.IsNotFound(err) {
+		t.Fatal("WebServer child CR should NOT have been deleted (no clone, no drain strategy, same image)")
+	}
+	if err != nil {
+		t.Fatalf("get webserver: %v", err)
 	}
 }

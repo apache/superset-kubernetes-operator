@@ -27,15 +27,17 @@ import (
 
 // SupersetSpec defines the desired state of a Superset deployment.
 // +kubebuilder:validation:XValidation:rule="has(self.secretKey) != has(self.secretKeyFrom)",message="exactly one of secretKey (dev only) or secretKeyFrom must be set"
-// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'dev') || !has(self.secretKey)",message="secretKey is only allowed when environment is dev; use secretKeyFrom in prod"
-// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'dev') || !has(self.metastore) || !has(self.metastore.uri)",message="metastore.uri is only allowed when environment is dev; use metastore.uriFrom in prod"
-// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'dev') || !has(self.metastore) || !has(self.metastore.password)",message="metastore.password is only allowed when environment is dev; use metastore.passwordFrom in prod"
-// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'dev') || !has(self.valkey) || !has(self.valkey.password)",message="valkey.password is only allowed when environment is dev; use valkey.passwordFrom in prod"
-// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'dev') || !has(self.lifecycle) || !has(self.lifecycle.init) || !has(self.lifecycle.init.adminUser)",message="lifecycle.init.adminUser is only allowed when environment is dev"
-// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'dev') || !has(self.lifecycle) || !has(self.lifecycle.init) || !has(self.lifecycle.init.loadExamples)",message="lifecycle.init.loadExamples is only allowed when environment is dev"
+// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.secretKey)",message="secretKey is only allowed when environment is Development; use secretKeyFrom in Production"
+// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.metastore) || !has(self.metastore.uri)",message="metastore.uri is only allowed when environment is Development; use metastore.uriFrom in Production"
+// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.metastore) || !has(self.metastore.password)",message="metastore.password is only allowed when environment is Development; use metastore.passwordFrom in Production"
+// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.valkey) || !has(self.valkey.password)",message="valkey.password is only allowed when environment is Development; use valkey.passwordFrom in Production"
+// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.lifecycle) || !has(self.lifecycle.init) || !has(self.lifecycle.init.adminUser)",message="lifecycle.init.adminUser is only allowed when environment is Development"
+// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.lifecycle) || !has(self.lifecycle.init) || !has(self.lifecycle.init.loadExamples)",message="lifecycle.init.loadExamples is only allowed when environment is Development"
 // +kubebuilder:validation:XValidation:rule="!has(self.networking) || !has(self.networking.ingress) || has(self.webServer)",message="spec.networking.ingress requires spec.webServer to be set (all Ingress rules target the web server service)"
 // +kubebuilder:validation:XValidation:rule="!has(self.networking) || !has(self.networking.gateway) || has(self.webServer) || has(self.websocketServer) || has(self.mcpServer) || has(self.celeryFlower)",message="spec.networking.gateway requires at least one component with a routable service (webServer, websocketServer, mcpServer, or celeryFlower)"
 // +kubebuilder:validation:XValidation:rule="!has(self.monitoring) || !has(self.monitoring.serviceMonitor) || has(self.webServer)",message="spec.monitoring.serviceMonitor requires spec.webServer to be set (scrapes the web server service)"
+// +kubebuilder:validation:XValidation:rule="(has(self.environment) && (self.environment == 'Development' || self.environment == 'Staging')) || !has(self.lifecycle) || !has(self.lifecycle.clone)",message="lifecycle.clone is only allowed when environment is Development or Staging; cloning performs a destructive DROP DATABASE on the target metastore"
+// +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.clone) || (has(self.metastore) && has(self.metastore.host))",message="lifecycle.clone requires structured metastore configuration (host must be set)"
 type SupersetSpec struct {
 	// Image configuration inherited by all components.
 	Image ImageSpec `json:"image"`
@@ -56,11 +58,13 @@ type SupersetSpec struct {
 	// +optional
 	PodDisruptionBudget *PDBSpec `json:"podDisruptionBudget,omitempty"`
 
-	// Environment mode: "dev" or "prod". Controls validation strictness.
-	// In prod mode, CRD validation rejects plain text secrets (secretKey, metastore.uri, metastore.password).
+	// Environment mode: "Development", "Staging", or "Production". Controls validation strictness.
+	// In Production mode, CRD validation rejects plain text secrets and disallows cloning.
+	// In Staging mode, secrets are enforced (like Production) but cloning is allowed.
+	// In Development mode, plain text secrets, cloning, admin user, and load examples are all permitted.
 	// +optional
-	// +kubebuilder:validation:Enum=dev;prod
-	// +kubebuilder:default=prod
+	// +kubebuilder:validation:Enum=Development;Staging;Production
+	// +kubebuilder:default=Production
 	Environment *string `json:"environment,omitempty"`
 
 	// Plain text secret key for session signing. Only allowed in dev mode.
@@ -232,9 +236,28 @@ type McpServerComponentSpec struct {
 
 // --- Lifecycle spec ---
 
+// BaseTaskSpec contains fields shared by all lifecycle task types.
+type BaseTaskSpec struct {
+	// Command override for the task pod.
+	// +optional
+	// +listType=atomic
+	Command []string `json:"command,omitempty"`
+
+	// Maximum timeout per attempt.
+	// +optional
+	Timeout *metav1.Duration `json:"timeout,omitempty"`
+
+	// Maximum number of retries before permanent failure.
+	// +optional
+	// +kubebuilder:default=3
+	// +kubebuilder:validation:Minimum=1
+	MaxRetries *int32 `json:"maxRetries,omitempty"`
+}
+
 // LifecycleSpec defines lifecycle management configuration for database migrations
 // and application initialization tasks.
 // +kubebuilder:validation:XValidation:rule="!has(self.init) || !has(self.init.command) || size(self.init.command) == 0 || (!has(self.init.adminUser) && !has(self.init.loadExamples))",message="init.command is mutually exclusive with init.adminUser and init.loadExamples"
+// +kubebuilder:validation:XValidation:rule="!has(self.clone) || !has(self.clone.source.password) || !has(self.clone.source.passwordFrom)",message="clone.source.password and clone.source.passwordFrom are mutually exclusive"
 type LifecycleSpec struct {
 	// UpgradeMode controls whether upgrades require manual approval.
 	// Automatic runs immediately on image change; Supervised waits for an
@@ -244,12 +267,16 @@ type LifecycleSpec struct {
 	// +kubebuilder:default=Automatic
 	UpgradeMode *string `json:"upgradeMode,omitempty"`
 
-	// UpgradeStrategy controls component behavior during database migrations.
-	// Rolling (default): tasks run while existing components stay up.
-	// Drain: all components scale to 0 before tasks run, avoiding metastore deadlocks.
+	// UpgradeStrategy controls component behavior during lifecycle tasks.
+	// Drain (default): all components scale to 0 before tasks run, preventing
+	// metastore deadlocks and inconsistencies between component versions and
+	// the migrated database schema.
+	// Rolling: tasks run while existing components stay up. Not supported when
+	// clone is enabled (clone always drains). Use only when you are certain
+	// migrations are safe to run under live traffic.
 	// +optional
 	// +kubebuilder:validation:Enum=Rolling;Drain
-	// +kubebuilder:default=Rolling
+	// +kubebuilder:default=Drain
 	UpgradeStrategy *string `json:"upgradeStrategy,omitempty"`
 
 	// Set to true to skip all lifecycle tasks entirely.
@@ -276,6 +303,11 @@ type LifecycleSpec struct {
 	// +optional
 	SQLAlchemyEngineOptions *SQLAlchemyEngineOptionsSpec `json:"sqlaEngineOptions,omitempty"`
 
+	// Clone configures database cloning from an external source before running
+	// migrations. The clone target is always spec.metastore. Only allowed in dev mode.
+	// +optional
+	Clone *CloneTaskSpec `json:"clone,omitempty"`
+
 	// Database migration task configuration.
 	// +optional
 	Migrate *MigrateTaskSpec `json:"migrate,omitempty"`
@@ -287,6 +319,8 @@ type LifecycleSpec struct {
 
 // MigrateTaskSpec defines when and how the database migration task runs.
 type MigrateTaskSpec struct {
+	BaseTaskSpec `json:",inline"`
+
 	// Strategy controls when the migrate task runs.
 	// VersionChange: only on image changes (default).
 	// Always: on any spec change (image, config, command).
@@ -295,25 +329,12 @@ type MigrateTaskSpec struct {
 	// +kubebuilder:validation:Enum=VersionChange;Always;Never
 	// +kubebuilder:default=VersionChange
 	Strategy *string `json:"strategy,omitempty"`
-
-	// Command override for the migration task.
-	// Default: ["sh", "-c", "superset db upgrade"]
-	// +listType=atomic
-	Command []string `json:"command,omitempty"`
-
-	// Maximum timeout per attempt.
-	// +optional
-	Timeout *metav1.Duration `json:"timeout,omitempty"`
-
-	// Maximum number of retries before permanent failure.
-	// +optional
-	// +kubebuilder:default=3
-	// +kubebuilder:validation:Minimum=1
-	MaxRetries *int32 `json:"maxRetries,omitempty"`
 }
 
 // InitTaskSpec defines when and how the application initialization task runs.
 type InitTaskSpec struct {
+	BaseTaskSpec `json:",inline"`
+
 	// Strategy controls when the init task runs.
 	// VersionChange: only on image changes (default).
 	// Always: on any spec change (image, config, command).
@@ -322,22 +343,6 @@ type InitTaskSpec struct {
 	// +kubebuilder:validation:Enum=VersionChange;Always;Never
 	// +kubebuilder:default=VersionChange
 	Strategy *string `json:"strategy,omitempty"`
-
-	// Command override for the init task.
-	// Default: ["sh", "-c", "superset init"]
-	// Mutually exclusive with adminUser and loadExamples.
-	// +listType=atomic
-	Command []string `json:"command,omitempty"`
-
-	// Maximum timeout per attempt.
-	// +optional
-	Timeout *metav1.Duration `json:"timeout,omitempty"`
-
-	// Maximum number of retries before permanent failure.
-	// +optional
-	// +kubebuilder:default=3
-	// +kubebuilder:validation:Minimum=1
-	MaxRetries *int32 `json:"maxRetries,omitempty"`
 
 	// Admin user to create during initialization. Only allowed in dev mode.
 	// When set, the operator appends a superset fab create-admin step to the init command.
@@ -382,6 +387,87 @@ type PodRetentionSpec struct {
 	// +kubebuilder:validation:Enum=Delete;Retain;RetainOnFailure
 	// +kubebuilder:default=Delete
 	Policy *string `json:"policy,omitempty"`
+}
+
+// --- Clone spec ---
+
+// CloneTaskSpec configures database cloning from an external source into
+// this CR's metastore. Runs before migrate and init tasks. The clone target
+// is always spec.metastore — the metastore user must have CREATEDB rights.
+// Only allowed in Development or Staging mode.
+type CloneTaskSpec struct {
+	BaseTaskSpec `json:",inline"`
+
+	// Strategy determines when the clone runs.
+	// OnTrigger: runs only when Trigger value changes (default).
+	// Always: runs on every reconcile where the task is not Complete.
+	// Never: disabled.
+	// +optional
+	// +kubebuilder:validation:Enum=OnTrigger;Always;Never
+	// +kubebuilder:default=OnTrigger
+	Strategy *string `json:"strategy,omitempty"`
+
+	// Trigger is an opaque string. Changing its value causes a re-clone.
+	// Typical values: a date ("2026-05-09"), a UUID, or a CI build ID.
+	// +optional
+	Trigger *string `json:"trigger,omitempty"`
+
+	// Source database to clone from (typically production, read-only user).
+	Source CloneSourceSpec `json:"source"`
+
+	// Tables to exclude entirely from the dump (schema and data).
+	// +optional
+	ExcludeTables []string `json:"excludeTables,omitempty"`
+
+	// Tables where schema is dumped but data is not. Useful for large tables
+	// needed by migrations but not for testing (e.g., "logs", "query").
+	// +optional
+	ExcludeTableData []string `json:"excludeTableData,omitempty"`
+
+	// Image for the clone pod. Defaults to postgres:17-alpine (PostgreSQL)
+	// or mysql:8-alpine (MySQL) based on source.type.
+	// +optional
+	Image *ImageSpec `json:"image,omitempty"`
+
+	// Pod and container template for the clone task pod.
+	// +optional
+	PodTemplate *PodTemplate `json:"podTemplate,omitempty"`
+
+	// Pod retention policy for completed clone pods.
+	// +optional
+	PodRetention *PodRetentionSpec `json:"podRetention,omitempty"`
+}
+
+// CloneSourceSpec defines the source database connection for cloning.
+// +kubebuilder:validation:XValidation:rule="has(self.password) || has(self.passwordFrom)",message="one of password or passwordFrom must be set"
+// +kubebuilder:validation:XValidation:rule="!has(self.password) || !has(self.passwordFrom)",message="password and passwordFrom are mutually exclusive"
+type CloneSourceSpec struct {
+	// Database type: PostgreSQL (default) or MySQL.
+	// +optional
+	// +kubebuilder:validation:Enum=PostgreSQL;MySQL
+	// +kubebuilder:default=PostgreSQL
+	Type *string `json:"type,omitempty"`
+
+	// Source database hostname.
+	Host string `json:"host"`
+
+	// Source database port. Defaults to 5432 (postgresql) or 3306 (mysql).
+	// +optional
+	Port *int32 `json:"port,omitempty"`
+
+	// Database name on the source server.
+	Database string `json:"database"`
+
+	// Username for the source database (should have read-only access).
+	Username string `json:"username"`
+
+	// Password for the source database (dev mode only).
+	// +optional
+	Password *string `json:"password,omitempty"`
+
+	// PasswordFrom references a Secret containing the source database password.
+	// +optional
+	PasswordFrom *corev1.SecretKeySelector `json:"passwordFrom,omitempty"`
 }
 
 // --- Networking spec ---
@@ -528,9 +614,12 @@ type SupersetStatus struct {
 
 // LifecycleStatus tracks the current lifecycle task execution state.
 type LifecycleStatus struct {
-	// Phase of the lifecycle: Idle, Migrating, Initializing, Complete, Blocked, AwaitingApproval.
+	// Phase of the lifecycle: Idle, Cloning, Migrating, Initializing, Complete, Blocked, AwaitingApproval.
 	// +optional
 	Phase string `json:"phase,omitempty"`
+	// Clone task status summary.
+	// +optional
+	Clone *TaskRefStatus `json:"clone,omitempty"`
 	// Migrate task status summary.
 	// +optional
 	Migrate *TaskRefStatus `json:"migrate,omitempty"`

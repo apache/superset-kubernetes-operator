@@ -35,8 +35,9 @@ const (
 
 // Environment mode values.
 const (
-	EnvironmentDev  = "dev"
-	EnvironmentProd = "prod"
+	EnvironmentDev     = "Development"
+	EnvironmentStaging = "Staging"
+	EnvironmentProd    = "Production"
 )
 
 // Ptr returns a pointer to the given value.

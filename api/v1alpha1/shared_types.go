@@ -94,8 +94,8 @@ type MetastoreSpec struct {
 
 	// Database type. Determines the SQLAlchemy driver.
 	// +optional
-	// +kubebuilder:validation:Enum=postgresql;mysql
-	// +kubebuilder:default=postgresql
+	// +kubebuilder:validation:Enum=PostgreSQL;MySQL
+	// +kubebuilder:default=PostgreSQL
 	Type *string `json:"type,omitempty"`
 
 	// Database hostname.

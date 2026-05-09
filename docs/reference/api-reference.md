@@ -72,6 +72,26 @@ _Appears in:_
 | `metrics` _[MetricSpec](https://pkg.go.dev/k8s.io/api/autoscaling/v2#MetricSpec) array_ | Metrics for the HPA. Supports CPU, memory, custom, and external metrics.<br />When empty, Kubernetes defaults to 80% average CPU utilization. |  | Optional: \{\} <br /> |
 
 
+#### BaseTaskSpec
+
+
+
+BaseTaskSpec contains fields shared by all lifecycle task types.
+
+
+
+_Appears in:_
+- [CloneTaskSpec](#clonetaskspec)
+- [InitTaskSpec](#inittaskspec)
+- [MigrateTaskSpec](#migratetaskspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `command` _string array_ | Command override for the task pod. |  | Optional: \{\} <br /> |
+| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
+| `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
+
+
 #### CeleryBeatComponentSpec
 
 
@@ -187,6 +207,57 @@ _Appears in:_
 | `ready` _string_ | "2/2" format showing ready vs desired replicas. |  | Optional: \{\} <br /> |
 | `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ | Standard conditions. |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ | ObservedGeneration for leader election consistency. |  | Optional: \{\} <br /> |
+
+
+#### CloneSourceSpec
+
+
+
+CloneSourceSpec defines the source database connection for cloning.
+
+
+
+_Appears in:_
+- [CloneTaskSpec](#clonetaskspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `type` _string_ | Database type: PostgreSQL (default) or MySQL. | PostgreSQL | Enum: [PostgreSQL MySQL] <br />Optional: \{\} <br /> |
+| `host` _string_ | Source database hostname. |  |  |
+| `port` _integer_ | Source database port. Defaults to 5432 (postgresql) or 3306 (mysql). |  | Optional: \{\} <br /> |
+| `database` _string_ | Database name on the source server. |  |  |
+| `username` _string_ | Username for the source database (should have read-only access). |  |  |
+| `password` _string_ | Password for the source database (dev mode only). |  | Optional: \{\} <br /> |
+| `passwordFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | PasswordFrom references a Secret containing the source database password. |  | Optional: \{\} <br /> |
+
+
+#### CloneTaskSpec
+
+
+
+CloneTaskSpec configures database cloning from an external source into
+this CR's metastore. Runs before migrate and init tasks. The clone target
+is always spec.metastore — the metastore user must have CREATEDB rights.
+Only allowed in Development or Staging mode.
+
+
+
+_Appears in:_
+- [LifecycleSpec](#lifecyclespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `command` _string array_ | Command override for the task pod. |  | Optional: \{\} <br /> |
+| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
+| `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
+| `strategy` _string_ | Strategy determines when the clone runs.<br />OnTrigger: runs only when Trigger value changes (default).<br />Always: runs on every reconcile where the task is not Complete.<br />Never: disabled. | OnTrigger | Enum: [OnTrigger Always Never] <br />Optional: \{\} <br /> |
+| `trigger` _string_ | Trigger is an opaque string. Changing its value causes a re-clone.<br />Typical values: a date ("2026-05-09"), a UUID, or a CI build ID. |  | Optional: \{\} <br /> |
+| `source` _[CloneSourceSpec](#clonesourcespec)_ | Source database to clone from (typically production, read-only user). |  |  |
+| `excludeTables` _string array_ | Tables to exclude entirely from the dump (schema and data). |  | Optional: \{\} <br /> |
+| `excludeTableData` _string array_ | Tables where schema is dumped but data is not. Useful for large tables<br />needed by migrations but not for testing (e.g., "logs", "query"). |  | Optional: \{\} <br /> |
+| `image` _[ImageSpec](#imagespec)_ | Image for the clone pod. Defaults to postgres:17-alpine (PostgreSQL)<br />or mysql:8-alpine (MySQL) based on source.type. |  | Optional: \{\} <br /> |
+| `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for the clone task pod. |  | Optional: \{\} <br /> |
+| `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Pod retention policy for completed clone pods. |  | Optional: \{\} <br /> |
 
 
 #### ComponentRefStatus
@@ -451,6 +522,7 @@ ImageSpec defines the container image configuration.
 
 
 _Appears in:_
+- [CloneTaskSpec](#clonetaskspec)
 - [FlatComponentSpec](#flatcomponentspec)
 - [SupersetCeleryBeatSpec](#supersetcelerybeatspec)
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
@@ -537,10 +609,10 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `strategy` _string_ | Strategy controls when the init task runs.<br />VersionChange: only on image changes (default).<br />Always: on any spec change (image, config, command).<br />Never: skip entirely. | VersionChange | Enum: [VersionChange Always Never] <br />Optional: \{\} <br /> |
-| `command` _string array_ | Command override for the init task.<br />Default: ["sh", "-c", "superset init"]<br />Mutually exclusive with adminUser and loadExamples. |  |  |
+| `command` _string array_ | Command override for the task pod. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
+| `strategy` _string_ | Strategy controls when the init task runs.<br />VersionChange: only on image changes (default).<br />Always: on any spec change (image, config, command).<br />Never: skip entirely. | VersionChange | Enum: [VersionChange Always Never] <br />Optional: \{\} <br /> |
 | `adminUser` _[AdminUserSpec](#adminuserspec)_ | Admin user to create during initialization. Only allowed in dev mode.<br />When set, the operator appends a superset fab create-admin step to the init command. |  | Optional: \{\} <br /> |
 | `loadExamples` _boolean_ | Load example dashboards and data during initialization. Only allowed in dev mode.<br />When true, the operator appends a superset load-examples step to the init command. |  | Optional: \{\} <br /> |
 
@@ -560,13 +632,14 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `upgradeMode` _string_ | UpgradeMode controls whether upgrades require manual approval.<br />Automatic runs immediately on image change; Supervised waits for an<br />approval annotation before proceeding. | Automatic | Enum: [Automatic Supervised] <br />Optional: \{\} <br /> |
-| `upgradeStrategy` _string_ | UpgradeStrategy controls component behavior during database migrations.<br />Rolling (default): tasks run while existing components stay up.<br />Drain: all components scale to 0 before tasks run, avoiding metastore deadlocks. | Rolling | Enum: [Rolling Drain] <br />Optional: \{\} <br /> |
+| `upgradeStrategy` _string_ | UpgradeStrategy controls component behavior during lifecycle tasks.<br />Drain (default): all components scale to 0 before tasks run, preventing<br />metastore deadlocks and inconsistencies between component versions and<br />the migrated database schema.<br />Rolling: tasks run while existing components stay up. Not supported when<br />clone is enabled (clone always drains). Use only when you are certain<br />migrations are safe to run under live traffic. | Drain | Enum: [Rolling Drain] <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Set to true to skip all lifecycle tasks entirely. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image override for lifecycle task pods. |  | Optional: \{\} <br /> |
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for lifecycle task pods. |  | Optional: \{\} <br /> |
 | `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Pod retention policy for completed task pods. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-lifecycle raw Python appended after top-level config. |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-lifecycle SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
+| `clone` _[CloneTaskSpec](#clonetaskspec)_ | Clone configures database cloning from an external source before running<br />migrations. The clone target is always spec.metastore. Only allowed in dev mode. |  | Optional: \{\} <br /> |
 | `migrate` _[MigrateTaskSpec](#migratetaskspec)_ | Database migration task configuration. |  | Optional: \{\} <br /> |
 | `init` _[InitTaskSpec](#inittaskspec)_ | Application initialization task configuration. |  | Optional: \{\} <br /> |
 
@@ -584,7 +657,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `phase` _string_ | Phase of the lifecycle: Idle, Migrating, Initializing, Complete, Blocked, AwaitingApproval. |  | Optional: \{\} <br /> |
+| `phase` _string_ | Phase of the lifecycle: Idle, Cloning, Migrating, Initializing, Complete, Blocked, AwaitingApproval. |  | Optional: \{\} <br /> |
+| `clone` _[TaskRefStatus](#taskrefstatus)_ | Clone task status summary. |  | Optional: \{\} <br /> |
 | `migrate` _[TaskRefStatus](#taskrefstatus)_ | Migrate task status summary. |  | Optional: \{\} <br /> |
 | `init` _[TaskRefStatus](#taskrefstatus)_ | Init task status summary. |  | Optional: \{\} <br /> |
 | `upgrade` _[UpgradeContext](#upgradecontext)_ | Upgrade context (populated during active upgrade). |  | Optional: \{\} <br /> |
@@ -631,7 +705,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `uri` _string_ | Full SQLAlchemy database URI. Mutually exclusive with structured fields and uriFrom.<br />In prod mode, CRD validation rejects plain text URIs — use uriFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
 | `uriFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the full SQLAlchemy URI.<br />Mutually exclusive with uri and structured fields. |  | Optional: \{\} <br /> |
-| `type` _string_ | Database type. Determines the SQLAlchemy driver. | postgresql | Enum: [postgresql mysql] <br />Optional: \{\} <br /> |
+| `type` _string_ | Database type. Determines the SQLAlchemy driver. | PostgreSQL | Enum: [PostgreSQL MySQL] <br />Optional: \{\} <br /> |
 | `host` _string_ | Database hostname. |  | Optional: \{\} <br /> |
 | `port` _integer_ | Database port. Defaults per driver (5432 for postgresql, 3306 for mysql). |  | Optional: \{\} <br /> |
 | `database` _string_ | Database name. |  | Optional: \{\} <br /> |
@@ -653,10 +727,10 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `strategy` _string_ | Strategy controls when the migrate task runs.<br />VersionChange: only on image changes (default).<br />Always: on any spec change (image, config, command).<br />Never: skip (user manages migrations externally). | VersionChange | Enum: [VersionChange Always Never] <br />Optional: \{\} <br /> |
-| `command` _string array_ | Command override for the migration task.<br />Default: ["sh", "-c", "superset db upgrade"] |  |  |
+| `command` _string array_ | Command override for the task pod. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
+| `strategy` _string_ | Strategy controls when the migrate task runs.<br />VersionChange: only on image changes (default).<br />Always: on any spec change (image, config, command).<br />Never: skip (user manages migrations externally). | VersionChange | Enum: [VersionChange Always Never] <br />Optional: \{\} <br /> |
 
 
 #### MonitoringSpec
@@ -749,6 +823,7 @@ PodRetentionSpec defines retention behavior for init pods.
 
 
 _Appears in:_
+- [CloneTaskSpec](#clonetaskspec)
 - [LifecycleSpec](#lifecyclespec)
 - [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
 
@@ -769,6 +844,7 @@ _Appears in:_
 - [CeleryBeatComponentSpec](#celerybeatcomponentspec)
 - [CeleryFlowerComponentSpec](#celeryflowercomponentspec)
 - [CeleryWorkerComponentSpec](#celeryworkercomponentspec)
+- [CloneTaskSpec](#clonetaskspec)
 - [FlatComponentSpec](#flatcomponentspec)
 - [LifecycleSpec](#lifecyclespec)
 - [McpServerComponentSpec](#mcpservercomponentspec)
@@ -1143,7 +1219,7 @@ _Appears in:_
 | `serviceAccountName` _string_ | ServiceAccountName to set on the pod. |  | Optional: \{\} <br /> |
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Autoscaling configuration. |  | Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
-| `type` _string_ | Type identifies the task purpose. Future task types will require schema additions. |  | Enum: [Migrate Init] <br /> |
+| `type` _string_ | Type identifies the task purpose. Future task types will require schema additions. |  | Enum: [Clone Migrate Init] <br /> |
 | `command` _string array_ | Command to execute in the task pod. |  |  |
 | `configChecksum` _string_ | Config checksum for detecting changes that require re-run. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per task pod attempt. |  | Optional: \{\} <br /> |
@@ -1258,7 +1334,7 @@ _Appears in:_
 | `replicas` _integer_ | Default replica count for all scalable components; per-component replicas override this. |  | Optional: \{\} <br /> |
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Default autoscaling for all scalable components (component-level overrides this). |  | Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | Default pod disruption budget for all scalable components (component-level overrides this). |  | Optional: \{\} <br /> |
-| `environment` _string_ | Environment mode: "dev" or "prod". Controls validation strictness.<br />In prod mode, CRD validation rejects plain text secrets (secretKey, metastore.uri, metastore.password). | prod | Enum: [dev prod] <br />Optional: \{\} <br /> |
+| `environment` _string_ | Environment mode: "Development", "Staging", or "Production". Controls validation strictness.<br />In Production mode, CRD validation rejects plain text secrets and disallows cloning.<br />In Staging mode, secrets are enforced (like Production) but cloning is allowed.<br />In Development mode, plain text secrets, cloning, admin user, and load examples are all permitted. | Production | Enum: [Development Staging Production] <br />Optional: \{\} <br /> |
 | `secretKey` _string_ | Plain text secret key for session signing. Only allowed in dev mode.<br />In prod, use secretKeyFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
 | `secretKeyFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the secret key for session signing.<br />Mutually exclusive with secretKey. |  | Optional: \{\} <br /> |
 | `metastore` _[MetastoreSpec](#metastorespec)_ | Metastore database connection configuration. |  | Optional: \{\} <br /> |

@@ -43,7 +43,7 @@ var _ = Describe("Integration", Ordered, func() {
 
 	// --- helpers ---
 
-	devEnv := "dev"
+	devEnv := "Development"
 
 	newSuperset := func(name, ns string) *supersetv1alpha1.Superset {
 		return &supersetv1alpha1.Superset{

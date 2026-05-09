@@ -55,7 +55,7 @@ func TestRenderConfig_StructuredMetastore(t *testing.T) {
 	t.Run("postgresql", func(t *testing.T) {
 		input := &ConfigInput{
 			MetastoreMode: MetastoreStructured,
-			DBDriver:      "postgresql",
+			DBDriver:      "PostgreSQL",
 		}
 		result := RenderConfig(ComponentWebServer, input)
 		assertContains(t, result, "from urllib.parse import quote")
@@ -71,7 +71,7 @@ func TestRenderConfig_StructuredMetastore(t *testing.T) {
 	t.Run("mysql", func(t *testing.T) {
 		input := &ConfigInput{
 			MetastoreMode: MetastoreStructured,
-			DBDriver:      "mysql",
+			DBDriver:      "MySQL",
 		}
 		result := RenderConfig(ComponentWebServer, input)
 		assertContains(t, result, "mysql+mysqlconnector://")
@@ -112,7 +112,7 @@ func TestRenderConfig_ComponentVariants(t *testing.T) {
 func TestRenderConfig_SectionOrder(t *testing.T) {
 	input := &ConfigInput{
 		MetastoreMode:   MetastoreStructured,
-		DBDriver:        "postgresql",
+		DBDriver:        "PostgreSQL",
 		Config:          "BASE_SETTING = True\n",
 		ComponentConfig: "COMP_SETTING = 42\n",
 	}
@@ -343,7 +343,7 @@ func TestRenderConfig_ValkeyNoValkey(t *testing.T) {
 func TestRenderConfig_ValkeySectionOrder(t *testing.T) {
 	input := &ConfigInput{
 		MetastoreMode: MetastoreStructured,
-		DBDriver:      "postgresql",
+		DBDriver:      "PostgreSQL",
 		Config:        "BASE = True\n",
 		Valkey: &ValkeyInput{
 			Cache:                ValkeyCacheInput{Database: 1, KeyPrefix: "s_", DefaultTimeout: 300},
@@ -376,7 +376,7 @@ func TestRenderConfig_ValkeySectionOrder(t *testing.T) {
 func TestRenderConfig_StructuredMetastore_URLReservedChars(t *testing.T) {
 	input := &ConfigInput{
 		MetastoreMode: MetastoreStructured,
-		DBDriver:      "postgresql",
+		DBDriver:      "PostgreSQL",
 	}
 	result := RenderConfig(ComponentWebServer, input)
 

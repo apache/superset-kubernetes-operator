@@ -349,7 +349,7 @@ func pyQuote(s string) string {
 // driverScheme returns the SQLAlchemy connection scheme for a given driver type.
 func driverScheme(dbType string) string {
 	switch dbType {
-	case "mysql":
+	case "MySQL":
 		return "mysql+mysqlconnector"
 	default:
 		return "postgresql+psycopg2"

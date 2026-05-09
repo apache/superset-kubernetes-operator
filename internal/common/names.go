@@ -40,6 +40,7 @@ const (
 	SuffixWebsocketServer = "-websocket-server" // matches ComponentWebsocketServer
 	SuffixMcpServer       = "-mcp-server"       // matches ComponentMcpServer
 	SuffixInit            = "-init"             // matches ComponentInit
+	SuffixClone           = "-clone"
 	SuffixConfig          = "-config"
 	SuffixNetworkPolicy   = "-netpol"
 )
@@ -84,6 +85,12 @@ const (
 	InitTaskInit = "init"
 )
 
+// Clone default images.
+const (
+	CloneImagePostgres = "postgres:17-alpine"
+	CloneImageMySQL    = "mysql:8-alpine"
+)
+
 // Env var names for operator-managed environment variables.
 const (
 	// Operator-internal transport vars (used by rendered superset_config.py).
@@ -110,6 +117,13 @@ const (
 	EnvAdminFirstName = "SUPERSET_OPERATOR__ADMIN_FIRST_NAME"
 	EnvAdminLastName  = "SUPERSET_OPERATOR__ADMIN_LAST_NAME"
 	EnvAdminEmail     = "SUPERSET_OPERATOR__ADMIN_EMAIL"
+
+	// Clone source operator-internal transport vars.
+	EnvCloneSrcHost = "SUPERSET_OPERATOR__CLONE_SRC_HOST"
+	EnvCloneSrcPort = "SUPERSET_OPERATOR__CLONE_SRC_PORT"
+	EnvCloneSrcDB   = "SUPERSET_OPERATOR__CLONE_SRC_DB"
+	EnvCloneSrcUser = "SUPERSET_OPERATOR__CLONE_SRC_USER"
+	EnvCloneSrcPass = "SUPERSET_OPERATOR__CLONE_SRC_PASS"
 )
 
 // ChildName constructs a child resource name from parent name and suffix.

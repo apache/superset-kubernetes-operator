@@ -148,12 +148,12 @@ func TestBuildConfigInput(t *testing.T) {
 		{
 			"metastore structured postgresql",
 			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Host: common.Ptr("db.example.com")}},
-			supersetconfig.MetastoreStructured, "postgresql", "",
+			supersetconfig.MetastoreStructured, "PostgreSQL", "",
 		},
 		{
 			"metastore structured mysql",
-			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Type: common.Ptr("mysql"), Host: common.Ptr("db.example.com")}},
-			supersetconfig.MetastoreStructured, "mysql", "",
+			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Type: common.Ptr("MySQL"), Host: common.Ptr("db.example.com")}},
+			supersetconfig.MetastoreStructured, "MySQL", "",
 		},
 		{
 			"URI takes precedence over host",
@@ -192,8 +192,8 @@ func TestCollectSecretEnvVars_SecretKey(t *testing.T) {
 		wantKey bool
 	}{
 		{"empty spec", &supersetv1alpha1.SupersetSpec{}, false},
-		{"dev with key", &supersetv1alpha1.SupersetSpec{Environment: common.Ptr("dev"), SecretKey: common.Ptr("mykey")}, true},
-		{"prod with key", &supersetv1alpha1.SupersetSpec{Environment: common.Ptr("prod"), SecretKey: common.Ptr("mykey")}, false},
+		{"dev with key", &supersetv1alpha1.SupersetSpec{Environment: common.Ptr("Development"), SecretKey: common.Ptr("mykey")}, true},
+		{"prod with key", &supersetv1alpha1.SupersetSpec{Environment: common.Ptr("Production"), SecretKey: common.Ptr("mykey")}, false},
 	}
 
 	for _, tt := range tests {
@@ -261,7 +261,7 @@ func TestCollectSecretEnvVars_Metastore(t *testing.T) {
 
 	t.Run("default mysql port", func(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
-			Metastore: &supersetv1alpha1.MetastoreSpec{Type: common.Ptr("mysql"), Host: common.Ptr("db.example.com")},
+			Metastore: &supersetv1alpha1.MetastoreSpec{Type: common.Ptr("MySQL"), Host: common.Ptr("db.example.com")},
 		}
 		envMap := envSliceToMap(collectSecretEnvVars(spec))
 		if envMap["SUPERSET_OPERATOR__DB_PORT"] != "3306" {
@@ -527,7 +527,7 @@ func TestCollectSecretEnvVars_Valkey(t *testing.T) {
 
 	t.Run("dev mode password", func(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
-			Environment: common.Ptr("dev"),
+			Environment: common.Ptr("Development"),
 			Valkey:      &supersetv1alpha1.ValkeySpec{Host: "valkey", Password: common.Ptr("secret")},
 		}
 		envMap := envSliceToMap(collectSecretEnvVars(spec))
@@ -538,7 +538,7 @@ func TestCollectSecretEnvVars_Valkey(t *testing.T) {
 
 	t.Run("prod mode password ignored", func(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
-			Environment: common.Ptr("prod"),
+			Environment: common.Ptr("Production"),
 			Valkey:      &supersetv1alpha1.ValkeySpec{Host: "valkey", Password: common.Ptr("secret")},
 		}
 		envMap := envSliceToMap(collectSecretEnvVars(spec))

@@ -25,10 +25,11 @@ troubleshooting.
 
 ## Overview
 
-The `spec.lifecycle` section controls two sequential tasks:
+The `spec.lifecycle` section controls up to three sequential tasks:
 
-1. **migrate** — `superset db upgrade` (database schema migration)
-2. **init** — `superset init` (application initialization: roles, permissions)
+1. **clone** — database snapshot from an external source (staging workflows)
+2. **migrate** — `superset db upgrade` (database schema migration)
+3. **init** — `superset init` (application initialization: roles, permissions)
 
 Tasks run as bare Pods (`restartPolicy: Never`) managed by dedicated
 `SupersetLifecycleTask` child CRs. The parent Superset controller orchestrates
@@ -40,7 +41,7 @@ explicitly with `spec.lifecycle.disabled: true`.
 
 **Key behaviors:**
 
-- Migrate must complete before init starts
+- Clone must complete before migrate starts; migrate must complete before init starts
 - Components are not created or updated until all enabled tasks complete
 - When config or image changes require a re-run, the parent deletes the old task CR and creates a fresh one
 
@@ -100,21 +101,24 @@ to prevent accidental database corruption. A blocked downgrade sets
 
 ## Upgrade Strategy
 
-The `upgradeStrategy` field controls component behavior during database migrations:
+The `upgradeStrategy` field controls component behavior during lifecycle tasks:
 
-- **Rolling** (default) — lifecycle tasks run while existing components stay up. This works well for most minor/patch upgrades where migrations are additive and backward-compatible.
-- **Drain** — all component child CRs are deleted before tasks run, ensuring no application pods are connected to the metastore during schema changes. After tasks complete, components are recreated with the new image.
+- **Drain** (default) — all component child CRs are deleted before tasks run, ensuring no application pods are connected to the metastore during schema changes. After tasks complete, components are recreated with the new image.
+- **Rolling** — lifecycle tasks run while existing components stay up. Use only when you are certain migrations are backward-compatible and safe under live traffic.
 
-Use `Drain` when:
+Drain is the default because Rolling carries significant risks:
 
-- Migrations alter or drop existing columns/tables (breaking backward compatibility)
-- You've experienced metastore deadlocks from concurrent access during migrations
-- You want to ensure components always start fresh against the new schema (no stale state or incompatible ORM mappings)
+- Metastore deadlocks from concurrent access during schema-altering migrations
+- Inconsistencies when running component pods reference database objects that have been modified or removed by in-progress migrations
+- ORM errors when component code expects a schema version that no longer matches
+
+When clone is enabled, the operator always drains regardless of this setting
+(DROP DATABASE cannot succeed with active connections).
 
 ```yaml
 spec:
   lifecycle:
-    upgradeStrategy: Drain
+    upgradeStrategy: Rolling  # opt-in only when you know migrations are safe
     migrate:
       strategy: VersionChange
     init:
@@ -128,7 +132,7 @@ components are recreated and traffic resumes automatically.
 ## Lifecycle Flow
 
 The following diagram shows the lifecycle state machine. Optional steps activate
-based on `upgradeMode` and `upgradeStrategy` settings.
+based on `upgradeMode`, `upgradeStrategy`, and `clone` settings.
 
 ```mermaid
 %%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '12px'}}}%%
@@ -138,11 +142,14 @@ flowchart TD
     B -->|No| D{upgradeMode}
     D -->|Automatic| F
     D -->|Supervised| E[Await approval]
-    E --> F{migrate strategy}
-    F -->|Never| I
-    F -->|VersionChange / Always| G{upgradeStrategy}
-    G -->|Rolling| H[Migrate pod]
-    G -->|Drain| G1[Delete child CRs] --> G2[Wait for pods to terminate] --> H
+    E --> F{clone enabled?}
+    F -->|Yes| F1[Drain components] --> F2[Clone pod]
+    F -->|No| G{migrate strategy}
+    F2 --> G
+    G -->|Never| I
+    G -->|VersionChange / Always| G1{upgradeStrategy}
+    G1 -->|Drain| G2[Drain components] --> H[Migrate pod]
+    G1 -->|Rolling| H
     H --> I{init strategy}
     I -->|Never| K[Complete]
     I -->|VersionChange / Always| J[Init pod]
@@ -202,13 +209,13 @@ Use `RetainOnFailure` to inspect logs of failed migrations:
 kubectl logs <pod-name> -c superset
 ```
 
-## Admin User (Dev Mode Only)
+## Admin User (Development Mode Only)
 
-In dev mode, the operator can create an admin user during initialization:
+In Development mode, the operator can create an admin user during initialization:
 
 ```yaml
 spec:
-  environment: dev
+  environment: Development
   lifecycle:
     init:
       adminUser:
@@ -222,22 +229,22 @@ spec:
 All fields have defaults, so `adminUser: {}` creates a user with
 username/password `admin`/`admin`. The operator passes credentials as env vars
 and appends a `superset fab create-admin` step to the init command. This field
-is rejected in prod mode by CRD validation.
+is rejected in Production and Staging modes by CRD validation.
 
-## Load Examples (Dev Mode Only)
+## Load Examples (Development Mode Only)
 
 Load Superset's example dashboards and datasets during initialization:
 
 ```yaml
 spec:
-  environment: dev
+  environment: Development
   lifecycle:
     init:
       loadExamples: true
 ```
 
 The operator appends a `superset load-examples` step to the init command. This
-field is rejected in prod mode by CRD validation. Note that Superset's built-in
+field is rejected in Production and Staging modes by CRD validation. Note that Superset's built-in
 examples require an admin user with username `admin` — if you customize
 `adminUser.username`, example loading may fail.
 
@@ -260,6 +267,137 @@ spec:
     migrate:
       command: ["/bin/sh", "-c", "superset db upgrade"]
 ```
+
+## Clone (Development and Staging Mode Only)
+
+The clone task creates a database snapshot from an external source into the CR's
+metastore before running migrations. This enables staging workflows where you
+test version upgrades against a copy of production data.
+
+Clone is only allowed when `environment: Development` or `environment: Staging`
+— it performs a destructive DROP DATABASE on the target metastore and must never
+run against a production instance. Staging mode enforces secrets (like
+Production) while still permitting clone operations.
+
+### Staging Workflow
+
+The recommended pattern is a separate `Superset` CR for staging:
+
+```yaml
+apiVersion: superset.apache.org/v1alpha1
+kind: Superset
+metadata:
+  name: superset-staging
+spec:
+  environment: Staging
+  image:
+    tag: "6.0.0"                     # version to test
+  secretKeyFrom:
+    name: staging-secret
+    key: secret-key
+  metastore:
+    type: PostgreSQL
+    host: postgres-staging.db.svc
+    database: superset_staging
+    username: superset_admin         # needs CREATEDB rights
+    passwordFrom:
+      name: staging-db-creds
+      key: password
+  lifecycle:
+    clone:
+      trigger: "2026-05-09-v1"       # change to re-clone
+      source:
+        host: postgres-prod.db.svc
+        database: superset_prod
+        username: prod_reader        # read-only on production
+        passwordFrom:
+          name: prod-reader-creds
+          key: password
+      excludeTables:
+        - tab_state
+      excludeTableData:
+        - logs
+        - query
+      timeout: 30m
+    migrate:
+      strategy: Always
+    init:
+      strategy: Always
+  webServer: {}
+  celeryWorker: {}
+  # celeryBeat intentionally omitted — prevents alert double-triggers
+```
+
+The lifecycle pipeline runs: **clone → migrate → init → components**. Components
+are not deployed until all tasks complete, and clone always drains existing
+components before running (DROP DATABASE fails with active connections).
+
+### Clone Strategy
+
+| Strategy | Behavior |
+|---|---|
+| `OnTrigger` (default) | Runs when the `trigger` value changes |
+| `Always` | Runs on every spec change |
+| `Never` | Disabled |
+
+The `trigger` field is opaque — use a date, UUID, or CI build ID. The operator
+includes it in the task checksum; changing it causes a re-clone.
+
+### Table Exclusion
+
+- `excludeTables` — tables excluded entirely (schema and data). Use for tables
+  that are not needed and can be recreated by migrations (e.g., `tab_state`).
+- `excludeTableData` — schema is dumped but data is not. Use for large tables
+  where migrations expect the schema to exist but the data is not needed for
+  testing (e.g., `logs`, `query`).
+
+### Custom Clone Command
+
+By default the operator constructs a streaming `pg_dump | psql` (or
+`mysqldump | mysql`) command. Override it for custom workflows (anonymization,
+database-native snapshots, etc.):
+
+```yaml
+spec:
+  lifecycle:
+    clone:
+      command: ["/bin/sh", "-c", "custom-clone-script.sh"]
+      image:
+        repository: my-registry/custom-tools
+        tag: "v1"
+      source:
+        host: postgres-prod.db.svc
+        database: superset_prod
+        username: prod_reader
+        passwordFrom:
+          name: prod-reader-creds
+          key: password
+```
+
+When a custom command is set, the operator still injects all env vars
+(`SUPERSET_OPERATOR__CLONE_SRC_*` and `SUPERSET_OPERATOR__DB_*`) so your script
+can use them.
+
+### Clone Image
+
+The clone pod uses a database-tool image (not the Superset image):
+
+| Source type | Default image |
+|---|---|
+| `postgresql` | `postgres:17-alpine` |
+| `mysql` | `mysql:8-alpine` |
+
+Override with `clone.image` if you need additional tools.
+
+### Requirements
+
+- **Metastore must use structured mode** (host, database, username) — passthrough
+  URI mode is not supported for clone.
+- **Metastore user must have CREATEDB rights** — the clone drops and recreates
+  the target database.
+- **Source user should be read-only** — the clone only reads from production.
+- **Network access** — the clone pod needs egress to both source and target
+  databases. Configure NetworkPolicy accordingly.
 
 ## How It Works Under the Hood
 
@@ -308,7 +446,12 @@ Lifecycle task progress is tracked per-task in the parent status:
 ```yaml
 status:
   lifecycle:
-    phase: Complete        # Idle | Draining | Migrating | Initializing | Complete | Blocked | AwaitingApproval
+    phase: Complete        # Idle | Cloning | Draining | Migrating | Initializing | Complete | Blocked | AwaitingApproval
+    clone:
+      state: Complete      # Pending | Running | Complete | Failed (only present when clone is enabled)
+      podName: superset-staging-clone-k8x2m
+      duration: "4m32s"
+      attempts: 1
     migrate:
       state: Complete      # Pending | Running | Complete | Failed
       podName: my-superset-migrate-x7k2m

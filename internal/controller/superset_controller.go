@@ -282,18 +282,22 @@ func convertTaskComponent(lifecycle *supersetv1alpha1.LifecycleSpec, command []s
 const (
 	taskTypeMigrate = "Migrate"
 	taskTypeInit    = "Init"
+	taskTypeClone   = "Clone"
 
 	suffixMigrate = "-migrate"
 	suffixInit    = "-init"
+	suffixClone   = "-clone"
 
 	strategyVersionChange = "VersionChange"
 	strategyAlways        = "Always"
 	strategyNever         = "Never"
+	strategyOnTrigger     = "OnTrigger"
 
 	upgradeModeAutomatic  = "Automatic"
 	upgradeModeSupervsied = "Supervised"
 
 	lifecyclePhaseIdle             = "Idle"
+	lifecyclePhaseCloning          = "Cloning"
 	lifecyclePhaseDraining         = "Draining"
 	lifecyclePhaseMigrating        = "Migrating"
 	lifecyclePhaseInitializing     = "Initializing"
@@ -306,13 +310,18 @@ const (
 	upgradeStrategyRolling = "Rolling"
 	upgradeStrategyDrain   = "Drain"
 
+	dbTypePostgresql = "PostgreSQL"
+	dbTypeMySQL      = "MySQL"
+
+	defaultImageTag = "latest"
+
 	phaseUpgrading        = "Upgrading"
 	phaseDraining         = "Draining"
 	phaseBlocked          = "Blocked"
 	phaseAwaitingApproval = "AwaitingApproval"
 )
 
-// reconcileLifecycle orchestrates the lifecycle tasks (migrate + init) and gates
+// reconcileLifecycle orchestrates the lifecycle tasks (clone + migrate + init) and gates
 // component deployment. Returns (requeueAfter, lifecycleComplete, error).
 func (r *SupersetReconciler) reconcileLifecycle(
 	ctx context.Context,
@@ -322,7 +331,7 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	saName string,
 ) (time.Duration, bool, error) {
 
-	// Prune orphaned task CRs only when lifecycle is disabled.
+	// If lifecycle is disabled, prune orphans and mark complete.
 	if isLifecycleDisabled(superset) {
 		if err := r.pruneOrphans(ctx, superset.Namespace, superset.Name,
 			naming.ComponentInit,
@@ -331,10 +340,6 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		); err != nil {
 			return 0, false, fmt.Errorf("pruning orphaned task CRs: %w", err)
 		}
-	}
-
-	// If lifecycle is disabled, mark complete.
-	if isLifecycleDisabled(superset) {
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
 			metav1.ConditionTrue, "LifecycleDisabled", "Lifecycle tasks are disabled", superset.Generation)
 		superset.Status.Lifecycle = nil
@@ -361,33 +366,39 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	}
 
 	// Determine which tasks need to run and prune disabled task CRs.
-	migrateNeeded, initNeeded, err := r.resolveTaskNeeds(ctx, superset, imageChanged)
+	cloneNeeded, migrateNeeded, initNeeded, err := r.resolveTaskNeeds(ctx, superset, imageChanged)
 	if err != nil {
 		return 0, false, err
 	}
 
-	// If neither task is needed, lifecycle is complete.
-	if !migrateNeeded && !initNeeded {
+	// If no task is needed, lifecycle is complete.
+	if !cloneNeeded && !migrateNeeded && !initNeeded {
 		superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
 			metav1.ConditionTrue, "LifecycleComplete", "Lifecycle tasks completed successfully", superset.Generation)
 		return 0, true, nil
 	}
 
-	// Drain strategy: delete all component child CRs before running tasks.
-	// Drain only on actual image upgrades — config-only changes don't alter the
-	// schema, so draining would be disruptive for no benefit.
-	if migrateNeeded && imageChanged && getUpgradeStrategy(superset) == upgradeStrategyDrain {
-		superset.Status.Lifecycle.Phase = lifecyclePhaseDraining
-		superset.Status.Phase = phaseDraining
-		drained, err := r.drainComponents(ctx, superset)
+	// Drain components when required:
+	// - Clone always requires drain (DROP DATABASE fails with active connections).
+	// - Migrate with Drain strategy on image change avoids metastore deadlocks.
+	if requeueAfter, drained, err := r.drainIfNeeded(ctx, superset, cloneNeeded, migrateNeeded, imageChanged); err != nil {
+		return 0, false, err
+	} else if !drained {
+		return requeueAfter, false, nil
+	}
+
+	// Orchestrate: clone first, then migrate, then init.
+	if cloneNeeded {
+		superset.Status.Lifecycle.Phase = lifecyclePhaseCloning
+
+		cloneCmd := r.buildCloneCommand(superset)
+		requeueAfter, complete, err := r.reconcileCloneTask(ctx, superset, configChecksum, topLevel, saName, cloneCmd)
 		if err != nil {
-			return 0, false, fmt.Errorf("draining components: %w", err)
+			return 0, false, fmt.Errorf("reconciling clone task: %w", err)
 		}
-		if !drained {
-			setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-				metav1.ConditionFalse, "Draining", "Scaling components to zero before migration", superset.Generation)
-			return taskRequeueInterval, false, nil
+		if !complete {
+			return requeueAfter, false, nil
 		}
 	}
 
@@ -651,6 +662,8 @@ func (r *SupersetReconciler) reconcileTask(
 		Message:     child.Status.Message,
 	}
 	switch taskType {
+	case taskTypeClone:
+		superset.Status.Lifecycle.Clone = taskRef
 	case taskTypeMigrate:
 		superset.Status.Lifecycle.Migrate = taskRef
 	case taskTypeInit:
@@ -709,6 +722,8 @@ func (r *SupersetReconciler) taskNeeded(superset *supersetv1alpha1.Superset, tas
 		return false
 	case strategyAlways:
 		return true
+	case strategyOnTrigger:
+		return true
 	case strategyVersionChange:
 		return imageChanged
 	default:
@@ -717,29 +732,46 @@ func (r *SupersetReconciler) taskNeeded(superset *supersetv1alpha1.Superset, tas
 }
 
 // resolveTaskNeeds determines which tasks need to run and prunes CRs for disabled tasks.
-func (r *SupersetReconciler) resolveTaskNeeds(ctx context.Context, superset *supersetv1alpha1.Superset, imageChanged bool) (bool, bool, error) {
+func (r *SupersetReconciler) resolveTaskNeeds(ctx context.Context, superset *supersetv1alpha1.Superset, imageChanged bool) (bool, bool, bool, error) {
+	cloneNeeded := r.taskNeeded(superset, taskTypeClone, imageChanged)
 	migrateNeeded := r.taskNeeded(superset, taskTypeMigrate, imageChanged)
 	initNeeded := r.taskNeeded(superset, taskTypeInit, imageChanged)
 
+	if !cloneNeeded && r.taskStrategy(superset, taskTypeClone) == strategyNever {
+		if err := r.deleteTaskCR(ctx, superset.Name+suffixClone, superset.Namespace); err != nil {
+			return false, false, false, fmt.Errorf("deleting clone task CR: %w", err)
+		}
+	}
 	if !migrateNeeded && r.taskStrategy(superset, taskTypeMigrate) == strategyNever {
 		if err := r.deleteTaskCR(ctx, superset.Name+suffixMigrate, superset.Namespace); err != nil {
-			return false, false, fmt.Errorf("deleting migrate task CR: %w", err)
+			return false, false, false, fmt.Errorf("deleting migrate task CR: %w", err)
 		}
 	}
 	if !initNeeded && r.taskStrategy(superset, taskTypeInit) == strategyNever {
 		if err := r.deleteTaskCR(ctx, superset.Name+suffixInit, superset.Namespace); err != nil {
-			return false, false, fmt.Errorf("deleting init task CR: %w", err)
+			return false, false, false, fmt.Errorf("deleting init task CR: %w", err)
 		}
 	}
 
-	return migrateNeeded, initNeeded, nil
+	return cloneNeeded, migrateNeeded, initNeeded, nil
 }
 
 func (r *SupersetReconciler) taskStrategy(superset *supersetv1alpha1.Superset, taskType string) string {
 	if superset.Spec.Lifecycle == nil {
+		if taskType == taskTypeClone {
+			return strategyNever
+		}
 		return strategyVersionChange
 	}
 	switch taskType {
+	case taskTypeClone:
+		if superset.Spec.Lifecycle.Clone == nil {
+			return strategyNever
+		}
+		if superset.Spec.Lifecycle.Clone.Strategy != nil {
+			return *superset.Spec.Lifecycle.Clone.Strategy
+		}
+		return strategyOnTrigger
 	case taskTypeMigrate:
 		if superset.Spec.Lifecycle.Migrate != nil && superset.Spec.Lifecycle.Migrate.Strategy != nil {
 			return *superset.Spec.Lifecycle.Migrate.Strategy
@@ -757,6 +789,10 @@ func (r *SupersetReconciler) taskMaxRetries(superset *supersetv1alpha1.Superset,
 		return nil
 	}
 	switch taskType {
+	case taskTypeClone:
+		if superset.Spec.Lifecycle.Clone != nil {
+			return superset.Spec.Lifecycle.Clone.MaxRetries
+		}
 	case taskTypeMigrate:
 		if superset.Spec.Lifecycle.Migrate != nil {
 			return superset.Spec.Lifecycle.Migrate.MaxRetries
@@ -781,6 +817,10 @@ func (r *SupersetReconciler) taskTimeout(superset *supersetv1alpha1.Superset, ta
 		return nil
 	}
 	switch taskType {
+	case taskTypeClone:
+		if superset.Spec.Lifecycle.Clone != nil {
+			return superset.Spec.Lifecycle.Clone.Timeout
+		}
 	case taskTypeMigrate:
 		if superset.Spec.Lifecycle.Migrate != nil {
 			return superset.Spec.Lifecycle.Migrate.Timeout
@@ -811,6 +851,313 @@ func defaultInitCommand(superset *supersetv1alpha1.Superset) []string {
 	return buildInitCommand(initSpec)
 }
 
+// buildCloneCommand constructs the pg_dump|psql or mysqldump|mysql streaming command
+// from the clone spec. Returns the user's custom command if specified.
+func (r *SupersetReconciler) buildCloneCommand(superset *supersetv1alpha1.Superset) []string {
+	clone := superset.Spec.Lifecycle.Clone
+	if len(clone.Command) > 0 {
+		return clone.Command
+	}
+
+	srcType := dbTypePostgresql
+	if clone.Source.Type != nil {
+		srcType = *clone.Source.Type
+	}
+
+	if srcType == dbTypeMySQL {
+		return []string{"/bin/sh", "-c", buildMySQLCloneScript(clone)}
+	}
+	return []string{"/bin/sh", "-c", buildPostgresCloneScript(clone)}
+}
+
+func buildPostgresCloneScript(clone *supersetv1alpha1.CloneTaskSpec) string {
+	var b strings.Builder
+	b.WriteString(`set -e
+PGPASSWORD="$SUPERSET_OPERATOR__DB_PASS" dropdb --if-exists -h "$SUPERSET_OPERATOR__DB_HOST" -p "$SUPERSET_OPERATOR__DB_PORT" -U "$SUPERSET_OPERATOR__DB_USER" "$SUPERSET_OPERATOR__DB_NAME"
+PGPASSWORD="$SUPERSET_OPERATOR__DB_PASS" createdb -h "$SUPERSET_OPERATOR__DB_HOST" -p "$SUPERSET_OPERATOR__DB_PORT" -U "$SUPERSET_OPERATOR__DB_USER" "$SUPERSET_OPERATOR__DB_NAME"
+PGPASSWORD="$SUPERSET_OPERATOR__CLONE_SRC_PASS" pg_dump -h "$SUPERSET_OPERATOR__CLONE_SRC_HOST" -p "$SUPERSET_OPERATOR__CLONE_SRC_PORT" -U "$SUPERSET_OPERATOR__CLONE_SRC_USER" --no-owner --no-privileges`)
+
+	for _, t := range clone.ExcludeTables {
+		fmt.Fprintf(&b, ` --exclude-table=%q`, t)
+	}
+	for _, t := range clone.ExcludeTableData {
+		fmt.Fprintf(&b, ` --exclude-table-data=%q`, t)
+	}
+
+	b.WriteString(` "$SUPERSET_OPERATOR__CLONE_SRC_DB" | PGPASSWORD="$SUPERSET_OPERATOR__DB_PASS" psql -h "$SUPERSET_OPERATOR__DB_HOST" -p "$SUPERSET_OPERATOR__DB_PORT" -U "$SUPERSET_OPERATOR__DB_USER" "$SUPERSET_OPERATOR__DB_NAME"`)
+	return b.String()
+}
+
+func buildMySQLCloneScript(clone *supersetv1alpha1.CloneTaskSpec) string {
+	var b strings.Builder
+	b.WriteString(`set -e
+mysql -h "$SUPERSET_OPERATOR__DB_HOST" -P "$SUPERSET_OPERATOR__DB_PORT" -u "$SUPERSET_OPERATOR__DB_USER" -p"$SUPERSET_OPERATOR__DB_PASS" -e "DROP DATABASE IF EXISTS ` + "`$SUPERSET_OPERATOR__DB_NAME`" + `; CREATE DATABASE ` + "`$SUPERSET_OPERATOR__DB_NAME`" + `;"
+mysqldump -h "$SUPERSET_OPERATOR__CLONE_SRC_HOST" -P "$SUPERSET_OPERATOR__CLONE_SRC_PORT" -u "$SUPERSET_OPERATOR__CLONE_SRC_USER" -p"$SUPERSET_OPERATOR__CLONE_SRC_PASS" --single-transaction --routines --triggers`)
+
+	for _, t := range clone.ExcludeTables {
+		fmt.Fprintf(&b, ` --ignore-table="$SUPERSET_OPERATOR__CLONE_SRC_DB".%q`, t)
+	}
+
+	b.WriteString(` "$SUPERSET_OPERATOR__CLONE_SRC_DB" | mysql -h "$SUPERSET_OPERATOR__DB_HOST" -P "$SUPERSET_OPERATOR__DB_PORT" -u "$SUPERSET_OPERATOR__DB_USER" -p"$SUPERSET_OPERATOR__DB_PASS" "$SUPERSET_OPERATOR__DB_NAME"`)
+	return b.String()
+}
+
+// reconcileCloneTask creates/manages the clone lifecycle task. Unlike migrate/init,
+// the clone task uses a database-tool image (not the Superset image) and injects
+// clone-specific env vars for the source database connection.
+func (r *SupersetReconciler) reconcileCloneTask(
+	ctx context.Context,
+	superset *supersetv1alpha1.Superset,
+	_ string,
+	topLevel *resolution.SharedInput,
+	saName string,
+	command []string,
+) (time.Duration, bool, error) {
+	log := logf.FromContext(ctx)
+	clone := superset.Spec.Lifecycle.Clone
+	childName := superset.Name + suffixClone
+
+	// Build clone-specific env vars (source + target metastore).
+	cloneEnvVars := collectCloneEnvVars(superset)
+
+	// Build a minimal component input for the clone pod (uses clone's PodTemplate if set).
+	comp := convertCloneComponent(clone)
+
+	// No rendered Python config for the clone pod.
+	operatorInjected := &resolution.OperatorInjected{
+		Env: cloneEnvVars,
+	}
+
+	flat := resolution.ResolveChildSpec(
+		resolution.ComponentInit, topLevel, comp,
+		podOperatorLabels(string(naming.ComponentInit), childName, superset.Name), operatorInjected,
+	)
+
+	// Override the image to the clone-specific image (postgres/mysql tools).
+	cloneImage := resolveCloneImage(clone)
+	one := int32(1)
+	flatSpec := supersetv1alpha1.FlatComponentSpec{
+		Image:              cloneImage,
+		Replicas:           &one,
+		PodTemplate:        flatPodTemplate(flat),
+		ServiceAccountName: saName,
+	}
+	flatSpec.Autoscaling = nil
+	flatSpec.PodDisruptionBudget = nil
+
+	// Compute checksum including trigger value.
+	taskChecksum := computeChecksum(struct {
+		ParentUID string
+		Trigger   string
+		Source    supersetv1alpha1.CloneSourceSpec
+		Exclude   []string
+		ExcludeD  []string
+		Command   []string
+	}{
+		ParentUID: string(superset.UID),
+		Trigger:   derefOrDefault(clone.Trigger, ""),
+		Source:    clone.Source,
+		Exclude:   clone.ExcludeTables,
+		ExcludeD:  clone.ExcludeTableData,
+		Command:   command,
+	})
+
+	// Get the task CR.
+	child := &supersetv1alpha1.SupersetLifecycleTask{}
+	err := r.Get(ctx, types.NamespacedName{Name: childName, Namespace: superset.Namespace}, child)
+
+	if errors.IsNotFound(err) {
+		child = &supersetv1alpha1.SupersetLifecycleTask{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      childName,
+				Namespace: superset.Namespace,
+				Labels: map[string]string{
+					naming.LabelKeyName:      naming.LabelValueApp,
+					naming.LabelKeyComponent: string(naming.ComponentInit),
+					naming.LabelKeyParent:    superset.Name,
+				},
+			},
+		}
+		if err := controllerutil.SetControllerReference(superset, child, r.Scheme); err != nil {
+			return 0, false, fmt.Errorf("setting controller reference on %s: %w", childName, err)
+		}
+		child.Spec.FlatComponentSpec = flatSpec
+		child.Spec.Type = taskTypeClone
+		child.Spec.Command = command
+		child.Spec.ConfigChecksum = taskChecksum
+		if clone.PodRetention != nil {
+			child.Spec.PodRetention = clone.PodRetention
+		} else if superset.Spec.Lifecycle.PodRetention != nil {
+			child.Spec.PodRetention = superset.Spec.Lifecycle.PodRetention
+		}
+		child.Spec.MaxRetries = r.taskMaxRetries(superset, taskTypeClone)
+		child.Spec.Timeout = r.taskTimeout(superset, taskTypeClone)
+
+		if err := r.Create(ctx, child); err != nil {
+			return 0, false, fmt.Errorf("creating SupersetLifecycleTask %s: %w", childName, err)
+		}
+		log.Info("Created clone task CR")
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+			metav1.ConditionFalse, "TaskInProgress", "Clone task is in progress", superset.Generation)
+		return taskRequeueInterval, false, nil
+	}
+	if err != nil {
+		return 0, false, fmt.Errorf("fetching SupersetLifecycleTask %s: %w", childName, err)
+	}
+
+	if child.DeletionTimestamp != nil {
+		log.Info("Clone task CR is being deleted, waiting for GC")
+		return taskRequeueInterval, false, nil
+	}
+
+	// Project status to parent.
+	superset.Status.Lifecycle.Clone = &supersetv1alpha1.TaskRefStatus{
+		State:       child.Status.State,
+		StartedAt:   child.Status.StartedAt,
+		CompletedAt: child.Status.CompletedAt,
+		Duration:    child.Status.Duration,
+		Attempts:    child.Status.Attempts,
+		PodName:     child.Status.PodName,
+		Image:       child.Status.Image,
+		Message:     child.Status.Message,
+	}
+
+	maxRetries := r.taskMaxRetriesValue(superset, taskTypeClone)
+
+	switch child.Status.State {
+	case taskStateComplete:
+		if child.Status.ConfigChecksum == taskChecksum {
+			log.Info("Clone task complete")
+			return 0, true, nil
+		}
+		log.Info("Clone completed for previous trigger, deleting to re-run",
+			"statusChecksum", child.Status.ConfigChecksum, "expectedChecksum", taskChecksum)
+		if err := r.Delete(ctx, child); err != nil {
+			return 0, false, fmt.Errorf("deleting stale clone task CR %s: %w", childName, err)
+		}
+		return taskRequeueInterval, false, nil
+
+	case taskStateFailed:
+		if child.Status.Attempts >= maxRetries {
+			if child.Status.ConfigChecksum == taskChecksum {
+				log.Info("Clone task permanently failed")
+				setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+					metav1.ConditionFalse, "TaskFailed", fmt.Sprintf("Clone: %s", child.Status.Message), superset.Generation)
+				return -1, false, nil
+			}
+			log.Info("Clone task failed for previous trigger, deleting to re-run")
+			if err := r.Delete(ctx, child); err != nil {
+				return 0, false, fmt.Errorf("deleting stale clone task CR %s: %w", childName, err)
+			}
+			return taskRequeueInterval, false, nil
+		}
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+			metav1.ConditionFalse, "TaskRetrying", "Clone task is retrying", superset.Generation)
+		return taskRequeueInterval, false, nil
+
+	default:
+		log.Info("Clone task not yet complete", "state", child.Status.State)
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+			metav1.ConditionFalse, "TaskInProgress", "Clone task is in progress", superset.Generation)
+		return taskRequeueInterval, false, nil
+	}
+}
+
+// collectCloneEnvVars builds env vars for the clone task pod.
+// Includes both source (CLONE_SRC_*) and target (DB_*) connection details.
+func collectCloneEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVar {
+	var envs []corev1.EnvVar
+	clone := superset.Spec.Lifecycle.Clone
+	spec := &superset.Spec
+
+	// Source env vars.
+	envs = append(envs, corev1.EnvVar{Name: naming.EnvCloneSrcHost, Value: clone.Source.Host})
+
+	port := defaultDBPort(clone.Source.Type)
+	if clone.Source.Port != nil {
+		port = *clone.Source.Port
+	}
+	envs = append(envs, corev1.EnvVar{Name: naming.EnvCloneSrcPort, Value: fmt.Sprintf("%d", port)})
+	envs = append(envs, corev1.EnvVar{Name: naming.EnvCloneSrcDB, Value: clone.Source.Database})
+	envs = append(envs, corev1.EnvVar{Name: naming.EnvCloneSrcUser, Value: clone.Source.Username})
+
+	if clone.Source.Password != nil {
+		envs = append(envs, corev1.EnvVar{Name: naming.EnvCloneSrcPass, Value: *clone.Source.Password})
+	} else if clone.Source.PasswordFrom != nil {
+		envs = append(envs, corev1.EnvVar{
+			Name:      naming.EnvCloneSrcPass,
+			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: clone.Source.PasswordFrom},
+		})
+	}
+
+	// Target env vars (from spec.metastore — clone requires structured metastore).
+	if spec.Metastore != nil && spec.Metastore.Host != nil {
+		envs = append(envs, corev1.EnvVar{Name: naming.EnvDBHost, Value: *spec.Metastore.Host})
+		targetPort := defaultDBPort(spec.Metastore.Type)
+		if spec.Metastore.Port != nil {
+			targetPort = *spec.Metastore.Port
+		}
+		envs = append(envs, corev1.EnvVar{Name: naming.EnvDBPort, Value: fmt.Sprintf("%d", targetPort)})
+		if spec.Metastore.Database != nil {
+			envs = append(envs, corev1.EnvVar{Name: naming.EnvDBName, Value: *spec.Metastore.Database})
+		}
+		if spec.Metastore.Username != nil {
+			envs = append(envs, corev1.EnvVar{Name: naming.EnvDBUser, Value: *spec.Metastore.Username})
+		}
+		if spec.Metastore.Password != nil {
+			envs = append(envs, corev1.EnvVar{Name: naming.EnvDBPass, Value: *spec.Metastore.Password})
+		} else if spec.Metastore.PasswordFrom != nil {
+			envs = append(envs, corev1.EnvVar{
+				Name:      naming.EnvDBPass,
+				ValueFrom: &corev1.EnvVarSource{SecretKeyRef: spec.Metastore.PasswordFrom},
+			})
+		}
+	}
+
+	return envs
+}
+
+// resolveCloneImage determines the image for the clone pod.
+func resolveCloneImage(clone *supersetv1alpha1.CloneTaskSpec) supersetv1alpha1.ImageSpec {
+	if clone.Image != nil {
+		return *clone.Image
+	}
+	srcType := dbTypePostgresql
+	if clone.Source.Type != nil {
+		srcType = *clone.Source.Type
+	}
+	if srcType == dbTypeMySQL {
+		repo, tag := splitImageRef(naming.CloneImageMySQL)
+		return supersetv1alpha1.ImageSpec{Repository: repo, Tag: tag}
+	}
+	repo, tag := splitImageRef(naming.CloneImagePostgres)
+	return supersetv1alpha1.ImageSpec{Repository: repo, Tag: tag}
+}
+
+func splitImageRef(ref string) (string, string) {
+	if idx := strings.LastIndex(ref, ":"); idx != -1 {
+		return ref[:idx], ref[idx+1:]
+	}
+	return ref, defaultImageTag
+}
+
+// convertCloneComponent builds a minimal ComponentInput for the clone task pod.
+func convertCloneComponent(clone *supersetv1alpha1.CloneTaskSpec) *resolution.ComponentInput {
+	if clone.PodTemplate == nil {
+		return &resolution.ComponentInput{}
+	}
+	return &resolution.ComponentInput{
+		SharedInput: resolution.SharedInput{
+			PodTemplate: clone.PodTemplate,
+		},
+	}
+}
+
+// flatPodTemplate extracts the PodTemplate from a resolved FlatSpec.
+func flatPodTemplate(flat *resolution.FlatSpec) *supersetv1alpha1.PodTemplate {
+	return flat.PodTemplate
+}
+
 func getUpgradeMode(superset *supersetv1alpha1.Superset) string {
 	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.UpgradeMode != nil {
 		return *superset.Spec.Lifecycle.UpgradeMode
@@ -822,7 +1169,7 @@ func getUpgradeStrategy(superset *supersetv1alpha1.Superset) string {
 	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.UpgradeStrategy != nil {
 		return *superset.Spec.Lifecycle.UpgradeStrategy
 	}
-	return upgradeStrategyRolling
+	return upgradeStrategyDrain
 }
 
 func isLifecycleDisabled(superset *supersetv1alpha1.Superset) bool {
@@ -838,6 +1185,33 @@ func (r *SupersetReconciler) deleteTaskCR(ctx context.Context, name, namespace s
 		return err
 	}
 	return r.Delete(ctx, task)
+}
+
+// drainIfNeeded checks whether drain is required and executes it.
+// Returns (requeueAfter, drained, error). drained=true means either drain is not needed
+// or drain completed successfully.
+func (r *SupersetReconciler) drainIfNeeded(
+	ctx context.Context,
+	superset *supersetv1alpha1.Superset,
+	cloneNeeded, migrateNeeded, imageChanged bool,
+) (time.Duration, bool, error) {
+	needsDrain := cloneNeeded || (migrateNeeded && imageChanged && getUpgradeStrategy(superset) == upgradeStrategyDrain)
+	if !needsDrain {
+		return 0, true, nil
+	}
+
+	superset.Status.Lifecycle.Phase = lifecyclePhaseDraining
+	superset.Status.Phase = phaseDraining
+	drained, err := r.drainComponents(ctx, superset)
+	if err != nil {
+		return 0, false, fmt.Errorf("draining components: %w", err)
+	}
+	if !drained {
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+			metav1.ConditionFalse, "Draining", "Scaling components to zero before lifecycle tasks", superset.Generation)
+		return taskRequeueInterval, false, nil
+	}
+	return 0, true, nil
 }
 
 // drainComponents deletes all component child CRs, which cascades to their
@@ -942,7 +1316,7 @@ func buildConfigInput(spec *supersetv1alpha1.SupersetSpec) *supersetconfig.Confi
 			input.MetastoreMode = supersetconfig.MetastorePassthrough
 		} else if spec.Metastore.Host != nil {
 			input.MetastoreMode = supersetconfig.MetastoreStructured
-			dbType := "postgresql"
+			dbType := dbTypePostgresql
 			if spec.Metastore.Type != nil {
 				dbType = *spec.Metastore.Type
 			}
@@ -1136,7 +1510,7 @@ func derefOrDefault(ptr *string, def string) string {
 }
 
 func defaultDBPort(driver *string) int32 {
-	if driver != nil && *driver == "mysql" {
+	if driver != nil && *driver == dbTypeMySQL {
 		return 3306
 	}
 	return 5432
