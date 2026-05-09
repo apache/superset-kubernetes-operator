@@ -17,14 +17,13 @@ specific language governing permissions and limitations
 under the License.
 -->
 
-# User Guide
+# Configuration
 
 This guide covers the full configuration reference for the Superset operator.
 For installation instructions, see [Installation](installation.md).
+For lifecycle (migrations, upgrades), see [Lifecycle](lifecycle.md).
 
-## Configuration
-
-### Environment Mode
+## Environment Mode
 
 The `environment` field controls validation strictness (enforced by
 [CEL](https://kubernetes.io/docs/reference/using-api/cel/) rules in the CRD schema):
@@ -71,7 +70,7 @@ spec:
   webServer: {}
 ```
 
-### Metastore
+## Metastore
 
 The `metastore` field provides database connection configuration. There are two modes:
 
@@ -127,7 +126,7 @@ spec:
 
 `password` and `passwordFrom` are mutually exclusive.
 
-### Valkey
+## Valkey
 
 The `valkey` field configures Valkey (or Redis) as the cache backend, Celery message broker, and SQL Lab results backend. Setting `valkey.host` auto-generates all cache, Celery, and results backend configuration with sensible defaults:
 
@@ -178,7 +177,7 @@ spec:
 
 In dev mode, `valkey.password` can be set inline. In prod mode (default), use `valkey.passwordFrom` to reference a Kubernetes Secret — the operator injects the password via `valueFrom.secretKeyRef`.
 
-#### SSL/TLS
+### SSL/TLS
 
 Enable SSL by setting the `ssl` field. For simple SSL (encrypted connection, no client certificates), set `ssl: {}`. For mTLS, provide certificate file paths:
 
@@ -218,7 +217,7 @@ spec:
       caCertFile: /mnt/tls/ca.crt
 ```
 
-### Reserved Environment Variables
+## Reserved Environment Variables
 
 The operator sets certain env vars automatically based on the CR spec. These are organized into tiers:
 
@@ -260,7 +259,7 @@ In both passthrough and structured modes, the operator renders `SQLALCHEMY_DATAB
 | `SUPERSET_OPERATOR__VALKEY_PORT` | Always (from `valkey.port`, default 6379) |
 | `SUPERSET_OPERATOR__VALKEY_PASS` | `valkey.password` (dev, plain text) or `valkey.passwordFrom` (prod, `valueFrom`) |
 
-### Custom Python Config
+## Custom Python Config
 
 The `config` field accepts raw Python that is appended after the operator-generated config. It is available at the top level (base config, shared by all Python components) and per component (component config):
 
@@ -279,9 +278,9 @@ spec:
 
 Both fields are **concatenated**, not mutually exclusive. In this example, the celery worker's `superset_config.py` contains the operator-generated configs (`SECRET_KEY`, structured DB URI if applicable), then the base config (FEATURE_FLAGS, ROW_LIMIT), then the component config (CELERY_ANNOTATIONS). The web server receives only the operator-generated configs and the base config, since it has no component-specific `config` field set.
 
-See [Config Rendering Pipeline](architecture.md#config-rendering-pipeline) for the full rendering order and an example of the generated output.
+See [Config Rendering Pipeline](../architecture/overview.md#config-rendering-pipeline) for the full rendering order and an example of the generated output.
 
-### Celery Configuration
+## Celery Configuration
 
 Enable Celery workers for background tasks (caching, scheduled reports, long-running queries) by setting `celeryWorker` and `celeryBeat`. When `spec.valkey` is configured, the Celery broker and result backend are auto-generated. Otherwise, provide Celery config manually via `config`:
 
@@ -306,7 +305,7 @@ spec:
   celeryBeat: {}
 ```
 
-### Gunicorn Configuration
+## Gunicorn Configuration
 
 The operator manages Gunicorn worker parameters for the web server by injecting environment variables that Superset's `run-server.sh` reads. By default, even without an explicit `gunicorn` field, the operator injects balanced defaults (2 workers, 8 threads, gthread worker class).
 
@@ -332,7 +331,7 @@ spec:
 
 The full set of configurable fields (static defaults in parentheses): `timeout` (60), `keepAlive` (2), `maxRequests` (0 = disabled), `maxRequestsJitter` (0), `limitRequestLine` (0 = unlimited), `limitRequestFieldSize` (0 = unlimited), `logLevel` (info).
 
-### Celery Worker Configuration
+## Celery Worker Configuration
 
 The operator constructs the celery worker command from structured fields instead of the hardcoded default. Presets control **concurrency** and **pool** type:
 
@@ -355,7 +354,7 @@ spec:
 
 Additional fields (static defaults in parentheses): `optimization` (fair), `maxTasksPerChild` (0 = unlimited), `maxMemoryPerChild` (0 = disabled), `prefetchMultiplier` (4), `softTimeLimit` (0 = disabled), `timeLimit` (0 = disabled).
 
-### SQLAlchemy Engine Options
+## SQLAlchemy Engine Options
 
 The operator renders `SQLALCHEMY_ENGINE_OPTIONS` in each component's `superset_config.py`, with pool sizing computed from the component's execution model. By default (balanced preset), all components get sensible pool settings without any explicit configuration.
 
@@ -403,7 +402,7 @@ spec:
     poolPrePing: true            # explicit: overrides static default
 ```
 
-### Websocket Server
+## Websocket Server
 
 Enable Superset's async event streaming by setting `websocketServer`. This
 deploys a **Node.js** application (not Python) that pushes real-time updates to
@@ -433,7 +432,7 @@ The websocket server creates a Service (default port 8088) and supports the
 same scaling, deployment template, and pod template fields as other scalable
 components.
 
-### MCP Server
+## MCP Server
 
 Enable the [Model Context Protocol](https://modelcontextprotocol.io/) server by setting `mcpServer`. This deploys a Python-based FastMCP server that exposes Superset's API via MCP, allowing AI assistants and LLM-based tools to interact with Superset:
 
@@ -444,187 +443,7 @@ spec:
 
 The MCP server receives a `superset_config.py` with core config (`SECRET_KEY`, structured DB URI if applicable) and top-level/per-component `config` — but not web server port. It runs as a separate Deployment with its own Service (port 8088). The MCP server supports per-component `sqlaEngineOptions` with higher default pool sizes than other components (5 for balanced, 10 for performance, 20 for aggressive) to accommodate concurrent tool invocations.
 
-### Lifecycle Configuration
-
-The `spec.lifecycle` section controls database migration and application
-initialization. The operator runs two sequential tasks:
-
-1. **migrate** — `superset db upgrade` (database schema migration)
-2. **init** — `superset init` (application initialization: roles, permissions)
-
-Lifecycle is enabled by default even when `spec.lifecycle` is nil; disable it
-explicitly with `spec.lifecycle.disabled: true`.
-
-#### Task Strategies
-
-Each task has a `strategy` that controls when it runs:
-
-| Strategy | Behavior |
-|---|---|
-| `VersionChange` (default) | Task runs only when the Superset image changes |
-| `Always` | Task runs on any spec change (image, config, or command) |
-| `Never` | Task never runs (effectively disabled) |
-
-With the default `VersionChange` strategy, config-only changes trigger rolling
-restarts of component Deployments but do not spawn task pods.
-
-#### Upgrade Mode
-
-The `upgradeMode` field controls how image upgrades are handled:
-
-- **Automatic** (default) — tasks run immediately when an image change is detected
-- **Supervised** — tasks wait for an annotation-based approval before running
-
-```yaml
-spec:
-  lifecycle:
-    upgradeMode: Supervised
-```
-
-When an image change is detected in supervised mode, the operator sets
-`status.phase: AwaitingApproval` and records the upgrade context in
-`status.lifecycle.upgrade`. Approve the upgrade by annotating the CR:
-
-```bash
-kubectl annotate superset my-superset superset.apache.org/approve-upgrade=true
-```
-
-The operator clears the annotation automatically after lifecycle tasks complete.
-You can monitor the upgrade status with:
-
-```bash
-kubectl get superset my-superset -o jsonpath='{.status.lifecycle}'
-```
-
-The operator also performs semver comparison on image tags and blocks downgrades
-to prevent accidental database corruption. A blocked downgrade sets
-`status.phase: Blocked` — revert the image tag to resolve.
-
-#### Upgrade Strategy
-
-The `upgradeStrategy` field controls component behavior during database migrations:
-
-- **Rolling** (default) — lifecycle tasks run while existing components stay up. This works well for most minor/patch upgrades where migrations are additive and backward-compatible.
-- **Drain** — all component child CRs are deleted before tasks run, ensuring no application pods are connected to the metastore during schema changes. After tasks complete, components are recreated with the new image.
-
-Use `Drain` when:
-- Migrations alter or drop existing columns/tables (breaking backward compatibility)
-- You've experienced metastore deadlocks from concurrent access during migrations
-- You want to ensure components always start fresh against the new schema (no stale state or incompatible ORM mappings)
-
-```yaml
-spec:
-  lifecycle:
-    upgradeStrategy: Drain
-    migrate:
-      strategy: VersionChange
-    init:
-      strategy: VersionChange
-```
-
-During a drain, Ingress/HTTPRoute and NetworkPolicy resources are preserved (they
-are owned by the parent CR, not child CRs). Once lifecycle tasks complete,
-components are recreated and traffic resumes automatically.
-
-See the [lifecycle flow diagram](architecture.md#lifecycle-flow) for a visual
-overview of how upgrade mode, upgrade strategy, and task strategies interact.
-
-#### Custom Commands
-
-```yaml
-spec:
-  lifecycle:
-    migrate:
-      command: ["/bin/sh", "-c", "superset db upgrade && custom-migrate"]
-    init:
-      command: ["/bin/sh", "-c", "superset init && custom-seed"]
-```
-
-The `spec.lifecycle` section supports `podTemplate` with the same Pod and
-container fields as other components (tolerations, nodeSelector, volumes, etc.
-on `podTemplate`; env, resources, securityContext, etc. on
-`podTemplate.container`), so task pods inherit top-level scheduling and security
-settings and can be customized independently.
-
-#### Timeout, Retries, and Pod Retention
-
-Each task has configurable timeout and retry behavior:
-
-```yaml
-spec:
-  lifecycle:
-    podRetention:
-      policy: RetainOnFailure    # Delete (default) | Retain | RetainOnFailure
-    migrate:
-      timeout: 10m               # max time per attempt (default: 5m)
-      maxRetries: 5              # attempts before permanent failure (default: 3)
-    init:
-      timeout: 5m
-      maxRetries: 3
-```
-
-On failure, the operator retries with exponential backoff (`10s * 2^(attempt-1)`,
-capped at 5m). If a pod exceeds the timeout while Running or Pending, it counts
-as a failed attempt.
-
-Pod retention controls what happens to task pods after completion:
-
-| Policy | On Success | On Failure |
-|---|---|---|
-| `Delete` (default) | Pod deleted | Pod deleted |
-| `Retain` | Pod kept | Pod kept |
-| `RetainOnFailure` | Pod deleted | Pod kept for debugging |
-
-Use `RetainOnFailure` to inspect logs of failed migrations:
-
-```bash
-kubectl logs <pod-name> -c superset
-```
-
-#### Admin User (Dev Mode Only)
-
-In dev mode, the operator can create an admin user during initialization:
-
-```yaml
-spec:
-  environment: dev
-  lifecycle:
-    init:
-      adminUser:
-        username: admin           # default
-        password: admin           # default
-        firstName: Superset       # default
-        lastName: Admin           # default
-        email: admin@example.com  # default
-```
-
-All fields have defaults, so `adminUser: {}` creates a user with
-username/password `admin`/`admin`. The operator passes credentials as env vars
-and appends a `superset fab create-admin` step to the init command. This field
-is rejected in prod mode by CRD validation.
-
-#### Load Examples (Dev Mode Only)
-
-Load Superset's example dashboards and datasets during initialization:
-
-```yaml
-spec:
-  environment: dev
-  lifecycle:
-    init:
-      loadExamples: true
-```
-
-The operator appends a `superset load-examples` step to the init command. This
-field is rejected in prod mode by CRD validation. Note that Superset's built-in
-examples require an admin user with username `admin` — if you customize
-`adminUser.username`, example loading may fail.
-
-Both `adminUser` and `loadExamples` are mutually exclusive with a custom
-`lifecycle.init.command` — when using these fields, the operator constructs the
-full init command automatically.
-
-### Health Probes
+## Health Probes
 
 ```yaml
 spec:
@@ -645,7 +464,7 @@ spec:
           periodSeconds: 15
 ```
 
-### Security Context
+## Security Context
 
 Security context can be set at the top level (shared by all components) or overridden per component:
 
@@ -673,7 +492,7 @@ spec:
         runAsNonRoot: true
 ```
 
-### Autoscaling (HPA)
+## Autoscaling (HPA)
 
 ```yaml
 spec:
@@ -692,68 +511,13 @@ spec:
 
 When HPA is configured, the `replicas` field is ignored (HPA manages scaling).
 
-### Pod Disruption Budget
+## Pod Disruption Budget
 
 ```yaml
 spec:
   webServer:
     podDisruptionBudget:
       minAvailable: 1
-```
-
-## Networking
-
-### Gateway API (Recommended)
-
-Requires [Gateway API CRDs](https://gateway-api.sigs.k8s.io/) installed on the cluster. Gateway API is not included in Kubernetes and must be [installed separately](https://gateway-api.sigs.k8s.io/guides/#installing-gateway-api). If the CRDs are absent, the operator logs a message and skips HTTPRoute management.
-
-```yaml
-spec:
-  networking:
-    gateway:
-      gatewayRef:
-        name: my-gateway
-        namespace: gateway-system
-      hostnames:
-        - superset.example.com
-```
-
-The operator creates an `HTTPRoute` with:
-- `/ws` -> websocket-server Service (if enabled)
-- `/mcp` -> mcp-server Service (if enabled)
-- `/flower` -> celery-flower Service (if enabled)
-- `/` -> web-server Service (if enabled)
-
-Paths are configurable via `service.gatewayPath` on each component. For
-example, to serve Celery Flower under `/monitoring`:
-
-```yaml
-spec:
-  celeryFlower:
-    service:
-      gatewayPath: /monitoring
-```
-
-### Ingress (Legacy)
-
-Gateway API and Ingress are mutually exclusive — set one or the other, not both.
-
-```yaml
-spec:
-  networking:
-    ingress:
-      className: nginx
-      annotations:
-        nginx.ingress.kubernetes.io/proxy-body-size: "100m"
-      hosts:
-        - host: superset.example.com
-          paths:
-            - path: /
-              pathType: Prefix
-      tls:
-        - secretName: superset-tls
-          hosts:
-            - superset.example.com
 ```
 
 ## Component Enable/Disable
@@ -982,57 +746,6 @@ spec:
           memory: "4Gi"
 ```
 
-### Lifecycle task pods
-
-The lifecycle task pods use `podTemplate` instead of `deploymentTemplate` (since
-they create bare Pods, not Deployments):
-
-```yaml
-spec:
-  lifecycle:
-    podTemplate:
-      container:
-        resources:
-          limits:
-            memory: "2Gi"
-    migrate:
-      command: ["/bin/sh", "-c", "superset db upgrade"]
-```
-
-## Monitoring
-
-### Prometheus ServiceMonitor
-
-Requires [prometheus-operator](https://prometheus-operator.dev/) CRDs. The operator gracefully skips if they are not installed.
-
-```yaml
-spec:
-  monitoring:
-    serviceMonitor:
-      interval: 30s
-      labels:
-        release: prometheus
-```
-
-## Network Policies
-
-```yaml
-spec:
-  networkPolicy:
-    extraIngress: []
-    extraEgress: []
-```
-
-Creates per-component NetworkPolicies that:
-- Allow ingress from other components of the same Superset instance (matched by `app.kubernetes.io/name: superset` + `superset.apache.org/parent` labels — multiple Superset instances in the same namespace are isolated from each other)
-- Allow ingress on the service port from any source for externally-facing components (web server, Celery Flower, websocket server, MCP server) — this is necessary because ingress controllers and load balancers typically reside outside the namespace and cannot be matched with a pod selector
-- Allow all egress (for database/cache access)
-- Support custom `extraIngress` and `extraEgress` rules
-
-If you need to restrict external ingress to specific sources, disable the built-in
-network policy and create your own NetworkPolicy resources with the desired `from`
-selectors.
-
 ## Force Reload
 
 Trigger a rolling restart of all components:
@@ -1106,25 +819,3 @@ Then reference the connection secret via `metastore.uriFrom` on your Superset CR
 ### Redis Operator
 
 Use the [Redis Operator](https://github.com/spotahome/redis-operator) or [Bitnami Redis Helm chart](https://github.com/bitnami/charts/tree/main/bitnami/redis) for Redis, and configure the connection via `config`.
-
-## Migration from Helm Chart
-
-| Helm Chart Value | Operator Equivalent |
-|-----------------|---------------------|
-| `image.repository` + `image.tag` | `spec.image.repository` + `spec.image.tag` |
-| `supersetNode.connections` | `spec.metastore` (with `uriFrom` or structured fields) |
-| `supersetNode.replicaCount` | `spec.webServer.replicas` |
-| `supersetWorker.replicaCount` | `spec.celeryWorker.replicas` |
-| `supersetCeleryBeat.enabled` | `spec.celeryBeat: {}` (set) or omit (disabled) |
-| `supersetCeleryFlower.enabled` | `spec.celeryFlower: {}` (set) or omit (disabled) |
-| `supersetWebsockets.enabled` | `spec.websocketServer: {}` (set) or omit (disabled) |
-| `configOverrides` | `spec.config` |
-| `ingress.*` | `spec.networking.ingress` |
-| `service.*` | `spec.webServer.service` |
-| `resources.*` | `spec.podTemplate.container.resources` (top-level) or per-component |
-| `nodeSelector` | `spec.podTemplate.nodeSelector` (top-level) or per-component (merged) |
-| `tolerations` | `spec.podTemplate.tolerations` (top-level) or per-component (appended) |
-| `affinity` | `spec.podTemplate.affinity` (top-level) or per-component (replaces) |
-| `extraEnv` | `spec.podTemplate.container.env` (top-level) or per-component (merged) |
-| `postgresql.*` | Not managed -- use CloudNativePG or managed services |
-| `redis.*` | Not managed -- use Redis Operator or managed services |

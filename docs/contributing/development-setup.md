@@ -1,0 +1,207 @@
+<!--
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+-->
+
+# Development Setup
+
+This guide walks through setting up a local development environment with
+Kind, PostgreSQL, and Valkey. By the end you will have a working Superset
+instance running on your laptop.
+
+## Prerequisites
+
+| Tool | Version | Install |
+|---|---|---|
+| Docker daemon | 20+ | [Docker Desktop](https://docs.docker.com/get-docker/), [Colima](https://github.com/abiosoft/colima) (`brew install colima`), or [Podman](https://podman.io) |
+| kubectl | 1.27+ | [kubernetes.io](https://kubernetes.io/docs/tasks/tools/) |
+| Kind | 0.30+ | `brew install kind` or `go install sigs.k8s.io/kind@latest` |
+| Go | 1.26+ | `brew install go` or [go.dev](https://go.dev/dl/) |
+
+### macOS notes
+
+- **Colima** is a lightweight alternative to Docker Desktop. Start it with enough headroom for Kind plus a Superset deployment:
+  ```bash
+  colima start --cpu 4 --memory 8 --disk 50
+  ```
+  The Docker CLI auto-switches to the `colima` context.
+- If you previously ran Docker Desktop and have switched to Colima, the leftover `credsStore: desktop` in `~/.docker/config.json` will fail every `docker pull` with a keychain error in non-interactive shells. Remove the `credsStore` and `plugins`/`features.hooks` keys from that file (they only apply to Docker Desktop).
+
+## 1. Create a Kind cluster
+
+```bash
+kind create cluster --name superset
+```
+
+## 2. Deploy PostgreSQL
+
+```bash
+kubectl create deployment postgres --image=postgres:16 \
+  --port=5432 \
+  -- sh -c 'exec postgres'
+kubectl set env deployment/postgres \
+  POSTGRES_USER=superset \
+  POSTGRES_PASSWORD=superset \
+  POSTGRES_DB=superset
+kubectl expose deployment postgres --port=5432
+```
+
+Wait for the pod to be ready:
+
+```bash
+kubectl wait --for=condition=available deployment/postgres --timeout=60s
+```
+
+## 3. Deploy Valkey
+
+```bash
+kubectl create deployment valkey --image=valkey/valkey:8 --port=6379
+kubectl expose deployment valkey --port=6379
+```
+
+## 4. Run the operator
+
+There are two ways to run the operator:
+
+**Option A: Run locally (outside the cluster)**
+
+```bash
+make run
+```
+
+This compiles and runs the operator process on your machine, connecting to the Kind cluster via your kubeconfig. Leave this terminal open — it streams reconciliation logs.
+
+**Option B: Deploy in-cluster**
+
+```bash
+make docker-build IMG=superset-operator:dev
+kind load docker-image superset-operator:dev --name superset
+make deploy IMG=superset-operator:dev
+```
+
+This builds the operator image, loads it into Kind, and deploys it as a Deployment with all RBAC and CRDs. View logs with:
+
+```bash
+kubectl logs -n superset-operator-system deployment/superset-operator-controller-manager -f
+```
+
+`make deploy` is a superset of `make install` — it installs CRDs, RBAC, and the operator Deployment in one step.
+
+## 5. Deploy Superset
+
+```bash
+kubectl apply -f config/samples/superset_v1alpha1_superset.yaml
+```
+
+The sample manifest deploys a web server in dev mode with init disabled,
+pointing at the Postgres instance created above.
+
+## 6. Access Superset
+
+```bash
+kubectl port-forward svc/superset-sample-web-server 8088:8088
+```
+
+Open [http://localhost:8088](http://localhost:8088).
+
+## 7. Clean up
+
+```bash
+kubectl delete superset superset-sample
+kind delete cluster --name superset
+```
+
+---
+
+## Make Commands
+
+| Command | Description |
+|---|---|
+| `make run` | Run the operator locally (connects to cluster via kubeconfig) |
+| `make deploy IMG=<image>` | Deploy operator in-cluster (CRDs + RBAC + Deployment — superset of `make install`) |
+| `make install` | Install CRDs only |
+| `make undeploy` | Remove the in-cluster operator deployment |
+| `make uninstall` | Remove CRDs only |
+| `make manifests` | Regenerate CRD YAML and RBAC from kubebuilder markers |
+| `make generate` | Regenerate DeepCopy methods |
+| `make codegen` | Regenerate all generated artifacts (CRDs, DeepCopy, Helm CRDs, API docs) |
+| `make build` | Build the operator binary |
+| `make docker-build IMG=<image>` | Build container image for the local platform |
+| `make docker-buildx IMG=<image>` | Build and push multi-platform image (linux/arm64, linux/amd64) |
+| `make test` | Run all tests (unit + integration + e2e) |
+| `make test-unit` | Run unit tests (no envtest or cluster required) |
+| `make test-integration` | Run integration tests (requires envtest) |
+| `make test-e2e` | Run e2e tests (requires Kind cluster) |
+| `make lint` | Run golangci-lint |
+| `make hooks` | Configure git to use `.githooks/` for pre-commit hooks |
+| `make helm` | Sync CRDs into Helm chart and package it |
+| `make helm-lint` | Lint the Helm chart |
+| `make docs-serve` | Serve docs locally at http://localhost:8000 |
+| `make docs-build` | Build docs site (runs in CI with `--strict`) |
+| `make docs-api` | Regenerate API reference from Go types |
+| `make check-license` | Check Apache license headers (requires Java) |
+| `make clean` | Remove build artifacts, downloaded tools, and test cache |
+
+---
+
+## Pre-Commit Hooks
+
+The project includes a lightweight git hook at `.githooks/pre-commit` that runs `make lint` before each commit. No external tools required — it uses `golangci-lint`, which covers formatting (`gofmt`, `goimports`), `go vet`, and all configured linters.
+
+### Setup
+
+```sh
+make hooks
+```
+
+This sets `core.hooksPath` to `.githooks/` for this repository. To bypass the hook for a specific commit, use `git commit --no-verify`.
+
+---
+
+## Documentation
+
+The docs are built with [mkdocs-material](https://squidfunk.github.io/mkdocs-material/). To set up and preview locally:
+
+```sh
+virtualenv venv
+source venv/bin/activate
+pip install -r docs-requirements.txt
+make docs-serve
+```
+
+This starts a live-reloading server at `http://localhost:8000`. Edit Markdown files in `docs/` and changes appear instantly.
+
+To verify the docs build cleanly (same check that runs in CI):
+
+```sh
+make docs-build
+```
+
+### Diagrams
+
+Use Mermaid for flow diagrams. Keep them compact with the following conventions:
+
+- Use `flowchart TD` (top-down) for state machines and lifecycle flows
+- Set font size to 12px via init config: `%%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '12px'}}}%%`
+- Use short node labels (abbreviate where clear from context)
+- Prefer single-letter node IDs (`A`, `B`, `C`) for readability of the source
+
+### API Reference
+
+The [API reference](../reference/api-reference.md) is generated from Go type definitions using [`crd-ref-docs`](https://github.com/elastic/crd-ref-docs). After modifying types in `api/v1alpha1/`, run `make codegen` to regenerate all generated artifacts (CRDs, DeepCopy, Helm CRDs, API docs). CI verifies nothing is stale.
+
+The API reference only documents operator-defined types. Built-in Kubernetes types (e.g., `Affinity`, `Container`, `Volume`) are linked out to [pkg.go.dev](https://pkg.go.dev) rather than rendered inline. When adding new fields that reference a K8s type, add a corresponding `knownTypes` entry in `hack/api-ref-config.yaml` so it renders as a link.

@@ -20,9 +20,11 @@ under the License.
 # Internals — Reconciliation & Runtime
 
 This document describes how the operator behaves at runtime: the
-reconciliation lifecycle, task pod management, retry semantics, status
-reporting, and resource cleanup. For the structural overview (CRD hierarchy,
-configuration model, config rendering), see [Architecture](architecture.md).
+reconciliation lifecycle, child controller pattern, status reporting, and
+resource cleanup. For the structural overview (CRD hierarchy, configuration
+model, config rendering), see [Architecture](overview.md). For the full lifecycle
+task reference (pod state machine, retry semantics, upgrade modes), see
+[Lifecycle](../user-guide/lifecycle.md).
 
 ---
 
@@ -62,12 +64,6 @@ pattern (never CreateOrUpdate) to avoid races with the task controller's status
 writes. When a task needs to re-run (checksum mismatch), the parent deletes the
 old CR and creates a fresh one on the next reconcile.
 
-The dedicated `SupersetLifecycleTaskReconciler` manages the Pod lifecycle for
-each task (ConfigMap creation, bare Pod creation, retry with backoff, timeout,
-retention). It is a pure executor — it never autonomously resets or re-runs
-tasks. See [Init Pod Lifecycle](#init-pod-lifecycle) below for the full state
-machine.
-
 Tasks run sequentially: migrate must complete before init starts. The task
 strategy (default: `VersionChange`) determines whether tasks are triggered —
 with the default strategy, tasks only run when the Superset image changes.
@@ -82,6 +78,10 @@ Components do not deploy until both lifecycle tasks complete (or lifecycle is
 explicitly disabled via `spec.lifecycle.disabled: true`). If a task is in
 progress or has failed, `Reconcile()` returns early with a requeue, skipping
 Phase 4.
+
+For the full lifecycle reference including pod state machine, retry/backoff
+semantics, upgrade modes, and drain verification, see
+[Lifecycle](../user-guide/lifecycle.md).
 
 ### Phase 4: Component Reconciliation
 
@@ -116,135 +116,6 @@ correct GVK per component type), extracts the `ready` field (format:
 |---|---|---|
 | Yes | `Running` | `True` |
 | No | `Degraded` | `False` |
-
----
-
-## Init Pod Lifecycle
-
-The parent controller creates `SupersetLifecycleTask` child CRs, and the dedicated
-`SupersetLifecycleTaskReconciler` manages bare Pods (`restartPolicy: Never`). The task
-controller acts as the retry controller, giving it full control over backoff,
-timeout, naming, and cleanup.
-
-### Default Commands
-
-The lifecycle is split into two sequential tasks:
-
-- **migrate** — `superset db upgrade` (database schema migration)
-- **init** — `superset init` (application initialization: roles, permissions, app state)
-
-Each task's command is independently customizable via `spec.lifecycle.migrate.command`
-and `spec.lifecycle.init.command`:
-
-```yaml
-spec:
-  lifecycle:
-    migrate:
-      command: ["/bin/sh", "-c", "superset db upgrade && custom-migrate"]
-    init:
-      command: ["/bin/sh", "-c", "superset init && custom-seed"]
-```
-
-### Task Strategies
-
-Each task has a `strategy` field controlling when it runs:
-
-| Strategy | Behavior |
-|---|---|
-| `VersionChange` (default) | Runs only when the Superset image tag changes |
-| `Always` | Runs on any spec change (image, config, or command) |
-| `Never` | Never runs (task effectively disabled) |
-
-With `VersionChange`, config-only changes trigger rolling restarts via checksum
-annotations but do not spawn task pods.
-
-### Image-Change Detection
-
-The operator tracks the last successfully deployed image. When an image change
-is detected:
-
-- In **Automatic** upgrade mode (default), tasks run immediately
-- In **Supervised** upgrade mode, tasks wait for annotation-based approval
-
-### Downgrade Blocking
-
-The operator performs semver comparison on image tags. If the new tag is lower
-than the currently deployed version, the reconciler blocks the change and sets
-an error condition to prevent accidental database downgrades.
-
-### Why Bare Pods
-
-- **Controlled retries** — The operator decides when and how to retry, with
-  configurable max attempts and exponential backoff
-- **Clean audit trail** — Each attempt creates a new Pod with a unique
-  `generateName` suffix, making it easy to inspect history
-- **Sidecar handling** — The operator manages pod lifecycle directly, avoiding
-  the Job controller's sidecar termination issues
-
-### Gating
-
-If the lifecycle tasks have not completed successfully, the
-reconciler returns early and no child CRs are created or updated. Set
-`spec.lifecycle.disabled: true` to skip lifecycle tasks entirely.
-
-### Pod State Machine
-
-Task pods transition through these states:
-
-- **Pending** — No pod exists yet. The operator creates one.
-- **Running** — Pod is executing. If it exceeds the timeout, it counts as a failed attempt.
-- **Succeeded** → **Complete** — Task is done; the next task (or components) can proceed.
-- **Failed** — If `attempts < maxRetries`, the operator deletes the pod and requeues with exponential backoff. If `attempts >= maxRetries`, the task is permanently failed.
-
-### Retry and Backoff
-
-| Setting | Default | Description |
-|---|---|---|
-| `spec.lifecycle.migrate.maxRetries` | `3` | Maximum attempts before permanent failure |
-| `spec.lifecycle.migrate.timeout` | `5m` | Maximum time per attempt |
-| `spec.lifecycle.init.maxRetries` | `3` | Maximum attempts before permanent failure |
-| `spec.lifecycle.init.timeout` | `5m` | Maximum time per attempt |
-
-**Backoff calculation:**
-
-Exponential backoff: `10s * 2^(attempt-1)`, capped at 300s (10s, 20s, 40s, 80s, 160s, 300s).
-
-If a pod stays in Running or Pending state beyond the timeout, it counts as a
-failed attempt.
-
-### Pod Naming and Discovery
-
-Pods use `generateName` (`{parent}-{task}-{random}`, e.g. `my-superset-migrate-x7k2m`)
-for unique names per attempt. The operator discovers pods by label
-(`superset.apache.org/instance` and `superset.apache.org/task`) and uses
-the most recently created one when multiple exist.
-
-### Pod Retention
-
-After a task completes (successfully or permanently fails), the retention
-policy determines what happens to the pod:
-
-| Policy | On Success | On Failure |
-|---|---|---|
-| `Delete` (default) | Delete pod | Delete pod |
-| `Retain` | Keep pod | Keep pod |
-| `RetainOnFailure` | Delete pod | Keep pod |
-
-Configured via `spec.lifecycle.podRetention.policy`. Retaining failed pods is useful
-for debugging migration failures.
-
-### Task Pod Spec
-
-Task pods inherit scheduling, security, volumes, and env from the top-level
-`podTemplate`, just like other components. Key fields:
-
-- **Image**: From `spec.image`
-- **Command**: From `spec.lifecycle.migrate.command` or `spec.lifecycle.init.command` (defaults: `superset db upgrade` and `superset init`)
-- **Config**: Mounted from the task ConfigMap (`{parent}-{task}-config`)
-- **Env vars**: Database credentials, secret key (via plain env vars in dev mode, or `valueFrom.secretKeyRef` when `*From` fields are used)
-- **Resources**: From `spec.lifecycle.podTemplate.container.resources` if set
-- **Service account**: Inherited from parent spec
-- **Restart policy**: Always `Never` — the operator handles retries
 
 ---
 
@@ -414,85 +285,6 @@ plaintext) because changes to these values must trigger a rollout.
 
 ---
 
-## Networking
-
-The operator supports two mutually exclusive networking modes for external
-access to the web server.
-
-### Gateway API (HTTPRoute)
-
-When `spec.networking.gateway` is set, the controller creates an `HTTPRoute`
-with path-based routing:
-
-| Priority | Path | Target | Condition |
-|---|---|---|---|
-| 1 (most specific) | `/ws` | websocket-server Service | websocketServer enabled |
-| 2 | `/mcp` | mcp-server Service | mcpServer enabled |
-| 3 | `/flower` | celery-flower Service | celeryFlower enabled |
-| 4 (catch-all) | `/` | web-server Service | webServer enabled |
-
-More specific paths are listed first to ensure correct routing priority.
-Paths are configurable via `service.gatewayPath` on each component spec.
-
-### Ingress
-
-When `spec.networking.ingress` is set, the controller creates a standard
-`networkingv1.Ingress`. Supports multiple hosts with per-host path rules.
-All paths route to the web-server Service.
-
-### Graceful CRD Handling
-
-Gateway API is not included in Kubernetes and must be
-[installed separately](https://gateway-api.sigs.k8s.io/guides/#installing-gateway-api).
-If the CRDs are not present, the controller skips HTTPRoute watch registration
-and catches `meta.IsNoMatchError` at reconciliation time. The operator runs
-with reduced functionality rather than failing.
-
----
-
-## Monitoring
-
-When `spec.monitoring.serviceMonitor` is set, the controller creates a
-Prometheus `ServiceMonitor` targeting the web-server component.
-
-- Uses **unstructured objects** because the ServiceMonitor CRD is external
-  (monitoring.coreos.com/v1)
-- Default scrape interval: 30s (configurable)
-- Targets pods with `app.kubernetes.io/component: web-server`
-- If the ServiceMonitor CRD is not installed, the controller logs an info
-  message and continues — monitoring is optional
-
----
-
-## Network Policies
-
-When `spec.networkPolicy` is set, the controller creates one `NetworkPolicy`
-per enabled component:
-
-| Component | Ingress from Superset pods | Ingress from external | Egress |
-|---|---|---|---|
-| WebServer | port 8088 | port 8088 | all |
-| CeleryWorker | any port | — | all |
-| CeleryBeat | any port | — | all |
-| CeleryFlower | port 5555 | port 5555 | all |
-| WebsocketServer | port 8080 | port 8080 | all |
-| McpServer | port 8088 | port 8088 | all |
-
-**Base rules:**
-
-- All components allow ingress from pods belonging to the same Superset instance
-  (matched by `app.kubernetes.io/name: superset` + `superset.apache.org/parent` labels)
-- Components with external ports (web server, flower, websocket, mcp) also
-  allow ingress on that port from any source (enables load balancers and
-  ingress controllers)
-- All components allow unrestricted egress (they need access to databases,
-  caches, and external APIs)
-
-**User-defined rules** can be added via `spec.networkPolicy.extraIngress` and
-`spec.networkPolicy.extraEgress`.
-
----
-
 ## Garbage Collection
 
 The operator uses Kubernetes owner references for automatic cleanup. The parent
@@ -535,7 +327,7 @@ status:
       status: "False"
 ```
 
-#### Parent Phase
+### Parent Phase
 
 The top-level `status.phase` reflects the overall instance state:
 
@@ -549,20 +341,6 @@ The top-level `status.phase` reflects the overall instance state:
 | `Suspended` | `spec.suspend: true` — all reconciliation paused |
 | `Blocked` | Downgrade detected — lifecycle tasks will not run (manual intervention required) |
 | `AwaitingApproval` | Supervised upgrade mode — waiting for approval annotation before proceeding |
-
-#### Lifecycle Phase
-
-The `status.lifecycle.phase` tracks lifecycle task orchestration:
-
-| Phase | Meaning |
-|---|---|
-| `Idle` | No lifecycle work pending |
-| `Draining` | Drain strategy active — waiting for component pods to terminate before running tasks |
-| `Migrating` | Migrate task (`superset db upgrade`) is running |
-| `Initializing` | Init task (`superset init`) is running |
-| `Complete` | All enabled tasks finished successfully |
-| `Blocked` | Downgrade detected — tasks cannot proceed |
-| `AwaitingApproval` | Supervised mode — tasks paused until approval annotation is set |
 
 ### Child Status
 
@@ -596,31 +374,6 @@ status:
 |---|---|
 | `True` / `RolloutInProgress` | Deployment is rolling out new pods |
 | `False` / `RolloutComplete` | New ReplicaSet is fully available |
-
-### Init Status
-
-Lifecycle task progress is tracked per-task:
-
-```yaml
-status:
-  lifecycle:
-    migrate:
-      state: Complete       # Pending | Running | Complete | Failed
-      podName: my-superset-migrate-x7k2m
-      startedAt: "2026-03-16T10:00:00Z"
-      completedAt: "2026-03-16T10:00:12Z"
-      duration: "12s"
-      attempts: 1
-      image: apache/superset:latest
-    init:
-      state: Complete
-      podName: my-superset-init-a9b3k
-      startedAt: "2026-03-16T10:00:13Z"
-      completedAt: "2026-03-16T10:00:22Z"
-      duration: "9s"
-      attempts: 1
-      image: apache/superset:latest
-```
 
 ---
 

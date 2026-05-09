@@ -111,15 +111,34 @@ my-superset-web-server-6d4b8c7f9-p9f3n        1/1     Running   4m
 my-superset-mcp-server-5c6d7e8f9-x9y1z        1/1     Running   4m
 ```
 
-## Next steps
+## Where to start
 
-- [Installation](installation.md) — install the operator and deploy Superset
-- [User Guide](user-guide.md) — full configuration reference
-- [Architecture](architecture.md) — how the two-tier CRD design works
-- [Internals](internals.md) — reconciliation lifecycle and runtime behavior
-- [Security](security.md) — trust boundaries, threat model, vulnerability reporting
-- [Developer Guide](developer-guide.md) — contributing and development setup
-- [API Reference](api-reference.md) — auto-generated CRD type documentation
+**Deploying Superset?**
+
+- [Getting Started](getting-started.md) — quickstart with dev mode
+- [Installation](user-guide/installation.md) — production deployment with secrets
+
+**Configuring an existing deployment?**
+
+- [Configuration](user-guide/configuration.md) — full configuration reference
+- [Lifecycle](user-guide/lifecycle.md) — database migrations and upgrade management
+- [Networking & Monitoring](user-guide/networking-and-monitoring.md) — external access and observability
+
+**Understanding how the operator works?**
+
+- [Architecture](architecture/overview.md) — CRD hierarchy, config rendering pipeline
+- [Internals](architecture/internals.md) — reconciliation phases, child controllers, status
+
+**Contributing code?**
+
+- [Development Setup](contributing/development-setup.md) — local environment with Kind
+- [Development Guidelines](contributing/development-guidelines.md) — testing, patterns, PR conventions
+
+**Reference:**
+
+- [API Reference](reference/api-reference.md) — auto-generated CRD type documentation
+- [Security](reference/security.md) — trust boundaries, threat model, vulnerability reporting
+- [Downloads](reference/downloads.md) — images, Helm chart, verification
 
 ## License
 

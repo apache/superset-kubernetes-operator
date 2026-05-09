@@ -29,14 +29,24 @@ theme:
 
 nav:
   - Home: index.md
-  - Installation: installation.md
-  - Downloads: downloads.md
-  - User Guide: user-guide.md
-  - Architecture: architecture.md
-  - Internals: internals.md
-  - API Reference: api-reference.md
-  - Security: security.md
-  - Developer Guide: developer-guide.md
+  - Getting Started: getting-started.md
+  - User Guide:
+    - Installation: user-guide/installation.md
+    - Configuration: user-guide/configuration.md
+    - Lifecycle: user-guide/lifecycle.md
+    - Networking & Monitoring: user-guide/networking-and-monitoring.md
+    - Migration from Helm Chart: user-guide/migration.md
+  - Architecture:
+    - Overview: architecture/overview.md
+    - Internals: architecture/internals.md
+  - Reference:
+    - API Reference: reference/api-reference.md
+    - Downloads: reference/downloads.md
+    - Security: reference/security.md
+  - Contributing:
+    - Development Setup: contributing/development-setup.md
+    - Development Guidelines: contributing/development-guidelines.md
+    - Releasing: contributing/releasing.md
 
 extra_css:
   - stylesheets/extra.css

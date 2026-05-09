@@ -17,10 +17,12 @@ specific language governing permissions and limitations
 under the License.
 -->
 
-# Superset Operator — Architecture Overview
+# Architecture Overview
 
-For runtime behavior details — reconciliation lifecycle, init pod state machine,
-retry semantics, and status reporting — see [Internals](internals.md).
+For runtime behavior details — reconciliation lifecycle, child controller
+pattern, and status reporting — see [Internals](internals.md). For lifecycle
+task orchestration (migrations, upgrades, drain strategies), see
+[Lifecycle](../user-guide/lifecycle.md).
 
 ## Two-Tier CRD Architecture
 
@@ -53,7 +55,7 @@ technically be created directly, doing so bypasses the parent's lifecycle
 orchestration (task sequencing, drain strategies, component gating). Manual child
 CRs are not recommended for production use. Because child CRs carry the same
 fields as the parent (images, commands, env vars, volumes), their writers should
-be treated as equally trusted — see [Security](security.md#trust-boundaries)
+be treated as equally trusted — see [Security](../reference/security.md#trust-boundaries)
 for details.
 
 ---
@@ -133,7 +135,7 @@ Merge semantics per field type:
 - **Operator-managed labels** (`app.kubernetes.io/*`) — applied last, cannot be overridden
 
 Lifecycle tasks use `podTemplate` only (no `deploymentTemplate`) since they
-create bare Pods. See the [User Guide](user-guide.md#deployment-template) for
+create bare Pods. See the [Configuration guide](../user-guide/configuration.md#deployment-template) for
 the full field reference and examples.
 
 ### Example: How resources resolve for celeryWorker
@@ -195,7 +197,7 @@ exclusive. If both are set, the component receives all three sections:
    the web server, Celery concurrency for workers). Presets range from
    `conservative` (NullPool) through `balanced` (pool\_size=1, max\_overflow=-1)
    to `aggressive` (pool\_size=workers×threads). See
-   [SQLAlchemy Engine Options](user-guide.md#sqlalchemy-engine-options) for details.
+   [SQLAlchemy Engine Options](../user-guide/configuration.md#sqlalchemy-engine-options) for details.
 3. **Valkey cache config** — When `spec.valkey` is set, the operator renders
    `CACHE_CONFIG`, `DATA_CACHE_CONFIG`, `FILTER_STATE_CACHE_CONFIG`,
    `EXPLORE_FORM_DATA_CACHE_CONFIG`, `THUMBNAIL_CACHE_CONFIG`,
@@ -282,113 +284,14 @@ never appear in ConfigMaps or CRD status fields.
 
 ---
 
-## Lifecycle Tasks
-
-Lifecycle management is handled by dedicated `SupersetLifecycleTask` child CRDs,
-exclusively created and managed by the parent Superset controller. The parent
-creates two sequential tasks — "migrate" (`superset db upgrade`) and "init"
-(`superset init`) — each as a separate `SupersetLifecycleTask` CR named
-`{parentName}-migrate` and `{parentName}-init`. The `SupersetLifecycleTaskReconciler`
-manages bare Pods (`restartPolicy: Never`) with retry, backoff, timeout, and
-retention for each task.
-
-### Orchestration Model
-
-The parent controller is the sole authority on lifecycle orchestration:
-
-- **Sequencing**: migrate must complete before init starts
-- **Gating**: components are not created/updated until all tasks complete
-- **Re-runs**: when config or image changes, the parent deletes the old task CR
-  and creates a fresh one (the task controller never autonomously resets tasks)
-- **Drain verification**: when using the Drain strategy, the parent verifies all
-  component pods are terminated before starting tasks
-
-The task controller is a pure pod lifecycle manager — it creates pods, watches
-their status, handles retries within configured limits, and reports completion.
-It does not make orchestration decisions.
-
-Manually creating `SupersetLifecycleTask` CRs is not supported — they will not
-participate in the parent's orchestration flow (sequencing, gating, drain).
-
-### Task Strategies
-
-Each task has a `strategy` that controls when it runs:
-
-| Strategy | Behavior |
-|---|---|
-| `VersionChange` (default) | Task runs only when the Superset image changes |
-| `Always` | Task runs on any spec change (image, config, or command) |
-| `Never` | Task never runs (effectively disabled) |
-
-With the default `VersionChange` strategy, config-only changes trigger rolling
-restarts of component Deployments (via checksum annotations) but do not spawn
-task pods. This avoids unnecessary migration runs on routine config updates.
-
-### Image-Change Detection and Upgrade Modes
-
-The operator tracks the last successfully deployed image version. When a new
-image is detected:
-
-- **Automatic** (default `upgradeMode`) — tasks run immediately
-- **Supervised** — tasks wait for an annotation-based approval before running,
-  allowing operators to review and approve upgrades manually
-
-The `upgradeStrategy` controls component behavior during migrations:
-
-- **Rolling** (default) — components stay up while tasks run
-- **Drain** — all component child CRs are deleted before tasks run, eliminating
-  metastore deadlocks and ensuring components restart against the new schema
-
-### Lifecycle Flow
-
-The following diagram shows the lifecycle state machine. Optional steps activate
-based on `upgradeMode` and `upgradeStrategy` settings.
-
-```mermaid
-%%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '12px'}}}%%
-flowchart TD
-    A[Image changed] --> B{Downgrade?}
-    B -->|Yes| C[Blocked]
-    B -->|No| D{upgradeMode}
-    D -->|Automatic| F
-    D -->|Supervised| E[Await approval]
-    E --> F{migrate strategy}
-    F -->|Never| I
-    F -->|VersionChange / Always| G{upgradeStrategy}
-    G -->|Rolling| H[Migrate pod]
-    G -->|Drain| G1[Delete child CRs] --> G2[Wait for pods to terminate] --> H
-    H --> I{init strategy}
-    I -->|Never| K[Complete]
-    I -->|VersionChange / Always| J[Init pod]
-    J --> K
-```
-
-For first deployments (no previous image), the flow starts at the strategy check
-(no downgrade comparison or approval needed).
-
-### Downgrade Blocking
-
-The operator performs semver comparison on image tags. If the new tag is lower
-than the currently deployed version, the reconciler blocks the change and sets
-an error condition. This prevents accidental database downgrades.
-
-The lifecycle child CRs inherit scheduling, security, volumes, and env from
-the top-level `podTemplate`. Lifecycle gates all component deployment — component
-child CRs are not created or updated until both tasks complete. When using the
-Drain strategy, the parent verifies all component pods have terminated (not just
-Deployments deleted) before starting migration tasks. See
-[Internals](internals.md#init-pod-lifecycle) for the full state machine, retry
-semantics, and pod retention policies.
-
----
-
 ## Checksum-Driven Rollouts
 
 Each child CR carries a config checksum stamped as a pod template
 annotation. When the checksum changes (due to config or secret reference
 changes on the CR), Kubernetes triggers a rolling restart of the affected
 component. Note: rotating a referenced Secret's value without changing the
-CR does not trigger a rollout. See
+CR does not trigger a rollout — use
+[Force Reload](../user-guide/configuration.md#force-reload) for this case. See
 [Internals](internals.md#checksum-driven-rollouts) for the full checksum
 table and per-component isolation details.
 

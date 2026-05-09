@@ -19,7 +19,9 @@ under the License.
 
 # Installation
 
-This guide covers installing the operator and deploying a Superset instance.
+This guide covers installing the operator and deploying a Superset instance in
+production. For a quick local trial, see [Getting Started](../getting-started.md).
+For development setup, see [Development Setup](../contributing/development-setup.md).
 
 ## Prerequisites
 
@@ -31,8 +33,6 @@ This guide covers installing the operator and deploying a Superset instance.
 - (Optional) prometheus-operator CRDs for ServiceMonitor support
 
 ## 1. Install the operator
-
-### From the OCI Helm registry (recommended)
 
 ```bash
 helm install superset-operator \
@@ -55,19 +55,8 @@ helm install superset-operator \
   --set image.pullPolicy=Always
 ```
 
-### From a source checkout
-
-```bash
-helm install superset-operator charts/superset-operator \
-  --namespace superset-operator-system \
-  --create-namespace
-```
-
-This installs CRDs from `charts/superset-operator/crds/` and deploys the
-operator using the image defined in `values.yaml`.
-
 See `charts/superset-operator/values.yaml` for all available Helm values and
-[Downloads](downloads.md) for published images and tag conventions.
+[Downloads](../reference/downloads.md) for published images and tag conventions.
 
 ## 2. Create secrets
 
@@ -206,8 +195,7 @@ Deployments automatically.
 
 ## Next steps
 
-- [User Guide](user-guide.md) — configuration, networking, monitoring,
-  and full configuration reference
-- [Architecture](architecture.md) — how the two-tier CRD design works
-- [Developer Guide](developer-guide.md) — contributing, development setup,
-  testing, and code structure
+- [Configuration](configuration.md) — full configuration reference
+- [Lifecycle](lifecycle.md) — database migration and upgrade management
+- [Networking & Monitoring](networking-and-monitoring.md) — Gateway API, Ingress, ServiceMonitor
+- [Architecture](../architecture/overview.md) — how the two-tier CRD design works
