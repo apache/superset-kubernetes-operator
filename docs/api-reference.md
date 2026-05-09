@@ -1300,7 +1300,7 @@ _Appears in:_
 | `lastLifecycleImage` _string_ | Last image (repository:tag) that successfully completed the lifecycle.<br />Used to detect image changes on subsequent reconciles. |  | Optional: \{\} <br /> |
 | `version` _string_ |  |  | Optional: \{\} <br /> |
 | `configChecksum` _string_ |  |  | Optional: \{\} <br /> |
-| `phase` _string_ | High-level phase. |  | Enum: [Initializing Upgrading Running Degraded Suspended Blocked AwaitingApproval] <br />Optional: \{\} <br /> |
+| `phase` _string_ | High-level phase. |  | Enum: [Initializing Upgrading Draining Running Degraded Suspended Blocked AwaitingApproval] <br />Optional: \{\} <br /> |
 
 
 #### SupersetWebServer

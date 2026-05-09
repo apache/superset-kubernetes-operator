@@ -365,11 +365,11 @@ Presets control **poolClass**, **poolSize**, and **maxOverflow**:
 |---|---|---|---|
 | disabled | *(no rendering)* | — | — |
 | conservative | NullPool | — | — |
-| balanced (default) | QueuePool | 1 (web/celery), 5 (MCP) | -1 (unlimited) |
-| performance | QueuePool | workers (web), concurrency (celery) | -1 |
-| aggressive | QueuePool | workers × threads (web), concurrency (celery) | -1 |
+| balanced (default) | QueuePool | 1 (web/celery/flower), 5 (MCP) | -1 (unlimited) |
+| performance | QueuePool | workers (web), concurrency (celery), 1 (flower), 10 (MCP) | -1 |
+| aggressive | QueuePool | workers × threads (web), concurrency (celery), 1 (flower), 20 (MCP) | -1 |
 
-CeleryBeat and Init always use NullPool regardless of preset (singleton/short-lived components with minimal DB interaction).
+CeleryBeat and lifecycle tasks always use NullPool regardless of preset (singleton/short-lived components with minimal DB interaction). CeleryFlower uses standard pool sizing (defaults to 1 for performance/aggressive since it has no worker configuration).
 
 `spec.sqlaEngineOptions` sets the baseline for all Python components. Per-component `sqlaEngineOptions` on `webServer`, `celeryWorker`, `celeryBeat`, `mcpServer`, or `init` replaces the top-level entirely (override semantics, not merge).
 
@@ -403,6 +403,36 @@ spec:
     poolPrePing: true            # explicit: overrides static default
 ```
 
+### Websocket Server
+
+Enable Superset's async event streaming by setting `websocketServer`. This
+deploys a **Node.js** application (not Python) that pushes real-time updates to
+dashboards via WebSocket connections:
+
+```yaml
+spec:
+  websocketServer: {}
+```
+
+Because the websocket server is Node.js-based, it does **not** receive a
+`superset_config.py`, and the `config` / `sqlaEngineOptions` fields are not
+available on this component. Configuration is handled via environment variables
+on the container template:
+
+```yaml
+spec:
+  websocketServer:
+    podTemplate:
+      container:
+        env:
+          - name: SUPERSET_WEBSERVER_URL
+            value: "http://my-superset-web-server:8088"
+```
+
+The websocket server creates a Service (default port 8088) and supports the
+same scaling, deployment template, and pod template fields as other scalable
+components.
+
 ### MCP Server
 
 Enable the [Model Context Protocol](https://modelcontextprotocol.io/) server by setting `mcpServer`. This deploys a Python-based FastMCP server that exposes Superset's API via MCP, allowing AI assistants and LLM-based tools to interact with Superset:
@@ -412,7 +442,7 @@ spec:
   mcpServer: {}
 ```
 
-The MCP server receives a `superset_config.py` with core config (`SECRET_KEY`, structured DB URI if applicable) and top-level/per-component `config` — but not web server port. It runs as a separate Deployment with its own Service.
+The MCP server receives a `superset_config.py` with core config (`SECRET_KEY`, structured DB URI if applicable) and top-level/per-component `config` — but not web server port. It runs as a separate Deployment with its own Service (port 8088). The MCP server supports per-component `sqlaEngineOptions` with higher default pool sizes than other components (5 for balanced, 10 for performance, 20 for aggressive) to accommodate concurrent tool invocations.
 
 ### Lifecycle Configuration
 
@@ -445,8 +475,30 @@ The `upgradeMode` field controls how image upgrades are handled:
 - **Automatic** (default) — tasks run immediately when an image change is detected
 - **Supervised** — tasks wait for an annotation-based approval before running
 
+```yaml
+spec:
+  lifecycle:
+    upgradeMode: Supervised
+```
+
+When an image change is detected in supervised mode, the operator sets
+`status.phase: AwaitingApproval` and records the upgrade context in
+`status.lifecycle.upgrade`. Approve the upgrade by annotating the CR:
+
+```bash
+kubectl annotate superset my-superset superset.apache.org/approve-upgrade=true
+```
+
+The operator clears the annotation automatically after lifecycle tasks complete.
+You can monitor the upgrade status with:
+
+```bash
+kubectl get superset my-superset -o jsonpath='{.status.lifecycle}'
+```
+
 The operator also performs semver comparison on image tags and blocks downgrades
-to prevent accidental database corruption.
+to prevent accidental database corruption. A blocked downgrade sets
+`status.phase: Blocked` — revert the image tag to resolve.
 
 #### Upgrade Strategy
 
@@ -493,6 +545,41 @@ container fields as other components (tolerations, nodeSelector, volumes, etc.
 on `podTemplate`; env, resources, securityContext, etc. on
 `podTemplate.container`), so task pods inherit top-level scheduling and security
 settings and can be customized independently.
+
+#### Timeout, Retries, and Pod Retention
+
+Each task has configurable timeout and retry behavior:
+
+```yaml
+spec:
+  lifecycle:
+    podRetention:
+      policy: RetainOnFailure    # Delete (default) | Retain | RetainOnFailure
+    migrate:
+      timeout: 10m               # max time per attempt (default: 5m)
+      maxRetries: 5              # attempts before permanent failure (default: 3)
+    init:
+      timeout: 5m
+      maxRetries: 3
+```
+
+On failure, the operator retries with exponential backoff (`10s * 2^(attempt-1)`,
+capped at 5m). If a pod exceeds the timeout while Running or Pending, it counts
+as a failed attempt.
+
+Pod retention controls what happens to task pods after completion:
+
+| Policy | On Success | On Failure |
+|---|---|---|
+| `Delete` (default) | Pod deleted | Pod deleted |
+| `Retain` | Pod kept | Pod kept |
+| `RetainOnFailure` | Pod deleted | Pod kept for debugging |
+
+Use `RetainOnFailure` to inspect logs of failed migrations:
+
+```bash
+kubectl logs <pod-name> -c superset
+```
 
 #### Admin User (Dev Mode Only)
 
@@ -955,7 +1042,11 @@ spec:
   forceReload: "2026-03-14T12:00:00Z"
 ```
 
-Change the value to any new string to trigger a restart.
+Change the value to any new string to trigger a restart. This is primarily
+useful for **secret rotation**: when you update a Kubernetes Secret's data, pods
+don't automatically restart because the operator references secrets via
+`valueFrom.secretKeyRef` (resolved at pod creation time). Changing `forceReload`
+forces new pods that pick up the updated secret values.
 
 ## Suspend Reconciliation
 
