@@ -522,7 +522,7 @@ type SupersetStatus struct {
 	ConfigChecksum string `json:"configChecksum,omitempty"`
 	// High-level phase.
 	// +optional
-	// +kubebuilder:validation:Enum=Initializing;Upgrading;Running;Degraded;Suspended;Blocked;AwaitingApproval
+	// +kubebuilder:validation:Enum=Initializing;Upgrading;Draining;Running;Degraded;Suspended;Blocked;AwaitingApproval
 	Phase string `json:"phase,omitempty"`
 }
 

@@ -200,8 +200,10 @@ Task pods transition through these states:
 
 | Setting | Default | Description |
 |---|---|---|
-| `spec.lifecycle.maxRetries` | `3` | Maximum attempts before permanent failure |
-| `spec.lifecycle.timeout` | `300s` | Maximum time per attempt |
+| `spec.lifecycle.migrate.maxRetries` | `3` | Maximum attempts before permanent failure |
+| `spec.lifecycle.migrate.timeout` | `5m` | Maximum time per attempt |
+| `spec.lifecycle.init.maxRetries` | `3` | Maximum attempts before permanent failure |
+| `spec.lifecycle.init.timeout` | `5m` | Maximum time per attempt |
 
 **Backoff calculation:**
 
@@ -512,7 +514,7 @@ The parent `Superset` CR reports aggregate status:
 
 ```yaml
 status:
-  phase: Running          # Initializing | Running | Degraded | Suspended
+  phase: Running
   observedGeneration: 3
   version: "latest"
   components:
@@ -532,6 +534,35 @@ status:
     - type: Suspended
       status: "False"
 ```
+
+#### Parent Phase
+
+The top-level `status.phase` reflects the overall instance state:
+
+| Phase | Meaning |
+|---|---|
+| `Initializing` | First deployment — lifecycle tasks running for the first time |
+| `Upgrading` | Image change detected — lifecycle tasks running against new version |
+| `Draining` | Drain strategy active — components being removed before running tasks |
+| `Running` | All enabled components are ready and lifecycle is complete |
+| `Degraded` | One or more components are not fully ready |
+| `Suspended` | `spec.suspend: true` — all reconciliation paused |
+| `Blocked` | Downgrade detected — lifecycle tasks will not run (manual intervention required) |
+| `AwaitingApproval` | Supervised upgrade mode — waiting for approval annotation before proceeding |
+
+#### Lifecycle Phase
+
+The `status.lifecycle.phase` tracks lifecycle task orchestration:
+
+| Phase | Meaning |
+|---|---|
+| `Idle` | No lifecycle work pending |
+| `Draining` | Drain strategy active — waiting for component pods to terminate before running tasks |
+| `Migrating` | Migrate task (`superset db upgrade`) is running |
+| `Initializing` | Init task (`superset init`) is running |
+| `Complete` | All enabled tasks finished successfully |
+| `Blocked` | Downgrade detected — tasks cannot proceed |
+| `AwaitingApproval` | Supervised mode — tasks paused until approval annotation is set |
 
 ### Child Status
 
