@@ -59,7 +59,7 @@ modes:
   rules. Users reference secrets via `secretKeyFrom`, `metastore.uriFrom`,
   `metastore.passwordFrom`, or `valkey.passwordFrom` (which the operator wires
   as `valueFrom.secretKeyRef` env vars).
-- **Dev mode** (`environment: dev`): Inline secrets are allowed for local
+- **Dev mode** (`environment: Development`): Inline secrets are allowed for local
   development convenience. Additionally, `lifecycle.init.adminUser` and
   `lifecycle.init.loadExamples` are permitted — these create a default admin account and
   load sample data during initialization. Admin credentials from `adminUser`

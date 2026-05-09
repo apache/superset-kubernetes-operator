@@ -50,7 +50,7 @@ metadata:
 spec:
   image:
     tag: "latest"
-  environment: dev
+  environment: Development
   secretKey: thisIsNotSecure_changeInProduction!
   metastore:
     host: postgres

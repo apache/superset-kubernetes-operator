@@ -35,7 +35,7 @@ The `environment` field controls validation strictness (enforced by
 
 ```yaml
 spec:
-  environment: dev
+  environment: Development
   secretKey: thisIsNotSecure_changeInProduction!
   metastore:
     uri: postgresql+psycopg2://superset:superset@postgres:5432/superset
@@ -79,7 +79,7 @@ The `metastore` field provides database connection configuration. There are two 
 ```yaml
 # Dev mode: inline URI
 spec:
-  environment: dev
+  environment: Development
   metastore:
     uri: postgresql+psycopg2://superset:superset@postgres:5432/superset
 ```
@@ -100,7 +100,7 @@ spec:
 ```yaml
 # Dev mode: inline password
 spec:
-  environment: dev
+  environment: Development
   metastore:
     type: postgresql
     host: db.example.com

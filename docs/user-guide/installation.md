@@ -80,7 +80,7 @@ Replace the placeholders with your PostgreSQL connection details.
 
 ## 3. Deploy Superset
 
-Create a `Superset` custom resource. In production (`environment: prod`, the
+Create a `Superset` custom resource. In production (`environment: Production`, the
 default), CRD validation rejects inline `secretKey`, `metastore.uri`,
 `metastore.password`, and `valkey.password`. Reference secrets via
 `secretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`, or

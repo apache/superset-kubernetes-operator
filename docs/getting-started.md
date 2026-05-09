@@ -50,7 +50,7 @@ kind: Superset
 metadata:
   name: my-superset
 spec:
-  environment: dev
+  environment: Development
   secretKey: thisIsNotSecure_changeInProduction!
   metastore:
     uri: postgresql+psycopg2://superset:superset@postgres:5432/superset

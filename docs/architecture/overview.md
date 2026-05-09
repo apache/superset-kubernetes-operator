@@ -73,7 +73,7 @@ metadata:
   name: my-superset
 spec:
   image: { tag: "latest" }
-  environment: dev
+  environment: Development
   secretKey: thisIsNotSecure_changeInProduction!
   metastore:
     uri: postgresql+psycopg2://superset:superset@postgres:5432/superset
@@ -261,11 +261,11 @@ modes render `SQLALCHEMY_DATABASE_URI` from `SUPERSET_OPERATOR__DB_URI`
 
 ### Secret Handling
 
-In **dev mode** (`environment: dev`), `secretKey`, `metastore.uri`, and
+In **dev mode** (`environment: Development`), `secretKey`, `metastore.uri`, and
 `metastore.password` can be set as plain strings directly in the CR. The
 operator injects them as environment variables on the container spec.
 
-In **prod mode** (`environment: prod`, the default), CRD validation rejects
+In **prod mode** (`environment: Production`, the default), CRD validation rejects
 these inline fields. Instead, use the `*From` fields to reference Kubernetes
 Secrets:
 

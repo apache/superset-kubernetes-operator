@@ -277,7 +277,7 @@ metadata:
 spec:
   image:
     tag: "latest"
-  environment: dev
+  environment: Development
   secretKey: test-secret-key-not-for-production
   metastore:
     uri: postgresql+psycopg2://superset:superset@postgres:5432/superset
@@ -379,7 +379,7 @@ metadata:
 spec:
   image:
     tag: "latest"
-  environment: dev
+  environment: Development
   secretKey: test-secret-key
   metastore:
     uri: postgresql+psycopg2://superset:superset@postgres:5432/superset
