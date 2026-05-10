@@ -368,52 +368,69 @@ func TestResolveCloneImage_CustomOverride(t *testing.T) {
 	}
 }
 
-func TestTaskStrategy_Clone(t *testing.T) {
+func TestIsTaskEnabled(t *testing.T) {
 	r := &SupersetReconciler{}
 
 	tests := []struct {
 		name     string
 		spec     *supersetv1alpha1.LifecycleSpec
-		expected string
+		taskType string
+		expected bool
 	}{
 		{
-			name:     "nil lifecycle returns Never for clone",
+			name:     "nil lifecycle: clone disabled",
 			spec:     nil,
-			expected: strategyNever,
+			taskType: taskTypeClone,
+			expected: false,
 		},
 		{
-			name:     "nil clone returns Never",
-			spec:     &supersetv1alpha1.LifecycleSpec{},
-			expected: strategyNever,
+			name:     "nil lifecycle: migrate enabled by default",
+			spec:     nil,
+			taskType: taskTypeMigrate,
+			expected: true,
 		},
 		{
-			name: "clone with no strategy defaults to OnTrigger",
+			name:     "nil lifecycle: init enabled by default",
+			spec:     nil,
+			taskType: taskTypeInit,
+			expected: true,
+		},
+		{
+			name: "clone present and not disabled",
 			spec: &supersetv1alpha1.LifecycleSpec{
 				Clone: &supersetv1alpha1.CloneTaskSpec{
 					Source: supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"},
 				},
 			},
-			expected: strategyOnTrigger,
+			taskType: taskTypeClone,
+			expected: true,
 		},
 		{
-			name: "clone with explicit Always",
+			name: "clone explicitly disabled",
 			spec: &supersetv1alpha1.LifecycleSpec{
 				Clone: &supersetv1alpha1.CloneTaskSpec{
-					Strategy: common.Ptr("Always"),
-					Source:   supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"},
+					BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: common.Ptr(true)},
+					Source:       supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"},
 				},
 			},
-			expected: strategyAlways,
+			taskType: taskTypeClone,
+			expected: false,
 		},
 		{
-			name: "clone with explicit Never",
+			name: "migrate explicitly disabled",
 			spec: &supersetv1alpha1.LifecycleSpec{
-				Clone: &supersetv1alpha1.CloneTaskSpec{
-					Strategy: common.Ptr("Never"),
-					Source:   supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"},
-				},
+				Migrate: &supersetv1alpha1.MigrateTaskSpec{BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: common.Ptr(true)}},
 			},
-			expected: strategyNever,
+			taskType: taskTypeMigrate,
+			expected: false,
+		},
+		{
+			name: "init explicitly disabled",
+			spec: &supersetv1alpha1.LifecycleSpec{
+				Init: &supersetv1alpha1.InitTaskSpec{BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: common.Ptr(true)}},
+			},
+			taskType: taskTypeInit,
+			expected: false,
 		},
 	}
 
@@ -421,9 +438,9 @@ func TestTaskStrategy_Clone(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			superset := &supersetv1alpha1.Superset{}
 			superset.Spec.Lifecycle = tt.spec
-			got := r.taskStrategy(superset, taskTypeClone)
+			got := r.isTaskEnabled(superset, tt.taskType)
 			if got != tt.expected {
-				t.Errorf("expected %q, got %q", tt.expected, got)
+				t.Errorf("isTaskEnabled(%s) = %v, want %v", tt.taskType, got, tt.expected)
 			}
 		})
 	}
@@ -513,5 +530,240 @@ func TestCloneAlwaysRequiresDrain(t *testing.T) {
 				t.Errorf("needsDrain = %v, want %v", needsDrain, tt.wantDrain)
 			}
 		})
+	}
+}
+
+// --- Pipeline Checksum Model Tests ---
+
+func TestComputeStepChecksum_UpstreamPropagation(t *testing.T) {
+	r := &SupersetReconciler{}
+
+	cmd := []string{"/bin/sh", "-c", "superset db upgrade"}
+
+	// Same command, different incoming checksum → different step checksum.
+	step1 := r.computeStepChecksum("upstream-v1", taskTypeMigrate, cmd, struct{ Image string }{"img:1"})
+	step2 := r.computeStepChecksum("upstream-v2", taskTypeMigrate, cmd, struct{ Image string }{"img:1"})
+
+	if step1 == step2 {
+		t.Error("step checksum should change when upstream checksum changes (propagation)")
+	}
+}
+
+func TestComputeStepChecksum_StableWhenInputsUnchanged(t *testing.T) {
+	r := &SupersetReconciler{}
+
+	cmd := []string{"/bin/sh", "-c", "superset db upgrade"}
+
+	step1 := r.computeStepChecksum("upstream-v1", taskTypeMigrate, cmd, struct{ Image string }{"img:1"})
+	step2 := r.computeStepChecksum("upstream-v1", taskTypeMigrate, cmd, struct{ Image string }{"img:1"})
+
+	if step1 != step2 {
+		t.Error("step checksum should be stable when inputs unchanged")
+	}
+}
+
+func TestComputeStepChecksum_ChangesOnCommandChange(t *testing.T) {
+	r := &SupersetReconciler{}
+
+	step1 := r.computeStepChecksum("upstream-v1", taskTypeMigrate, []string{"cmd1"}, nil)
+	step2 := r.computeStepChecksum("upstream-v1", taskTypeMigrate, []string{"cmd2"}, nil)
+
+	if step1 == step2 {
+		t.Error("step checksum should change when command changes")
+	}
+}
+
+func TestComputeStepChecksum_ChangesOnExtraInputs(t *testing.T) {
+	r := &SupersetReconciler{}
+
+	cmd := []string{"/bin/sh", "-c", "clone"}
+
+	step1 := r.computeStepChecksum("seed", taskTypeClone, cmd, struct{ Trigger string }{"v1"})
+	step2 := r.computeStepChecksum("seed", taskTypeClone, cmd, struct{ Trigger string }{"v2"})
+
+	if step1 == step2 {
+		t.Error("step checksum should change when extra inputs change (e.g., trigger)")
+	}
+}
+
+func TestComputeStepChecksum_DiffersByTaskType(t *testing.T) {
+	r := &SupersetReconciler{}
+
+	cmd := []string{"/bin/sh", "-c", "do-something"}
+
+	step1 := r.computeStepChecksum("seed", taskTypeMigrate, cmd, nil)
+	step2 := r.computeStepChecksum("seed", taskTypeInit, cmd, nil)
+
+	if step1 == step2 {
+		t.Error("step checksum should differ by task type even with same inputs")
+	}
+}
+
+func TestPipelineChain_UpstreamChangeInvalidatesDownstream(t *testing.T) {
+	r := &SupersetReconciler{}
+
+	// Simulate a full pipeline with trigger change on clone.
+	cloneCmd := []string{"/bin/sh", "-c", "pg_dump | psql"}
+	migrateCmd := []string{"/bin/sh", "-c", "superset db upgrade"}
+	initCmd := []string{"/bin/sh", "-c", "superset init"}
+
+	parentUID := "test-uid"
+
+	// Run 1: trigger=v1
+	cloneChecksum1 := r.computeStepChecksum(parentUID, taskTypeClone, cloneCmd, struct{ Trigger string }{"v1"})
+	migrateChecksum1 := r.computeStepChecksum(cloneChecksum1, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
+	initChecksum1 := r.computeStepChecksum(migrateChecksum1, taskTypeInit, initCmd, struct{ Config string }{"cfg-v1"})
+
+	// Run 2: trigger=v2 (clone re-runs, propagates downstream)
+	cloneChecksum2 := r.computeStepChecksum(parentUID, taskTypeClone, cloneCmd, struct{ Trigger string }{"v2"})
+	migrateChecksum2 := r.computeStepChecksum(cloneChecksum2, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
+	initChecksum2 := r.computeStepChecksum(migrateChecksum2, taskTypeInit, initCmd, struct{ Config string }{"cfg-v1"})
+
+	if cloneChecksum1 == cloneChecksum2 {
+		t.Error("clone checksum should change when trigger changes")
+	}
+	if migrateChecksum1 == migrateChecksum2 {
+		t.Error("migrate checksum should change when clone's checksum changes (upstream propagation)")
+	}
+	if initChecksum1 == initChecksum2 {
+		t.Error("init checksum should change when migrate's checksum changes (chain propagation)")
+	}
+}
+
+func TestPipelineChain_ImageChangeOnlyAffectsMigrate(t *testing.T) {
+	r := &SupersetReconciler{}
+
+	cloneCmd := []string{"/bin/sh", "-c", "pg_dump | psql"}
+	migrateCmd := []string{"/bin/sh", "-c", "superset db upgrade"}
+
+	parentUID := "test-uid"
+
+	// Clone with same trigger.
+	cloneChecksum := r.computeStepChecksum(parentUID, taskTypeClone, cloneCmd, struct{ Trigger string }{"v1"})
+
+	// Migrate with different image versions.
+	migrate1 := r.computeStepChecksum(cloneChecksum, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
+	migrate2 := r.computeStepChecksum(cloneChecksum, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:5.0"})
+
+	if migrate1 == migrate2 {
+		t.Error("migrate checksum should change when image changes")
+	}
+
+	// Clone checksum should NOT change due to image change.
+	clone2 := r.computeStepChecksum(parentUID, taskTypeClone, cloneCmd, struct{ Trigger string }{"v1"})
+	if cloneChecksum != clone2 {
+		t.Error("clone checksum should NOT change when image changes (clone doesn't watch image)")
+	}
+}
+
+func TestPipelineChain_ConfigChangeOnlyAffectsInit(t *testing.T) {
+	r := &SupersetReconciler{}
+
+	migrateCmd := []string{"/bin/sh", "-c", "superset db upgrade"}
+	initCmd := []string{"/bin/sh", "-c", "superset init"}
+
+	parentUID := "test-uid"
+	migrateChecksum := r.computeStepChecksum(parentUID, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
+
+	// Init with different configs.
+	init1 := r.computeStepChecksum(migrateChecksum, taskTypeInit, initCmd, struct{ Config string }{"cfg-v1"})
+	init2 := r.computeStepChecksum(migrateChecksum, taskTypeInit, initCmd, struct{ Config string }{"cfg-v2"})
+
+	if init1 == init2 {
+		t.Error("init checksum should change when config changes")
+	}
+
+	// Migrate checksum should NOT change due to config change.
+	migrate2 := r.computeStepChecksum(parentUID, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
+	if migrateChecksum != migrate2 {
+		t.Error("migrate checksum should NOT change when config changes (migrate doesn't watch config)")
+	}
+}
+
+func TestPipelineChain_ManualTriggerForcesRerun(t *testing.T) {
+	r := &SupersetReconciler{}
+
+	migrateCmd := []string{"/bin/sh", "-c", "superset db upgrade"}
+	initCmd := []string{"/bin/sh", "-c", "superset init"}
+
+	parentUID := "test-uid"
+
+	// Migrate with manual trigger change.
+	migrate1 := r.computeStepChecksum(parentUID, taskTypeMigrate, migrateCmd, struct {
+		Image   string
+		Trigger string
+	}{"img:4.0", ""})
+	migrate2 := r.computeStepChecksum(parentUID, taskTypeMigrate, migrateCmd, struct {
+		Image   string
+		Trigger string
+	}{"img:4.0", "force-2026-05-10"})
+
+	if migrate1 == migrate2 {
+		t.Error("migrate checksum should change when trigger is set (manual force)")
+	}
+
+	// This cascades to init.
+	init1 := r.computeStepChecksum(migrate1, taskTypeInit, initCmd, struct{ Config string }{"cfg"})
+	init2 := r.computeStepChecksum(migrate2, taskTypeInit, initCmd, struct{ Config string }{"cfg"})
+
+	if init1 == init2 {
+		t.Error("init should re-run when migrate's trigger forces it (upstream propagation)")
+	}
+}
+
+func TestPipelineChain_UnchangedInputsProduceStableChecksums(t *testing.T) {
+	r := &SupersetReconciler{}
+
+	cloneCmd := []string{"/bin/sh", "-c", "pg_dump | psql"}
+	migrateCmd := []string{"/bin/sh", "-c", "superset db upgrade"}
+	initCmd := []string{"/bin/sh", "-c", "superset init"}
+
+	parentUID := "test-uid"
+	cloneChecksum := r.computeStepChecksum(parentUID, taskTypeClone, cloneCmd, struct{ Trigger string }{"v1"})
+	migrateChecksum := r.computeStepChecksum(cloneChecksum, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
+	initChecksum := r.computeStepChecksum(migrateChecksum, taskTypeInit, initCmd, struct{ Config string }{"cfg-v1"})
+
+	// Re-compute with identical inputs.
+	cloneChecksum2 := r.computeStepChecksum(parentUID, taskTypeClone, cloneCmd, struct{ Trigger string }{"v1"})
+	migrateChecksum2 := r.computeStepChecksum(cloneChecksum2, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
+	initChecksum2 := r.computeStepChecksum(migrateChecksum2, taskTypeInit, initCmd, struct{ Config string }{"cfg-v1"})
+
+	if cloneChecksum != cloneChecksum2 || migrateChecksum != migrateChecksum2 || initChecksum != initChecksum2 {
+		t.Error("pipeline should produce identical checksums when all inputs are unchanged")
+	}
+}
+
+// TestPipelineChain_CustomTaskSlotsBetweenStages validates that custom tasks
+// can be inserted into the pipeline using the same checksum model.
+func TestPipelineChain_CustomTaskSlotsBetweenStages(t *testing.T) {
+	r := &SupersetReconciler{}
+
+	parentUID := "test-uid"
+	cloneCmd := []string{"/bin/sh", "-c", "pg_dump | psql"}
+	customCmd := []string{"/bin/sh", "-c", "run-data-masking.sh"}
+	migrateCmd := []string{"/bin/sh", "-c", "superset db upgrade"}
+
+	// Pipeline: clone → custom("PostClone") → migrate
+	cloneChecksum := r.computeStepChecksum(parentUID, taskTypeClone, cloneCmd, struct{ Trigger string }{"v1"})
+	customChecksum := r.computeStepChecksum(cloneChecksum, "PostClone", customCmd, struct{ Script string }{"mask-pii-v3"})
+	migrateChecksum := r.computeStepChecksum(customChecksum, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
+
+	// Custom task changes its script input → propagates to migrate.
+	customChecksum2 := r.computeStepChecksum(cloneChecksum, "PostClone", customCmd, struct{ Script string }{"mask-pii-v4"})
+	migrateChecksum2 := r.computeStepChecksum(customChecksum2, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
+
+	if customChecksum == customChecksum2 {
+		t.Error("custom task checksum should change when its inputs change")
+	}
+	if migrateChecksum == migrateChecksum2 {
+		t.Error("migrate should re-run when custom task upstream changes")
+	}
+
+	// Clone unchanged → custom unchanged → migrate unchanged.
+	customChecksum3 := r.computeStepChecksum(cloneChecksum, "PostClone", customCmd, struct{ Script string }{"mask-pii-v3"})
+	migrateChecksum3 := r.computeStepChecksum(customChecksum3, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
+
+	if migrateChecksum != migrateChecksum3 {
+		t.Error("migrate should be stable when nothing upstream changed")
 	}
 }

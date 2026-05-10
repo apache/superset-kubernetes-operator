@@ -11973,6 +11973,8 @@ spec:
                           type: string
                         type: array
                         x-kubernetes-list-type: atomic
+                      disabled:
+                        type: boolean
                       excludeTableData:
                         items:
                           type: string
@@ -15629,13 +15631,6 @@ spec:
                           rule: has(self.password) || has(self.passwordFrom)
                         - message: password and passwordFrom are mutually exclusive
                           rule: '!has(self.password) || !has(self.passwordFrom)'
-                      strategy:
-                        default: OnTrigger
-                        enum:
-                        - OnTrigger
-                        - Always
-                        - Never
-                        type: string
                       timeout:
                         type: string
                       trigger:
@@ -15679,6 +15674,8 @@ spec:
                           type: string
                         type: array
                         x-kubernetes-list-type: atomic
+                      disabled:
+                        type: boolean
                       loadExamples:
                         type: boolean
                       maxRetries:
@@ -15686,14 +15683,9 @@ spec:
                         format: int32
                         minimum: 1
                         type: integer
-                      strategy:
-                        default: VersionChange
-                        enum:
-                        - VersionChange
-                        - Always
-                        - Never
-                        type: string
                       timeout:
+                        type: string
+                      trigger:
                         type: string
                     type: object
                   migrate:
@@ -15703,19 +15695,16 @@ spec:
                           type: string
                         type: array
                         x-kubernetes-list-type: atomic
+                      disabled:
+                        type: boolean
                       maxRetries:
                         default: 3
                         format: int32
                         minimum: 1
                         type: integer
-                      strategy:
-                        default: VersionChange
-                        enum:
-                        - VersionChange
-                        - Always
-                        - Never
-                        type: string
                       timeout:
+                        type: string
+                      trigger:
                         type: string
                     type: object
                   podRetention:

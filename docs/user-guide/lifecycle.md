@@ -45,27 +45,47 @@ explicitly with `spec.lifecycle.disabled: true`.
 - Components are not created or updated until all enabled tasks complete
 - When config or image changes require a re-run, the parent deletes the old task CR and creates a fresh one
 
-## Task Strategies
+## Task Triggers
 
-Each task has a `strategy` that controls when it runs:
+Each task has hardcoded trigger inputs — what it watches for changes:
 
-| Strategy | Behavior |
-|---|---|
-| `VersionChange` (default) | Task runs only when the Superset image changes |
-| `Always` | Task runs on any spec change (image, config, or command) |
-| `Never` | Task never runs (effectively disabled) |
+| Task | Watches | Re-runs when... |
+|------|---------|-----------------|
+| Clone | `trigger` field, source config, excludes | Trigger value changes, or source DB config changes |
+| Migrate | Image (resolved lifecycle image) | Image tag or repository changes |
+| Init | Config checksum (rendered Python config) | Any config-affecting field changes |
 
-With the default `VersionChange` strategy, config-only changes trigger rolling
-restarts of component Deployments but do not spawn task pods.
+All tasks also re-run when an upstream task re-executes (automatic propagation).
+
+### Manual Trigger
+
+Every task has a `trigger` field (on `BaseTaskSpec`) — an opaque string that
+forces a re-run when changed. Changing a trigger also cascades to all downstream
+tasks:
 
 ```yaml
 spec:
   lifecycle:
     migrate:
-      strategy: VersionChange
+      trigger: "force-2026-05-10"  # forces migrate + init to re-run
     init:
-      strategy: Always
+      trigger: "reset-roles"       # forces only init to re-run
 ```
+
+### Disabling Tasks
+
+Set `disabled: true` to skip a task entirely:
+
+```yaml
+spec:
+  lifecycle:
+    migrate:
+      disabled: true  # user manages migrations externally
+```
+
+When disabled, the task's CR is deleted and it does not participate in the
+pipeline. Downstream tasks still run but don't receive propagation from the
+disabled task.
 
 ## Upgrade Mode
 
@@ -400,6 +420,37 @@ Override with `clone.image` if you need additional tools.
   databases. Configure NetworkPolicy accordingly.
 
 ## How It Works Under the Hood
+
+### Pipeline Checksum Model
+
+The lifecycle uses a **checksum chain** to determine which tasks execute and
+which skip. Each task receives an incoming checksum from the previous stage,
+adds its own unique inputs, and produces a task checksum. On completion, that
+checksum is stored in the task CR's status and becomes the incoming checksum for
+the next task.
+
+```
+                     parentUID (stable anchor)
+                         ↓
+clone.checksum   = hash(parentUID, "Clone", command, trigger, source, excludes)
+                         ↓ (stored in clone CR status on completion)
+migrate.checksum = hash(clone.status.checksum, "Migrate", command, trigger, image)
+                         ↓ (stored in migrate CR status on completion)
+init.checksum    = hash(migrate.status.checksum, "Init", command, trigger, configChecksum)
+```
+
+**The universal rule:** a task executes when its computed checksum differs from
+the checksum stored on its completed task CR. If they match, the task skips.
+
+**Upstream propagation is automatic:** when clone re-runs (e.g., trigger
+changed), its status checksum changes. That new value flows into migrate's
+checksum computation, making it differ from its stored value — so migrate
+re-runs too. The chain continues transitively to init.
+
+**Isolation by design:** each task watches only its own relevant inputs.
+Image changes affect only migrate (and downstream via propagation). Config
+changes affect only init. Clone source changes affect only clone (and
+downstream via propagation).
 
 ### Why Bare Pods
 

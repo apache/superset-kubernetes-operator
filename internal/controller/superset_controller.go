@@ -288,11 +288,6 @@ const (
 	suffixInit    = "-init"
 	suffixClone   = "-clone"
 
-	strategyVersionChange = "VersionChange"
-	strategyAlways        = "Always"
-	strategyNever         = "Never"
-	strategyOnTrigger     = "OnTrigger"
-
 	upgradeModeAutomatic  = "Automatic"
 	upgradeModeSupervsied = "Supervised"
 
@@ -365,14 +360,17 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		return gateResult, false, nil
 	}
 
-	// Determine which tasks need to run and prune disabled task CRs.
-	cloneNeeded, migrateNeeded, initNeeded, err := r.resolveTaskNeeds(ctx, superset, imageChanged)
-	if err != nil {
+	// Determine which tasks are enabled and prune orphans for disabled ones.
+	cloneEnabled := r.isTaskEnabled(superset, taskTypeClone)
+	migrateEnabled := r.isTaskEnabled(superset, taskTypeMigrate)
+	initEnabled := r.isTaskEnabled(superset, taskTypeInit)
+
+	if err := r.pruneDisabledTasks(ctx, superset, cloneEnabled, migrateEnabled, initEnabled); err != nil {
 		return 0, false, err
 	}
 
-	// If no task is needed, lifecycle is complete.
-	if !cloneNeeded && !migrateNeeded && !initNeeded {
+	// If no tasks are enabled, lifecycle is complete.
+	if !cloneEnabled && !migrateEnabled && !initEnabled {
 		superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
 			metav1.ConditionTrue, "LifecycleComplete", "Lifecycle tasks completed successfully", superset.Generation)
@@ -382,28 +380,41 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	// Drain components when required:
 	// - Clone always requires drain (DROP DATABASE fails with active connections).
 	// - Migrate with Drain strategy on image change avoids metastore deadlocks.
-	if requeueAfter, drained, err := r.drainIfNeeded(ctx, superset, cloneNeeded, migrateNeeded, imageChanged); err != nil {
+	if requeueAfter, drained, err := r.drainIfNeeded(ctx, superset, cloneEnabled, migrateEnabled, imageChanged); err != nil {
 		return 0, false, err
 	} else if !drained {
 		return requeueAfter, false, nil
 	}
 
-	// Orchestrate: clone first, then migrate, then init.
-	if cloneNeeded {
+	// Orchestrate lifecycle pipeline: clone → migrate → init.
+	// Each task receives an incoming checksum, adds its own inputs, and produces
+	// a task checksum stored on completion. The next task's incoming checksum is
+	// the previous task's completed checksum — so upstream execution automatically
+	// invalidates downstream tasks (the chain propagates changes forward).
+	//
+	// The pipeline anchor is the parentUID (stable, scoped to this CR).
+	// Each task adds only its own relevant trigger inputs:
+	//   Clone: trigger, source config, excludes
+	//   Migrate: image (version)
+	//   Init: configChecksum (rendered Python config)
+	incomingChecksum := string(superset.UID)
+
+	if cloneEnabled {
 		superset.Status.Lifecycle.Phase = lifecyclePhaseCloning
 
 		cloneCmd := r.buildCloneCommand(superset)
-		requeueAfter, complete, err := r.reconcileCloneTask(ctx, superset, configChecksum, topLevel, saName, cloneCmd)
+		taskChecksum := r.computeStepChecksum(incomingChecksum, taskTypeClone, cloneCmd, r.cloneInputs(superset))
+		requeueAfter, complete, err := r.reconcileLifecycleTask(ctx, superset, taskTypeClone, suffixClone, cloneCmd, taskChecksum, configChecksum, topLevel, saName)
 		if err != nil {
 			return 0, false, fmt.Errorf("reconciling clone task: %w", err)
 		}
 		if !complete {
 			return requeueAfter, false, nil
 		}
+		incomingChecksum = r.getTaskStatusChecksum(ctx, superset, suffixClone)
 	}
 
-	// Orchestrate: migrate first, then init.
-	if migrateNeeded {
+	if migrateEnabled {
 		superset.Status.Lifecycle.Phase = lifecyclePhaseMigrating
 		if imageChanged {
 			superset.Status.Phase = phaseUpgrading
@@ -412,23 +423,26 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		}
 
 		migrateCmd := defaultMigrateCommand(superset)
-		requeueAfter, complete, err := r.reconcileTask(ctx, superset, configChecksum, topLevel, saName, taskTypeMigrate, suffixMigrate, migrateCmd)
+		taskChecksum := r.computeStepChecksum(incomingChecksum, taskTypeMigrate, migrateCmd, r.migrateInputs(superset))
+		requeueAfter, complete, err := r.reconcileLifecycleTask(ctx, superset, taskTypeMigrate, suffixMigrate, migrateCmd, taskChecksum, configChecksum, topLevel, saName)
 		if err != nil {
 			return 0, false, fmt.Errorf("reconciling migrate task: %w", err)
 		}
 		if !complete {
 			return requeueAfter, false, nil
 		}
+		incomingChecksum = r.getTaskStatusChecksum(ctx, superset, suffixMigrate)
 	}
 
-	if initNeeded {
+	if initEnabled {
 		superset.Status.Lifecycle.Phase = lifecyclePhaseInitializing
 		if superset.Status.Phase != phaseUpgrading {
 			superset.Status.Phase = phaseInitializing
 		}
 
 		initCmd := defaultInitCommand(superset)
-		requeueAfter, complete, err := r.reconcileTask(ctx, superset, configChecksum, topLevel, saName, taskTypeInit, suffixInit, initCmd)
+		taskChecksum := r.computeStepChecksum(incomingChecksum, taskTypeInit, initCmd, r.initInputs(superset, configChecksum))
+		requeueAfter, complete, err := r.reconcileLifecycleTask(ctx, superset, taskTypeInit, suffixInit, initCmd, taskChecksum, configChecksum, topLevel, saName)
 		if err != nil {
 			return 0, false, fmt.Errorf("reconciling init task: %w", err)
 		}
@@ -437,13 +451,12 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		}
 	}
 
-	// Both tasks complete. Update lastLifecycleImage and clear upgrade context.
+	// All tasks complete. Update lastLifecycleImage and clear upgrade context.
 	superset.Status.LastLifecycleImage = currentImage
 	superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
 	superset.Status.Lifecycle.Upgrade = nil
 
-	// Clear approval annotation if it was set. Use a metadata-only patch
-	// to avoid coupling annotation cleanup to the full object state.
+	// Clear approval annotation if it was set.
 	if annotations := superset.GetAnnotations(); annotations != nil {
 		if _, ok := annotations[annotationApproveUpgrade]; ok {
 			patch := client.MergeFrom(superset.DeepCopy())
@@ -529,72 +542,25 @@ func (r *SupersetReconciler) checkUpgradeGates(
 
 // reconcileTask creates or updates a single SupersetLifecycleTask child CR and polls its status.
 // Returns (requeueAfter, taskComplete, error).
-func (r *SupersetReconciler) reconcileTask(
+// reconcileLifecycleTask creates or manages a single lifecycle task CR and polls its status.
+// This is the unified task reconciler for all task types (clone, migrate, init).
+// The checksum is pre-computed by the caller (strategy-aware + upstream propagation).
+func (r *SupersetReconciler) reconcileLifecycleTask(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
-	configChecksum string,
-	topLevel *resolution.SharedInput,
-	saName string,
 	taskType string,
 	suffix string,
 	command []string,
+	taskChecksum string,
+	configChecksum string,
+	topLevel *resolution.SharedInput,
+	saName string,
 ) (time.Duration, bool, error) {
 	log := logf.FromContext(ctx)
 	childName := superset.Name + suffix
-	resourceBaseName := childName
 
-	// Build task config.
-	compConfigInput := buildConfigInput(&superset.Spec)
-	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Config != nil {
-		compConfigInput.ComponentConfig = *superset.Spec.Lifecycle.Config
-	}
-
-	var lifecycleSQLASpec *supersetv1alpha1.SQLAlchemyEngineOptionsSpec
-	if superset.Spec.Lifecycle != nil {
-		lifecycleSQLASpec = superset.Spec.Lifecycle.SQLAlchemyEngineOptions
-	}
-	compConfigInput.EngineOptions = supersetconfig.ComputeEngineOptions(
-		naming.ComponentInit, superset.Spec.SQLAlchemyEngineOptions, lifecycleSQLASpec, 0, 0,
-	)
-
-	comp := convertTaskComponent(superset.Spec.Lifecycle, command)
-	renderedConfig := supersetconfig.RenderConfig(supersetconfig.ComponentInit, compConfigInput)
-
-	secretEnvVars := collectSecretEnvVars(&superset.Spec)
-	var initEnvVars []corev1.EnvVar
-	if taskType == taskTypeInit {
-		initEnvVars = collectLifecycleInitEnvVars(superset.Spec.Lifecycle)
-	}
-	operatorInjected := buildOperatorInjected(renderedConfig, resourceBaseName, superset.Spec.ForceReload, append(secretEnvVars, initEnvVars...))
-
-	flat := resolution.ResolveChildSpec(
-		resolution.ComponentInit, topLevel, comp,
-		podOperatorLabels(string(naming.ComponentInit), childName, superset.Name), operatorInjected,
-	)
-
-	var imageOverride *supersetv1alpha1.ImageOverrideSpec
-	if superset.Spec.Lifecycle != nil {
-		imageOverride = superset.Spec.Lifecycle.Image
-	}
-	flatSpec := flatSpecFromResolution(flat, &superset.Spec.Image, imageOverride, saName)
-	flatSpec.Autoscaling = nil
-	flatSpec.PodDisruptionBudget = nil
-
-	taskChecksum := computeChecksum(struct {
-		ParentUID            string
-		SharedConfigChecksum string
-		Config               string
-		FlatSpec             supersetv1alpha1.FlatComponentSpec
-		TaskType             string
-		Command              []string
-	}{
-		ParentUID:            string(superset.UID),
-		SharedConfigChecksum: configChecksum,
-		Config:               renderedConfig,
-		FlatSpec:             flatSpec,
-		TaskType:             taskType,
-		Command:              command,
-	})
+	// Build the task's flat spec and pod configuration.
+	flatSpec, renderedConfig := r.buildTaskFlatSpec(superset, taskType, command, configChecksum, topLevel, saName)
 
 	// Get the task CR. Use Get+Create/Delete pattern (never CreateOrUpdate)
 	// to avoid races with the task controller's status writes.
@@ -602,7 +568,16 @@ func (r *SupersetReconciler) reconcileTask(
 	err := r.Get(ctx, types.NamespacedName{Name: childName, Namespace: superset.Namespace}, child)
 
 	if errors.IsNotFound(err) {
-		// Task CR doesn't exist — create fresh.
+		// If the lifecycle previously completed (LastLifecycleImage is set) but
+		// no task CR exists (GC or manual deletion), the task was already done.
+		// Skip creation — the task will be re-created on the next actual change
+		// (when the computed checksum would differ from the stored one anyway).
+		if superset.Status.LastLifecycleImage != "" &&
+			superset.Status.LastLifecycleImage == resolveLifecycleImage(&superset.Spec.Image, lifecycleImageOverride(superset)) {
+			log.Info("Task already completed in previous lifecycle run (no CR, inputs unchanged)", "task", taskType)
+			return 0, true, nil
+		}
+
 		child = &supersetv1alpha1.SupersetLifecycleTask{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      childName,
@@ -621,15 +596,16 @@ func (r *SupersetReconciler) reconcileTask(
 		child.Spec.Type = taskType
 		child.Spec.Command = command
 		child.Spec.ConfigChecksum = taskChecksum
-		if superset.Spec.Lifecycle != nil {
-			child.Spec.PodRetention = superset.Spec.Lifecycle.PodRetention
-		}
+		child.Spec.PodRetention = r.taskPodRetention(superset, taskType)
 		child.Spec.MaxRetries = r.taskMaxRetries(superset, taskType)
 		child.Spec.Timeout = r.taskTimeout(superset, taskType)
 
-		// Create the ConfigMap before the task CR so the pod can mount it.
-		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, renderedConfig, resourceBaseName); err != nil {
-			return 0, false, fmt.Errorf("reconciling ConfigMap for lifecycle task %s: %w", childName, err)
+		// Create the ConfigMap before the task CR (only for tasks that need Python config).
+		if renderedConfig != "" {
+			resourceBaseName := childName
+			if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, renderedConfig, resourceBaseName); err != nil {
+				return 0, false, fmt.Errorf("reconciling ConfigMap for lifecycle task %s: %w", childName, err)
+			}
 		}
 
 		if err := r.Create(ctx, child); err != nil {
@@ -675,11 +651,10 @@ func (r *SupersetReconciler) reconcileTask(
 	switch child.Status.State {
 	case taskStateComplete:
 		if child.Status.ConfigChecksum == taskChecksum {
-			log.Info("Task complete", "task", taskType)
+			log.Info("Task complete (checksum match, skipping)", "task", taskType)
 			return 0, true, nil
 		}
-		// Completed for a different config — delete to trigger re-run.
-		log.Info("Task completed for previous config, deleting to re-run", "task", taskType,
+		log.Info("Task completed for previous inputs, deleting to re-run", "task", taskType,
 			"statusChecksum", child.Status.ConfigChecksum, "expectedChecksum", taskChecksum)
 		if err := r.Delete(ctx, child); err != nil {
 			return 0, false, fmt.Errorf("deleting stale task CR %s: %w", childName, err)
@@ -695,8 +670,7 @@ func (r *SupersetReconciler) reconcileTask(
 				superset.Status.Phase = phaseInitializing
 				return -1, false, nil
 			}
-			// Failed for a different config — delete to retry with new config.
-			log.Info("Task failed for previous config, deleting to re-run", "task", taskType)
+			log.Info("Task failed for previous inputs, deleting to re-run", "task", taskType)
 			if err := r.Delete(ctx, child); err != nil {
 				return 0, false, fmt.Errorf("deleting stale task CR %s: %w", childName, err)
 			}
@@ -714,74 +688,276 @@ func (r *SupersetReconciler) reconcileTask(
 	}
 }
 
-// taskNeeded determines if a task should run based on its strategy and the current state.
-func (r *SupersetReconciler) taskNeeded(superset *supersetv1alpha1.Superset, taskType string, imageChanged bool) bool {
-	strategy := r.taskStrategy(superset, taskType)
-	switch strategy {
-	case strategyNever:
-		return false
-	case strategyAlways:
-		return true
-	case strategyOnTrigger:
-		return true
-	case strategyVersionChange:
-		return imageChanged
+// buildTaskFlatSpec constructs the fully-resolved FlatComponentSpec for a task pod.
+// Clone tasks use a database-tool image; migrate/init use the Superset image.
+// Returns (flatSpec, renderedConfig) — renderedConfig is empty for clone.
+func (r *SupersetReconciler) buildTaskFlatSpec(
+	superset *supersetv1alpha1.Superset,
+	taskType string,
+	command []string,
+	_ string,
+	topLevel *resolution.SharedInput,
+	saName string,
+) (supersetv1alpha1.FlatComponentSpec, string) {
+	if taskType == taskTypeClone {
+		return r.buildCloneTaskFlatSpec(superset, saName, topLevel), ""
+	}
+	return r.buildStandardTaskFlatSpec(superset, taskType, command, topLevel, saName)
+}
+
+// buildCloneTaskFlatSpec builds the flat spec for clone tasks (database-tool image, no Python config).
+func (r *SupersetReconciler) buildCloneTaskFlatSpec(
+	superset *supersetv1alpha1.Superset,
+	saName string,
+	topLevel *resolution.SharedInput,
+) supersetv1alpha1.FlatComponentSpec {
+	clone := superset.Spec.Lifecycle.Clone
+	childName := superset.Name + suffixClone
+
+	cloneEnvVars := collectCloneEnvVars(superset)
+	comp := convertCloneComponent(clone)
+	operatorInjected := &resolution.OperatorInjected{Env: cloneEnvVars}
+
+	flat := resolution.ResolveChildSpec(
+		resolution.ComponentInit, topLevel, comp,
+		podOperatorLabels(string(naming.ComponentInit), childName, superset.Name), operatorInjected,
+	)
+
+	cloneImage := resolveCloneImage(clone)
+	one := int32(1)
+	flatSpec := supersetv1alpha1.FlatComponentSpec{
+		Image:              cloneImage,
+		Replicas:           &one,
+		PodTemplate:        flatPodTemplate(flat),
+		ServiceAccountName: saName,
+	}
+	flatSpec.Autoscaling = nil
+	flatSpec.PodDisruptionBudget = nil
+	return flatSpec
+}
+
+// buildStandardTaskFlatSpec builds the flat spec for migrate/init tasks (Superset image + Python config).
+func (r *SupersetReconciler) buildStandardTaskFlatSpec(
+	superset *supersetv1alpha1.Superset,
+	taskType string,
+	command []string,
+	topLevel *resolution.SharedInput,
+	saName string,
+) (supersetv1alpha1.FlatComponentSpec, string) {
+	childName := superset.Name + suffixForTaskType(taskType)
+	resourceBaseName := childName
+
+	compConfigInput := buildConfigInput(&superset.Spec)
+	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Config != nil {
+		compConfigInput.ComponentConfig = *superset.Spec.Lifecycle.Config
+	}
+
+	var lifecycleSQLASpec *supersetv1alpha1.SQLAlchemyEngineOptionsSpec
+	if superset.Spec.Lifecycle != nil {
+		lifecycleSQLASpec = superset.Spec.Lifecycle.SQLAlchemyEngineOptions
+	}
+	compConfigInput.EngineOptions = supersetconfig.ComputeEngineOptions(
+		naming.ComponentInit, superset.Spec.SQLAlchemyEngineOptions, lifecycleSQLASpec, 0, 0,
+	)
+
+	comp := convertTaskComponent(superset.Spec.Lifecycle, command)
+	renderedConfig := supersetconfig.RenderConfig(supersetconfig.ComponentInit, compConfigInput)
+
+	secretEnvVars := collectSecretEnvVars(&superset.Spec)
+	var initEnvVars []corev1.EnvVar
+	if taskType == taskTypeInit {
+		initEnvVars = collectLifecycleInitEnvVars(superset.Spec.Lifecycle)
+	}
+	operatorInjected := buildOperatorInjected(renderedConfig, resourceBaseName, superset.Spec.ForceReload, append(secretEnvVars, initEnvVars...))
+
+	flat := resolution.ResolveChildSpec(
+		resolution.ComponentInit, topLevel, comp,
+		podOperatorLabels(string(naming.ComponentInit), childName, superset.Name), operatorInjected,
+	)
+
+	var imageOverride *supersetv1alpha1.ImageOverrideSpec
+	if superset.Spec.Lifecycle != nil {
+		imageOverride = superset.Spec.Lifecycle.Image
+	}
+	flatSpec := flatSpecFromResolution(flat, &superset.Spec.Image, imageOverride, saName)
+	flatSpec.Autoscaling = nil
+	flatSpec.PodDisruptionBudget = nil
+	return flatSpec, renderedConfig
+}
+
+func suffixForTaskType(taskType string) string {
+	switch taskType {
+	case taskTypeClone:
+		return suffixClone
+	case taskTypeMigrate:
+		return suffixMigrate
+	case taskTypeInit:
+		return suffixInit
 	default:
-		return imageChanged
+		return "-" + strings.ToLower(taskType)
 	}
 }
 
-// resolveTaskNeeds determines which tasks need to run and prunes CRs for disabled tasks.
-func (r *SupersetReconciler) resolveTaskNeeds(ctx context.Context, superset *supersetv1alpha1.Superset, imageChanged bool) (bool, bool, bool, error) {
-	cloneNeeded := r.taskNeeded(superset, taskTypeClone, imageChanged)
-	migrateNeeded := r.taskNeeded(superset, taskTypeMigrate, imageChanged)
-	initNeeded := r.taskNeeded(superset, taskTypeInit, imageChanged)
-
-	if !cloneNeeded && r.taskStrategy(superset, taskTypeClone) == strategyNever {
-		if err := r.deleteTaskCR(ctx, superset.Name+suffixClone, superset.Namespace); err != nil {
-			return false, false, false, fmt.Errorf("deleting clone task CR: %w", err)
-		}
+func lifecycleImageOverride(superset *supersetv1alpha1.Superset) *supersetv1alpha1.ImageOverrideSpec {
+	if superset.Spec.Lifecycle != nil {
+		return superset.Spec.Lifecycle.Image
 	}
-	if !migrateNeeded && r.taskStrategy(superset, taskTypeMigrate) == strategyNever {
-		if err := r.deleteTaskCR(ctx, superset.Name+suffixMigrate, superset.Namespace); err != nil {
-			return false, false, false, fmt.Errorf("deleting migrate task CR: %w", err)
-		}
-	}
-	if !initNeeded && r.taskStrategy(superset, taskTypeInit) == strategyNever {
-		if err := r.deleteTaskCR(ctx, superset.Name+suffixInit, superset.Namespace); err != nil {
-			return false, false, false, fmt.Errorf("deleting init task CR: %w", err)
-		}
-	}
-
-	return cloneNeeded, migrateNeeded, initNeeded, nil
+	return nil
 }
 
-func (r *SupersetReconciler) taskStrategy(superset *supersetv1alpha1.Superset, taskType string) string {
+// taskPodRetention returns the pod retention spec for a task type.
+func (r *SupersetReconciler) taskPodRetention(superset *supersetv1alpha1.Superset, taskType string) *supersetv1alpha1.PodRetentionSpec {
 	if superset.Spec.Lifecycle == nil {
-		if taskType == taskTypeClone {
-			return strategyNever
-		}
-		return strategyVersionChange
+		return nil
+	}
+	if taskType == taskTypeClone && superset.Spec.Lifecycle.Clone != nil && superset.Spec.Lifecycle.Clone.PodRetention != nil {
+		return superset.Spec.Lifecycle.Clone.PodRetention
+	}
+	return superset.Spec.Lifecycle.PodRetention
+}
+
+// isTaskEnabled returns true if the task is part of the lifecycle pipeline (strategy != Never).
+// isTaskEnabled returns true if the task is part of the lifecycle pipeline.
+// A task is enabled when its spec exists (presence = enabled) and Disabled != true.
+// Clone requires spec.lifecycle.clone to be set; migrate/init are enabled by default.
+func (r *SupersetReconciler) isTaskEnabled(superset *supersetv1alpha1.Superset, taskType string) bool {
+	if superset.Spec.Lifecycle == nil {
+		return taskType != taskTypeClone
 	}
 	switch taskType {
 	case taskTypeClone:
 		if superset.Spec.Lifecycle.Clone == nil {
-			return strategyNever
+			return false
 		}
-		if superset.Spec.Lifecycle.Clone.Strategy != nil {
-			return *superset.Spec.Lifecycle.Clone.Strategy
-		}
-		return strategyOnTrigger
+		return superset.Spec.Lifecycle.Clone.Disabled == nil || !*superset.Spec.Lifecycle.Clone.Disabled
 	case taskTypeMigrate:
-		if superset.Spec.Lifecycle.Migrate != nil && superset.Spec.Lifecycle.Migrate.Strategy != nil {
-			return *superset.Spec.Lifecycle.Migrate.Strategy
+		if superset.Spec.Lifecycle.Migrate != nil {
+			return superset.Spec.Lifecycle.Migrate.Disabled == nil || !*superset.Spec.Lifecycle.Migrate.Disabled
 		}
+		return true
 	case taskTypeInit:
-		if superset.Spec.Lifecycle.Init != nil && superset.Spec.Lifecycle.Init.Strategy != nil {
-			return *superset.Spec.Lifecycle.Init.Strategy
+		if superset.Spec.Lifecycle.Init != nil {
+			return superset.Spec.Lifecycle.Init.Disabled == nil || !*superset.Spec.Lifecycle.Init.Disabled
+		}
+		return true
+	}
+	return false
+}
+
+// pruneDisabledTasks deletes task CRs for disabled tasks.
+func (r *SupersetReconciler) pruneDisabledTasks(ctx context.Context, superset *supersetv1alpha1.Superset, cloneEnabled, migrateEnabled, initEnabled bool) error {
+	if !cloneEnabled {
+		if err := r.deleteTaskCR(ctx, superset.Name+suffixClone, superset.Namespace); err != nil {
+			return fmt.Errorf("deleting clone task CR: %w", err)
 		}
 	}
-	return strategyVersionChange
+	if !migrateEnabled {
+		if err := r.deleteTaskCR(ctx, superset.Name+suffixMigrate, superset.Namespace); err != nil {
+			return fmt.Errorf("deleting migrate task CR: %w", err)
+		}
+	}
+	if !initEnabled {
+		if err := r.deleteTaskCR(ctx, superset.Name+suffixInit, superset.Namespace); err != nil {
+			return fmt.Errorf("deleting init task CR: %w", err)
+		}
+	}
+	return nil
+}
+
+// getTaskStatusChecksum retrieves the status checksum from a completed task CR.
+// Returns empty string if the task CR doesn't exist or isn't complete.
+func (r *SupersetReconciler) getTaskStatusChecksum(ctx context.Context, superset *supersetv1alpha1.Superset, suffix string) string {
+	child := &supersetv1alpha1.SupersetLifecycleTask{}
+	if err := r.Get(ctx, types.NamespacedName{Name: superset.Name + suffix, Namespace: superset.Namespace}, child); err != nil {
+		return ""
+	}
+	if child.Status.State == taskStateComplete {
+		return child.Status.ConfigChecksum
+	}
+	return ""
+}
+
+// computePipelineSeed computes a seed checksum for the lifecycle pipeline.
+// Reserved for future use (custom task hooks may need a shared seed).
+// Currently unused — the pipeline anchor is parentUID directly.
+//
+//nolint:unused
+func (r *SupersetReconciler) computePipelineSeed(superset *supersetv1alpha1.Superset, configChecksum string) string {
+	currentImage := resolveLifecycleImage(&superset.Spec.Image, lifecycleImageOverride(superset))
+	return computeChecksum(struct {
+		ParentUID      string
+		Image          string
+		ConfigChecksum string
+	}{
+		ParentUID:      string(superset.UID),
+		Image:          currentImage,
+		ConfigChecksum: configChecksum,
+	})
+}
+
+// computeStepChecksum computes a task's checksum from the incoming checksum
+// (seed or previous task's completed checksum) plus the task's own inputs.
+// The incoming checksum carries all upstream state — each task only adds its
+// own unique contribution.
+func (r *SupersetReconciler) computeStepChecksum(incomingChecksum, taskType string, command []string, extraInputs any) string {
+	return computeChecksum(struct {
+		IncomingChecksum string
+		TaskType         string
+		Command          []string
+		ExtraInputs      any
+	}{
+		IncomingChecksum: incomingChecksum,
+		TaskType:         taskType,
+		Command:          command,
+		ExtraInputs:      extraInputs,
+	})
+}
+
+// cloneInputs returns the clone-specific inputs that contribute to its step checksum.
+func (r *SupersetReconciler) cloneInputs(superset *supersetv1alpha1.Superset) any {
+	clone := superset.Spec.Lifecycle.Clone
+	return struct {
+		Trigger          string
+		Source           supersetv1alpha1.CloneSourceSpec
+		ExcludeTables    []string
+		ExcludeTableData []string
+	}{
+		Trigger:          derefOrDefault(clone.Trigger, ""),
+		Source:           clone.Source,
+		ExcludeTables:    clone.ExcludeTables,
+		ExcludeTableData: clone.ExcludeTableData,
+	}
+}
+
+// migrateInputs returns the migrate-specific inputs: image (version changes).
+func (r *SupersetReconciler) migrateInputs(superset *supersetv1alpha1.Superset) any {
+	currentImage := resolveLifecycleImage(&superset.Spec.Image, lifecycleImageOverride(superset))
+	trigger := ""
+	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Migrate != nil {
+		trigger = derefOrDefault(superset.Spec.Lifecycle.Migrate.Trigger, "")
+	}
+	return struct {
+		Image   string
+		Trigger string
+	}{
+		Image:   currentImage,
+		Trigger: trigger,
+	}
+}
+
+// initInputs returns the init-specific inputs: config checksum (config changes).
+func (r *SupersetReconciler) initInputs(superset *supersetv1alpha1.Superset, configChecksum string) any {
+	trigger := ""
+	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Init != nil {
+		trigger = derefOrDefault(superset.Spec.Lifecycle.Init.Trigger, "")
+	}
+	return struct {
+		ConfigChecksum string
+		Trigger        string
+	}{
+		ConfigChecksum: configChecksum,
+		Trigger:        trigger,
+	}
 }
 
 func (r *SupersetReconciler) taskMaxRetries(superset *supersetv1alpha1.Superset, taskType string) *int32 {
@@ -900,167 +1076,6 @@ mysqldump -h "$SUPERSET_OPERATOR__CLONE_SRC_HOST" -P "$SUPERSET_OPERATOR__CLONE_
 
 	b.WriteString(` "$SUPERSET_OPERATOR__CLONE_SRC_DB" | mysql -h "$SUPERSET_OPERATOR__DB_HOST" -P "$SUPERSET_OPERATOR__DB_PORT" -u "$SUPERSET_OPERATOR__DB_USER" -p"$SUPERSET_OPERATOR__DB_PASS" "$SUPERSET_OPERATOR__DB_NAME"`)
 	return b.String()
-}
-
-// reconcileCloneTask creates/manages the clone lifecycle task. Unlike migrate/init,
-// the clone task uses a database-tool image (not the Superset image) and injects
-// clone-specific env vars for the source database connection.
-func (r *SupersetReconciler) reconcileCloneTask(
-	ctx context.Context,
-	superset *supersetv1alpha1.Superset,
-	_ string,
-	topLevel *resolution.SharedInput,
-	saName string,
-	command []string,
-) (time.Duration, bool, error) {
-	log := logf.FromContext(ctx)
-	clone := superset.Spec.Lifecycle.Clone
-	childName := superset.Name + suffixClone
-
-	// Build clone-specific env vars (source + target metastore).
-	cloneEnvVars := collectCloneEnvVars(superset)
-
-	// Build a minimal component input for the clone pod (uses clone's PodTemplate if set).
-	comp := convertCloneComponent(clone)
-
-	// No rendered Python config for the clone pod.
-	operatorInjected := &resolution.OperatorInjected{
-		Env: cloneEnvVars,
-	}
-
-	flat := resolution.ResolveChildSpec(
-		resolution.ComponentInit, topLevel, comp,
-		podOperatorLabels(string(naming.ComponentInit), childName, superset.Name), operatorInjected,
-	)
-
-	// Override the image to the clone-specific image (postgres/mysql tools).
-	cloneImage := resolveCloneImage(clone)
-	one := int32(1)
-	flatSpec := supersetv1alpha1.FlatComponentSpec{
-		Image:              cloneImage,
-		Replicas:           &one,
-		PodTemplate:        flatPodTemplate(flat),
-		ServiceAccountName: saName,
-	}
-	flatSpec.Autoscaling = nil
-	flatSpec.PodDisruptionBudget = nil
-
-	// Compute checksum including trigger value.
-	taskChecksum := computeChecksum(struct {
-		ParentUID string
-		Trigger   string
-		Source    supersetv1alpha1.CloneSourceSpec
-		Exclude   []string
-		ExcludeD  []string
-		Command   []string
-	}{
-		ParentUID: string(superset.UID),
-		Trigger:   derefOrDefault(clone.Trigger, ""),
-		Source:    clone.Source,
-		Exclude:   clone.ExcludeTables,
-		ExcludeD:  clone.ExcludeTableData,
-		Command:   command,
-	})
-
-	// Get the task CR.
-	child := &supersetv1alpha1.SupersetLifecycleTask{}
-	err := r.Get(ctx, types.NamespacedName{Name: childName, Namespace: superset.Namespace}, child)
-
-	if errors.IsNotFound(err) {
-		child = &supersetv1alpha1.SupersetLifecycleTask{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      childName,
-				Namespace: superset.Namespace,
-				Labels: map[string]string{
-					naming.LabelKeyName:      naming.LabelValueApp,
-					naming.LabelKeyComponent: string(naming.ComponentInit),
-					naming.LabelKeyParent:    superset.Name,
-				},
-			},
-		}
-		if err := controllerutil.SetControllerReference(superset, child, r.Scheme); err != nil {
-			return 0, false, fmt.Errorf("setting controller reference on %s: %w", childName, err)
-		}
-		child.Spec.FlatComponentSpec = flatSpec
-		child.Spec.Type = taskTypeClone
-		child.Spec.Command = command
-		child.Spec.ConfigChecksum = taskChecksum
-		if clone.PodRetention != nil {
-			child.Spec.PodRetention = clone.PodRetention
-		} else if superset.Spec.Lifecycle.PodRetention != nil {
-			child.Spec.PodRetention = superset.Spec.Lifecycle.PodRetention
-		}
-		child.Spec.MaxRetries = r.taskMaxRetries(superset, taskTypeClone)
-		child.Spec.Timeout = r.taskTimeout(superset, taskTypeClone)
-
-		if err := r.Create(ctx, child); err != nil {
-			return 0, false, fmt.Errorf("creating SupersetLifecycleTask %s: %w", childName, err)
-		}
-		log.Info("Created clone task CR")
-		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-			metav1.ConditionFalse, "TaskInProgress", "Clone task is in progress", superset.Generation)
-		return taskRequeueInterval, false, nil
-	}
-	if err != nil {
-		return 0, false, fmt.Errorf("fetching SupersetLifecycleTask %s: %w", childName, err)
-	}
-
-	if child.DeletionTimestamp != nil {
-		log.Info("Clone task CR is being deleted, waiting for GC")
-		return taskRequeueInterval, false, nil
-	}
-
-	// Project status to parent.
-	superset.Status.Lifecycle.Clone = &supersetv1alpha1.TaskRefStatus{
-		State:       child.Status.State,
-		StartedAt:   child.Status.StartedAt,
-		CompletedAt: child.Status.CompletedAt,
-		Duration:    child.Status.Duration,
-		Attempts:    child.Status.Attempts,
-		PodName:     child.Status.PodName,
-		Image:       child.Status.Image,
-		Message:     child.Status.Message,
-	}
-
-	maxRetries := r.taskMaxRetriesValue(superset, taskTypeClone)
-
-	switch child.Status.State {
-	case taskStateComplete:
-		if child.Status.ConfigChecksum == taskChecksum {
-			log.Info("Clone task complete")
-			return 0, true, nil
-		}
-		log.Info("Clone completed for previous trigger, deleting to re-run",
-			"statusChecksum", child.Status.ConfigChecksum, "expectedChecksum", taskChecksum)
-		if err := r.Delete(ctx, child); err != nil {
-			return 0, false, fmt.Errorf("deleting stale clone task CR %s: %w", childName, err)
-		}
-		return taskRequeueInterval, false, nil
-
-	case taskStateFailed:
-		if child.Status.Attempts >= maxRetries {
-			if child.Status.ConfigChecksum == taskChecksum {
-				log.Info("Clone task permanently failed")
-				setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-					metav1.ConditionFalse, "TaskFailed", fmt.Sprintf("Clone: %s", child.Status.Message), superset.Generation)
-				return -1, false, nil
-			}
-			log.Info("Clone task failed for previous trigger, deleting to re-run")
-			if err := r.Delete(ctx, child); err != nil {
-				return 0, false, fmt.Errorf("deleting stale clone task CR %s: %w", childName, err)
-			}
-			return taskRequeueInterval, false, nil
-		}
-		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-			metav1.ConditionFalse, "TaskRetrying", "Clone task is retrying", superset.Generation)
-		return taskRequeueInterval, false, nil
-
-	default:
-		log.Info("Clone task not yet complete", "state", child.Status.State)
-		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-			metav1.ConditionFalse, "TaskInProgress", "Clone task is in progress", superset.Generation)
-		return taskRequeueInterval, false, nil
-	}
 }
 
 // collectCloneEnvVars builds env vars for the clone task pod.

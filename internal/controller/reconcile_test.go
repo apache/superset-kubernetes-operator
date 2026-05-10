@@ -688,8 +688,10 @@ func TestReconcile_InitGatesOnStaleChecksum(t *testing.T) {
 
 	spec := minimalSupersetSpec()
 	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Migrate: &supersetv1alpha1.MigrateTaskSpec{Strategy: strPtr("Never")},
+		Migrate: &supersetv1alpha1.MigrateTaskSpec{BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: boolPtr(true)}},
 	}
+	config := "FEATURE_FLAGS = {}"
+	spec.Config = &config
 
 	superset := &supersetv1alpha1.Superset{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
@@ -721,12 +723,13 @@ func TestReconcile_InitGatesOnStaleChecksum(t *testing.T) {
 		t.Fatalf("expected web server to exist after init completes: %v", err)
 	}
 
-	// Now change the spec (image tag) to trigger a new checksum.
+	// Now change the config to trigger init's checksum to change.
 	updated := &supersetv1alpha1.Superset{}
 	if err := c.Get(ctx, types.NamespacedName{Name: "test", Namespace: "default"}, updated); err != nil {
 		t.Fatalf("get superset: %v", err)
 	}
-	updated.Spec.Image.Tag = "new-tag"
+	newConfig := "FEATURE_FLAGS = {'NEW_FLAG': True}"
+	updated.Spec.Config = &newConfig
 	if err := c.Update(ctx, updated); err != nil {
 		t.Fatalf("update superset: %v", err)
 	}
@@ -803,7 +806,7 @@ func TestReconcile_InitNilSpec_DefaultCommand(t *testing.T) {
 
 	spec := minimalSupersetSpec()
 	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Migrate: &supersetv1alpha1.MigrateTaskSpec{Strategy: strPtr("Never")},
+		Migrate: &supersetv1alpha1.MigrateTaskSpec{BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: boolPtr(true)}},
 	}
 
 	superset := &supersetv1alpha1.Superset{
@@ -979,7 +982,7 @@ func TestReconcile_InitAdminUser_CommandAndEnvVars(t *testing.T) {
 	spec.SecretKey = strPtr("test-secret")
 	spec.SecretKeyFrom = nil
 	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Migrate: &supersetv1alpha1.MigrateTaskSpec{Strategy: strPtr("Never")},
+		Migrate: &supersetv1alpha1.MigrateTaskSpec{BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: boolPtr(true)}},
 		Init: &supersetv1alpha1.InitTaskSpec{
 			AdminUser: &supersetv1alpha1.AdminUserSpec{},
 		},
@@ -1044,7 +1047,7 @@ func TestReconcile_InitLoadExamples_CommandConstruction(t *testing.T) {
 	spec.SecretKey = strPtr("test-secret")
 	spec.SecretKeyFrom = nil
 	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Migrate: &supersetv1alpha1.MigrateTaskSpec{Strategy: strPtr("Never")},
+		Migrate: &supersetv1alpha1.MigrateTaskSpec{BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: boolPtr(true)}},
 		Init: &supersetv1alpha1.InitTaskSpec{
 			LoadExamples: boolPtr(true),
 		},
@@ -1084,7 +1087,7 @@ func TestReconcile_InitAdminAndExamples_Combined(t *testing.T) {
 	spec.SecretKey = strPtr("test-secret")
 	spec.SecretKeyFrom = nil
 	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Migrate: &supersetv1alpha1.MigrateTaskSpec{Strategy: strPtr("Never")},
+		Migrate: &supersetv1alpha1.MigrateTaskSpec{BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: boolPtr(true)}},
 		Init: &supersetv1alpha1.InitTaskSpec{
 			AdminUser:    &supersetv1alpha1.AdminUserSpec{},
 			LoadExamples: boolPtr(true),
@@ -1475,13 +1478,12 @@ func TestReconcile_ImageUnchanged_SkipsLifecycleTasks(t *testing.T) {
 	}
 }
 
-func TestReconcile_StrategyNever_SkipsMigrateTask(t *testing.T) {
+func TestReconcile_Disabled_SkipsMigrateTask(t *testing.T) {
 	scheme := testScheme(t)
 
-	never := "Never"
 	spec := minimalSupersetSpec()
 	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Migrate: &supersetv1alpha1.MigrateTaskSpec{Strategy: &never},
+		Migrate: &supersetv1alpha1.MigrateTaskSpec{BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: boolPtr(true)}},
 	}
 
 	superset := &supersetv1alpha1.Superset{
@@ -1509,23 +1511,20 @@ func TestReconcile_StrategyNever_SkipsMigrateTask(t *testing.T) {
 	}
 }
 
-func TestReconcile_StrategyAlways_RunsOnConfigChange(t *testing.T) {
+func TestReconcile_InitTriggersOnConfigChange(t *testing.T) {
 	scheme := testScheme(t)
 
-	always := "Always"
-	never := "Never"
 	spec := minimalSupersetSpec()
 	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Migrate: &supersetv1alpha1.MigrateTaskSpec{Strategy: &always},
-		Init:    &supersetv1alpha1.InitTaskSpec{Strategy: &never},
+		Migrate: &supersetv1alpha1.MigrateTaskSpec{BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: boolPtr(true)}},
 	}
+	// Set a config value so init has something to detect.
+	config := "FEATURE_FLAGS = {}"
+	spec.Config = &config
 
 	superset := &supersetv1alpha1.Superset{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
 		Spec:       spec,
-		Status: supersetv1alpha1.SupersetStatus{
-			LastLifecycleImage: "apache/superset:latest",
-		},
 	}
 
 	c := reconcileOnce(t, scheme, superset).
@@ -1536,9 +1535,16 @@ func TestReconcile_StrategyAlways_RunsOnConfigChange(t *testing.T) {
 
 	ctx := context.Background()
 
+	// Init should be created (it watches config, this is first run).
+	initCR := &supersetv1alpha1.SupersetLifecycleTask{}
+	if err := c.Get(ctx, types.NamespacedName{Name: "test-init", Namespace: "default"}, initCR); err != nil {
+		t.Fatalf("expected init CR to be created on first run: %v", err)
+	}
+
+	// Migrate should NOT be created (disabled).
 	migrateCR := &supersetv1alpha1.SupersetLifecycleTask{}
-	if err := c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, migrateCR); err != nil {
-		t.Fatalf("expected migrate CR with strategy=Always even when image unchanged: %v", err)
+	if err := c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, migrateCR); err == nil {
+		t.Error("expected no migrate CR (disabled)")
 	}
 }
 

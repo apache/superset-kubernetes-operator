@@ -243,6 +243,11 @@ type BaseTaskSpec struct {
 	// +listType=atomic
 	Command []string `json:"command,omitempty"`
 
+	// Trigger is an opaque string. Changing its value forces a re-run of this
+	// task and all downstream tasks. Use a timestamp, UUID, or CI build ID.
+	// +optional
+	Trigger *string `json:"trigger,omitempty"`
+
 	// Maximum timeout per attempt.
 	// +optional
 	Timeout *metav1.Duration `json:"timeout,omitempty"`
@@ -252,6 +257,10 @@ type BaseTaskSpec struct {
 	// +kubebuilder:default=3
 	// +kubebuilder:validation:Minimum=1
 	MaxRetries *int32 `json:"maxRetries,omitempty"`
+
+	// Disabled skips this task entirely when true.
+	// +optional
+	Disabled *bool `json:"disabled,omitempty"`
 }
 
 // LifecycleSpec defines lifecycle management configuration for database migrations
@@ -317,32 +326,16 @@ type LifecycleSpec struct {
 	Init *InitTaskSpec `json:"init,omitempty"`
 }
 
-// MigrateTaskSpec defines when and how the database migration task runs.
+// MigrateTaskSpec defines the database migration task.
+// Triggers on image (version) changes and upstream task re-execution.
 type MigrateTaskSpec struct {
 	BaseTaskSpec `json:",inline"`
-
-	// Strategy controls when the migrate task runs.
-	// VersionChange: only on image changes (default).
-	// Always: on any spec change (image, config, command).
-	// Never: skip (user manages migrations externally).
-	// +optional
-	// +kubebuilder:validation:Enum=VersionChange;Always;Never
-	// +kubebuilder:default=VersionChange
-	Strategy *string `json:"strategy,omitempty"`
 }
 
-// InitTaskSpec defines when and how the application initialization task runs.
+// InitTaskSpec defines the application initialization task.
+// Triggers on config changes and upstream task re-execution.
 type InitTaskSpec struct {
 	BaseTaskSpec `json:",inline"`
-
-	// Strategy controls when the init task runs.
-	// VersionChange: only on image changes (default).
-	// Always: on any spec change (image, config, command).
-	// Never: skip entirely.
-	// +optional
-	// +kubebuilder:validation:Enum=VersionChange;Always;Never
-	// +kubebuilder:default=VersionChange
-	Strategy *string `json:"strategy,omitempty"`
 
 	// Admin user to create during initialization. Only allowed in dev mode.
 	// When set, the operator appends a superset fab create-admin step to the init command.
@@ -395,22 +388,9 @@ type PodRetentionSpec struct {
 // this CR's metastore. Runs before migrate and init tasks. The clone target
 // is always spec.metastore — the metastore user must have CREATEDB rights.
 // Only allowed in Development or Staging mode.
+// Triggers on source config changes and the trigger field (inherited from BaseTaskSpec).
 type CloneTaskSpec struct {
 	BaseTaskSpec `json:",inline"`
-
-	// Strategy determines when the clone runs.
-	// OnTrigger: runs only when Trigger value changes (default).
-	// Always: runs on every reconcile where the task is not Complete.
-	// Never: disabled.
-	// +optional
-	// +kubebuilder:validation:Enum=OnTrigger;Always;Never
-	// +kubebuilder:default=OnTrigger
-	Strategy *string `json:"strategy,omitempty"`
-
-	// Trigger is an opaque string. Changing its value causes a re-clone.
-	// Typical values: a date ("2026-05-09"), a UUID, or a CI build ID.
-	// +optional
-	Trigger *string `json:"trigger,omitempty"`
 
 	// Source database to clone from (typically production, read-only user).
 	Source CloneSourceSpec `json:"source"`
