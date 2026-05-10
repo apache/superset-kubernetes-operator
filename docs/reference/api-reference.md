@@ -89,6 +89,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task pod. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be scaled to zero before<br />this task runs. When true, the operator deletes all component child CRs<br />before executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -252,6 +253,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task pod. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be scaled to zero before<br />this task runs. When true, the operator deletes all component child CRs<br />before executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -615,6 +617,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task pod. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be scaled to zero before<br />this task runs. When true, the operator deletes all component child CRs<br />before executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -637,7 +640,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `upgradeMode` _string_ | UpgradeMode controls whether upgrades require manual approval.<br />Automatic runs immediately on image change; Supervised waits for an<br />approval annotation before proceeding. | Automatic | Enum: [Automatic Supervised] <br />Optional: \{\} <br /> |
-| `upgradeStrategy` _string_ | UpgradeStrategy controls component behavior during lifecycle tasks.<br />Drain (default): all components scale to 0 before tasks run, preventing<br />metastore deadlocks and inconsistencies between component versions and<br />the migrated database schema.<br />Rolling: tasks run while existing components stay up. Not supported when<br />clone is enabled (clone always drains). Use only when you are certain<br />migrations are safe to run under live traffic. | Drain | Enum: [Rolling Drain] <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Set to true to skip all lifecycle tasks entirely. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image override for lifecycle task pods. |  | Optional: \{\} <br /> |
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for lifecycle task pods. |  | Optional: \{\} <br /> |
@@ -735,6 +737,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task pod. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be scaled to zero before<br />this task runs. When true, the operator deletes all component child CRs<br />before executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |

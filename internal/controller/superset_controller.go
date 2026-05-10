@@ -302,9 +302,6 @@ const (
 
 	annotationApproveUpgrade = "superset.apache.org/approve-upgrade"
 
-	upgradeStrategyRolling = "Rolling"
-	upgradeStrategyDrain   = "Drain"
-
 	dbTypePostgresql = "PostgreSQL"
 	dbTypeMySQL      = "MySQL"
 
@@ -377,10 +374,8 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		return 0, true, nil
 	}
 
-	// Drain components when required:
-	// - Clone always requires drain (DROP DATABASE fails with active connections).
-	// - Migrate with Drain strategy on image change avoids metastore deadlocks.
-	if requeueAfter, drained, err := r.drainIfNeeded(ctx, superset, cloneEnabled, migrateEnabled, imageChanged); err != nil {
+	// Drain components if any enabled task requires it.
+	if requeueAfter, drained, err := r.drainIfNeeded(ctx, superset, cloneEnabled, migrateEnabled, initEnabled); err != nil {
 		return 0, false, err
 	} else if !drained {
 		return requeueAfter, false, nil
@@ -1180,11 +1175,37 @@ func getUpgradeMode(superset *supersetv1alpha1.Superset) string {
 	return upgradeModeAutomatic
 }
 
-func getUpgradeStrategy(superset *supersetv1alpha1.Superset) string {
-	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.UpgradeStrategy != nil {
-		return *superset.Spec.Lifecycle.UpgradeStrategy
+// taskRequiresDrain returns whether a task requires components to be drained.
+// Defaults: clone=true (DROP DATABASE needs no connections), migrate=true
+// (schema changes risk deadlocks), init=false (roles/permissions are safe).
+func (r *SupersetReconciler) taskRequiresDrain(superset *supersetv1alpha1.Superset, taskType string) bool {
+	var spec *supersetv1alpha1.BaseTaskSpec
+	if superset.Spec.Lifecycle != nil {
+		switch taskType {
+		case taskTypeClone:
+			if superset.Spec.Lifecycle.Clone != nil {
+				spec = &superset.Spec.Lifecycle.Clone.BaseTaskSpec
+			}
+		case taskTypeMigrate:
+			if superset.Spec.Lifecycle.Migrate != nil {
+				spec = &superset.Spec.Lifecycle.Migrate.BaseTaskSpec
+			}
+		case taskTypeInit:
+			if superset.Spec.Lifecycle.Init != nil {
+				spec = &superset.Spec.Lifecycle.Init.BaseTaskSpec
+			}
+		}
 	}
-	return upgradeStrategyDrain
+	if spec != nil && spec.RequiresDrain != nil {
+		return *spec.RequiresDrain
+	}
+	// Defaults per task type.
+	switch taskType {
+	case taskTypeClone, taskTypeMigrate:
+		return true
+	default:
+		return false
+	}
 }
 
 func isLifecycleDisabled(superset *supersetv1alpha1.Superset) bool {
@@ -1202,15 +1223,17 @@ func (r *SupersetReconciler) deleteTaskCR(ctx context.Context, name, namespace s
 	return r.Delete(ctx, task)
 }
 
-// drainIfNeeded checks whether drain is required and executes it.
-// Returns (requeueAfter, drained, error). drained=true means either drain is not needed
-// or drain completed successfully.
+// drainIfNeeded checks whether any enabled task requires drain and executes it.
+// Returns (requeueAfter, drained, error). drained=true means either drain is not
+// needed or drain completed successfully.
 func (r *SupersetReconciler) drainIfNeeded(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
-	cloneNeeded, migrateNeeded, imageChanged bool,
+	cloneEnabled, migrateEnabled, initEnabled bool,
 ) (time.Duration, bool, error) {
-	needsDrain := cloneNeeded || (migrateNeeded && imageChanged && getUpgradeStrategy(superset) == upgradeStrategyDrain)
+	needsDrain := (cloneEnabled && r.taskRequiresDrain(superset, taskTypeClone)) ||
+		(migrateEnabled && r.taskRequiresDrain(superset, taskTypeMigrate)) ||
+		(initEnabled && r.taskRequiresDrain(superset, taskTypeInit))
 	if !needsDrain {
 		return 0, true, nil
 	}

@@ -248,6 +248,13 @@ type BaseTaskSpec struct {
 	// +optional
 	Trigger *string `json:"trigger,omitempty"`
 
+	// RequiresDrain controls whether components must be scaled to zero before
+	// this task runs. When true, the operator deletes all component child CRs
+	// before executing the task pod, preventing database connection conflicts.
+	// Defaults vary per task type: true for clone and migrate, false for init.
+	// +optional
+	RequiresDrain *bool `json:"requiresDrain,omitempty"`
+
 	// Maximum timeout per attempt.
 	// +optional
 	Timeout *metav1.Duration `json:"timeout,omitempty"`
@@ -275,18 +282,6 @@ type LifecycleSpec struct {
 	// +kubebuilder:validation:Enum=Automatic;Supervised
 	// +kubebuilder:default=Automatic
 	UpgradeMode *string `json:"upgradeMode,omitempty"`
-
-	// UpgradeStrategy controls component behavior during lifecycle tasks.
-	// Drain (default): all components scale to 0 before tasks run, preventing
-	// metastore deadlocks and inconsistencies between component versions and
-	// the migrated database schema.
-	// Rolling: tasks run while existing components stay up. Not supported when
-	// clone is enabled (clone always drains). Use only when you are certain
-	// migrations are safe to run under live traffic.
-	// +optional
-	// +kubebuilder:validation:Enum=Rolling;Drain
-	// +kubebuilder:default=Drain
-	UpgradeStrategy *string `json:"upgradeStrategy,omitempty"`
 
 	// Set to true to skip all lifecycle tasks entirely.
 	// +optional

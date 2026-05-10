@@ -1551,11 +1551,8 @@ func TestReconcile_InitTriggersOnConfigChange(t *testing.T) {
 func TestReconcile_DrainStrategy_DeletesChildCRs(t *testing.T) {
 	scheme := testScheme(t)
 
-	drain := "Drain"
 	spec := minimalSupersetSpec()
-	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		UpgradeStrategy: &drain,
-	}
+	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{}
 
 	superset := &supersetv1alpha1.Superset{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
@@ -1621,7 +1618,7 @@ func TestReconcile_Clone_AlwaysDrains(t *testing.T) {
 		},
 		WebServer: &supersetv1alpha1.WebServerComponentSpec{},
 		Lifecycle: &supersetv1alpha1.LifecycleSpec{
-			// Note: UpgradeStrategy is NOT set to Drain — clone should drain regardless.
+			// Clone requires drain by default (requiresDrain defaults to true).
 			Clone: &supersetv1alpha1.CloneTaskSpec{
 				Source: supersetv1alpha1.CloneSourceSpec{
 					Host:     "pg-prod.svc",
@@ -1675,15 +1672,12 @@ func TestReconcile_Clone_AlwaysDrains(t *testing.T) {
 }
 
 func TestReconcile_Clone_NoDrainWithoutClone(t *testing.T) {
-	// Verify that without clone and with same image, components are NOT drained
-	// (drain only fires on image change or when clone is enabled).
+	// Verify that when lifecycle was already completed (same image) and no clone,
+	// components are NOT drained (tasks skip via checksum match).
 	scheme := testScheme(t)
 
-	rolling := "Rolling"
 	spec := minimalSupersetSpec()
-	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		UpgradeStrategy: &rolling,
-	}
+	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{}
 
 	superset := &supersetv1alpha1.Superset{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},

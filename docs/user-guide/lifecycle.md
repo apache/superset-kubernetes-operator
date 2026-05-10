@@ -119,65 +119,68 @@ The operator also performs semver comparison on image tags and blocks downgrades
 to prevent accidental database corruption. A blocked downgrade sets
 `status.phase: Blocked` — revert the image tag to resolve.
 
-## Upgrade Strategy
+## Drain Behavior
 
-The `upgradeStrategy` field controls component behavior during lifecycle tasks:
+Each task declares whether it requires components to be drained (scaled to zero)
+before execution. The operator drains once before the first task that requires it,
+and recreates components after the pipeline completes.
 
-- **Drain** (default) — all component child CRs are deleted before tasks run, ensuring no application pods are connected to the metastore during schema changes. After tasks complete, components are recreated with the new image.
-- **Rolling** — lifecycle tasks run while existing components stay up. Use only when you are certain migrations are backward-compatible and safe under live traffic.
+| Task | Default `requiresDrain` | Rationale |
+|------|------------------------|-----------|
+| Clone | `true` | DROP DATABASE fails with active connections |
+| Migrate | `true` | Schema changes risk deadlocks and version/schema inconsistencies |
+| Init | `false` | Role/permission operations are safe with components running |
 
-Drain is the default because Rolling carries significant risks:
-
-- Metastore deadlocks from concurrent access during schema-altering migrations
-- Inconsistencies when running component pods reference database objects that have been modified or removed by in-progress migrations
-- ORM errors when component code expects a schema version that no longer matches
-
-When clone is enabled, the operator always drains regardless of this setting
-(DROP DATABASE cannot succeed with active connections).
+Override per-task when needed:
 
 ```yaml
 spec:
   lifecycle:
-    upgradeStrategy: Rolling  # opt-in only when you know migrations are safe
     migrate:
-      strategy: VersionChange
+      requiresDrain: false  # opt-in to rolling migrations (additive changes only)
     init:
-      strategy: VersionChange
+      requiresDrain: true   # force drain before init (rare)
 ```
 
 During a drain, Ingress/HTTPRoute and NetworkPolicy resources are preserved (they
-are owned by the parent CR, not child CRs). Once lifecycle tasks complete,
+are owned by the parent CR, not child CRs). Once all lifecycle tasks complete,
 components are recreated and traffic resumes automatically.
 
 ## Lifecycle Flow
 
-The following diagram shows the lifecycle state machine. Optional steps activate
-based on `upgradeMode`, `upgradeStrategy`, and `clone` settings.
+The following diagram shows the lifecycle pipeline. Tasks execute sequentially;
+components are drained before the first task that requires it, and recreated
+after the pipeline completes.
 
 ```mermaid
 %%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '12px'}}}%%
 flowchart TD
-    A[Image changed] --> B{Downgrade?}
-    B -->|Yes| C[Blocked]
-    B -->|No| D{upgradeMode}
-    D -->|Automatic| F
-    D -->|Supervised| E[Await approval]
-    E --> F{clone enabled?}
-    F -->|Yes| F1[Drain components] --> F2[Clone pod]
-    F -->|No| G{migrate strategy}
-    F2 --> G
-    G -->|Never| I
-    G -->|VersionChange / Always| G1{upgradeStrategy}
-    G1 -->|Drain| G2[Drain components] --> H[Migrate pod]
-    G1 -->|Rolling| H
-    H --> I{init strategy}
-    I -->|Never| K[Complete]
-    I -->|VersionChange / Always| J[Init pod]
-    J --> K
+    A[Reconcile] --> B{Lifecycle disabled?}
+    B -->|Yes| Z[Components reconcile normally]
+    B -->|No| C{upgradeMode}
+    C -->|Automatic| E
+    C -->|Supervised| D[Await approval]
+    D --> E{Any task requires drain?}
+    E -->|Yes| F[Drain: delete component CRs, wait for pod termination]
+    E -->|No| G
+    F --> G[Clone task]
+    G -->|checksum match| H[Skip]
+    G -->|checksum mismatch| G1[Execute clone pod]
+    G1 --> H
+    H --> I[Migrate task]
+    I -->|checksum match| J[Skip]
+    I -->|checksum mismatch| I1[Execute migrate pod]
+    I1 --> J
+    J --> K[Init task]
+    K -->|checksum match| L[Skip]
+    K -->|checksum mismatch| K1[Execute init pod]
+    K1 --> L
+    L --> M[Pipeline complete]
+    M --> N[Recreate component CRs]
+    N --> Z
 ```
 
-For first deployments (no previous image), the flow starts at the strategy check
-(no downgrade comparison or approval needed).
+Disabled tasks are removed from the pipeline entirely (not shown as "skip").
 
 ## Custom Commands
 

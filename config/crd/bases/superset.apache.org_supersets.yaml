@@ -15589,6 +15589,8 @@ spec:
                               type: object
                             type: array
                         type: object
+                      requiresDrain:
+                        type: boolean
                       source:
                         properties:
                           database:
@@ -15683,6 +15685,8 @@ spec:
                         format: int32
                         minimum: 1
                         type: integer
+                      requiresDrain:
+                        type: boolean
                       timeout:
                         type: string
                       trigger:
@@ -15702,6 +15706,8 @@ spec:
                         format: int32
                         minimum: 1
                         type: integer
+                      requiresDrain:
+                        type: boolean
                       timeout:
                         type: string
                       trigger:
@@ -19318,12 +19324,6 @@ spec:
                     enum:
                     - Automatic
                     - Supervised
-                    type: string
-                  upgradeStrategy:
-                    default: Drain
-                    enum:
-                    - Rolling
-                    - Drain
                     type: string
                 type: object
                 x-kubernetes-validations:

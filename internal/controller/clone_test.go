@@ -468,68 +468,53 @@ func TestSplitImageRef(t *testing.T) {
 	}
 }
 
-func TestCloneAlwaysRequiresDrain(t *testing.T) {
-	tests := []struct {
-		name          string
-		cloneNeeded   bool
-		migrateNeeded bool
-		imageChanged  bool
-		strategy      string
-		wantDrain     bool
-	}{
-		{
-			name:        "clone needed — always drains regardless of strategy",
-			cloneNeeded: true,
-			strategy:    upgradeStrategyRolling,
-			wantDrain:   true,
-		},
-		{
-			name:          "clone needed with Drain strategy — still drains",
-			cloneNeeded:   true,
-			migrateNeeded: true,
-			imageChanged:  true,
-			strategy:      upgradeStrategyDrain,
-			wantDrain:     true,
-		},
-		{
-			name:          "no clone, migrate with Drain strategy and image change — drains",
-			cloneNeeded:   false,
-			migrateNeeded: true,
-			imageChanged:  true,
-			strategy:      upgradeStrategyDrain,
-			wantDrain:     true,
-		},
-		{
-			name:          "no clone, migrate with Rolling strategy — no drain",
-			cloneNeeded:   false,
-			migrateNeeded: true,
-			imageChanged:  true,
-			strategy:      upgradeStrategyRolling,
-			wantDrain:     false,
-		},
-		{
-			name:          "no clone, migrate with Drain but no image change — no drain",
-			cloneNeeded:   false,
-			migrateNeeded: true,
-			imageChanged:  false,
-			strategy:      upgradeStrategyDrain,
-			wantDrain:     false,
-		},
-		{
-			name:        "nothing needed — no drain",
-			cloneNeeded: false,
-			strategy:    upgradeStrategyRolling,
-			wantDrain:   false,
+func TestTaskRequiresDrain_Defaults(t *testing.T) {
+	r := &SupersetReconciler{}
+
+	superset := &supersetv1alpha1.Superset{}
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		Clone: &supersetv1alpha1.CloneTaskSpec{
+			Source: supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"},
 		},
 	}
 
+	tests := []struct {
+		taskType string
+		want     bool
+	}{
+		{taskTypeClone, true},
+		{taskTypeMigrate, true},
+		{taskTypeInit, false},
+	}
+
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			needsDrain := tt.cloneNeeded || (tt.migrateNeeded && tt.imageChanged && tt.strategy == upgradeStrategyDrain)
-			if needsDrain != tt.wantDrain {
-				t.Errorf("needsDrain = %v, want %v", needsDrain, tt.wantDrain)
+		t.Run(tt.taskType, func(t *testing.T) {
+			got := r.taskRequiresDrain(superset, tt.taskType)
+			if got != tt.want {
+				t.Errorf("taskRequiresDrain(%s) = %v, want %v", tt.taskType, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestTaskRequiresDrain_Override(t *testing.T) {
+	r := &SupersetReconciler{}
+
+	superset := &supersetv1alpha1.Superset{}
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		Migrate: &supersetv1alpha1.MigrateTaskSpec{
+			BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{RequiresDrain: common.Ptr(false)},
+		},
+		Init: &supersetv1alpha1.InitTaskSpec{
+			BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{RequiresDrain: common.Ptr(true)},
+		},
+	}
+
+	if r.taskRequiresDrain(superset, taskTypeMigrate) {
+		t.Error("migrate should NOT drain when requiresDrain=false override is set")
+	}
+	if !r.taskRequiresDrain(superset, taskTypeInit) {
+		t.Error("init SHOULD drain when requiresDrain=true override is set")
 	}
 }
 

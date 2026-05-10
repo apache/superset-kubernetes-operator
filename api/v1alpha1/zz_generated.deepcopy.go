@@ -114,6 +114,11 @@ func (in *BaseTaskSpec) DeepCopyInto(out *BaseTaskSpec) {
 		*out = new(string)
 		**out = **in
 	}
+	if in.RequiresDrain != nil {
+		in, out := &in.RequiresDrain, &out.RequiresDrain
+		*out = new(bool)
+		**out = **in
+	}
 	if in.Timeout != nil {
 		in, out := &in.Timeout, &out.Timeout
 		*out = new(metav1.Duration)
@@ -947,11 +952,6 @@ func (in *LifecycleSpec) DeepCopyInto(out *LifecycleSpec) {
 	*out = *in
 	if in.UpgradeMode != nil {
 		in, out := &in.UpgradeMode, &out.UpgradeMode
-		*out = new(string)
-		**out = **in
-	}
-	if in.UpgradeStrategy != nil {
-		in, out := &in.UpgradeStrategy, &out.UpgradeStrategy
 		*out = new(string)
 		**out = **in
 	}
