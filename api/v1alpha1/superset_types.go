@@ -270,6 +270,25 @@ type BaseTaskSpec struct {
 	Disabled *bool `json:"disabled,omitempty"`
 }
 
+// SchedulableBaseTaskSpec extends BaseTaskSpec with cron-based scheduling.
+// Tasks that embed this type can be periodically re-executed without external
+// triggers. The schedule is additive to the manual trigger field.
+type SchedulableBaseTaskSpec struct {
+	BaseTaskSpec `json:",inline"`
+
+	// CronSchedule is a 5-field cron expression (minute hour day-of-month month
+	// day-of-week) that triggers periodic re-execution of this task and all
+	// downstream tasks. When the clock crosses a cron boundary, the task
+	// checksum changes and the lifecycle pipeline re-runs.
+	//
+	// Uses standard cron syntax. Examples: "0 2 * * *" (daily 2 AM UTC),
+	// "0 */6 * * *" (every 6 hours), "30 1 * * 1" (Mondays 1:30 AM UTC).
+	// +optional
+	// +kubebuilder:validation:MinLength=9
+	// +kubebuilder:validation:MaxLength=256
+	CronSchedule *string `json:"cronSchedule,omitempty"`
+}
+
 // LifecycleSpec defines lifecycle management configuration for database migrations
 // and application initialization tasks.
 // +kubebuilder:validation:XValidation:rule="!has(self.init) || !has(self.init.command) || size(self.init.command) == 0 || (!has(self.init.adminUser) && !has(self.init.loadExamples))",message="init.command is mutually exclusive with init.adminUser and init.loadExamples"
@@ -385,7 +404,7 @@ type PodRetentionSpec struct {
 // Only allowed in Development or Staging mode.
 // Triggers on source config changes and the trigger field (inherited from BaseTaskSpec).
 type CloneTaskSpec struct {
-	BaseTaskSpec `json:",inline"`
+	SchedulableBaseTaskSpec `json:",inline"`
 
 	// Source database to clone from (typically production, read-only user).
 	Source CloneSourceSpec `json:"source"`
@@ -625,6 +644,12 @@ type TaskRefStatus struct {
 	Image string `json:"image,omitempty"`
 	// +optional
 	Message string `json:"message,omitempty"`
+	// LastScheduledAt is the cron tick that triggered the most recent scheduled run.
+	// +optional
+	LastScheduledAt *metav1.Time `json:"lastScheduledAt,omitempty"`
+	// NextScheduleAt is the next future cron tick when the schedule will fire.
+	// +optional
+	NextScheduleAt *metav1.Time `json:"nextScheduleAt,omitempty"`
 }
 
 // UpgradeContext tracks the current upgrade operation.

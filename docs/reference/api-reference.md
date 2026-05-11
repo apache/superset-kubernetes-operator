@@ -84,6 +84,7 @@ _Appears in:_
 - [CloneTaskSpec](#clonetaskspec)
 - [InitTaskSpec](#inittaskspec)
 - [MigrateTaskSpec](#migratetaskspec)
+- [SchedulableBaseTaskSpec](#schedulablebasetaskspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -257,6 +258,7 @@ _Appears in:_
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
+| `cronSchedule` _string_ | CronSchedule is a 5-field cron expression (minute hour day-of-month month<br />day-of-week) that triggers periodic re-execution of this task and all<br />downstream tasks. When the clock crosses a cron boundary, the task<br />checksum changes and the lifecycle pipeline re-runs.<br />Uses standard cron syntax. Examples: "0 2 * * *" (daily 2 AM UTC),<br />"0 */6 * * *" (every 6 hours), "30 1 * * 1" (Mondays 1:30 AM UTC). |  | MaxLength: 256 <br />MinLength: 9 <br />Optional: \{\} <br /> |
 | `source` _[CloneSourceSpec](#clonesourcespec)_ | Source database to clone from (typically production, read-only user). |  |  |
 | `excludeTables` _string array_ | Tables to exclude entirely from the dump (schema and data). |  | Optional: \{\} <br /> |
 | `excludeTableData` _string array_ | Tables where schema is dumped but data is not. Useful for large tables<br />needed by migrations but not for testing (e.g., "logs", "query"). |  | Optional: \{\} <br /> |
@@ -949,6 +951,30 @@ _Appears in:_
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 
 
+#### SchedulableBaseTaskSpec
+
+
+
+SchedulableBaseTaskSpec extends BaseTaskSpec with cron-based scheduling.
+Tasks that embed this type can be periodically re-executed without external
+triggers. The schedule is additive to the manual trigger field.
+
+
+
+_Appears in:_
+- [CloneTaskSpec](#clonetaskspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `command` _string array_ | Command override for the task pod. |  | Optional: \{\} <br /> |
+| `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be scaled to zero before<br />this task runs. When true, the operator deletes all component child CRs<br />before executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
+| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
+| `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
+| `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
+| `cronSchedule` _string_ | CronSchedule is a 5-field cron expression (minute hour day-of-month month<br />day-of-week) that triggers periodic re-execution of this task and all<br />downstream tasks. When the clock crosses a cron boundary, the task<br />checksum changes and the lifecycle pipeline re-runs.<br />Uses standard cron syntax. Examples: "0 2 * * *" (daily 2 AM UTC),<br />"0 */6 * * *" (every 6 hours), "30 1 * * 1" (Mondays 1:30 AM UTC). |  | MaxLength: 256 <br />MinLength: 9 <br />Optional: \{\} <br /> |
+
+
 #### ServiceAccountSpec
 
 
@@ -1534,6 +1560,8 @@ _Appears in:_
 | `podName` _string_ |  |  | Optional: \{\} <br /> |
 | `image` _string_ |  |  | Optional: \{\} <br /> |
 | `message` _string_ |  |  | Optional: \{\} <br /> |
+| `lastScheduledAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ | LastScheduledAt is the cron tick that triggered the most recent scheduled run. |  | Optional: \{\} <br /> |
+| `nextScheduleAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ | NextScheduleAt is the next future cron tick when the schedule will fire. |  | Optional: \{\} <br /> |
 
 
 #### UpgradeContext

@@ -11973,6 +11973,10 @@ spec:
                           type: string
                         type: array
                         x-kubernetes-list-type: atomic
+                      cronSchedule:
+                        maxLength: 256
+                        minLength: 9
+                        type: string
                       disabled:
                         type: boolean
                       excludeTableData:
@@ -35608,7 +35612,13 @@ spec:
                         type: string
                       image:
                         type: string
+                      lastScheduledAt:
+                        format: date-time
+                        type: string
                       message:
+                        type: string
+                      nextScheduleAt:
+                        format: date-time
                         type: string
                       podName:
                         type: string
@@ -35635,7 +35645,13 @@ spec:
                         type: string
                       image:
                         type: string
+                      lastScheduledAt:
+                        format: date-time
+                        type: string
                       message:
+                        type: string
+                      nextScheduleAt:
+                        format: date-time
                         type: string
                       podName:
                         type: string
@@ -35662,7 +35678,13 @@ spec:
                         type: string
                       image:
                         type: string
+                      lastScheduledAt:
+                        format: date-time
+                        type: string
                       message:
+                        type: string
+                      nextScheduleAt:
+                        format: date-time
                         type: string
                       podName:
                         type: string

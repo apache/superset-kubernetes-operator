@@ -6,6 +6,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.4.0
 	github.com/onsi/ginkgo/v2 v2.28.2
 	github.com/onsi/gomega v1.39.1
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/stretchr/testify v1.11.1
 	k8s.io/api v0.35.1
 	k8s.io/apimachinery v0.35.1

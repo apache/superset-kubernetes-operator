@@ -21,6 +21,7 @@ package controller
 import (
 	"strings"
 	"testing"
+	"time"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -146,8 +147,10 @@ func TestBuildCloneCommand_CustomCommand(t *testing.T) {
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 		Clone: &supersetv1alpha1.CloneTaskSpec{
-			BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{
-				Command: []string{"/bin/sh", "-c", "custom-clone-script.sh"},
+			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
+				BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{
+					Command: []string{"/bin/sh", "-c", "custom-clone-script.sh"},
+				},
 			},
 			Source: supersetv1alpha1.CloneSourceSpec{
 				Host:     "pg-prod.svc",
@@ -409,8 +412,8 @@ func TestIsTaskEnabled(t *testing.T) {
 			name: "clone explicitly disabled",
 			spec: &supersetv1alpha1.LifecycleSpec{
 				Clone: &supersetv1alpha1.CloneTaskSpec{
-					BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: common.Ptr(true)},
-					Source:       supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"},
+					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: common.Ptr(true)}},
+					Source:                  supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"},
 				},
 			},
 			taskType: taskTypeClone,
@@ -750,5 +753,232 @@ func TestPipelineChain_CustomTaskSlotsBetweenStages(t *testing.T) {
 
 	if migrateChecksum != migrateChecksum3 {
 		t.Error("migrate should be stable when nothing upstream changed")
+	}
+}
+
+func TestCloneInputs_ScheduleTickChangesChecksum(t *testing.T) {
+	// When the clock crosses a cron boundary, the clone checksum should change.
+	before := time.Date(2026, 5, 11, 1, 59, 0, 0, time.UTC)
+	after := time.Date(2026, 5, 11, 2, 1, 0, 0, time.UTC)
+
+	cronExpr := "0 2 * * *"
+	source := supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"}
+
+	r1 := &SupersetReconciler{Now: func() time.Time { return before }}
+	r2 := &SupersetReconciler{Now: func() time.Time { return after }}
+
+	superset := &supersetv1alpha1.Superset{}
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		Clone: &supersetv1alpha1.CloneTaskSpec{
+			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &cronExpr},
+			Source:                  source,
+		},
+	}
+
+	inputs1 := r1.cloneInputs(superset)
+	inputs2 := r2.cloneInputs(superset)
+
+	checksum1 := r1.computeStepChecksum("uid", taskTypeClone, []string{"cmd"}, inputs1)
+	checksum2 := r2.computeStepChecksum("uid", taskTypeClone, []string{"cmd"}, inputs2)
+
+	if checksum1 == checksum2 {
+		t.Error("clone checksum should change when crossing a cron boundary")
+	}
+}
+
+func TestCloneInputs_ScheduleAndTrigger_BothContribute(t *testing.T) {
+	now := time.Date(2026, 5, 11, 14, 0, 0, 0, time.UTC)
+	r := &SupersetReconciler{Now: func() time.Time { return now }}
+
+	cronExpr := "0 * * * *"
+	source := supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"}
+	trigger1 := "v1"
+	trigger2 := "v2"
+
+	superset := &supersetv1alpha1.Superset{}
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		Clone: &supersetv1alpha1.CloneTaskSpec{
+			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
+				BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Trigger: &trigger1},
+				CronSchedule: &cronExpr,
+			},
+			Source: source,
+		},
+	}
+
+	inputs1 := r.cloneInputs(superset)
+	checksum1 := r.computeStepChecksum("uid", taskTypeClone, []string{"cmd"}, inputs1)
+
+	// Change trigger only.
+	superset.Spec.Lifecycle.Clone.Trigger = &trigger2
+	inputs2 := r.cloneInputs(superset)
+	checksum2 := r.computeStepChecksum("uid", taskTypeClone, []string{"cmd"}, inputs2)
+
+	if checksum1 == checksum2 {
+		t.Error("changing trigger should change checksum even with same schedule tick")
+	}
+}
+
+func TestCloneInputs_NoSchedule_StableChecksum(t *testing.T) {
+	now := time.Date(2026, 5, 11, 14, 0, 0, 0, time.UTC)
+	r := &SupersetReconciler{Now: func() time.Time { return now }}
+
+	source := supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"}
+	superset := &supersetv1alpha1.Superset{}
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		Clone: &supersetv1alpha1.CloneTaskSpec{
+			Source: source,
+		},
+	}
+
+	inputs1 := r.cloneInputs(superset)
+	inputs2 := r.cloneInputs(superset)
+
+	checksum1 := r.computeStepChecksum("uid", taskTypeClone, []string{"cmd"}, inputs1)
+	checksum2 := r.computeStepChecksum("uid", taskTypeClone, []string{"cmd"}, inputs2)
+
+	if checksum1 != checksum2 {
+		t.Error("checksum should be stable when no schedule is set")
+	}
+}
+
+func TestCloneInputs_ScheduleStableWithinWindow(t *testing.T) {
+	// Two reconciles within the same cron window produce the same checksum.
+	t1 := time.Date(2026, 5, 11, 14, 10, 0, 0, time.UTC)
+	t2 := time.Date(2026, 5, 11, 14, 50, 0, 0, time.UTC)
+
+	cronExpr := "0 * * * *"
+	source := supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"}
+
+	superset := &supersetv1alpha1.Superset{}
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		Clone: &supersetv1alpha1.CloneTaskSpec{
+			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &cronExpr},
+			Source:                  source,
+		},
+	}
+
+	r1 := &SupersetReconciler{Now: func() time.Time { return t1 }}
+	r2 := &SupersetReconciler{Now: func() time.Time { return t2 }}
+
+	checksum1 := r1.computeStepChecksum("uid", taskTypeClone, []string{"cmd"}, r1.cloneInputs(superset))
+	checksum2 := r2.computeStepChecksum("uid", taskTypeClone, []string{"cmd"}, r2.cloneInputs(superset))
+
+	if checksum1 != checksum2 {
+		t.Error("checksum should be stable within the same cron window")
+	}
+}
+
+func TestPipelineChain_ScheduleTickPropagatesDownstream(t *testing.T) {
+	before := time.Date(2026, 5, 11, 1, 59, 0, 0, time.UTC)
+	after := time.Date(2026, 5, 11, 2, 1, 0, 0, time.UTC)
+
+	cronExpr := "0 2 * * *"
+	source := supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"}
+
+	superset := &supersetv1alpha1.Superset{}
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		Clone: &supersetv1alpha1.CloneTaskSpec{
+			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &cronExpr},
+			Source:                  source,
+		},
+	}
+
+	cloneCmd := []string{"/bin/sh", "-c", "pg_dump | psql"}
+	migrateCmd := []string{"/bin/sh", "-c", "superset db upgrade"}
+	initCmd := []string{"/bin/sh", "-c", "superset init"}
+	parentUID := "test-uid"
+
+	// Before boundary.
+	r1 := &SupersetReconciler{Now: func() time.Time { return before }}
+	cloneChecksum1 := r1.computeStepChecksum(parentUID, taskTypeClone, cloneCmd, r1.cloneInputs(superset))
+	migrateChecksum1 := r1.computeStepChecksum(cloneChecksum1, taskTypeMigrate, migrateCmd, struct {
+		Image   string
+		Trigger string
+	}{"img:4.0", ""})
+	initChecksum1 := r1.computeStepChecksum(migrateChecksum1, taskTypeInit, initCmd, struct {
+		ConfigChecksum string
+		Trigger        string
+	}{"cfg", ""})
+
+	// After boundary.
+	r2 := &SupersetReconciler{Now: func() time.Time { return after }}
+	cloneChecksum2 := r2.computeStepChecksum(parentUID, taskTypeClone, cloneCmd, r2.cloneInputs(superset))
+	migrateChecksum2 := r2.computeStepChecksum(cloneChecksum2, taskTypeMigrate, migrateCmd, struct {
+		Image   string
+		Trigger string
+	}{"img:4.0", ""})
+	initChecksum2 := r2.computeStepChecksum(migrateChecksum2, taskTypeInit, initCmd, struct {
+		ConfigChecksum string
+		Trigger        string
+	}{"cfg", ""})
+
+	if cloneChecksum1 == cloneChecksum2 {
+		t.Error("clone checksum should change after boundary")
+	}
+	if migrateChecksum1 == migrateChecksum2 {
+		t.Error("migrate should cascade from clone schedule tick change")
+	}
+	if initChecksum1 == initChecksum2 {
+		t.Error("init should cascade from clone schedule tick change")
+	}
+}
+
+func TestScheduleRequeue_ComputesCorrectDuration(t *testing.T) {
+	now := time.Date(2026, 5, 11, 14, 30, 0, 0, time.UTC)
+	r := &SupersetReconciler{Now: func() time.Time { return now }}
+
+	cronExpr := "0 * * * *" // hourly at :00
+	superset := &supersetv1alpha1.Superset{}
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		Clone: &supersetv1alpha1.CloneTaskSpec{
+			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &cronExpr},
+			Source:                  supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"},
+		},
+	}
+
+	requeue := r.nextScheduleRequeue(superset)
+	// Next tick is 15:00, so 30 minutes + 1s buffer.
+	expected := 30*time.Minute + time.Second
+	if requeue != expected {
+		t.Errorf("expected requeue %v, got %v", expected, requeue)
+	}
+}
+
+func TestScheduleRequeue_NoSchedule(t *testing.T) {
+	r := &SupersetReconciler{Now: func() time.Time { return time.Now() }}
+
+	superset := &supersetv1alpha1.Superset{}
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		Clone: &supersetv1alpha1.CloneTaskSpec{
+			Source: supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"},
+		},
+	}
+
+	requeue := r.nextScheduleRequeue(superset)
+	if requeue != 0 {
+		t.Errorf("expected 0 requeue with no schedule, got %v", requeue)
+	}
+}
+
+func TestScheduleRequeue_DisabledClone(t *testing.T) {
+	now := time.Date(2026, 5, 11, 14, 30, 0, 0, time.UTC)
+	r := &SupersetReconciler{Now: func() time.Time { return now }}
+
+	cronExpr := "0 * * * *"
+	superset := &supersetv1alpha1.Superset{}
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		Clone: &supersetv1alpha1.CloneTaskSpec{
+			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
+				BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: common.Ptr(true)},
+				CronSchedule: &cronExpr,
+			},
+			Source: supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"},
+		},
+	}
+
+	requeue := r.nextScheduleRequeue(superset)
+	if requeue != 0 {
+		t.Errorf("expected 0 requeue with disabled clone, got %v", requeue)
 	}
 }

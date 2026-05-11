@@ -51,7 +51,7 @@ Each task has hardcoded trigger inputs — what it watches for changes:
 
 | Task | Watches | Re-runs when... |
 |------|---------|-----------------|
-| Clone | `trigger` field, source config, excludes | Trigger value changes, or source DB config changes |
+| Clone | `trigger` field, `cronSchedule` tick, source config, excludes | Trigger value changes, schedule tick boundary crossed, or source DB config changes |
 | Migrate | Image (resolved lifecycle image) | Image tag or repository changes |
 | Init | Config checksum (rendered Python config) | Any config-affecting field changes |
 
@@ -82,6 +82,55 @@ spec:
     migrate:
       disabled: true  # user manages migrations externally
 ```
+
+### Scheduled Execution
+
+Tasks that support scheduling (currently clone) accept a `cronSchedule` field —
+a standard 5-field cron expression that triggers periodic re-execution:
+
+```yaml
+spec:
+  environment: Staging
+  lifecycle:
+    clone:
+      cronSchedule: "0 2 * * *"  # daily at 2 AM UTC
+      source:
+        host: postgres-prod.db.svc
+        database: superset_prod
+        username: prod_reader
+        passwordFrom:
+          name: prod-reader-creds
+          key: password
+```
+
+When a schedule is configured, the operator automatically re-runs the full
+lifecycle pipeline (clone → migrate → init) each time a cron tick boundary is
+crossed. The `trigger` field remains functional for manual overrides on top of
+the schedule — both contribute independently.
+
+**How it works:**
+
+- The operator computes the "current tick" (most recent past time matching the
+  expression) and includes it in the task checksum
+- When the clock crosses a cron boundary, the tick changes, the checksum changes,
+  and the pipeline re-runs
+- The operator requeues itself to wake at the next cron tick
+- If the operator is down during a scheduled tick, it catches up on the next
+  reconcile
+- If the pipeline is still running when a tick fires, it completes normally; the
+  new tick is detected afterward and triggers one re-run (no backlog accumulation)
+
+**Status reporting:**
+
+The clone task status includes `lastScheduledAt` (the tick that triggered the
+most recent run) and `nextScheduleAt` (the next future tick).
+
+**Alternative — external CronJob:**
+
+For teams that prefer external scheduling, a Kubernetes CronJob can patch
+the `trigger` field on a cron schedule. This requires a CronJob resource,
+ServiceAccount, RoleBinding, and a kubectl image, but keeps the scheduling
+logic outside the operator.
 
 When disabled, the task's CR is deleted and it does not participate in the
 pipeline. Downstream tasks still run but don't receive propagation from the

@@ -46,6 +46,7 @@ import (
 	naming "github.com/apache/superset-kubernetes-operator/internal/common"
 	supersetconfig "github.com/apache/superset-kubernetes-operator/internal/config"
 	"github.com/apache/superset-kubernetes-operator/internal/resolution"
+	"github.com/apache/superset-kubernetes-operator/internal/schedule"
 )
 
 // SupersetReconciler reconciles a Superset object.
@@ -53,6 +54,7 @@ type SupersetReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Recorder events.EventRecorder
+	Now      func() time.Time
 }
 
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersets,verbs=get;list;watch
@@ -179,6 +181,11 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	// Phase 5: Update aggregate status.
 	if err := r.updateStatus(ctx, superset); err != nil {
 		return ctrl.Result{}, fmt.Errorf("updating status: %w", err)
+	}
+
+	// Phase 6: Schedule-based requeue for periodic lifecycle tasks.
+	if requeue := r.nextScheduleRequeue(superset); requeue > 0 {
+		return ctrl.Result{RequeueAfter: requeue}, nil
 	}
 
 	return ctrl.Result{}, nil
@@ -632,6 +639,7 @@ func (r *SupersetReconciler) reconcileLifecycleTask(
 		Image:       child.Status.Image,
 		Message:     child.Status.Message,
 	}
+	r.projectScheduleStatus(superset, taskType, taskRef)
 	switch taskType {
 	case taskTypeClone:
 		superset.Status.Lifecycle.Clone = taskRef
@@ -913,11 +921,13 @@ func (r *SupersetReconciler) cloneInputs(superset *supersetv1alpha1.Superset) an
 	clone := superset.Spec.Lifecycle.Clone
 	return struct {
 		Trigger          string
+		ScheduleTick     string
 		Source           supersetv1alpha1.CloneSourceSpec
 		ExcludeTables    []string
 		ExcludeTableData []string
 	}{
 		Trigger:          derefOrDefault(clone.Trigger, ""),
+		ScheduleTick:     r.scheduleTick(clone.CronSchedule),
 		Source:           clone.Source,
 		ExcludeTables:    clone.ExcludeTables,
 		ExcludeTableData: clone.ExcludeTableData,
@@ -952,6 +962,85 @@ func (r *SupersetReconciler) initInputs(superset *supersetv1alpha1.Superset, con
 	}{
 		ConfigChecksum: configChecksum,
 		Trigger:        trigger,
+	}
+}
+
+func (r *SupersetReconciler) now() time.Time {
+	if r.Now != nil {
+		return r.Now()
+	}
+	return time.Now()
+}
+
+func (r *SupersetReconciler) scheduleTick(cronSchedule *string) string {
+	if cronSchedule == nil || *cronSchedule == "" {
+		return ""
+	}
+	return schedule.CurrentTick(*cronSchedule, r.now())
+}
+
+func (r *SupersetReconciler) nextScheduleRequeue(superset *supersetv1alpha1.Superset) time.Duration {
+	if superset.Spec.Lifecycle == nil {
+		return 0
+	}
+	var earliest time.Time
+	for _, expr := range r.activeSchedules(superset) {
+		next := schedule.NextTick(expr, r.now())
+		if next.IsZero() {
+			continue
+		}
+		if earliest.IsZero() || next.Before(earliest) {
+			earliest = next
+		}
+	}
+	if earliest.IsZero() {
+		return 0
+	}
+	d := earliest.Sub(r.now()) + time.Second
+	if d < time.Second {
+		return time.Second
+	}
+	return d
+}
+
+func (r *SupersetReconciler) activeSchedules(superset *supersetv1alpha1.Superset) []string {
+	lc := superset.Spec.Lifecycle
+	var out []string
+	if lc.Clone != nil && lc.Clone.CronSchedule != nil && !isDisabled(lc.Clone.Disabled) {
+		out = append(out, *lc.Clone.CronSchedule)
+	}
+	return out
+}
+
+func isDisabled(disabled *bool) bool {
+	return disabled != nil && *disabled
+}
+
+func (r *SupersetReconciler) projectScheduleStatus(superset *supersetv1alpha1.Superset, taskType string, taskRef *supersetv1alpha1.TaskRefStatus) {
+	if superset.Spec.Lifecycle == nil {
+		return
+	}
+	var cronSchedule *string
+	switch taskType {
+	case taskTypeClone:
+		if superset.Spec.Lifecycle.Clone != nil {
+			cronSchedule = superset.Spec.Lifecycle.Clone.CronSchedule
+		}
+	}
+	if cronSchedule == nil || *cronSchedule == "" {
+		return
+	}
+	now := r.now()
+	if tick := schedule.CurrentTick(*cronSchedule, now); tick != "" {
+		parsed, err := time.Parse(time.RFC3339, tick)
+		if err == nil {
+			t := metav1.NewTime(parsed)
+			taskRef.LastScheduledAt = &t
+		}
+	}
+	if next := schedule.NextTick(*cronSchedule, now); !next.IsZero() {
+		t := metav1.NewTime(next)
+		taskRef.NextScheduleAt = &t
 	}
 }
 
