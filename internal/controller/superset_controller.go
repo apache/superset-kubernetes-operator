@@ -154,6 +154,14 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
+	// Persist lifecycle completion status (lastCompletedChecksums) before
+	// creating components. Component creation triggers watch events that cause
+	// concurrent reconciles — if we defer this to Phase 5, a conflict there
+	// loses the checksums and the next reconcile re-enters lifecycle.
+	if statusErr := r.Status().Update(ctx, superset); statusErr != nil {
+		return ctrl.Result{}, fmt.Errorf("updating status after lifecycle: %w", statusErr)
+	}
+
 	// Phase 3: Resolve and reconcile each component (table-driven).
 	for _, desc := range componentDescriptors {
 		if err := r.reconcileComponent(ctx, superset, desc, topLevel, configChecksum, saName); err != nil {
@@ -384,6 +392,16 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		return 0, true, nil
 	}
 
+	// Fast path: if all enabled tasks already completed with matching checksums,
+	// skip drain and pipeline entirely. This prevents unnecessary component
+	// deletion on reconciles triggered by child CR creation.
+	if r.allTasksStillComplete(superset, cloneEnabled, migrateEnabled, initEnabled, configChecksum) {
+		superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+			metav1.ConditionTrue, "LifecycleComplete", "Lifecycle tasks completed successfully", superset.Generation)
+		return 0, true, nil
+	}
+
 	// Spin up the maintenance page before drain (if configured).
 	needsDrain := (cloneEnabled && r.taskRequiresDrain(superset, taskTypeClone)) ||
 		(migrateEnabled && r.taskRequiresDrain(superset, taskTypeMigrate)) ||
@@ -413,33 +431,41 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		return requeueAfter, false, nil
 	}
 
-	// All tasks complete. Tear down maintenance page before re-creating components.
+	// All tasks complete.
+	return 0, true, r.finalizeLifecycle(ctx, superset, currentImage)
+}
+
+// finalizeLifecycle tears down maintenance page, updates status, and clears
+// approval annotations after all lifecycle tasks complete.
+func (r *SupersetReconciler) finalizeLifecycle(
+	ctx context.Context,
+	superset *supersetv1alpha1.Superset,
+	currentImage string,
+) error {
 	if isMaintenancePageEnabled(superset) {
 		if err := r.reconcileMaintenancePageDown(ctx, superset); err != nil {
-			return 0, false, fmt.Errorf("tearing down maintenance page: %w", err)
+			return fmt.Errorf("tearing down maintenance page: %w", err)
 		}
 	}
 
-	// Update lastLifecycleImage and clear upgrade context.
 	superset.Status.LastLifecycleImage = currentImage
 	superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
 	superset.Status.Lifecycle.Upgrade = nil
 
-	// Clear approval annotation if it was set.
 	if annotations := superset.GetAnnotations(); annotations != nil {
 		if _, ok := annotations[annotationApproveUpgrade]; ok {
 			patch := client.MergeFrom(superset.DeepCopy())
 			delete(annotations, annotationApproveUpgrade)
 			superset.SetAnnotations(annotations)
 			if err := r.Patch(ctx, superset, patch); err != nil {
-				return 0, false, fmt.Errorf("clearing approval annotation: %w", err)
+				return fmt.Errorf("clearing approval annotation: %w", err)
 			}
 		}
 	}
 
 	setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
 		metav1.ConditionTrue, "LifecycleComplete", "Lifecycle tasks completed successfully", superset.Generation)
-	return 0, true, nil
+	return nil
 }
 
 // runLifecyclePipeline executes the sequential task pipeline (clone → migrate → init).
@@ -766,7 +792,8 @@ func (r *SupersetReconciler) buildCloneTaskFlatSpec(
 	childName := superset.Name + suffixClone
 
 	cloneEnvVars := collectCloneEnvVars(superset)
-	comp := convertCloneComponent(clone)
+	cloneCmd := r.buildCloneCommand(superset)
+	comp := convertCloneComponent(clone, cloneCmd)
 	operatorInjected := &resolution.OperatorInjected{Env: cloneEnvVars}
 
 	flat := resolution.ResolveChildSpec(
@@ -973,12 +1000,14 @@ func (r *SupersetReconciler) cloneInputs(superset *supersetv1alpha1.Superset) an
 		Source           supersetv1alpha1.CloneSourceSpec
 		ExcludeTables    []string
 		ExcludeTableData []string
+		PostCloneSQL     []string
 	}{
 		Trigger:          derefOrDefault(clone.Trigger, ""),
 		ScheduleTick:     r.scheduleTick(clone.CronSchedule),
 		Source:           clone.Source,
 		ExcludeTables:    clone.ExcludeTables,
 		ExcludeTableData: clone.ExcludeTableData,
+		PostCloneSQL:     clone.PostCloneSQL,
 	}
 }
 
@@ -1011,6 +1040,49 @@ func (r *SupersetReconciler) initInputs(superset *supersetv1alpha1.Superset, con
 		ConfigChecksum: configChecksum,
 		Trigger:        trigger,
 	}
+}
+
+// allTasksStillComplete checks whether all enabled tasks have already completed
+// with checksums matching the current inputs. Used as a fast path to avoid
+// unnecessary draining on reconciles where nothing has changed.
+func (r *SupersetReconciler) allTasksStillComplete(
+	superset *supersetv1alpha1.Superset,
+	cloneEnabled, migrateEnabled, initEnabled bool,
+	configChecksum string,
+) bool {
+	if superset.Status.Lifecycle == nil || superset.Status.Lifecycle.LastCompletedChecksums == nil {
+		return false
+	}
+	checksums := superset.Status.Lifecycle.LastCompletedChecksums
+	incomingChecksum := string(superset.UID)
+
+	if cloneEnabled {
+		cloneCmd := r.buildCloneCommand(superset)
+		taskChecksum := r.computeStepChecksum(incomingChecksum, taskTypeClone, cloneCmd, r.cloneInputs(superset))
+		if checksums[taskTypeClone] != taskChecksum {
+			return false
+		}
+		incomingChecksum = checksums[taskTypeClone]
+	}
+
+	if migrateEnabled {
+		migrateCmd := defaultMigrateCommand(superset)
+		taskChecksum := r.computeStepChecksum(incomingChecksum, taskTypeMigrate, migrateCmd, r.migrateInputs(superset))
+		if checksums[taskTypeMigrate] != taskChecksum {
+			return false
+		}
+		incomingChecksum = checksums[taskTypeMigrate]
+	}
+
+	if initEnabled {
+		initCmd := defaultInitCommand(superset)
+		taskChecksum := r.computeStepChecksum(incomingChecksum, taskTypeInit, initCmd, r.initInputs(superset, configChecksum))
+		if checksums[taskTypeInit] != taskChecksum {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (r *SupersetReconciler) now() time.Time {
@@ -1193,6 +1265,11 @@ PGPASSWORD="$SUPERSET_OPERATOR__CLONE_SRC_PASS" pg_dump -h "$SUPERSET_OPERATOR__
 	}
 
 	b.WriteString(` "$SUPERSET_OPERATOR__CLONE_SRC_DB" | PGPASSWORD="$SUPERSET_OPERATOR__DB_PASS" psql -h "$SUPERSET_OPERATOR__DB_HOST" -p "$SUPERSET_OPERATOR__DB_PORT" -U "$SUPERSET_OPERATOR__DB_USER" "$SUPERSET_OPERATOR__DB_NAME"`)
+
+	for _, sql := range clone.PostCloneSQL {
+		fmt.Fprintf(&b, "\nPGPASSWORD=\"$SUPERSET_OPERATOR__DB_PASS\" psql -h \"$SUPERSET_OPERATOR__DB_HOST\" -p \"$SUPERSET_OPERATOR__DB_PORT\" -U \"$SUPERSET_OPERATOR__DB_USER\" \"$SUPERSET_OPERATOR__DB_NAME\" -c %q", sql)
+	}
+
 	return b.String()
 }
 
@@ -1207,6 +1284,11 @@ mysqldump -h "$SUPERSET_OPERATOR__CLONE_SRC_HOST" -P "$SUPERSET_OPERATOR__CLONE_
 	}
 
 	b.WriteString(` "$SUPERSET_OPERATOR__CLONE_SRC_DB" | mysql -h "$SUPERSET_OPERATOR__DB_HOST" -P "$SUPERSET_OPERATOR__DB_PORT" -u "$SUPERSET_OPERATOR__DB_USER" -p"$SUPERSET_OPERATOR__DB_PASS" "$SUPERSET_OPERATOR__DB_NAME"`)
+
+	for _, sql := range clone.PostCloneSQL {
+		fmt.Fprintf(&b, "\nmysql -h \"$SUPERSET_OPERATOR__DB_HOST\" -P \"$SUPERSET_OPERATOR__DB_PORT\" -u \"$SUPERSET_OPERATOR__DB_USER\" -p\"$SUPERSET_OPERATOR__DB_PASS\" \"$SUPERSET_OPERATOR__DB_NAME\" -e %q", sql)
+	}
+
 	return b.String()
 }
 
@@ -1289,13 +1371,32 @@ func splitImageRef(ref string) (string, string) {
 }
 
 // convertCloneComponent builds a minimal ComponentInput for the clone task pod.
-func convertCloneComponent(clone *supersetv1alpha1.CloneTaskSpec) *resolution.ComponentInput {
-	if clone.PodTemplate == nil {
-		return &resolution.ComponentInput{}
+func convertCloneComponent(clone *supersetv1alpha1.CloneTaskSpec, command []string) *resolution.ComponentInput {
+	var pt *supersetv1alpha1.PodTemplate
+	if clone.PodTemplate != nil {
+		pt = clone.PodTemplate
 	}
+
+	var ct *supersetv1alpha1.ContainerTemplate
+	if pt != nil && pt.Container != nil {
+		copied := *pt.Container
+		ct = &copied
+	} else {
+		ct = &supersetv1alpha1.ContainerTemplate{}
+	}
+	ct.Command = command
+
+	if pt != nil {
+		copied := *pt
+		copied.Container = ct
+		pt = &copied
+	} else {
+		pt = &supersetv1alpha1.PodTemplate{Container: ct}
+	}
+
 	return &resolution.ComponentInput{
 		SharedInput: resolution.SharedInput{
-			PodTemplate: clone.PodTemplate,
+			PodTemplate: pt,
 		},
 	}
 }

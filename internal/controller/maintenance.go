@@ -463,7 +463,7 @@ func renderNginxConf() string {
 
     location = / {
         root /usr/share/nginx/html;
-        index index.html;
+        try_files /index.html =404;
     }
 
     location / {

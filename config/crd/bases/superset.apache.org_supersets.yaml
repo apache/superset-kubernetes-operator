@@ -12018,7 +12018,7 @@ spec:
                       podRetention:
                         properties:
                           policy:
-                            default: Delete
+                            default: Retain
                             enum:
                             - Delete
                             - Retain
@@ -15593,6 +15593,10 @@ spec:
                               type: object
                             type: array
                         type: object
+                      postCloneSQL:
+                        items:
+                          type: string
+                        type: array
                       requiresDrain:
                         type: boolean
                       source:
@@ -19354,7 +19358,7 @@ spec:
                   podRetention:
                     properties:
                       policy:
-                        default: Delete
+                        default: Retain
                         enum:
                         - Delete
                         - Retain

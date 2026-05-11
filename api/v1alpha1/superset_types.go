@@ -398,10 +398,12 @@ type AdminUserSpec struct {
 // PodRetentionSpec defines retention behavior for init pods.
 type PodRetentionSpec struct {
 	// Retention policy: Delete removes pods after completion, Retain keeps all,
-	// RetainOnFailure keeps only failed pods for debugging.
+	// RetainOnFailure keeps only failed pods for debugging. Retained pods are
+	// automatically cleaned up by garbage collection when the task CR is
+	// deleted on the next lifecycle run.
 	// +optional
 	// +kubebuilder:validation:Enum=Delete;Retain;RetainOnFailure
-	// +kubebuilder:default=Delete
+	// +kubebuilder:default=Retain
 	Policy *string `json:"policy,omitempty"`
 }
 
@@ -473,6 +475,12 @@ type CloneTaskSpec struct {
 	// needed by migrations but not for testing (e.g., "logs", "query").
 	// +optional
 	ExcludeTableData []string `json:"excludeTableData,omitempty"`
+
+	// SQL statements to execute against the target database after cloning.
+	// Useful for sanitizing cloned data (e.g., disabling alerts, deleting
+	// OAuth tokens, masking PII).
+	// +optional
+	PostCloneSQL []string `json:"postCloneSQL,omitempty"`
 
 	// Image for the clone pod. Defaults to postgres:17-alpine (PostgreSQL)
 	// or mysql:8-alpine (MySQL) based on source.type.

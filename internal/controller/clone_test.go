@@ -27,6 +27,7 @@ import (
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
+	"github.com/apache/superset-kubernetes-operator/internal/resolution"
 )
 
 func TestBuildPostgresCloneScript(t *testing.T) {
@@ -145,6 +146,48 @@ func TestBuildMySQLCloneScript_ExcludeTables(t *testing.T) {
 	}
 }
 
+func TestBuildCloneScript_PostCloneSQL(t *testing.T) {
+	t.Run("postgres", func(t *testing.T) {
+		clone := &supersetv1alpha1.CloneTaskSpec{
+			Source: supersetv1alpha1.CloneSourceSpec{
+				Host: "pg-prod.svc", Database: "superset_prod", Username: "reader",
+			},
+			PostCloneSQL: []string{
+				"UPDATE report_schedule SET active = false",
+				"DELETE FROM oauth2_token",
+			},
+		}
+
+		script := buildPostgresCloneScript(clone)
+
+		if !strings.Contains(script, `psql`) {
+			t.Fatal("expected psql in script")
+		}
+		if !strings.Contains(script, `-c "UPDATE report_schedule SET active = false"`) {
+			t.Errorf("expected first postCloneSQL statement, got: %s", script)
+		}
+		if !strings.Contains(script, `-c "DELETE FROM oauth2_token"`) {
+			t.Errorf("expected second postCloneSQL statement, got: %s", script)
+		}
+	})
+
+	t.Run("mysql", func(t *testing.T) {
+		mysqlType := "MySQL"
+		clone := &supersetv1alpha1.CloneTaskSpec{
+			Source: supersetv1alpha1.CloneSourceSpec{
+				Type: &mysqlType, Host: "mysql-prod.svc", Database: "superset_prod", Username: "reader",
+			},
+			PostCloneSQL: []string{"UPDATE report_schedule SET active = 0"},
+		}
+
+		script := buildMySQLCloneScript(clone)
+
+		if !strings.Contains(script, `-e "UPDATE report_schedule SET active = 0"`) {
+			t.Errorf("expected postCloneSQL statement in mysql script, got: %s", script)
+		}
+	})
+}
+
 func TestBuildCloneCommand_CustomCommand(t *testing.T) {
 	r := &SupersetReconciler{}
 	superset := &supersetv1alpha1.Superset{}
@@ -215,6 +258,41 @@ func TestBuildCloneCommand_MySQL(t *testing.T) {
 	}
 	if !strings.Contains(cmd[2], "mysqldump") {
 		t.Errorf("expected mysqldump in command, got: %s", cmd[2])
+	}
+}
+
+func TestBuildCloneTaskFlatSpec_CommandOnContainer(t *testing.T) {
+	r := &SupersetReconciler{}
+	superset := &supersetv1alpha1.Superset{}
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		Clone: &supersetv1alpha1.CloneTaskSpec{
+			Source: supersetv1alpha1.CloneSourceSpec{
+				Host:     "pg-prod.svc",
+				Database: "superset_prod",
+				Username: "reader",
+				Password: common.Ptr("secret"),
+			},
+		},
+	}
+	superset.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+		Host:     common.Ptr("postgres"),
+		Database: common.Ptr("superset_staging"),
+		Username: common.Ptr("superset"),
+		Password: common.Ptr("pass"),
+	}
+
+	flatSpec := r.buildCloneTaskFlatSpec(superset, "default", &resolution.SharedInput{})
+	podSpec := buildInitPod(&flatSpec)
+
+	if len(podSpec.Containers) == 0 {
+		t.Fatal("expected at least one container")
+	}
+	cmd := podSpec.Containers[0].Command
+	if len(cmd) == 0 {
+		t.Fatal("expected command on clone pod container, got nil")
+	}
+	if cmd[0] != "/bin/sh" || !strings.Contains(cmd[2], "pg_dump") {
+		t.Errorf("expected pg_dump shell command, got: %v", cmd)
 	}
 }
 
@@ -1006,4 +1084,124 @@ func TestScheduleRequeue_DisabledClone(t *testing.T) {
 	if requeue != 0 {
 		t.Errorf("expected 0 requeue with disabled clone, got %v", requeue)
 	}
+}
+
+func TestAllTasksStillComplete_SkipsDrainWhenNothingChanged(t *testing.T) {
+	now := time.Date(2026, 5, 11, 14, 30, 0, 0, time.UTC)
+	r := &SupersetReconciler{Now: func() time.Time { return now }}
+
+	superset := &supersetv1alpha1.Superset{}
+	superset.UID = "test-uid"
+	superset.Spec.Image = supersetv1alpha1.ImageSpec{Tag: "4.1.4"}
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		Migrate: &supersetv1alpha1.MigrateTaskSpec{},
+		Init:    &supersetv1alpha1.InitTaskSpec{},
+	}
+
+	configChecksum := "config-abc"
+
+	// Simulate a completed lifecycle: compute checksums and store them.
+	incomingChecksum := string(superset.UID)
+	migrateCmd := defaultMigrateCommand(superset)
+	migrateChecksum := r.computeStepChecksum(incomingChecksum, taskTypeMigrate, migrateCmd, r.migrateInputs(superset))
+	initCmd := defaultInitCommand(superset)
+	initChecksum := r.computeStepChecksum(migrateChecksum, taskTypeInit, initCmd, r.initInputs(superset, configChecksum))
+
+	superset.Status.Lifecycle = &supersetv1alpha1.LifecycleStatus{
+		LastCompletedChecksums: map[string]string{
+			taskTypeMigrate: migrateChecksum,
+			taskTypeInit:    initChecksum,
+		},
+	}
+
+	t.Run("returns true when nothing changed", func(t *testing.T) {
+		if !r.allTasksStillComplete(superset, false, true, true, configChecksum) {
+			t.Error("expected allTasksStillComplete=true when checksums match")
+		}
+	})
+
+	t.Run("returns false when config changes", func(t *testing.T) {
+		if r.allTasksStillComplete(superset, false, true, true, "config-changed") {
+			t.Error("expected allTasksStillComplete=false when config checksum changed")
+		}
+	})
+
+	t.Run("returns false when image changes", func(t *testing.T) {
+		modified := superset.DeepCopy()
+		modified.Spec.Image.Tag = "5.0.0"
+		if r.allTasksStillComplete(modified, false, true, true, configChecksum) {
+			t.Error("expected allTasksStillComplete=false when image changed")
+		}
+	})
+
+	t.Run("returns false with no stored checksums", func(t *testing.T) {
+		modified := superset.DeepCopy()
+		modified.Status.Lifecycle.LastCompletedChecksums = nil
+		if r.allTasksStillComplete(modified, false, true, true, configChecksum) {
+			t.Error("expected allTasksStillComplete=false with nil checksums")
+		}
+	})
+
+	t.Run("returns false when trigger changes", func(t *testing.T) {
+		modified := superset.DeepCopy()
+		modified.Spec.Lifecycle.Migrate = &supersetv1alpha1.MigrateTaskSpec{
+			BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Trigger: common.Ptr("force-v1")},
+		}
+		if r.allTasksStillComplete(modified, false, true, true, configChecksum) {
+			t.Error("expected allTasksStillComplete=false when trigger changed")
+		}
+	})
+}
+
+func TestAllTasksStillComplete_WithCloneSchedule(t *testing.T) {
+	now := time.Date(2026, 5, 11, 14, 30, 0, 0, time.UTC)
+	r := &SupersetReconciler{Now: func() time.Time { return now }}
+
+	cronExpr := "0 * * * *"
+	superset := &supersetv1alpha1.Superset{}
+	superset.UID = "test-uid"
+	superset.Spec.Image = supersetv1alpha1.ImageSpec{Tag: "4.1.4"}
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		Clone: &supersetv1alpha1.CloneTaskSpec{
+			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
+				CronSchedule: &cronExpr,
+			},
+			Source: supersetv1alpha1.CloneSourceSpec{Host: "prod-db", Database: "superset", Username: "reader"},
+		},
+		Migrate: &supersetv1alpha1.MigrateTaskSpec{},
+		Init:    &supersetv1alpha1.InitTaskSpec{},
+	}
+
+	configChecksum := "config-abc"
+
+	// Compute and store checksums as if lifecycle already completed at :30.
+	incomingChecksum := string(superset.UID)
+	cloneCmd := r.buildCloneCommand(superset)
+	cloneChecksum := r.computeStepChecksum(incomingChecksum, taskTypeClone, cloneCmd, r.cloneInputs(superset))
+	migrateCmd := defaultMigrateCommand(superset)
+	migrateChecksum := r.computeStepChecksum(cloneChecksum, taskTypeMigrate, migrateCmd, r.migrateInputs(superset))
+	initCmd := defaultInitCommand(superset)
+	initChecksum := r.computeStepChecksum(migrateChecksum, taskTypeInit, initCmd, r.initInputs(superset, configChecksum))
+
+	superset.Status.Lifecycle = &supersetv1alpha1.LifecycleStatus{
+		LastCompletedChecksums: map[string]string{
+			taskTypeClone:   cloneChecksum,
+			taskTypeMigrate: migrateChecksum,
+			taskTypeInit:    initChecksum,
+		},
+	}
+
+	t.Run("stable within cron window", func(t *testing.T) {
+		if !r.allTasksStillComplete(superset, true, true, true, configChecksum) {
+			t.Error("expected allTasksStillComplete=true within same cron window")
+		}
+	})
+
+	t.Run("returns false when cron tick crosses boundary", func(t *testing.T) {
+		nextHour := time.Date(2026, 5, 11, 15, 1, 0, 0, time.UTC)
+		r2 := &SupersetReconciler{Now: func() time.Time { return nextHour }}
+		if r2.allTasksStillComplete(superset, true, true, true, configChecksum) {
+			t.Error("expected allTasksStillComplete=false after cron boundary crossing")
+		}
+	})
 }

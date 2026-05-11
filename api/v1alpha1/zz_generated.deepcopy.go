@@ -373,6 +373,11 @@ func (in *CloneTaskSpec) DeepCopyInto(out *CloneTaskSpec) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.PostCloneSQL != nil {
+		in, out := &in.PostCloneSQL, &out.PostCloneSQL
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.Image != nil {
 		in, out := &in.Image, &out.Image
 		*out = new(ImageSpec)

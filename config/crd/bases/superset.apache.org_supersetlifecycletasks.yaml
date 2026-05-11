@@ -408,7 +408,7 @@ spec:
               podRetention:
                 properties:
                   policy:
-                    default: Delete
+                    default: Retain
                     enum:
                     - Delete
                     - Retain

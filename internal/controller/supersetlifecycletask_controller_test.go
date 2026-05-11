@@ -228,7 +228,7 @@ func TestGetInitRetentionPolicy(t *testing.T) {
 		{
 			"default",
 			&supersetv1alpha1.SupersetLifecycleTask{},
-			"Delete",
+			"Retain",
 		},
 		{
 			"retain",
@@ -503,12 +503,12 @@ func TestInitReconcile_PodSucceeded_RetentionDeferredUntilNextReconcile(t *testi
 		t.Fatalf("reconcile 2: %v", err)
 	}
 
-	// Pod should now be deleted (default retention = Delete).
+	// Pod should still exist (default retention = Retain).
 	if err := c.List(context.Background(), podList); err != nil {
 		t.Fatalf("list pods: %v", err)
 	}
-	if len(podList.Items) != 0 {
-		t.Errorf("expected pod to be deleted after retention reconcile, got %d pods", len(podList.Items))
+	if len(podList.Items) != 1 {
+		t.Errorf("expected pod to be retained after retention reconcile, got %d pods", len(podList.Items))
 	}
 }
 
@@ -1034,8 +1034,10 @@ func TestApplyRetentionPolicy(t *testing.T) {
 		phase      corev1.PodPhase
 		wantDelete bool
 	}{
-		{"Delete/Succeeded", nil, corev1.PodSucceeded, true},
-		{"Delete/Failed", nil, corev1.PodFailed, true},
+		{"Default/Succeeded", nil, corev1.PodSucceeded, false},
+		{"Default/Failed", nil, corev1.PodFailed, false},
+		{"Delete/Succeeded", strPtr("Delete"), corev1.PodSucceeded, true},
+		{"Delete/Failed", strPtr("Delete"), corev1.PodFailed, true},
 		{"Retain/Succeeded", strPtr("Retain"), corev1.PodSucceeded, false},
 		{"Retain/Failed", strPtr("Retain"), corev1.PodFailed, false},
 		{"RetainOnFailure/Succeeded", strPtr("RetainOnFailure"), corev1.PodSucceeded, true},
