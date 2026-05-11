@@ -10,4 +10,5 @@ resources:
 - bases/superset.apache.org_supersetceleryflowers.yaml
 - bases/superset.apache.org_supersetwebsocketservers.yaml
 - bases/superset.apache.org_supersetmcpservers.yaml
+- bases/superset.apache.org_supersetmaintenancepages.yaml
 # +kubebuilder:scaffold:crdkustomizeresource
