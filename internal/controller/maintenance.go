@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"html"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -73,7 +74,7 @@ func (r *SupersetReconciler) reconcileMaintenancePageUp(
 		}
 	}
 
-	// Step 2: Ensure SupersetMaintenancePage child CR exists.
+	// Step 2: Ensure SupersetMaintenancePage child CR exists and is up to date.
 	childCR := &supersetv1alpha1.SupersetMaintenancePage{}
 	childCR.Name = superset.Name
 	childCR.Namespace = superset.Namespace
@@ -86,6 +87,18 @@ func (r *SupersetReconciler) reconcileMaintenancePageUp(
 			return false, fmt.Errorf("creating maintenance page CR: %w", err)
 		}
 		log.Info("Created SupersetMaintenancePage child CR")
+		return false, nil
+	}
+
+	// Update CR if spec has drifted.
+	desiredChecksum := computeMaintenanceChecksum(spec)
+	if childCR.Spec.ConfigChecksum != desiredChecksum {
+		childCR.Spec.FlatComponentSpec = buildMaintenanceFlatSpec(superset.Name, spec)
+		childCR.Spec.ConfigChecksum = desiredChecksum
+		if err := r.Update(ctx, childCR); err != nil {
+			return false, fmt.Errorf("updating maintenance page CR: %w", err)
+		}
+		log.Info("Updated SupersetMaintenancePage child CR (spec changed)")
 		return false, nil
 	}
 
@@ -472,6 +485,8 @@ func renderMaintenanceHTML(spec *supersetv1alpha1.MaintenancePageSpec) string {
 	if spec.Message != nil {
 		message = *spec.Message
 	}
+	title = html.EscapeString(title)
+	message = html.EscapeString(message)
 
 	return `<!DOCTYPE html>
 <html>

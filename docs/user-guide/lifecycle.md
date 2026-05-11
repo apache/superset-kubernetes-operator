@@ -463,10 +463,8 @@ spec:
         - logs
         - query
       timeout: 30m
-    migrate:
-      strategy: Always
-    init:
-      strategy: Always
+    migrate: {}
+    init: {}
   webServer: {}
   celeryWorker: {}
   # celeryBeat intentionally omitted — prevents alert double-triggers

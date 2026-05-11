@@ -39111,6 +39111,11 @@ spec:
                 metastore
               rule: (has(self.environment) && (self.environment == 'Development' ||
                 self.environment == 'Staging')) || !has(self.lifecycle) || !has(self.lifecycle.clone)
+            - message: lifecycle.clone.source.password is only allowed when environment
+                is Development; use lifecycle.clone.source.passwordFrom in Staging
+              rule: (has(self.environment) && self.environment == 'Development') ||
+                !has(self.lifecycle) || !has(self.lifecycle.clone) || !has(self.lifecycle.clone.source)
+                || !has(self.lifecycle.clone.source.password)
             - message: lifecycle.clone requires structured metastore configuration
                 (host must be set)
               rule: '!has(self.lifecycle) || !has(self.lifecycle.clone) || (has(self.metastore)
@@ -39299,6 +39304,10 @@ spec:
                         - Complete
                         - Failed
                         type: string
+                    type: object
+                  lastCompletedChecksums:
+                    additionalProperties:
+                      type: string
                     type: object
                   maintenanceActive:
                     type: boolean

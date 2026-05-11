@@ -118,6 +118,9 @@ func TestBuildMySQLCloneScript(t *testing.T) {
 	if !strings.Contains(script, "| mysql") {
 		t.Error("expected pipe to mysql")
 	}
+	if strings.Contains(script, "`") {
+		t.Error("script must not contain backticks (shell command substitution)")
+	}
 }
 
 func TestBuildMySQLCloneScript_ExcludeTables(t *testing.T) {
@@ -466,6 +469,28 @@ func TestSplitImageRef(t *testing.T) {
 			repo, tag := splitImageRef(tt.ref)
 			if repo != tt.wantRepo || tag != tt.wantTag {
 				t.Errorf("splitImageRef(%q) = (%q, %q), want (%q, %q)", tt.ref, repo, tag, tt.wantRepo, tt.wantTag)
+			}
+		})
+	}
+}
+
+func TestTagFromImageRef(t *testing.T) {
+	tests := []struct {
+		ref  string
+		want string
+	}{
+		{"apache/superset:4.1.0", "4.1.0"},
+		{"registry:5000/apache/superset:4.1.0", "4.1.0"},
+		{"localhost:5000/img:latest", "latest"},
+		{"registry.io/image", "registry.io/image"},
+		{"myimage:v2.0.0-rc1", "v2.0.0-rc1"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.ref, func(t *testing.T) {
+			got := tagFromImageRef(tt.ref)
+			if got != tt.want {
+				t.Errorf("tagFromImageRef(%q) = %q, want %q", tt.ref, got, tt.want)
 			}
 		})
 	}

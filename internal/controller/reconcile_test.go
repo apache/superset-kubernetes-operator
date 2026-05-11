@@ -1451,17 +1451,46 @@ func TestReconcile_ImageUnchanged_SkipsLifecycleTasks(t *testing.T) {
 	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{}
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "test-uid"},
 		Spec:       spec,
 		Status: supersetv1alpha1.SupersetStatus{
 			LastLifecycleImage: "apache/superset:latest",
 		},
 	}
 
+	// Pre-compute checksums so the skip logic fires.
+	// When task CRs are absent, getTaskStatusChecksum returns "" for the
+	// downstream incoming checksum, so init uses "" as incoming.
+	r := &SupersetReconciler{Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	configChecksum := computeChecksum(struct {
+		SecretKey           *string
+		SecretKeyFrom       *corev1.SecretKeySelector
+		Metastore           *supersetv1alpha1.MetastoreSpec
+		Valkey              *supersetv1alpha1.ValkeySpec
+		Config              *string
+		SQLAEngineOptions   *supersetv1alpha1.SQLAlchemyEngineOptionsSpec
+		WebServerGunicorn   *supersetv1alpha1.GunicornSpec
+		CeleryWorkerProcess *supersetv1alpha1.CeleryWorkerProcessSpec
+	}{
+		spec.SecretKey, spec.SecretKeyFrom, spec.Metastore, spec.Valkey, spec.Config,
+		spec.SQLAlchemyEngineOptions,
+		gunicornSpecFrom(spec.WebServer),
+		celerySpecFrom(spec.CeleryWorker),
+	})
+	uid := string(superset.UID)
+	migrateChecksum := r.computeStepChecksum(uid, taskTypeMigrate, defaultMigrateCommand(superset), r.migrateInputs(superset))
+	initChecksum := r.computeStepChecksum("", taskTypeInit, defaultInitCommand(superset), r.initInputs(superset, configChecksum))
+	superset.Status.Lifecycle = &supersetv1alpha1.LifecycleStatus{
+		LastCompletedChecksums: map[string]string{
+			taskTypeMigrate: migrateChecksum,
+			taskTypeInit:    initChecksum,
+		},
+	}
+
 	c := reconcileOnce(t, scheme, superset).
 		WithStatusSubresource(&supersetv1alpha1.SupersetLifecycleTask{}).
 		Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	r.Client = c
 	doReconcile(t, r, "test")
 
 	tasks := &supersetv1alpha1.SupersetLifecycleTaskList{}
@@ -1475,6 +1504,41 @@ func TestReconcile_ImageUnchanged_SkipsLifecycleTasks(t *testing.T) {
 	ww := &supersetv1alpha1.SupersetWebServer{}
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, ww); err != nil {
 		t.Fatalf("expected web server when lifecycle already complete: %v", err)
+	}
+}
+
+func TestReconcile_TaskCRAbsent_RecreatesWhenChecksumDiffers(t *testing.T) {
+	scheme := testScheme(t)
+
+	spec := minimalSupersetSpec()
+	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{}
+
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec:       spec,
+		Status: supersetv1alpha1.SupersetStatus{
+			LastLifecycleImage: "apache/superset:latest",
+			Lifecycle: &supersetv1alpha1.LifecycleStatus{
+				LastCompletedChecksums: map[string]string{
+					taskTypeMigrate: "stale-checksum",
+					taskTypeInit:    "stale-checksum",
+				},
+			},
+		},
+	}
+
+	c := reconcileOnce(t, scheme, superset).
+		WithStatusSubresource(&supersetv1alpha1.SupersetLifecycleTask{}).
+		Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r, "test")
+
+	tasks := &supersetv1alpha1.SupersetLifecycleTaskList{}
+	if err := c.List(context.Background(), tasks); err != nil {
+		t.Fatalf("list tasks: %v", err)
+	}
+	if len(tasks.Items) == 0 {
+		t.Error("expected task CRs to be recreated when checksum differs")
 	}
 }
 
@@ -1680,10 +1744,37 @@ func TestReconcile_Clone_NoDrainWithoutClone(t *testing.T) {
 	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{}
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "test-uid"},
 		Spec:       spec,
 		Status: supersetv1alpha1.SupersetStatus{
 			LastLifecycleImage: "apache/superset:latest",
+		},
+	}
+
+	// Pre-compute checksums so tasks are skipped.
+	r := &SupersetReconciler{Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	configChecksum := computeChecksum(struct {
+		SecretKey           *string
+		SecretKeyFrom       *corev1.SecretKeySelector
+		Metastore           *supersetv1alpha1.MetastoreSpec
+		Valkey              *supersetv1alpha1.ValkeySpec
+		Config              *string
+		SQLAEngineOptions   *supersetv1alpha1.SQLAlchemyEngineOptionsSpec
+		WebServerGunicorn   *supersetv1alpha1.GunicornSpec
+		CeleryWorkerProcess *supersetv1alpha1.CeleryWorkerProcessSpec
+	}{
+		spec.SecretKey, spec.SecretKeyFrom, spec.Metastore, spec.Valkey, spec.Config,
+		spec.SQLAlchemyEngineOptions,
+		gunicornSpecFrom(spec.WebServer),
+		celerySpecFrom(spec.CeleryWorker),
+	})
+	uid := string(superset.UID)
+	migrateChecksum := r.computeStepChecksum(uid, taskTypeMigrate, defaultMigrateCommand(superset), r.migrateInputs(superset))
+	initChecksum := r.computeStepChecksum("", taskTypeInit, defaultInitCommand(superset), r.initInputs(superset, configChecksum))
+	superset.Status.Lifecycle = &supersetv1alpha1.LifecycleStatus{
+		LastCompletedChecksums: map[string]string{
+			taskTypeMigrate: migrateChecksum,
+			taskTypeInit:    initChecksum,
 		},
 	}
 
@@ -1700,7 +1791,7 @@ func TestReconcile_Clone_NoDrainWithoutClone(t *testing.T) {
 		WithObjects(webServer).
 		WithStatusSubresource(&supersetv1alpha1.SupersetLifecycleTask{}, &supersetv1alpha1.SupersetWebServer{}).
 		Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	r.Client = c
 	doReconcile(t, r, "test")
 
 	ctx := context.Background()

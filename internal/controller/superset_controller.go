@@ -606,13 +606,19 @@ func (r *SupersetReconciler) reconcileLifecycleTask(
 
 	if errors.IsNotFound(err) {
 		// If the lifecycle previously completed (LastLifecycleImage is set) but
-		// no task CR exists (GC or manual deletion), the task was already done.
-		// Skip creation — the task will be re-created on the next actual change
-		// (when the computed checksum would differ from the stored one anyway).
+		// no task CR exists (GC or manual deletion), skip only when both image
+		// and task checksum are unchanged. This prevents silent skips when
+		// non-image inputs (trigger, cronSchedule, config) change.
 		if superset.Status.LastLifecycleImage != "" &&
 			superset.Status.LastLifecycleImage == resolveLifecycleImage(&superset.Spec.Image, lifecycleImageOverride(superset)) {
-			log.Info("Task already completed in previous lifecycle run (no CR, inputs unchanged)", "task", taskType)
-			return 0, true, nil
+			storedChecksum := ""
+			if superset.Status.Lifecycle != nil && superset.Status.Lifecycle.LastCompletedChecksums != nil {
+				storedChecksum = superset.Status.Lifecycle.LastCompletedChecksums[taskType]
+			}
+			if storedChecksum != "" && storedChecksum == taskChecksum {
+				log.Info("Task already completed in previous lifecycle run (no CR, inputs unchanged)", "task", taskType)
+				return 0, true, nil
+			}
 		}
 
 		child = &supersetv1alpha1.SupersetLifecycleTask{
@@ -689,6 +695,13 @@ func (r *SupersetReconciler) reconcileLifecycleTask(
 	switch child.Status.State {
 	case taskStateComplete:
 		if child.Status.ConfigChecksum == taskChecksum {
+			if superset.Status.Lifecycle == nil {
+				superset.Status.Lifecycle = &supersetv1alpha1.LifecycleStatus{}
+			}
+			if superset.Status.Lifecycle.LastCompletedChecksums == nil {
+				superset.Status.Lifecycle.LastCompletedChecksums = make(map[string]string)
+			}
+			superset.Status.Lifecycle.LastCompletedChecksums[taskType] = taskChecksum
 			log.Info("Task complete (checksum match, skipping)", "task", taskType)
 			return 0, true, nil
 		}
@@ -1186,7 +1199,7 @@ PGPASSWORD="$SUPERSET_OPERATOR__CLONE_SRC_PASS" pg_dump -h "$SUPERSET_OPERATOR__
 func buildMySQLCloneScript(clone *supersetv1alpha1.CloneTaskSpec) string {
 	var b strings.Builder
 	b.WriteString(`set -e
-mysql -h "$SUPERSET_OPERATOR__DB_HOST" -P "$SUPERSET_OPERATOR__DB_PORT" -u "$SUPERSET_OPERATOR__DB_USER" -p"$SUPERSET_OPERATOR__DB_PASS" -e "DROP DATABASE IF EXISTS ` + "`$SUPERSET_OPERATOR__DB_NAME`" + `; CREATE DATABASE ` + "`$SUPERSET_OPERATOR__DB_NAME`" + `;"
+mysql -h "$SUPERSET_OPERATOR__DB_HOST" -P "$SUPERSET_OPERATOR__DB_PORT" -u "$SUPERSET_OPERATOR__DB_USER" -p"$SUPERSET_OPERATOR__DB_PASS" -e "DROP DATABASE IF EXISTS $SUPERSET_OPERATOR__DB_NAME; CREATE DATABASE $SUPERSET_OPERATOR__DB_NAME;"
 mysqldump -h "$SUPERSET_OPERATOR__CLONE_SRC_HOST" -P "$SUPERSET_OPERATOR__CLONE_SRC_PORT" -u "$SUPERSET_OPERATOR__CLONE_SRC_USER" -p"$SUPERSET_OPERATOR__CLONE_SRC_PASS" --single-transaction --routines --triggers`)
 
 	for _, t := range clone.ExcludeTables {
@@ -1441,9 +1454,8 @@ func resolveLifecycleImage(parentImage *supersetv1alpha1.ImageSpec, override *su
 }
 
 func tagFromImageRef(ref string) string {
-	parts := strings.SplitN(ref, ":", 2)
-	if len(parts) == 2 {
-		return parts[1]
+	if idx := strings.LastIndex(ref, ":"); idx != -1 {
+		return ref[idx+1:]
 	}
 	return ref
 }
@@ -1994,6 +2006,7 @@ func (r *SupersetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&supersetv1alpha1.SupersetWebsocketServer{}).
 		Owns(&supersetv1alpha1.SupersetMcpServer{}).
 		Owns(&corev1.ServiceAccount{}).
+		Owns(&corev1.ConfigMap{}).
 		Owns(&networkingv1.Ingress{}).
 		Owns(&networkingv1.NetworkPolicy{}).
 		Named("superset")

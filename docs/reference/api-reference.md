@@ -677,6 +677,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `phase` _string_ | Phase of the lifecycle: Idle, Cloning, Migrating, Initializing, Complete, Blocked, AwaitingApproval. |  | Optional: \{\} <br /> |
 | `maintenanceActive` _boolean_ | MaintenanceActive indicates the maintenance page is currently serving traffic<br />via the web-server Service. |  | Optional: \{\} <br /> |
+| `lastCompletedChecksums` _object (keys:string, values:string)_ | LastCompletedChecksums maps task type to its ConfigChecksum at last<br />successful completion. Used to detect input drift when task CRs are absent. |  | Optional: \{\} <br /> |
 | `clone` _[TaskRefStatus](#taskrefstatus)_ | Clone task status summary. |  | Optional: \{\} <br /> |
 | `migrate` _[TaskRefStatus](#taskrefstatus)_ | Migrate task status summary. |  | Optional: \{\} <br /> |
 | `init` _[TaskRefStatus](#taskrefstatus)_ | Init task status summary. |  | Optional: \{\} <br /> |
@@ -705,7 +706,7 @@ _Appears in:_
 | `body` _string_ | Full HTML page content. When set in managed mode, title and message are<br />ignored and this value is served as the complete page.<br />In custom mode, passed as env var SUPERSET_OPERATOR__MAINTENANCE_BODY. |  | Optional: \{\} <br /> |
 | `image` _[ImageSpec](#imagespec)_ | Image for the maintenance page container. When set, switches to custom<br />mode: no nginx config is injected, and the user's image is responsible<br />for serving HTTP traffic on the web-server port (default 8088). The port<br />must match the web-server Service's target port since the maintenance page<br />takes over that Service during lifecycle tasks.<br />When unset, defaults to nginx:alpine (managed mode). |  | Optional: \{\} <br /> |
 | `replicas` _integer_ | Number of maintenance page pod replicas. | 1 | Optional: \{\} <br /> |
-| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Deployment and pod template for the maintenance page Deployment.<br />Supports full customization: labels, annotations, resources, tolerations,<br />nodeSelector, volumes, replicas, etc. |  | Optional: \{\} <br /> |
+| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Deployment-level overrides for the maintenance page (strategy, revision history).<br />For pod-level settings, use PodTemplate. |  | Optional: \{\} <br /> |
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod template for the maintenance page pod (nested within deployment template<br />for user convenience). |  | Optional: \{\} <br /> |
 
 

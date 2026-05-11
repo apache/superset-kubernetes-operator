@@ -37,6 +37,7 @@ import (
 // +kubebuilder:validation:XValidation:rule="!has(self.networking) || !has(self.networking.gateway) || has(self.webServer) || has(self.websocketServer) || has(self.mcpServer) || has(self.celeryFlower)",message="spec.networking.gateway requires at least one component with a routable service (webServer, websocketServer, mcpServer, or celeryFlower)"
 // +kubebuilder:validation:XValidation:rule="!has(self.monitoring) || !has(self.monitoring.serviceMonitor) || has(self.webServer)",message="spec.monitoring.serviceMonitor requires spec.webServer to be set (scrapes the web server service)"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && (self.environment == 'Development' || self.environment == 'Staging')) || !has(self.lifecycle) || !has(self.lifecycle.clone)",message="lifecycle.clone is only allowed when environment is Development or Staging; cloning performs a destructive DROP DATABASE on the target metastore"
+// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.lifecycle) || !has(self.lifecycle.clone) || !has(self.lifecycle.clone.source) || !has(self.lifecycle.clone.source.password)",message="lifecycle.clone.source.password is only allowed when environment is Development; use lifecycle.clone.source.passwordFrom in Staging"
 // +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.clone) || (has(self.metastore) && has(self.metastore.host))",message="lifecycle.clone requires structured metastore configuration (host must be set)"
 type SupersetSpec struct {
 	// Image configuration inherited by all components.
@@ -440,9 +441,8 @@ type MaintenancePageSpec struct {
 	// +kubebuilder:default=1
 	Replicas *int32 `json:"replicas,omitempty"`
 
-	// Deployment and pod template for the maintenance page Deployment.
-	// Supports full customization: labels, annotations, resources, tolerations,
-	// nodeSelector, volumes, replicas, etc.
+	// Deployment-level overrides for the maintenance page (strategy, revision history).
+	// For pod-level settings, use PodTemplate.
 	// +optional
 	DeploymentTemplate *DeploymentTemplate `json:"deploymentTemplate,omitempty"`
 
@@ -671,6 +671,10 @@ type LifecycleStatus struct {
 	// via the web-server Service.
 	// +optional
 	MaintenanceActive bool `json:"maintenanceActive,omitempty"`
+	// LastCompletedChecksums maps task type to its ConfigChecksum at last
+	// successful completion. Used to detect input drift when task CRs are absent.
+	// +optional
+	LastCompletedChecksums map[string]string `json:"lastCompletedChecksums,omitempty"`
 	// Clone task status summary.
 	// +optional
 	Clone *TaskRefStatus `json:"clone,omitempty"`
