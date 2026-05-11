@@ -326,6 +326,14 @@ type LifecycleSpec struct {
 	// +optional
 	SQLAlchemyEngineOptions *SQLAlchemyEngineOptionsSpec `json:"sqlaEngineOptions,omitempty"`
 
+	// MaintenancePage configures a lightweight maintenance page served during
+	// lifecycle drain and task execution. Presence enables the feature.
+	// In managed mode (no image override), an nginx:alpine container serves
+	// a default or custom HTML page. In custom mode (image set), the user's
+	// image handles serving, and content fields are passed as env vars.
+	// +optional
+	MaintenancePage *MaintenancePageSpec `json:"maintenancePage,omitempty"`
+
 	// Clone configures database cloning from an external source before running
 	// migrations. The clone target is always spec.metastore. Only allowed in dev mode.
 	// +optional
@@ -394,6 +402,54 @@ type PodRetentionSpec struct {
 	// +kubebuilder:validation:Enum=Delete;Retain;RetainOnFailure
 	// +kubebuilder:default=Delete
 	Policy *string `json:"policy,omitempty"`
+}
+
+// MaintenancePageSpec configures a lightweight maintenance page served while
+// components are drained for lifecycle tasks. Supports two modes:
+//   - Managed (default): uses nginx:alpine with operator-generated HTML and nginx config.
+//   - Custom (image set): user provides their own image/command; content fields
+//     are passed as SUPERSET_OPERATOR__MAINTENANCE_* env vars.
+type MaintenancePageSpec struct {
+	// Title displayed on the maintenance page heading (managed mode).
+	// In custom mode, passed as env var SUPERSET_OPERATOR__MAINTENANCE_TITLE.
+	// +optional
+	Title *string `json:"title,omitempty"`
+
+	// Message displayed below the title (managed mode).
+	// In custom mode, passed as env var SUPERSET_OPERATOR__MAINTENANCE_MESSAGE.
+	// +optional
+	Message *string `json:"message,omitempty"`
+
+	// Full HTML page content. When set in managed mode, title and message are
+	// ignored and this value is served as the complete page.
+	// In custom mode, passed as env var SUPERSET_OPERATOR__MAINTENANCE_BODY.
+	// +optional
+	Body *string `json:"body,omitempty"`
+
+	// Image for the maintenance page container. When set, switches to custom
+	// mode: no nginx config is injected, and the user's image is responsible
+	// for serving HTTP traffic on the web-server port (default 8088). The port
+	// must match the web-server Service's target port since the maintenance page
+	// takes over that Service during lifecycle tasks.
+	// When unset, defaults to nginx:alpine (managed mode).
+	// +optional
+	Image *ImageSpec `json:"image,omitempty"`
+
+	// Number of maintenance page pod replicas.
+	// +optional
+	// +kubebuilder:default=1
+	Replicas *int32 `json:"replicas,omitempty"`
+
+	// Deployment and pod template for the maintenance page Deployment.
+	// Supports full customization: labels, annotations, resources, tolerations,
+	// nodeSelector, volumes, replicas, etc.
+	// +optional
+	DeploymentTemplate *DeploymentTemplate `json:"deploymentTemplate,omitempty"`
+
+	// Pod template for the maintenance page pod (nested within deployment template
+	// for user convenience).
+	// +optional
+	PodTemplate *PodTemplate `json:"podTemplate,omitempty"`
 }
 
 // --- Clone spec ---
@@ -611,6 +667,10 @@ type LifecycleStatus struct {
 	// Phase of the lifecycle: Idle, Cloning, Migrating, Initializing, Complete, Blocked, AwaitingApproval.
 	// +optional
 	Phase string `json:"phase,omitempty"`
+	// MaintenanceActive indicates the maintenance page is currently serving traffic
+	// via the web-server Service.
+	// +optional
+	MaintenanceActive bool `json:"maintenanceActive,omitempty"`
 	// Clone task status summary.
 	// +optional
 	Clone *TaskRefStatus `json:"clone,omitempty"`
@@ -706,6 +766,7 @@ type ComponentRefStatus struct {
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.celeryFlower) || size(self.metadata.name) <= 49",message="metadata.name must be at most 49 characters when celeryFlower is enabled (sub-resource suffix '-celery-flower' is 14 chars)"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.websocketServer) || size(self.metadata.name) <= 46",message="metadata.name must be at most 46 characters when websocketServer is enabled (sub-resource suffix '-websocket-server' is 17 chars)"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.mcpServer) || size(self.metadata.name) <= 52",message="metadata.name must be at most 52 characters when mcpServer is enabled (sub-resource suffix '-mcp-server' is 11 chars)"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.lifecycle) || !has(self.spec.lifecycle.maintenancePage) || size(self.metadata.name) <= 46",message="metadata.name must be at most 46 characters when lifecycle.maintenancePage is enabled (sub-resource suffix '-maintenance-page' is 17 chars)"
 // +kubebuilder:validation:XValidation:rule="(has(self.spec.lifecycle) && has(self.spec.lifecycle.disabled) && self.spec.lifecycle.disabled == true) || size(self.metadata.name) <= 48",message="metadata.name must be at most 48 characters when lifecycle is enabled (task name '{parent}-migrate' + ConfigMap suffix '-config' must fit within 63 chars)"
 
 // Superset is the top-level resource representing a complete Superset deployment.

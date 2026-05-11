@@ -40,6 +40,8 @@ import (
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersetwebsocketservers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersetmcpservers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersetmcpservers/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetmaintenancepages,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetmaintenancepages/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
@@ -155,6 +157,23 @@ func ChildControllerDefs() []ChildControllerDef {
 				hasScaling:  true,
 			},
 			newObj: func() ChildCR { return &supersetv1alpha1.SupersetMcpServer{} },
+		},
+		{
+			Name: "superset-maintenance-page",
+			config: childReconcilerConfig{
+				componentName: string(common.ComponentMaintenancePage),
+				deployConfig: DeploymentConfig{
+					ContainerName:  "maintenance-page",
+					DefaultCommand: nil,
+					DefaultPorts: []corev1.ContainerPort{
+						{Name: common.PortNameHTTP, ContainerPort: common.PortWebServer, Protocol: corev1.ProtocolTCP},
+					},
+				},
+				defaultPort: 0,
+				hasConfig:   false,
+				hasScaling:  false,
+			},
+			newObj: func() ChildCR { return &supersetv1alpha1.SupersetMaintenancePage{} },
 		},
 	}
 }

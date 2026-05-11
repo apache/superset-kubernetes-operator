@@ -298,6 +298,64 @@ owned resources. Removing a component from the parent spec (e.g. deleting
 
 ---
 
+## Maintenance Page (Service Takeover via Orphan Deletion)
+
+When `spec.lifecycle.maintenancePage` is set, the operator serves a maintenance
+page during drain and lifecycle tasks. This section documents the design decision
+behind the traffic switchover mechanism.
+
+### Problem
+
+During drain, component child CRs are deleted. GC cascades this to Deployments,
+Services, and Pods. The web-server Service disappears, leaving users with
+connection errors instead of a friendly maintenance message.
+
+### Solution: Orphan Deletion + Selector Patch
+
+The operator uses `propagationPolicy: Orphan` when deleting the SupersetWebServer
+child CR. This preserves the Service (and Deployment) as unowned resources. The
+operator then patches the orphaned Service's selector to route traffic to
+maintenance pods, and explicitly deletes the orphaned Deployment to terminate
+web-server pods.
+
+After lifecycle tasks complete, the operator clears any remaining owner references
+from the Service. The subsequent component reconciliation recreates the
+SupersetWebServer child CR, whose reconciler finds the existing Service via
+`CreateOrUpdate` and adopts it via `SetControllerReference`, restoring the
+original web-server selector.
+
+### Alternatives Considered
+
+**Owner reference manipulation** (transfer Service ownership parent ↔ child):
+Rejected because manually editing `ownerReferences` is non-standard, creates
+coupling with the GC controller's timing, and violates the principle that
+controllers should only manage resources they own.
+
+**Separate maintenance Service + Ingress/HTTPRoute backend swap**: Architecturally
+pure (clean separation, no interaction with web-server resources), but rejected
+because Ingress/HTTPRoute propagation latency varies significantly by controller
+implementation — from ~1s (Envoy-based) to 1-3 minutes (cloud load balancers like
+GCP/AWS). This creates an unacceptable error window where users hit the draining
+backend. Also doesn't work for users without networking configured.
+
+**Parent-owned stable "frontend" Service**: Cleanest long-term architecture (parent
+permanently owns the external-facing Service, child CRD's Service is internal),
+but requires a breaking change to Service naming and introduces a new architectural
+concept for a single feature.
+
+### Why Orphan Deletion
+
+- Uses a standard Kubernetes API concept (`propagationPolicy: Orphan`)
+- The Service is genuinely unowned during the maintenance window — no architectural
+  boundary violation (the child controller doesn't exist at that point)
+- Service selector changes propagate in ~1 second via the endpoints controller,
+  giving instant traffic switchover regardless of ingress implementation
+- Works for all access patterns: Ingress, direct Service, port-forward
+- `CreateOrUpdate` + `SetControllerReference` naturally re-adopts the orphaned
+  Service when the child CR is recreated (standard controller-runtime pattern)
+
+---
+
 ## Status and Conditions
 
 ### Parent Status

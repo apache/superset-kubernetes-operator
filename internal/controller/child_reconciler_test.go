@@ -190,13 +190,15 @@ func TestDeployConfigs_ComponentSpecific(t *testing.T) {
 		containerName string
 		hasPorts      bool
 		forceReplica  bool
+		hasCommand    bool
 	}{
-		string(common.ComponentWebServer):       {common.Container, true, false},
-		string(common.ComponentCeleryWorker):    {common.Container, false, false},
-		string(common.ComponentCeleryBeat):      {common.Container, false, true},
-		string(common.ComponentCeleryFlower):    {common.Container, true, false},
-		string(common.ComponentWebsocketServer): {common.Container, true, false},
-		string(common.ComponentMcpServer):       {common.Container, true, false},
+		string(common.ComponentWebServer):       {common.Container, true, false, true},
+		string(common.ComponentCeleryWorker):    {common.Container, false, false, true},
+		string(common.ComponentCeleryBeat):      {common.Container, false, true, true},
+		string(common.ComponentCeleryFlower):    {common.Container, true, false, true},
+		string(common.ComponentWebsocketServer): {common.Container, true, false, true},
+		string(common.ComponentMcpServer):       {common.Container, true, false, true},
+		string(common.ComponentMaintenancePage): {"maintenance-page", true, false, false},
 	}
 
 	for _, def := range ChildControllerDefs() {
@@ -222,8 +224,11 @@ func TestDeployConfigs_ComponentSpecific(t *testing.T) {
 			if !exp.forceReplica && cfg.ForceReplicas != nil {
 				t.Error("expected nil ForceReplicas")
 			}
-			if len(cfg.DefaultCommand) == 0 {
+			if exp.hasCommand && len(cfg.DefaultCommand) == 0 {
 				t.Error("expected non-empty default command")
+			}
+			if !exp.hasCommand && len(cfg.DefaultCommand) != 0 {
+				t.Error("expected nil/empty default command")
 			}
 		})
 	}
@@ -242,6 +247,7 @@ func TestChildReconcilerConfig_ComponentSpecific(t *testing.T) {
 		string(common.ComponentCeleryFlower):    {true, true, true},
 		string(common.ComponentMcpServer):       {true, true, true},
 		string(common.ComponentWebsocketServer): {false, true, true},
+		string(common.ComponentMaintenancePage): {false, false, false},
 	}
 
 	for _, def := range ChildControllerDefs() {

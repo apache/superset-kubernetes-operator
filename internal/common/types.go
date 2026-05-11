@@ -30,6 +30,7 @@ const (
 	ComponentCeleryFlower    ComponentType = "celery-flower"
 	ComponentWebsocketServer ComponentType = "websocket-server"
 	ComponentMcpServer       ComponentType = "mcp-server"
+	ComponentMaintenancePage ComponentType = "maintenance-page"
 	ComponentInit            ComponentType = "init"
 )
 

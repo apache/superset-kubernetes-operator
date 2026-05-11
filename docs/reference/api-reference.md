@@ -14,6 +14,7 @@ Package v1alpha1 contains API Schema definitions for the superset v1alpha1 API g
 - [SupersetCeleryFlower](#supersetceleryflower)
 - [SupersetCeleryWorker](#supersetceleryworker)
 - [SupersetLifecycleTask](#supersetlifecycletask)
+- [SupersetMaintenancePage](#supersetmaintenancepage)
 - [SupersetMcpServer](#supersetmcpserver)
 - [SupersetWebServer](#supersetwebserver)
 - [SupersetWebsocketServer](#supersetwebsocketserver)
@@ -58,6 +59,7 @@ _Appears in:_
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
 - [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
+- [SupersetMaintenancePageSpec](#supersetmaintenancepagespec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
@@ -202,6 +204,7 @@ _Appears in:_
 - [SupersetCeleryBeatStatus](#supersetcelerybeatstatus)
 - [SupersetCeleryFlowerStatus](#supersetceleryflowerstatus)
 - [SupersetCeleryWorkerStatus](#supersetceleryworkerstatus)
+- [SupersetMaintenancePageStatus](#supersetmaintenancepagestatus)
 - [SupersetMcpServerStatus](#supersetmcpserverstatus)
 - [SupersetWebServerStatus](#supersetwebserverstatus)
 - [SupersetWebsocketServerStatus](#supersetwebsocketserverstatus)
@@ -398,12 +401,14 @@ _Appears in:_
 - [CeleryFlowerComponentSpec](#celeryflowercomponentspec)
 - [CeleryWorkerComponentSpec](#celeryworkercomponentspec)
 - [FlatComponentSpec](#flatcomponentspec)
+- [MaintenancePageSpec](#maintenancepagespec)
 - [McpServerComponentSpec](#mcpservercomponentspec)
 - [ScalableComponentSpec](#scalablecomponentspec)
 - [SupersetCeleryBeatSpec](#supersetcelerybeatspec)
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
 - [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
+- [SupersetMaintenancePageSpec](#supersetmaintenancepagespec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
@@ -433,6 +438,7 @@ _Appears in:_
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
 - [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
+- [SupersetMaintenancePageSpec](#supersetmaintenancepagespec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
 - [SupersetWebsocketServerSpec](#supersetwebsocketserverspec)
@@ -531,10 +537,12 @@ ImageSpec defines the container image configuration.
 _Appears in:_
 - [CloneTaskSpec](#clonetaskspec)
 - [FlatComponentSpec](#flatcomponentspec)
+- [MaintenancePageSpec](#maintenancepagespec)
 - [SupersetCeleryBeatSpec](#supersetcelerybeatspec)
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
 - [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
+- [SupersetMaintenancePageSpec](#supersetmaintenancepagespec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
@@ -648,6 +656,7 @@ _Appears in:_
 | `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Pod retention policy for completed task pods. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-lifecycle raw Python appended after top-level config. |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-lifecycle SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
+| `maintenancePage` _[MaintenancePageSpec](#maintenancepagespec)_ | MaintenancePage configures a lightweight maintenance page served during<br />lifecycle drain and task execution. Presence enables the feature.<br />In managed mode (no image override), an nginx:alpine container serves<br />a default or custom HTML page. In custom mode (image set), the user's<br />image handles serving, and content fields are passed as env vars. |  | Optional: \{\} <br /> |
 | `clone` _[CloneTaskSpec](#clonetaskspec)_ | Clone configures database cloning from an external source before running<br />migrations. The clone target is always spec.metastore. Only allowed in dev mode. |  | Optional: \{\} <br /> |
 | `migrate` _[MigrateTaskSpec](#migratetaskspec)_ | Database migration task configuration. |  | Optional: \{\} <br /> |
 | `init` _[InitTaskSpec](#inittaskspec)_ | Application initialization task configuration. |  | Optional: \{\} <br /> |
@@ -667,10 +676,37 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `phase` _string_ | Phase of the lifecycle: Idle, Cloning, Migrating, Initializing, Complete, Blocked, AwaitingApproval. |  | Optional: \{\} <br /> |
+| `maintenanceActive` _boolean_ | MaintenanceActive indicates the maintenance page is currently serving traffic<br />via the web-server Service. |  | Optional: \{\} <br /> |
 | `clone` _[TaskRefStatus](#taskrefstatus)_ | Clone task status summary. |  | Optional: \{\} <br /> |
 | `migrate` _[TaskRefStatus](#taskrefstatus)_ | Migrate task status summary. |  | Optional: \{\} <br /> |
 | `init` _[TaskRefStatus](#taskrefstatus)_ | Init task status summary. |  | Optional: \{\} <br /> |
 | `upgrade` _[UpgradeContext](#upgradecontext)_ | Upgrade context (populated during active upgrade). |  | Optional: \{\} <br /> |
+
+
+#### MaintenancePageSpec
+
+
+
+MaintenancePageSpec configures a lightweight maintenance page served while
+components are drained for lifecycle tasks. Supports two modes:
+  - Managed (default): uses nginx:alpine with operator-generated HTML and nginx config.
+  - Custom (image set): user provides their own image/command; content fields
+    are passed as SUPERSET_OPERATOR__MAINTENANCE_* env vars.
+
+
+
+_Appears in:_
+- [LifecycleSpec](#lifecyclespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `title` _string_ | Title displayed on the maintenance page heading (managed mode).<br />In custom mode, passed as env var SUPERSET_OPERATOR__MAINTENANCE_TITLE. |  | Optional: \{\} <br /> |
+| `message` _string_ | Message displayed below the title (managed mode).<br />In custom mode, passed as env var SUPERSET_OPERATOR__MAINTENANCE_MESSAGE. |  | Optional: \{\} <br /> |
+| `body` _string_ | Full HTML page content. When set in managed mode, title and message are<br />ignored and this value is served as the complete page.<br />In custom mode, passed as env var SUPERSET_OPERATOR__MAINTENANCE_BODY. |  | Optional: \{\} <br /> |
+| `image` _[ImageSpec](#imagespec)_ | Image for the maintenance page container. When set, switches to custom<br />mode: no nginx config is injected, and the user's image is responsible<br />for serving HTTP traffic on the web-server port (default 8088). The port<br />must match the web-server Service's target port since the maintenance page<br />takes over that Service during lifecycle tasks.<br />When unset, defaults to nginx:alpine (managed mode). |  | Optional: \{\} <br /> |
+| `replicas` _integer_ | Number of maintenance page pod replicas. | 1 | Optional: \{\} <br /> |
+| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Deployment and pod template for the maintenance page Deployment.<br />Supports full customization: labels, annotations, resources, tolerations,<br />nodeSelector, volumes, replicas, etc. |  | Optional: \{\} <br /> |
+| `podTemplate` _[PodTemplate](#podtemplate)_ | Pod template for the maintenance page pod (nested within deployment template<br />for user convenience). |  | Optional: \{\} <br /> |
 
 
 #### McpServerComponentSpec
@@ -813,6 +849,7 @@ _Appears in:_
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
 - [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
+- [SupersetMaintenancePageSpec](#supersetmaintenancepagespec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
@@ -859,12 +896,14 @@ _Appears in:_
 - [CloneTaskSpec](#clonetaskspec)
 - [FlatComponentSpec](#flatcomponentspec)
 - [LifecycleSpec](#lifecyclespec)
+- [MaintenancePageSpec](#maintenancepagespec)
 - [McpServerComponentSpec](#mcpservercomponentspec)
 - [ScalableComponentSpec](#scalablecomponentspec)
 - [SupersetCeleryBeatSpec](#supersetcelerybeatspec)
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
 - [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
+- [SupersetMaintenancePageSpec](#supersetmaintenancepagespec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
@@ -1287,6 +1326,67 @@ _Appears in:_
 | `configChecksum` _string_ | Config checksum that was active when the task last completed.<br />Used to detect changes and trigger re-execution. |  | Optional: \{\} <br /> |
 | `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ |  |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ |  |  | Optional: \{\} <br /> |
+
+
+#### SupersetMaintenancePage
+
+
+
+SupersetMaintenancePage is the Schema for the supersetmaintenancepages API.
+It manages a lightweight maintenance page Deployment served during lifecycle tasks.
+
+
+
+
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `apiVersion` _string_ | `superset.apache.org/v1alpha1` | | |
+| `kind` _string_ | `SupersetMaintenancePage` | | |
+| `metadata` _[ObjectMeta](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#ObjectMeta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `spec` _[SupersetMaintenancePageSpec](#supersetmaintenancepagespec)_ |  |  |  |
+| `status` _[SupersetMaintenancePageStatus](#supersetmaintenancepagestatus)_ |  |  |  |
+
+
+#### SupersetMaintenancePageSpec
+
+
+
+SupersetMaintenancePageSpec is the fully-resolved, flat spec for a maintenance page.
+
+
+
+_Appears in:_
+- [SupersetMaintenancePage](#supersetmaintenancepage)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `image` _[ImageSpec](#imagespec)_ | Container image configuration. |  |  |
+| `replicas` _integer_ | Desired replica count. | 1 | Optional: \{\} <br /> |
+| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Fully-resolved deployment template. |  | Optional: \{\} <br /> |
+| `podTemplate` _[PodTemplate](#podtemplate)_ | Fully-resolved pod template. |  | Optional: \{\} <br /> |
+| `serviceAccountName` _string_ | ServiceAccountName to set on the pod. |  | Optional: \{\} <br /> |
+| `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Autoscaling configuration. |  | Optional: \{\} <br /> |
+| `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
+| `configChecksum` _string_ | Checksum stamped as pod template annotation for rolling restarts. |  | Optional: \{\} <br /> |
+
+
+#### SupersetMaintenancePageStatus
+
+
+
+SupersetMaintenancePageStatus defines the observed state of SupersetMaintenancePage.
+
+
+
+_Appears in:_
+- [SupersetMaintenancePage](#supersetmaintenancepage)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `ready` _string_ | "2/2" format showing ready vs desired replicas. |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ | Standard conditions. |  | Optional: \{\} <br /> |
+| `observedGeneration` _integer_ | ObservedGeneration for leader election consistency. |  | Optional: \{\} <br /> |
 
 
 #### SupersetMcpServer

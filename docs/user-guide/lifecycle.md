@@ -195,6 +195,78 @@ During a drain, Ingress/HTTPRoute and NetworkPolicy resources are preserved (the
 are owned by the parent CR, not child CRs). Once all lifecycle tasks complete,
 components are recreated and traffic resumes automatically.
 
+### Maintenance Page
+
+By default, the web UI is unreachable while components are drained. To avoid user
+confusion during upgrades, enable the maintenance page:
+
+```yaml
+spec:
+  lifecycle:
+    maintenancePage: {}
+```
+
+When enabled, the operator spins up a lightweight maintenance page **before**
+draining components and redirects all traffic from the web-server Service to it.
+The Service name and ClusterIP are preserved, so Ingress, HTTPRoute, and direct
+Service consumers continue working without interruption. After lifecycle tasks
+complete, traffic is returned to the web-server pods automatically.
+
+All paths return a 302 redirect to `/`, which serves the maintenance HTML page
+with a 30-second auto-refresh.
+
+#### Customizing the message
+
+```yaml
+spec:
+  lifecycle:
+    maintenancePage:
+      title: "Upgrade in Progress"
+      message: "Superset is being upgraded to v4.1. Expected downtime: 10 minutes."
+```
+
+For complete control over the HTML page, use `body`:
+
+```yaml
+spec:
+  lifecycle:
+    maintenancePage:
+      body: |
+        <!DOCTYPE html>
+        <html>
+        <head><title>Maintenance</title><meta http-equiv="refresh" content="30"></head>
+        <body><h1>We'll be right back</h1><p>02:00–03:00 UTC</p></body>
+        </html>
+```
+
+#### Custom image
+
+For advanced use cases (custom branding, dynamic status pages, HA), provide your
+own image. It must serve HTTP on the web-server port (default 8088):
+
+```yaml
+spec:
+  lifecycle:
+    maintenancePage:
+      message: "Back in 30 minutes"
+      image:
+        repository: my-org/maintenance-server
+        tag: v2
+      replicas: 2
+      deploymentTemplate:
+        podTemplate:
+          container:
+            command: ["/serve", "--port=8088", "--redirect-all=/"]
+            resources:
+              requests:
+                cpu: 50m
+                memory: 64Mi
+```
+
+In custom mode, `title`, `message`, and `body` are passed as environment variables
+(`SUPERSET_OPERATOR__MAINTENANCE_TITLE`, `SUPERSET_OPERATOR__MAINTENANCE_MESSAGE`,
+`SUPERSET_OPERATOR__MAINTENANCE_BODY`) — your image can use them for dynamic content.
+
 ## Lifecycle Flow
 
 The following diagram shows the lifecycle pipeline. Tasks execute sequentially;

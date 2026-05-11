@@ -39,6 +39,7 @@ const (
 	SuffixCeleryFlower    = "-celery-flower"    // matches ComponentCeleryFlower
 	SuffixWebsocketServer = "-websocket-server" // matches ComponentWebsocketServer
 	SuffixMcpServer       = "-mcp-server"       // matches ComponentMcpServer
+	SuffixMaintenancePage = "-maintenance"      // matches ComponentMaintenancePage
 	SuffixInit            = "-init"             // matches ComponentInit
 	SuffixClone           = "-clone"
 	SuffixConfig          = "-config"
@@ -124,6 +125,11 @@ const (
 	EnvCloneSrcDB   = "SUPERSET_OPERATOR__CLONE_SRC_DB"
 	EnvCloneSrcUser = "SUPERSET_OPERATOR__CLONE_SRC_USER"
 	EnvCloneSrcPass = "SUPERSET_OPERATOR__CLONE_SRC_PASS"
+
+	// Maintenance page content transport vars.
+	EnvMaintenanceTitle   = "SUPERSET_OPERATOR__MAINTENANCE_TITLE"
+	EnvMaintenanceMessage = "SUPERSET_OPERATOR__MAINTENANCE_MESSAGE"
+	EnvMaintenanceBody    = "SUPERSET_OPERATOR__MAINTENANCE_BODY"
 )
 
 // ChildName constructs a child resource name from parent name and suffix.

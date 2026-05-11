@@ -116,6 +116,7 @@ rules:
   - supersetceleryflowers
   - supersetceleryworkers
   - supersetlifecycletasks
+  - supersetmaintenancepages
   - supersetmcpservers
   - supersetwebservers
   - supersetwebsocketservers
@@ -134,6 +135,7 @@ rules:
   - supersetceleryflowers/status
   - supersetceleryworkers/status
   - supersetlifecycletasks/status
+  - supersetmaintenancepages/status
   - supersetmcpservers/status
   - supersets/status
   - supersetwebservers/status

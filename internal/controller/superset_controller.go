@@ -339,6 +339,9 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		); err != nil {
 			return 0, false, fmt.Errorf("pruning orphaned task CRs: %w", err)
 		}
+		if err := r.cleanupMaintenanceResources(ctx, superset); err != nil {
+			return 0, false, fmt.Errorf("cleaning up maintenance resources: %w", err)
+		}
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
 			metav1.ConditionTrue, "LifecycleDisabled", "Lifecycle tasks are disabled", superset.Generation)
 		superset.Status.Lifecycle = nil
@@ -381,6 +384,21 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		return 0, true, nil
 	}
 
+	// Spin up the maintenance page before drain (if configured).
+	needsDrain := (cloneEnabled && r.taskRequiresDrain(superset, taskTypeClone)) ||
+		(migrateEnabled && r.taskRequiresDrain(superset, taskTypeMigrate)) ||
+		(initEnabled && r.taskRequiresDrain(superset, taskTypeInit))
+	if isMaintenancePageEnabled(superset) && needsDrain {
+		ready, err := r.reconcileMaintenancePageUp(ctx, superset)
+		if err != nil {
+			return 0, false, fmt.Errorf("reconciling maintenance page: %w", err)
+		}
+		if !ready {
+			superset.Status.Lifecycle.Phase = lifecyclePhaseDraining
+			return taskRequeueInterval, false, nil
+		}
+	}
+
 	// Drain components if any enabled task requires it.
 	if requeueAfter, drained, err := r.drainIfNeeded(ctx, superset, cloneEnabled, migrateEnabled, initEnabled); err != nil {
 		return 0, false, err
@@ -389,16 +407,52 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	}
 
 	// Orchestrate lifecycle pipeline: clone → migrate → init.
-	// Each task receives an incoming checksum, adds its own inputs, and produces
-	// a task checksum stored on completion. The next task's incoming checksum is
-	// the previous task's completed checksum — so upstream execution automatically
-	// invalidates downstream tasks (the chain propagates changes forward).
-	//
-	// The pipeline anchor is the parentUID (stable, scoped to this CR).
-	// Each task adds only its own relevant trigger inputs:
-	//   Clone: trigger, source config, excludes
-	//   Migrate: image (version)
-	//   Init: configChecksum (rendered Python config)
+	if requeueAfter, complete, err := r.runLifecyclePipeline(ctx, superset, cloneEnabled, migrateEnabled, initEnabled, imageChanged, configChecksum, topLevel, saName); err != nil {
+		return 0, false, err
+	} else if !complete {
+		return requeueAfter, false, nil
+	}
+
+	// All tasks complete. Tear down maintenance page before re-creating components.
+	if isMaintenancePageEnabled(superset) {
+		if err := r.reconcileMaintenancePageDown(ctx, superset); err != nil {
+			return 0, false, fmt.Errorf("tearing down maintenance page: %w", err)
+		}
+	}
+
+	// Update lastLifecycleImage and clear upgrade context.
+	superset.Status.LastLifecycleImage = currentImage
+	superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
+	superset.Status.Lifecycle.Upgrade = nil
+
+	// Clear approval annotation if it was set.
+	if annotations := superset.GetAnnotations(); annotations != nil {
+		if _, ok := annotations[annotationApproveUpgrade]; ok {
+			patch := client.MergeFrom(superset.DeepCopy())
+			delete(annotations, annotationApproveUpgrade)
+			superset.SetAnnotations(annotations)
+			if err := r.Patch(ctx, superset, patch); err != nil {
+				return 0, false, fmt.Errorf("clearing approval annotation: %w", err)
+			}
+		}
+	}
+
+	setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+		metav1.ConditionTrue, "LifecycleComplete", "Lifecycle tasks completed successfully", superset.Generation)
+	return 0, true, nil
+}
+
+// runLifecyclePipeline executes the sequential task pipeline (clone → migrate → init).
+// Each task receives an incoming checksum from the previous task, creating a chain
+// that automatically invalidates downstream tasks when upstream re-executes.
+func (r *SupersetReconciler) runLifecyclePipeline(
+	ctx context.Context,
+	superset *supersetv1alpha1.Superset,
+	cloneEnabled, migrateEnabled, initEnabled, imageChanged bool,
+	configChecksum string,
+	topLevel *resolution.SharedInput,
+	saName string,
+) (time.Duration, bool, error) {
 	incomingChecksum := string(superset.UID)
 
 	if cloneEnabled {
@@ -453,25 +507,6 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		}
 	}
 
-	// All tasks complete. Update lastLifecycleImage and clear upgrade context.
-	superset.Status.LastLifecycleImage = currentImage
-	superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
-	superset.Status.Lifecycle.Upgrade = nil
-
-	// Clear approval annotation if it was set.
-	if annotations := superset.GetAnnotations(); annotations != nil {
-		if _, ok := annotations[annotationApproveUpgrade]; ok {
-			patch := client.MergeFrom(superset.DeepCopy())
-			delete(annotations, annotationApproveUpgrade)
-			superset.SetAnnotations(annotations)
-			if err := r.Patch(ctx, superset, patch); err != nil {
-				return 0, false, fmt.Errorf("clearing approval annotation: %w", err)
-			}
-		}
-	}
-
-	setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-		metav1.ConditionTrue, "LifecycleComplete", "Lifecycle tasks completed successfully", superset.Generation)
 	return 0, true, nil
 }
 
