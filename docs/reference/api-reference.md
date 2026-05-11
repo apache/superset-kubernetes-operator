@@ -265,6 +265,7 @@ _Appears in:_
 | `source` _[CloneSourceSpec](#clonesourcespec)_ | Source database to clone from (typically production, read-only user). |  |  |
 | `excludeTables` _string array_ | Tables to exclude entirely from the dump (schema and data). |  | Optional: \{\} <br /> |
 | `excludeTableData` _string array_ | Tables where schema is dumped but data is not. Useful for large tables<br />needed by migrations but not for testing (e.g., "logs", "query"). |  | Optional: \{\} <br /> |
+| `postCloneSQL` _string array_ | SQL statements to execute against the target database after cloning.<br />Useful for sanitizing cloned data (e.g., disabling alerts, deleting<br />OAuth tokens, masking PII). |  | Optional: \{\} <br /> |
 | `image` _[ImageSpec](#imagespec)_ | Image for the clone pod. Defaults to postgres:17-alpine (PostgreSQL)<br />or mysql:8-alpine (MySQL) based on source.type. |  | Optional: \{\} <br /> |
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for the clone task pod. |  | Optional: \{\} <br /> |
 | `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Pod retention policy for completed clone pods. |  | Optional: \{\} <br /> |
@@ -879,7 +880,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `policy` _string_ | Retention policy: Delete removes pods after completion, Retain keeps all,<br />RetainOnFailure keeps only failed pods for debugging. | Delete | Enum: [Delete Retain RetainOnFailure] <br />Optional: \{\} <br /> |
+| `policy` _string_ | Retention policy: Delete removes pods after completion, Retain keeps all,<br />RetainOnFailure keeps only failed pods for debugging. Retained pods are<br />automatically cleaned up by garbage collection when the task CR is<br />deleted on the next lifecycle run. | Retain | Enum: [Delete Retain RetainOnFailure] <br />Optional: \{\} <br /> |
 
 
 #### PodTemplate
