@@ -159,6 +159,10 @@ func (r *SupersetReconciler) reconcileLifecycle(
 			superset.Status.Lifecycle.Phase = lifecyclePhaseDraining
 			return taskRequeueInterval, false, nil
 		}
+		// Switch Service selector to maintenance pods before drain begins.
+		if err := r.reconcileWebServerService(ctx, superset); err != nil {
+			return 0, false, fmt.Errorf("switching web-server Service to maintenance: %w", err)
+		}
 	}
 
 	// Drain components if any enabled task requires it.

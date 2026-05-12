@@ -59,22 +59,26 @@ parent CR name. Owned by the parent CR and garbage-collected on parent deletion.
 ### Phase 3: Lifecycle Tasks
 
 The parent controller creates `SupersetLifecycleTask` child CRs:
-`{parentName}-migrate` and `{parentName}-init`. The parent uses a Get+Create/Delete
-pattern (never CreateOrUpdate) to avoid races with the task controller's status
-writes. When a task needs to re-run (checksum mismatch), the parent deletes the
-old CR and creates a fresh one on the next reconcile.
+`{parentName}-clone`, `{parentName}-migrate`, and `{parentName}-init`. The parent
+uses a Get+Create/Delete pattern (never CreateOrUpdate) to avoid races with the
+task controller's status writes. When a task needs to re-run (checksum mismatch),
+the parent deletes the old CR and creates a fresh one on the next reconcile.
 
-Tasks run sequentially: migrate must complete before init starts. The task
-strategy (default: `VersionChange`) determines whether tasks are triggered —
-with the default strategy, tasks only run when the Superset image changes.
+Tasks run sequentially: clone → migrate → init. Each task can be independently
+disabled via `disabled: true`. Clone also supports periodic re-execution via
+`cronSchedule`. Checksums cascade downstream: a re-clone forces re-migrate,
+which forces re-init.
 
-When `upgradeStrategy: Drain` is set, the operator deletes all component child
-CRs before running tasks. The parent verifies all component pods have terminated
-(not just Deployments deleted) before proceeding to task execution. This
-ensures no application pods access the metastore during schema changes. After
-tasks complete, Phase 4 recreates all components fresh.
+When a task requires drain (`requiresDrain: true`, the default for clone and
+migrate), the operator deletes all component child CRs before running that task.
+The parent verifies all component pods have terminated (not just Deployments
+deleted) before proceeding to task execution. This ensures no application pods
+access the metastore during schema changes. If `maintenancePage` is configured,
+the parent brings up a maintenance Deployment and switches the web-server Service
+selector before draining. After tasks complete, Phase 4 recreates all components
+fresh.
 
-Components do not deploy until both lifecycle tasks complete (or lifecycle is
+Components do not deploy until all enabled lifecycle tasks complete (or lifecycle is
 explicitly disabled via `spec.lifecycle.disabled: true`). If a task is in
 progress or has failed, `Reconcile()` returns early with a requeue, skipping
 Phase 4.
@@ -289,16 +293,17 @@ plaintext) because changes to these values must trigger a rollout.
 
 The operator uses Kubernetes owner references for automatic cleanup. The parent
 `Superset` CR owns child CRDs (SupersetLifecycleTask, SupersetWebServer, etc.),
-networking resources, ServiceMonitor, and NetworkPolicies. Each child CR owns
-its managed resources — deployment CRDs own their Deployment, ConfigMap,
-Service, HPA, and PDB; the SupersetLifecycleTask CRDs own their ConfigMap and Pods.
+the web-server Service, networking resources, ServiceMonitor, and NetworkPolicies.
+Each child CR owns its managed resources — deployment CRDs own their Deployment,
+ConfigMap, Service (except web-server, which is parent-owned), HPA, and PDB; the
+SupersetLifecycleTask CRDs own their ConfigMap and Pods.
 Deleting the parent cascades to all child CRs, which cascade to all their
 owned resources. Removing a component from the parent spec (e.g. deleting
 `spec.celeryWorker`) deletes its child CR, cascading to all owned resources.
 
 ---
 
-## Maintenance Page (Service Takeover via Orphan Deletion)
+## Maintenance Page (Parent-Owned Service Selector Switch)
 
 When `spec.lifecycle.maintenancePage` is set, the operator serves a maintenance
 page during drain and lifecycle tasks. This section documents the design decision
@@ -306,30 +311,44 @@ behind the traffic switchover mechanism.
 
 ### Problem
 
-During drain, component child CRs are deleted. GC cascades this to Deployments,
-Services, and Pods. The web-server Service disappears, leaving users with
-connection errors instead of a friendly maintenance message.
+During drain, component child CRs are deleted. GC cascades this to Deployments
+and Pods. Without intervention, users experience connection errors instead of a
+friendly maintenance message.
 
-### Solution: Orphan Deletion + Selector Patch
+### Solution: Parent-Owned Web-Server Service
 
-The operator uses `propagationPolicy: Orphan` when deleting the SupersetWebServer
-child CR. This preserves the Service (and Deployment) as unowned resources. The
-operator then patches the orphaned Service's selector to route traffic to
-maintenance pods, and explicitly deletes the orphaned Deployment to terminate
-web-server pods.
+The parent controller owns the web-server Service directly (not the child CR).
+During lifecycle drain, the parent:
 
-After lifecycle tasks complete, the operator clears any remaining owner references
-from the Service. The subsequent component reconciliation recreates the
-SupersetWebServer child CR, whose reconciler finds the existing Service via
-`CreateOrUpdate` and adopts it via `SetControllerReference`, restoring the
-original web-server selector.
+1. Creates a maintenance Deployment (parent-owned) running a lightweight HTTP
+   server (nginx:alpine by default or a user-provided image).
+2. Switches the web-server Service's selector to match the maintenance-page pod
+   labels, instantly routing traffic to maintenance pods.
+3. Drains all component child CRs (GC cascades to Deployments and Pods, but the
+   Service is unaffected because it belongs to the parent).
+4. Runs lifecycle tasks (clone → migrate → init).
+5. After tasks complete and the web-server child CR is recreated, waits for the
+   web-server Deployment to become ready.
+6. Switches the Service selector back to the web-server pod labels.
+7. Deletes the maintenance Deployment and its ConfigMap.
+
+### Why Parent-Owned Service
+
+- Service selector changes propagate in ~1 second via the endpoints controller,
+  giving instant traffic switchover regardless of ingress implementation
+- Works for all access patterns: Ingress, direct Service, port-forward
+- No orphan deletion complexity — the Service is always owned by the parent,
+  so GC of child CRs never affects it
+- The child `SupersetWebServer` reconciler skips Service management (the parent
+  handles it), keeping the child controller simple
 
 ### Alternatives Considered
 
-**Owner reference manipulation** (transfer Service ownership parent ↔ child):
-Rejected because manually editing `ownerReferences` is non-standard, creates
-coupling with the GC controller's timing, and violates the principle that
-controllers should only manage resources they own.
+**Orphan deletion + selector patch** (previous design): Used `propagationPolicy:
+Orphan` when deleting the SupersetWebServer child CR to preserve the Service,
+then patched the selector. Rejected because orphan lifecycle was fragile — race
+conditions between GC finalization and reconciliation, plus the child had to
+detect and re-adopt the orphaned Service on recreation.
 
 **Separate maintenance Service + Ingress/HTTPRoute backend swap**: Architecturally
 pure (clean separation, no interaction with web-server resources), but rejected
@@ -337,22 +356,6 @@ because Ingress/HTTPRoute propagation latency varies significantly by controller
 implementation — from ~1s (Envoy-based) to 1-3 minutes (cloud load balancers like
 GCP/AWS). This creates an unacceptable error window where users hit the draining
 backend. Also doesn't work for users without networking configured.
-
-**Parent-owned stable "frontend" Service**: Cleanest long-term architecture (parent
-permanently owns the external-facing Service, child CRD's Service is internal),
-but requires a breaking change to Service naming and introduces a new architectural
-concept for a single feature.
-
-### Why Orphan Deletion
-
-- Uses a standard Kubernetes API concept (`propagationPolicy: Orphan`)
-- The Service is genuinely unowned during the maintenance window — no architectural
-  boundary violation (the child controller doesn't exist at that point)
-- Service selector changes propagate in ~1 second via the endpoints controller,
-  giving instant traffic switchover regardless of ingress implementation
-- Works for all access patterns: Ingress, direct Service, port-forward
-- `CreateOrUpdate` + `SetControllerReference` naturally re-adopts the orphaned
-  Service when the child CR is recreated (standard controller-runtime pattern)
 
 ---
 

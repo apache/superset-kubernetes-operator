@@ -41,7 +41,7 @@ about.
 Splitting into dedicated child CRDs and controllers isolates each component's
 lifecycle. The web server controller only watches `SupersetWebServer` resources;
 it cannot interfere with Celery or init. Each child controller is simple and
-generic (all seven share `ChildReconciler`), while the parent controller focuses
+generic (all six share `ChildReconciler`), while the parent controller focuses
 solely on configuration resolution and child CR orchestration. This separation
 also enables independent scaling of controller watches and makes `kubectl get`
 output immediately useful — `kubectl get supersetwebservers` shows web server
@@ -97,7 +97,7 @@ Components fall into two categories:
 
 | CRD Kind | Parent field | Suffix | Creates |
 |---|---|---|---|
-| `SupersetLifecycleTask` | `lifecycle` | `-migrate`, `-init` | Pods, ConfigMap |
+| `SupersetLifecycleTask` | `lifecycle` | `-clone`, `-migrate`, `-init` | Pods, ConfigMap |
 | `SupersetCeleryBeat` | `celeryBeat` | `-celery-beat` | Deployment, ConfigMap |
 
 **Presence = enabled**: Setting `celeryWorker: {}` deploys workers with

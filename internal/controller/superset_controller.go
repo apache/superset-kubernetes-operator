@@ -178,6 +178,12 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile web-server Service: %v", err)
 		return ctrl.Result{}, fmt.Errorf("reconciling web-server Service: %w", err)
 	}
+	if maintenanceCleared {
+		// Service selector has been switched to web-server; safe to clean up
+		// maintenance resources now. Errors are non-fatal — GC will handle
+		// them since they are parent-owned.
+		_ = r.deleteMaintenanceResources(ctx, superset)
+	}
 	if !maintenanceCleared {
 		if statusErr := r.Status().Update(ctx, superset); statusErr != nil {
 			return ctrl.Result{}, fmt.Errorf("updating status during maintenance return: %w", statusErr)

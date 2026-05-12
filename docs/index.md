@@ -33,7 +33,7 @@ The operator manages the full Superset lifecycle: database migrations, configura
 - **Full control** — every default is overridable, from high-level presets down to individual fields, with a raw Python escape hatch for anything not covered
 - **Flat configuration** — shared top-level defaults inherited by all components, with per-component overrides (primitives replace, collections merge)
 - **Component toggle** — enable CeleryWorker, CeleryBeat, CeleryFlower, WebsocketServer, or McpServer by setting their spec; omit to disable
-- **Init lifecycle** — database migration and initialization run as managed Pods before components deploy
+- **Lifecycle management** — database cloning, migration, and initialization run as managed Pods before components deploy
 - **Checksum-driven rollouts** — config changes automatically trigger rolling restarts of affected components
 - **Networking** — Gateway API (HTTPRoute) and Ingress support
 - **HPA with custom metrics**, PodDisruptionBudgets, NetworkPolicies, Prometheus ServiceMonitor
@@ -63,9 +63,10 @@ spec:
   webServer:
     replicas: 2
   mcpServer: {}
-  init:
-    adminUser: {}
-    loadExamples: true
+  lifecycle:
+    init:
+      adminUser: {}
+      loadExamples: true
 ```
 
 For production, use `secretKeyFrom` and `metastore.uriFrom` to reference Kubernetes Secrets instead of inline values:

@@ -48,9 +48,6 @@ const (
 var maintenanceDeployConfig = DeploymentConfig{
 	ContainerName:  maintenanceContainerName,
 	DefaultCommand: nil,
-	DefaultPorts: []corev1.ContainerPort{
-		{Name: naming.PortNameHTTP, ContainerPort: naming.PortWebServer, Protocol: corev1.ProtocolTCP},
-	},
 }
 
 func isMaintenancePageEnabled(superset *supersetv1alpha1.Superset) bool {
@@ -81,16 +78,17 @@ func (r *SupersetReconciler) reconcileMaintenancePageUp(
 ) (bool, error) {
 	log := logf.FromContext(ctx)
 	spec := superset.Spec.Lifecycle.MaintenancePage
+	port := resolveWebServerContainerPort(superset.Spec.WebServer)
 
 	// Step 1: Reconcile ConfigMap (managed mode only).
 	if !isCustomMode(spec) {
-		if err := r.reconcileMaintenanceConfigMap(ctx, superset, spec); err != nil {
+		if err := r.reconcileMaintenanceConfigMap(ctx, superset, spec, port); err != nil {
 			return false, fmt.Errorf("reconciling maintenance ConfigMap: %w", err)
 		}
 	}
 
 	// Step 2: CreateOrUpdate maintenance Deployment (parent-owned).
-	if err := r.reconcileMaintenanceDeployment(ctx, superset, spec); err != nil {
+	if err := r.reconcileMaintenanceDeployment(ctx, superset, spec, port); err != nil {
 		return false, fmt.Errorf("reconciling maintenance Deployment: %w", err)
 	}
 
@@ -114,8 +112,11 @@ func (r *SupersetReconciler) reconcileMaintenancePageUp(
 
 // reconcileMaintenanceReturn handles the zero-downtime switchback from
 // maintenance to web-server. It waits for the web-server Deployment to be
-// ready, then sets MaintenanceActive=false (so reconcileWebServerService
-// switches the selector), and finally cleans up maintenance resources.
+// ready, then sets MaintenanceActive=false so reconcileWebServerService
+// switches the selector on the same reconcile pass.
+// Resource cleanup is deferred to the caller (after the Service is reconciled)
+// to avoid a failure window where the Service still selects maintenance pods
+// whose Deployment has been deleted.
 // Returns cleared=true when maintenance is inactive (either already was, or
 // was just cleared).
 func (r *SupersetReconciler) reconcileMaintenanceReturn(
@@ -142,15 +143,10 @@ func (r *SupersetReconciler) reconcileMaintenanceReturn(
 		return false, nil
 	}
 
-	// Web-server is ready — switch traffic back.
+	// Web-server is ready — mark maintenance as inactive. The caller will
+	// reconcile the Service (switching selector) and then clean up resources.
 	superset.Status.Lifecycle.MaintenanceActive = false
 	log.Info("Web-server ready, clearing maintenance page")
-
-	// Clean up maintenance resources.
-	if err := r.deleteMaintenanceResources(ctx, superset); err != nil {
-		return false, fmt.Errorf("cleaning up maintenance resources: %w", err)
-	}
-
 	return true, nil
 }
 
@@ -192,6 +188,7 @@ func (r *SupersetReconciler) reconcileMaintenanceDeployment(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
 	spec *supersetv1alpha1.MaintenancePageSpec,
+	port int32,
 ) error {
 	deployName := maintenanceDeploymentName(superset.Name)
 	deploy := &appsv1.Deployment{
@@ -208,11 +205,16 @@ func (r *SupersetReconciler) reconcileMaintenanceDeployment(
 		naming.AnnotationConfigChecksum: checksum,
 	}
 
+	cfg := maintenanceDeployConfig
+	cfg.DefaultPorts = []corev1.ContainerPort{
+		{Name: naming.PortNameHTTP, ContainerPort: port, Protocol: corev1.ProtocolTCP},
+	}
+
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, deploy, func() error {
 		if err := controllerutil.SetControllerReference(superset, deploy, r.Scheme); err != nil {
 			return err
 		}
-		deploy.Spec = buildDeploymentSpec(&flat, maintenanceDeployConfig, podAnnotations, selectorLabels)
+		deploy.Spec = buildDeploymentSpec(&flat, cfg, podAnnotations, selectorLabels)
 		deploy.Labels = mergeLabels(nil, componentLabels(string(naming.ComponentMaintenancePage), superset.Name))
 		return nil
 	})
@@ -225,6 +227,7 @@ func (r *SupersetReconciler) reconcileMaintenanceConfigMap(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
 	spec *supersetv1alpha1.MaintenancePageSpec,
+	port int32,
 ) error {
 	cmName := maintenanceConfigMapName(superset.Name)
 	cm := &corev1.ConfigMap{
@@ -239,7 +242,7 @@ func (r *SupersetReconciler) reconcileMaintenanceConfigMap(
 			return err
 		}
 		cm.Data = map[string]string{
-			"default.conf": renderNginxConf(),
+			"default.conf": renderNginxConf(port),
 			"index.html":   renderMaintenanceHTML(spec),
 		}
 		return nil
@@ -346,9 +349,9 @@ func computeMaintenanceChecksum(spec *supersetv1alpha1.MaintenancePageSpec) stri
 	return fmt.Sprintf("%x", h.Sum(nil))[:16]
 }
 
-func renderNginxConf() string {
+func renderNginxConf(port int32) string {
 	return `server {
-    listen ` + fmt.Sprintf("%d", naming.PortWebServer) + `;
+    listen ` + fmt.Sprintf("%d", port) + `;
     server_name _;
 
     location = / {

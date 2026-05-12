@@ -474,16 +474,16 @@ The lifecycle pipeline runs: **clone → migrate → init → components**. Comp
 are not deployed until all tasks complete, and clone always drains existing
 components before running (DROP DATABASE fails with active connections).
 
-### Clone Strategy
+### Clone Trigger and Scheduling
 
-| Strategy | Behavior |
-|---|---|
-| `OnTrigger` (default) | Runs when the `trigger` value changes |
-| `Always` | Runs on every spec change |
-| `Never` | Disabled |
+The clone task runs when its checksum changes. Two mechanisms trigger re-execution:
 
-The `trigger` field is opaque — use a date, UUID, or CI build ID. The operator
-includes it in the task checksum; changing it causes a re-clone.
+- **`trigger` field** — an opaque string (date, UUID, CI build ID). Changing it
+  causes a re-clone. Use this for manual or CI-driven refreshes.
+- **`cronSchedule` field** — a 5-field cron expression for periodic re-execution.
+  When the clock crosses a cron boundary, the task checksum changes automatically.
+
+To disable clone without removing its configuration, set `disabled: true`.
 
 ### Table Exclusion
 
