@@ -21,12 +21,44 @@ package controller
 import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
+
+var celeryBeatSingletonReplica = int32(1)
+
+func httpProbe(path string, port int32, initialDelay int32) *corev1.Probe {
+	return &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			HTTPGet: &corev1.HTTPGetAction{
+				Path: path,
+				Port: intstr.FromInt32(port),
+			},
+		},
+		InitialDelaySeconds: initialDelay,
+		PeriodSeconds:       10,
+		TimeoutSeconds:      5,
+		FailureThreshold:    3,
+	}
+}
+
+func tcpProbe(port int32, initialDelay int32) *corev1.Probe {
+	return &corev1.Probe{
+		ProbeHandler: corev1.ProbeHandler{
+			TCPSocket: &corev1.TCPSocketAction{
+				Port: intstr.FromInt32(port),
+			},
+		},
+		InitialDelaySeconds: initialDelay,
+		PeriodSeconds:       10,
+		TimeoutSeconds:      5,
+		FailureThreshold:    3,
+	}
+}
 
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersetwebservers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersetwebservers/status,verbs=get;update;patch
@@ -46,8 +78,6 @@ import (
 // +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch;update
 // +kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
-
-var celeryBeatSingletonReplica = int32(1)
 
 // ChildControllerDef defines the data needed to register a child controller.
 type ChildControllerDef struct {
@@ -69,6 +99,9 @@ func ChildControllerDefs() []ChildControllerDef {
 					DefaultPorts: []corev1.ContainerPort{
 						{Name: common.PortNameHTTP, ContainerPort: common.PortWebServer, Protocol: corev1.ProtocolTCP},
 					},
+					DefaultLivenessProbe:  httpProbe("/health", common.PortWebServer, 15),
+					DefaultReadinessProbe: httpProbe("/health", common.PortWebServer, 5),
+					DefaultStartupProbe:   httpProbe("/health", common.PortWebServer, 15),
 				},
 				defaultPort: 0,
 				hasConfig:   true,
@@ -115,6 +148,8 @@ func ChildControllerDefs() []ChildControllerDef {
 					DefaultPorts: []corev1.ContainerPort{
 						{Name: common.PortNameHTTP, ContainerPort: common.PortCeleryFlower, Protocol: corev1.ProtocolTCP},
 					},
+					DefaultLivenessProbe:  httpProbe("/api/workers", common.PortCeleryFlower, 15),
+					DefaultReadinessProbe: httpProbe("/api/workers", common.PortCeleryFlower, 5),
 				},
 				defaultPort: common.PortCeleryFlower,
 				hasConfig:   true,
@@ -132,6 +167,8 @@ func ChildControllerDefs() []ChildControllerDef {
 					DefaultPorts: []corev1.ContainerPort{
 						{Name: common.PortNameWebsocket, ContainerPort: common.PortWebsocket, Protocol: corev1.ProtocolTCP},
 					},
+					DefaultLivenessProbe:  httpProbe("/health", common.PortWebsocket, 15),
+					DefaultReadinessProbe: httpProbe("/health", common.PortWebsocket, 5),
 				},
 				defaultPort: common.PortWebsocket,
 				hasConfig:   false,
@@ -149,6 +186,8 @@ func ChildControllerDefs() []ChildControllerDef {
 					DefaultPorts: []corev1.ContainerPort{
 						{Name: common.PortNameMcp, ContainerPort: common.PortMcpServer, Protocol: corev1.ProtocolTCP},
 					},
+					DefaultLivenessProbe:  tcpProbe(common.PortMcpServer, 15),
+					DefaultReadinessProbe: tcpProbe(common.PortMcpServer, 5),
 				},
 				defaultPort: common.PortMcpServer,
 				hasConfig:   true,

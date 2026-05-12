@@ -208,6 +208,7 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	// Phase 5: Update aggregate status.
+	superset.Status.ConfigChecksum = configChecksum
 	if err := r.updateStatus(ctx, superset); err != nil {
 		return ctrl.Result{}, fmt.Errorf("updating status: %w", err)
 	}

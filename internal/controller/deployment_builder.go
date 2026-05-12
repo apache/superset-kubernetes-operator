@@ -54,6 +54,15 @@ type DeploymentConfig struct {
 
 	// ForceReplicas, when non-nil, overrides the spec replicas (used for singletons like beat).
 	ForceReplicas *int32
+
+	// DefaultLivenessProbe is used when the spec LivenessProbe is nil.
+	DefaultLivenessProbe *corev1.Probe
+
+	// DefaultReadinessProbe is used when the spec ReadinessProbe is nil.
+	DefaultReadinessProbe *corev1.Probe
+
+	// DefaultStartupProbe is used when the spec StartupProbe is nil.
+	DefaultStartupProbe *corev1.Probe
 }
 
 // buildDeploymentSpec constructs a complete DeploymentSpec from the flat child spec,
@@ -96,6 +105,20 @@ func buildDeploymentSpec(
 		ports = ct.Ports
 	}
 
+	// Resolve probes: user-provided takes precedence over component defaults.
+	livenessProbe := ct.LivenessProbe
+	if livenessProbe == nil {
+		livenessProbe = cfg.DefaultLivenessProbe
+	}
+	readinessProbe := ct.ReadinessProbe
+	if readinessProbe == nil {
+		readinessProbe = cfg.DefaultReadinessProbe
+	}
+	startupProbe := ct.StartupProbe
+	if startupProbe == nil {
+		startupProbe = cfg.DefaultStartupProbe
+	}
+
 	// Build the main container from ContainerTemplate.
 	mainContainer := corev1.Container{
 		Name:            cfg.ContainerName,
@@ -106,9 +129,9 @@ func buildDeploymentSpec(
 		EnvFrom:         ct.EnvFrom,
 		VolumeMounts:    ct.VolumeMounts,
 		Ports:           ports,
-		LivenessProbe:   ct.LivenessProbe,
-		ReadinessProbe:  ct.ReadinessProbe,
-		StartupProbe:    ct.StartupProbe,
+		LivenessProbe:   livenessProbe,
+		ReadinessProbe:  readinessProbe,
+		StartupProbe:    startupProbe,
 		SecurityContext: ct.SecurityContext,
 		Lifecycle:       ct.Lifecycle,
 	}

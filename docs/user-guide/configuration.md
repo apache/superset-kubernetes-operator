@@ -28,8 +28,9 @@ For lifecycle (migrations, upgrades), see [Lifecycle](lifecycle.md).
 The `environment` field controls validation strictness (enforced by
 [CEL](https://kubernetes.io/docs/reference/using-api/cel/) rules in the CRD schema):
 
-- **`prod`** (default) — inline `secretKey`, `metastore.uri`, `metastore.password`, and `valkey.password` are rejected by CRD validation. Use `secretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`, or `valkey.passwordFrom` to reference Kubernetes Secrets.
-- **`dev`** — allows plain-text `secretKey`, `metastore.uri`, `metastore.password`, and `valkey.password` directly in the CR for quick local development.
+- **`Production`** (default) — inline `secretKey`, `metastore.uri`, `metastore.password`, and `valkey.password` are rejected by CRD validation. Use `secretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`, or `valkey.passwordFrom` to reference Kubernetes Secrets.
+- **`Staging`** — same secret restrictions as Production, but allows `lifecycle.clone` for database cloning from an external source.
+- **`Development`** — allows plain-text `secretKey`, `metastore.uri`, `metastore.password`, and `valkey.password` directly in the CR for quick local development. Also permits `lifecycle.clone`, `lifecycle.init.adminUser`, and `lifecycle.init.loadExamples`.
 
 ### Dev Mode Example
 
@@ -406,11 +407,21 @@ spec:
 
 Enable Superset's async event streaming by setting `websocketServer`. This
 deploys a **Node.js** application (not Python) that pushes real-time updates to
-dashboards via WebSocket connections:
+dashboards via WebSocket connections.
+
+!!! warning "Requires a dedicated image"
+    The websocket server is a separate Node.js application and **does not run
+    from the default Superset image**. You must provide an image that contains
+    `websocket_server.js`. A community-maintained image is available at
+    [`oneacrefund/superset-websocket`](https://hub.docker.com/r/oneacrefund/superset-websocket)
+    (experimental, not officially supported by Apache Superset).
 
 ```yaml
 spec:
-  websocketServer: {}
+  websocketServer:
+    image:
+      repository: oneacrefund/superset-websocket
+      tag: "latest"
 ```
 
 Because the websocket server is Node.js-based, it does **not** receive a
@@ -421,6 +432,9 @@ on the container template:
 ```yaml
 spec:
   websocketServer:
+    image:
+      repository: oneacrefund/superset-websocket
+      tag: "latest"
     podTemplate:
       container:
         env:
@@ -428,7 +442,7 @@ spec:
             value: "http://my-superset-web-server:8088"
 ```
 
-The websocket server creates a Service (default port 8088) and supports the
+The websocket server creates a Service (default port 8080) and supports the
 same scaling, deployment template, and pod template fields as other scalable
 components.
 
