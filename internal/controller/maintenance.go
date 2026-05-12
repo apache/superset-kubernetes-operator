@@ -41,7 +41,17 @@ const (
 	maintenanceDefaultMessage = "Apache Superset is being upgraded. This page will refresh automatically."
 	maintenanceDefaultImage   = "nginx"
 	maintenanceDefaultTag     = "alpine"
+
+	maintenanceContainerName = "maintenance-page"
 )
+
+var maintenanceDeployConfig = DeploymentConfig{
+	ContainerName:  maintenanceContainerName,
+	DefaultCommand: nil,
+	DefaultPorts: []corev1.ContainerPort{
+		{Name: naming.PortNameHTTP, ContainerPort: naming.PortWebServer, Protocol: corev1.ProtocolTCP},
+	},
+}
 
 func isMaintenancePageEnabled(superset *supersetv1alpha1.Superset) bool {
 	return superset.Spec.Lifecycle != nil &&
@@ -57,9 +67,14 @@ func maintenanceConfigMapName(parentName string) string {
 	return naming.ConfigMapName(naming.ResourceBaseName(parentName, naming.ComponentMaintenancePage))
 }
 
-// reconcileMaintenancePageUp ensures the maintenance page is running and the
-// web-server Service routes to it. Returns ready=true when the maintenance page
-// is serving traffic.
+func maintenanceDeploymentName(parentName string) string {
+	return naming.ResourceBaseName(parentName, naming.ComponentMaintenancePage)
+}
+
+// reconcileMaintenancePageUp ensures the maintenance page Deployment is running
+// and ready. Returns ready=true when the maintenance Deployment has ready pods.
+// The caller sets MaintenanceActive=true and reconcileWebServerService() picks
+// up the flag to switch the Service selector.
 func (r *SupersetReconciler) reconcileMaintenancePageUp(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
@@ -74,36 +89,13 @@ func (r *SupersetReconciler) reconcileMaintenancePageUp(
 		}
 	}
 
-	// Step 2: Ensure SupersetMaintenancePage child CR exists and is up to date.
-	childCR := &supersetv1alpha1.SupersetMaintenancePage{}
-	childCR.Name = superset.Name
-	childCR.Namespace = superset.Namespace
-
-	if err := r.Get(ctx, client.ObjectKeyFromObject(childCR), childCR); err != nil {
-		if !errors.IsNotFound(err) {
-			return false, fmt.Errorf("getting maintenance page CR: %w", err)
-		}
-		if err := r.createMaintenancePageCR(ctx, superset, spec); err != nil {
-			return false, fmt.Errorf("creating maintenance page CR: %w", err)
-		}
-		log.Info("Created SupersetMaintenancePage child CR")
-		return false, nil
-	}
-
-	// Update CR if spec has drifted.
-	desiredChecksum := computeMaintenanceChecksum(spec)
-	if childCR.Spec.ConfigChecksum != desiredChecksum {
-		childCR.Spec.FlatComponentSpec = buildMaintenanceFlatSpec(superset.Name, spec)
-		childCR.Spec.ConfigChecksum = desiredChecksum
-		if err := r.Update(ctx, childCR); err != nil {
-			return false, fmt.Errorf("updating maintenance page CR: %w", err)
-		}
-		log.Info("Updated SupersetMaintenancePage child CR (spec changed)")
-		return false, nil
+	// Step 2: CreateOrUpdate maintenance Deployment (parent-owned).
+	if err := r.reconcileMaintenanceDeployment(ctx, superset, spec); err != nil {
+		return false, fmt.Errorf("reconciling maintenance Deployment: %w", err)
 	}
 
 	// Step 3: Check if maintenance Deployment is ready.
-	deployName := naming.ResourceBaseName(superset.Name, naming.ComponentMaintenancePage)
+	deployName := maintenanceDeploymentName(superset.Name)
 	deploy := &appsv1.Deployment{}
 	if err := r.Get(ctx, client.ObjectKey{Namespace: superset.Namespace, Name: deployName}, deploy); err != nil {
 		if errors.IsNotFound(err) {
@@ -116,191 +108,115 @@ func (r *SupersetReconciler) reconcileMaintenancePageUp(
 		return false, nil
 	}
 
-	// Step 4: Take over the web-server Service.
-	if err := r.takeoverWebServerService(ctx, superset); err != nil {
-		return false, fmt.Errorf("taking over web-server Service: %w", err)
-	}
-
 	superset.Status.Lifecycle.MaintenanceActive = true
 	return true, nil
 }
 
-// reconcileMaintenancePageDown releases the web-server Service and removes
-// maintenance resources. Called after lifecycle tasks complete.
-func (r *SupersetReconciler) reconcileMaintenancePageDown(
+// reconcileMaintenanceReturn handles the zero-downtime switchback from
+// maintenance to web-server. It waits for the web-server Deployment to be
+// ready, then sets MaintenanceActive=false (so reconcileWebServerService
+// switches the selector), and finally cleans up maintenance resources.
+// Returns cleared=true when maintenance is inactive (either already was, or
+// was just cleared).
+func (r *SupersetReconciler) reconcileMaintenanceReturn(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
-) error {
+) (bool, error) {
+	if superset.Status.Lifecycle == nil || !superset.Status.Lifecycle.MaintenanceActive {
+		return true, nil
+	}
 	log := logf.FromContext(ctx)
 
-	// Step 1: Release the web-server Service (remove parent ownership).
-	if err := r.releaseWebServerService(ctx, superset); err != nil {
-		return fmt.Errorf("releasing web-server Service: %w", err)
+	// Check web-server Deployment readiness before switching traffic.
+	webDeployName := naming.ResourceBaseName(superset.Name, naming.ComponentWebServer)
+	deploy := &appsv1.Deployment{}
+	if err := r.Get(ctx, client.ObjectKey{Namespace: superset.Namespace, Name: webDeployName}, deploy); err != nil {
+		if errors.IsNotFound(err) {
+			log.Info("Waiting for web-server Deployment to be created before clearing maintenance")
+			return false, nil
+		}
+		return false, fmt.Errorf("getting web-server Deployment: %w", err)
+	}
+	if deploy.Status.ReadyReplicas < 1 {
+		log.Info("Waiting for web-server pods to become ready before clearing maintenance")
+		return false, nil
 	}
 
-	// Step 2: Delete maintenance page child CR (GC cascades to Deployment).
-	childCR := &supersetv1alpha1.SupersetMaintenancePage{}
-	childCR.Name = superset.Name
-	childCR.Namespace = superset.Namespace
-	if err := r.Delete(ctx, childCR); err != nil && !errors.IsNotFound(err) {
-		return fmt.Errorf("deleting maintenance page CR: %w", err)
-	}
-
-	// Step 3: Delete maintenance ConfigMap.
-	cm := &corev1.ConfigMap{}
-	cm.Name = maintenanceConfigMapName(superset.Name)
-	cm.Namespace = superset.Namespace
-	if err := r.Delete(ctx, cm); err != nil && !errors.IsNotFound(err) {
-		return fmt.Errorf("deleting maintenance ConfigMap: %w", err)
-	}
-
+	// Web-server is ready — switch traffic back.
 	superset.Status.Lifecycle.MaintenanceActive = false
-	log.Info("Maintenance page cleaned up")
-	return nil
+	log.Info("Web-server ready, clearing maintenance page")
+
+	// Clean up maintenance resources.
+	if err := r.deleteMaintenanceResources(ctx, superset); err != nil {
+		return false, fmt.Errorf("cleaning up maintenance resources: %w", err)
+	}
+
+	return true, nil
 }
 
 // cleanupMaintenanceResources removes all maintenance resources unconditionally.
+// Used when lifecycle is disabled or maintenance page config is removed.
 func (r *SupersetReconciler) cleanupMaintenanceResources(ctx context.Context, superset *supersetv1alpha1.Superset) error {
-	childCR := &supersetv1alpha1.SupersetMaintenancePage{}
-	childCR.Name = superset.Name
-	childCR.Namespace = superset.Namespace
-	if err := r.Delete(ctx, childCR); err != nil && !errors.IsNotFound(err) {
-		return err
+	if superset.Status.Lifecycle != nil {
+		superset.Status.Lifecycle.MaintenanceActive = false
+	}
+	return r.deleteMaintenanceResources(ctx, superset)
+}
+
+func (r *SupersetReconciler) deleteMaintenanceResources(ctx context.Context, superset *supersetv1alpha1.Superset) error {
+	deploy := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      maintenanceDeploymentName(superset.Name),
+			Namespace: superset.Namespace,
+		},
+	}
+	if err := r.Delete(ctx, deploy); err != nil && !errors.IsNotFound(err) {
+		return fmt.Errorf("deleting maintenance Deployment: %w", err)
 	}
 
-	cm := &corev1.ConfigMap{}
-	cm.Name = maintenanceConfigMapName(superset.Name)
-	cm.Namespace = superset.Namespace
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      maintenanceConfigMapName(superset.Name),
+			Namespace: superset.Namespace,
+		},
+	}
 	if err := r.Delete(ctx, cm); err != nil && !errors.IsNotFound(err) {
-		return err
+		return fmt.Errorf("deleting maintenance ConfigMap: %w", err)
 	}
 	return nil
 }
 
-// takeoverWebServerService orphan-deletes the SupersetWebServer child CR
-// (preserving its Service), then patches the orphaned Service's selector to
-// route traffic to maintenance pods. The orphaned Deployment is also deleted
-// to terminate web-server pods.
-//
-// Design rationale: we use propagationPolicy=Orphan (a standard K8s API concept)
-// rather than manipulating owner references or swapping Ingress/HTTPRoute backends.
-// This gives us instant (~1s) traffic switchover via the endpoints controller,
-// works for all access patterns (Ingress, direct Service, port-forward), and
-// operates on a legitimately unowned Service (no architectural boundary violation).
-// The alternative of swapping Ingress/HTTPRoute backends was rejected because
-// propagation latency varies by controller (1s for nginx to 3min for cloud LBs),
-// creating an unacceptable error window during drain.
-func (r *SupersetReconciler) takeoverWebServerService(
+// reconcileMaintenanceDeployment creates or updates the maintenance page
+// Deployment, owned directly by the parent Superset CR.
+func (r *SupersetReconciler) reconcileMaintenanceDeployment(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
+	spec *supersetv1alpha1.MaintenancePageSpec,
 ) error {
-	log := logf.FromContext(ctx)
-	svcName := naming.ResourceBaseName(superset.Name, naming.ComponentWebServer)
-	svc := &corev1.Service{}
-	key := client.ObjectKey{Namespace: superset.Namespace, Name: svcName}
-
-	maintenanceSelector := naming.ComponentLabels(naming.ComponentMaintenancePage, superset.Name)
-
-	// Check if the Service already points to maintenance pods (idempotent).
-	if err := r.Get(ctx, key, svc); err != nil {
-		if errors.IsNotFound(err) {
-			// Service already gone (operator restart after GC completed) — create fresh.
-			return r.createMaintenanceWebServerService(ctx, superset, maintenanceSelector)
-		}
-		return err
-	}
-	if selectorMatchesComponent(svc, naming.ComponentMaintenancePage, superset.Name) {
-		return nil
-	}
-
-	// Orphan-delete the SupersetWebServer child CR so its Service survives.
-	webServerCR := &supersetv1alpha1.SupersetWebServer{}
-	webServerCR.Name = superset.Name
-	webServerCR.Namespace = superset.Namespace
-	orphanPolicy := metav1.DeletePropagationOrphan
-	if err := r.Delete(ctx, webServerCR, &client.DeleteOptions{
-		PropagationPolicy: &orphanPolicy,
-	}); err != nil && !errors.IsNotFound(err) {
-		return fmt.Errorf("orphan-deleting web-server child CR: %w", err)
-	}
-
-	// Patch the now-orphaned Service selector to route to maintenance pods.
-	// Remove stale owner references so the child reconciler can re-adopt later.
-	svc.OwnerReferences = nil
-	svc.Spec.Selector = maintenanceSelector
-	if err := r.Update(ctx, svc); err != nil {
-		return fmt.Errorf("patching web-server Service selector: %w", err)
-	}
-
-	// Delete the orphaned web-server Deployment to terminate pods.
-	deployName := naming.ResourceBaseName(superset.Name, naming.ComponentWebServer)
+	deployName := maintenanceDeploymentName(superset.Name)
 	deploy := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      deployName,
 			Namespace: superset.Namespace,
 		},
 	}
-	if err := r.Delete(ctx, deploy); err != nil && !errors.IsNotFound(err) {
-		return fmt.Errorf("deleting orphaned web-server Deployment: %w", err)
+
+	flat := buildMaintenanceFlatSpec(superset.Name, spec)
+	checksum := computeMaintenanceChecksum(spec)
+	selectorLabels := componentLabels(string(naming.ComponentMaintenancePage), superset.Name)
+	podAnnotations := map[string]string{
+		naming.AnnotationConfigChecksum: checksum,
 	}
 
-	log.Info("Took over web-server Service via orphan deletion, routing to maintenance page")
-	return nil
-}
-
-// createMaintenanceWebServerService creates a fresh web-server Service pointing
-// to maintenance pods. Used when the original Service was already GC'd (e.g.,
-// operator restart after the child CR was deleted without orphan policy).
-func (r *SupersetReconciler) createMaintenanceWebServerService(
-	ctx context.Context,
-	superset *supersetv1alpha1.Superset,
-	selector map[string]string,
-) error {
-	svcName := naming.ResourceBaseName(superset.Name, naming.ComponentWebServer)
-	svc := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      svcName,
-			Namespace: superset.Namespace,
-			Labels:    naming.ComponentLabels(naming.ComponentWebServer, superset.Name),
-		},
-		Spec: corev1.ServiceSpec{
-			Type:     corev1.ServiceTypeClusterIP,
-			Selector: selector,
-			Ports: []corev1.ServicePort{
-				{Name: naming.PortNameHTTP, Port: naming.PortWebServer, Protocol: corev1.ProtocolTCP},
-			},
-		},
-	}
-	if err := r.Create(ctx, svc); err != nil {
-		return fmt.Errorf("creating web-server Service for maintenance: %w", err)
-	}
-	return nil
-}
-
-// releaseWebServerService ensures the web-server Service has no owner references
-// so the child reconciler can adopt it via SetControllerReference on the next
-// component reconciliation cycle.
-func (r *SupersetReconciler) releaseWebServerService(
-	ctx context.Context,
-	superset *supersetv1alpha1.Superset,
-) error {
-	svcName := naming.ResourceBaseName(superset.Name, naming.ComponentWebServer)
-	svc := &corev1.Service{}
-	key := client.ObjectKey{Namespace: superset.Namespace, Name: svcName}
-
-	if err := r.Get(ctx, key, svc); err != nil {
-		if errors.IsNotFound(err) {
-			return nil
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, deploy, func() error {
+		if err := controllerutil.SetControllerReference(superset, deploy, r.Scheme); err != nil {
+			return err
 		}
-		return err
-	}
-
-	if len(svc.OwnerReferences) == 0 {
+		deploy.Spec = buildDeploymentSpec(&flat, maintenanceDeployConfig, podAnnotations, selectorLabels)
+		deploy.Labels = mergeLabels(nil, componentLabels(string(naming.ComponentMaintenancePage), superset.Name))
 		return nil
-	}
-
-	svc.OwnerReferences = nil
-	return r.Update(ctx, svc)
+	})
+	return err
 }
 
 // reconcileMaintenanceConfigMap creates or updates the ConfigMap containing
@@ -329,32 +245,6 @@ func (r *SupersetReconciler) reconcileMaintenanceConfigMap(
 		return nil
 	})
 	return err
-}
-
-// createMaintenancePageCR builds and creates the SupersetMaintenancePage child CR.
-func (r *SupersetReconciler) createMaintenancePageCR(
-	ctx context.Context,
-	superset *supersetv1alpha1.Superset,
-	spec *supersetv1alpha1.MaintenancePageSpec,
-) error {
-	flat := buildMaintenanceFlatSpec(superset.Name, spec)
-	checksum := computeMaintenanceChecksum(spec)
-
-	childCR := &supersetv1alpha1.SupersetMaintenancePage{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      superset.Name,
-			Namespace: superset.Namespace,
-		},
-		Spec: supersetv1alpha1.SupersetMaintenancePageSpec{
-			FlatComponentSpec: flat,
-			ConfigChecksum:    checksum,
-		},
-	}
-
-	if err := controllerutil.SetControllerReference(superset, childCR, r.Scheme); err != nil {
-		return err
-	}
-	return r.Create(ctx, childCR)
 }
 
 // buildMaintenanceFlatSpec constructs the FlatComponentSpec for the maintenance page.
@@ -509,16 +399,4 @@ func renderMaintenanceHTML(spec *supersetv1alpha1.MaintenancePageSpec) string {
     </div>
 </body>
 </html>`
-}
-
-// selectorMatchesComponent checks if the Service selector already points to
-// the given component type and instance.
-func selectorMatchesComponent(svc *corev1.Service, component naming.ComponentType, instance string) bool {
-	expected := naming.ComponentLabels(component, instance)
-	for k, v := range expected {
-		if svc.Spec.Selector[k] != v {
-			return false
-		}
-	}
-	return true
 }

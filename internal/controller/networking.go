@@ -20,8 +20,11 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -35,6 +38,7 @@ import (
 
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=ingresses,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 
 // reconcileNetworking reconciles the networking resources (HTTPRoute or Ingress)
 // based on the Superset spec.
@@ -78,6 +82,72 @@ func webServerServiceRef(superset *supersetv1alpha1.Superset) (string, int32) {
 		port = *superset.Spec.WebServer.Service.Port
 	}
 	return name, port
+}
+
+// reconcileWebServerService creates or updates the web-server Service, owned by
+// the parent Superset CR. The selector is based on MaintenanceActive status:
+// during maintenance it routes to maintenance page pods; otherwise to web-server pods.
+func (r *SupersetReconciler) reconcileWebServerService(ctx context.Context, superset *supersetv1alpha1.Superset) error {
+	svcName, _ := webServerServiceRef(superset)
+
+	if superset.Spec.WebServer == nil {
+		svc := &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{Name: svcName, Namespace: superset.Namespace},
+		}
+		if err := r.Delete(ctx, svc); err != nil && !errors.IsNotFound(err) {
+			return fmt.Errorf("deleting web-server Service: %w", err)
+		}
+		return nil
+	}
+
+	svc := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      svcName,
+			Namespace: superset.Namespace,
+		},
+	}
+
+	// Determine selector based on lifecycle state.
+	var selector map[string]string
+	if superset.Status.Lifecycle != nil && superset.Status.Lifecycle.MaintenanceActive {
+		selector = common.ComponentLabels(common.ComponentMaintenancePage, superset.Name)
+	} else {
+		selector = common.ComponentLabels(common.ComponentWebServer, superset.Name)
+	}
+
+	svcSpec := superset.Spec.WebServer.Service
+	containerPort := resolveWebServerContainerPort(superset.Spec.WebServer)
+	webServerLabels := componentLabels(string(common.ComponentWebServer), superset.Name)
+
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, svc, func() error {
+		// Clear existing owner references to handle migration from child CR ownership.
+		svc.OwnerReferences = nil
+		if err := controllerutil.SetControllerReference(superset, svc, r.Scheme); err != nil {
+			return err
+		}
+		desiredSpec := buildServiceSpec(svcSpec, selector, containerPort, common.PortWebServer)
+		preserveServiceAllocatedFields(&desiredSpec, svc.Spec)
+		svc.Spec = desiredSpec
+		var userLabels map[string]string
+		var userAnnotations map[string]string
+		if svcSpec != nil {
+			userLabels = svcSpec.Labels
+			userAnnotations = svcSpec.Annotations
+		}
+		svc.Labels = mergeLabels(userLabels, webServerLabels)
+		svc.Annotations = mergeAnnotations(nil, userAnnotations)
+		return nil
+	})
+	return err
+}
+
+// resolveWebServerContainerPort returns the container port for the web-server,
+// falling back to the default if not overridden.
+func resolveWebServerContainerPort(ws *supersetv1alpha1.WebServerComponentSpec) int32 {
+	if ws != nil && ws.PodTemplate != nil && ws.PodTemplate.Container != nil && len(ws.PodTemplate.Container.Ports) > 0 {
+		return ws.PodTemplate.Container.Ports[0].ContainerPort
+	}
+	return common.PortWebServer
 }
 
 func (r *SupersetReconciler) reconcileHTTPRoute(ctx context.Context, superset *supersetv1alpha1.Superset) error {

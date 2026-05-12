@@ -198,7 +198,6 @@ func TestDeployConfigs_ComponentSpecific(t *testing.T) {
 		string(common.ComponentCeleryFlower):    {common.Container, true, false, true},
 		string(common.ComponentWebsocketServer): {common.Container, true, false, true},
 		string(common.ComponentMcpServer):       {common.Container, true, false, true},
-		string(common.ComponentMaintenancePage): {"maintenance-page", true, false, false},
 	}
 
 	for _, def := range ChildControllerDefs() {
@@ -241,13 +240,12 @@ func TestChildReconcilerConfig_ComponentSpecific(t *testing.T) {
 		hasPort   bool
 		scaling   bool
 	}{
-		string(common.ComponentWebServer):       {true, true, true},
+		string(common.ComponentWebServer):       {true, false, true},
 		string(common.ComponentCeleryWorker):    {true, false, true},
 		string(common.ComponentCeleryBeat):      {true, false, false},
 		string(common.ComponentCeleryFlower):    {true, true, true},
 		string(common.ComponentMcpServer):       {true, true, true},
 		string(common.ComponentWebsocketServer): {false, true, true},
-		string(common.ComponentMaintenancePage): {false, false, false},
 	}
 
 	for _, def := range ChildControllerDefs() {

@@ -14,7 +14,6 @@ Package v1alpha1 contains API Schema definitions for the superset v1alpha1 API g
 - [SupersetCeleryFlower](#supersetceleryflower)
 - [SupersetCeleryWorker](#supersetceleryworker)
 - [SupersetLifecycleTask](#supersetlifecycletask)
-- [SupersetMaintenancePage](#supersetmaintenancepage)
 - [SupersetMcpServer](#supersetmcpserver)
 - [SupersetWebServer](#supersetwebserver)
 - [SupersetWebsocketServer](#supersetwebsocketserver)
@@ -59,7 +58,6 @@ _Appears in:_
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
 - [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
-- [SupersetMaintenancePageSpec](#supersetmaintenancepagespec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
@@ -204,7 +202,6 @@ _Appears in:_
 - [SupersetCeleryBeatStatus](#supersetcelerybeatstatus)
 - [SupersetCeleryFlowerStatus](#supersetceleryflowerstatus)
 - [SupersetCeleryWorkerStatus](#supersetceleryworkerstatus)
-- [SupersetMaintenancePageStatus](#supersetmaintenancepagestatus)
 - [SupersetMcpServerStatus](#supersetmcpserverstatus)
 - [SupersetWebServerStatus](#supersetwebserverstatus)
 - [SupersetWebsocketServerStatus](#supersetwebsocketserverstatus)
@@ -409,7 +406,6 @@ _Appears in:_
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
 - [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
-- [SupersetMaintenancePageSpec](#supersetmaintenancepagespec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
@@ -439,7 +435,6 @@ _Appears in:_
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
 - [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
-- [SupersetMaintenancePageSpec](#supersetmaintenancepagespec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
 - [SupersetWebsocketServerSpec](#supersetwebsocketserverspec)
@@ -543,7 +538,6 @@ _Appears in:_
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
 - [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
-- [SupersetMaintenancePageSpec](#supersetmaintenancepagespec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
@@ -851,7 +845,6 @@ _Appears in:_
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
 - [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
-- [SupersetMaintenancePageSpec](#supersetmaintenancepagespec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
@@ -905,7 +898,6 @@ _Appears in:_
 - [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
 - [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
 - [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
-- [SupersetMaintenancePageSpec](#supersetmaintenancepagespec)
 - [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
 - [SupersetWebServerSpec](#supersetwebserverspec)
@@ -1328,67 +1320,6 @@ _Appears in:_
 | `configChecksum` _string_ | Config checksum that was active when the task last completed.<br />Used to detect changes and trigger re-execution. |  | Optional: \{\} <br /> |
 | `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ |  |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ |  |  | Optional: \{\} <br /> |
-
-
-#### SupersetMaintenancePage
-
-
-
-SupersetMaintenancePage is the Schema for the supersetmaintenancepages API.
-It manages a lightweight maintenance page Deployment served during lifecycle tasks.
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `superset.apache.org/v1alpha1` | | |
-| `kind` _string_ | `SupersetMaintenancePage` | | |
-| `metadata` _[ObjectMeta](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#ObjectMeta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[SupersetMaintenancePageSpec](#supersetmaintenancepagespec)_ |  |  |  |
-| `status` _[SupersetMaintenancePageStatus](#supersetmaintenancepagestatus)_ |  |  |  |
-
-
-#### SupersetMaintenancePageSpec
-
-
-
-SupersetMaintenancePageSpec is the fully-resolved, flat spec for a maintenance page.
-
-
-
-_Appears in:_
-- [SupersetMaintenancePage](#supersetmaintenancepage)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `image` _[ImageSpec](#imagespec)_ | Container image configuration. |  |  |
-| `replicas` _integer_ | Desired replica count. | 1 | Optional: \{\} <br /> |
-| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Fully-resolved deployment template. |  | Optional: \{\} <br /> |
-| `podTemplate` _[PodTemplate](#podtemplate)_ | Fully-resolved pod template. |  | Optional: \{\} <br /> |
-| `serviceAccountName` _string_ | ServiceAccountName to set on the pod. |  | Optional: \{\} <br /> |
-| `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Autoscaling configuration. |  | Optional: \{\} <br /> |
-| `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
-| `configChecksum` _string_ | Checksum stamped as pod template annotation for rolling restarts. |  | Optional: \{\} <br /> |
-
-
-#### SupersetMaintenancePageStatus
-
-
-
-SupersetMaintenancePageStatus defines the observed state of SupersetMaintenancePage.
-
-
-
-_Appears in:_
-- [SupersetMaintenancePage](#supersetmaintenancepage)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `ready` _string_ | "2/2" format showing ready vs desired replicas. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ | Standard conditions. |  | Optional: \{\} <br /> |
-| `observedGeneration` _integer_ | ObservedGeneration for leader election consistency. |  | Optional: \{\} <br /> |
 
 
 #### SupersetMcpServer
