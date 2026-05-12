@@ -336,11 +336,18 @@ During lifecycle drain, the parent:
 
 - Service selector changes propagate in ~1 second via the endpoints controller,
   giving instant traffic switchover regardless of ingress implementation
-- Works for all access patterns: Ingress, direct Service, port-forward
+- Works for all access patterns: Ingress, Gateway API, direct Service
 - No orphan deletion complexity — the Service is always owned by the parent,
   so GC of child CRs never affects it
 - The child `SupersetWebServer` reconciler skips Service management (the parent
   handles it), keeping the child controller simple
+
+> **Note for developers using `kubectl port-forward`:** port-forward establishes a
+> tunnel to a specific pod, not through the Service selector. When that pod is
+> deleted during drain, the tunnel breaks with a "lost connection to pod" error.
+> This does not affect Ingress/Gateway users — they route through EndpointSlices
+> and see seamless transitions. Restart port-forward to reconnect to the
+> maintenance pod.
 
 ### Alternatives Considered
 

@@ -29,14 +29,13 @@ The operator manages the full Superset lifecycle: database migrations, configura
 ## Features
 
 - **Sane defaults** — production-ready settings out of the box that adapt automatically to your workload
-- **Painless management** — structured configuration fields with per-component config generated automatically
-- **Full control** — every default is overridable, from high-level presets down to individual fields, with a raw Python escape hatch for anything not covered
-- **Flat configuration** — shared top-level defaults inherited by all components, with per-component overrides (primitives replace, collections merge)
+- **Automatic config rendering** — structured fields for metastore, Valkey, Gunicorn, and Celery generate correct `superset_config.py` per component; config changes trigger rolling restarts
+- **Full control** — every default is overridable, from high-level presets down to individual container fields, with a raw Python escape hatch for anything not covered
 - **Component toggle** — enable CeleryWorker, CeleryBeat, CeleryFlower, WebsocketServer, or McpServer by setting their spec; omit to disable
-- **Lifecycle management** — database cloning, migration, and initialization run as managed Pods before components deploy
-- **Checksum-driven rollouts** — config changes automatically trigger rolling restarts of affected components
-- **Networking** — Gateway API (HTTPRoute) and Ingress support
-- **HPA with custom metrics**, PodDisruptionBudgets, NetworkPolicies, Prometheus ServiceMonitor
+- **Zero-downtime upgrades** — maintenance page serves users during database migrations; the operator drains components gracefully, runs lifecycle tasks, and restores traffic only after the new version is healthy
+- **Database cloning** — snapshot a production database into staging or QA environments on demand or on a cron schedule, with automatic migration and init afterward
+- **Networking** — Gateway API (HTTPRoute) and Ingress support with per-component routing
+- **Production hardening** — HPA with custom metrics, PodDisruptionBudgets, NetworkPolicies, Prometheus ServiceMonitor
 
 ## What it looks like
 

@@ -128,6 +128,14 @@ func (r *SupersetReconciler) reconcileMaintenanceReturn(
 	}
 	log := logf.FromContext(ctx)
 
+	// If webServer was removed while maintenance is active, clear immediately
+	// rather than waiting forever for a Deployment that won't come.
+	if superset.Spec.WebServer == nil {
+		superset.Status.Lifecycle.MaintenanceActive = false
+		log.Info("WebServer removed while maintenance active, clearing maintenance")
+		return true, nil
+	}
+
 	// Check web-server Deployment readiness before switching traffic.
 	webDeployName := naming.ResourceBaseName(superset.Name, naming.ComponentWebServer)
 	deploy := &appsv1.Deployment{}

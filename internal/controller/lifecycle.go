@@ -105,6 +105,9 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		superset.Status.Lifecycle = &supersetv1alpha1.LifecycleStatus{}
 	}
 
+	// Validate cron schedules early so invalid expressions are surfaced immediately.
+	r.validateSchedules(superset)
+
 	// Resolve the current lifecycle image.
 	var imageOverride *supersetv1alpha1.ImageOverrideSpec
 	if superset.Spec.Lifecycle != nil {

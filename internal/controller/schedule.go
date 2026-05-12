@@ -21,6 +21,7 @@ package controller
 import (
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
@@ -105,3 +106,26 @@ func (r *SupersetReconciler) projectScheduleStatus(superset *supersetv1alpha1.Su
 		taskRef.NextScheduleAt = &t
 	}
 }
+
+// validateSchedules checks all active cron expressions for validity and sets
+// a warning condition + event if any are invalid.
+func (r *SupersetReconciler) validateSchedules(superset *supersetv1alpha1.Superset) {
+	if superset.Spec.Lifecycle == nil {
+		return
+	}
+	if superset.Spec.Lifecycle.Clone != nil && superset.Spec.Lifecycle.Clone.CronSchedule != nil &&
+		!isDisabled(superset.Spec.Lifecycle.Clone.Disabled) {
+		expr := *superset.Spec.Lifecycle.Clone.CronSchedule
+		if err := schedule.Validate(expr); err != nil {
+			setCondition(&superset.Status.Conditions, conditionTypeScheduleValid,
+				metav1.ConditionFalse, "InvalidCronSchedule", err.Error(), superset.Generation)
+			r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "InvalidCronSchedule", "Lifecycle",
+				"Clone cron schedule is invalid: %v", err)
+			return
+		}
+	}
+	setCondition(&superset.Status.Conditions, conditionTypeScheduleValid,
+		metav1.ConditionTrue, "SchedulesValid", "All cron schedules are valid", superset.Generation)
+}
+
+const conditionTypeScheduleValid = "ScheduleValid"
