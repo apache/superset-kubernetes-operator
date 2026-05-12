@@ -44,9 +44,8 @@ spec:
     FEATURE_FLAGS = {"ENABLE_TEMPLATE_PROCESSING": True}
   webServer: {}
   lifecycle:
-    migrate:
-      adminUser: {}
     init:
+      adminUser: {}
       loadExamples: true
 ```
 
@@ -103,7 +102,7 @@ spec:
 spec:
   environment: Development
   metastore:
-    type: postgresql
+    type: PostgreSQL
     host: db.example.com
     port: 5432
     database: superset
@@ -115,7 +114,7 @@ spec:
 # Prod mode: password from Secret
 spec:
   metastore:
-    type: postgresql
+    type: PostgreSQL
     host: db.example.com
     port: 5432
     database: superset
@@ -832,4 +831,4 @@ Then reference the connection secret via `metastore.uriFrom` on your Superset CR
 
 ### Redis Operator
 
-Use the [Redis Operator](https://github.com/spotahome/redis-operator) or [Bitnami Redis Helm chart](https://github.com/bitnami/charts/tree/main/bitnami/redis) for Redis, and configure the connection via `config`.
+Use the [Redis Operator](https://github.com/spotahome/redis-operator) or [Bitnami Redis Helm chart](https://github.com/bitnami/charts/tree/main/bitnami/redis) for Redis or Valkey, and configure the connection via `valkey`.
