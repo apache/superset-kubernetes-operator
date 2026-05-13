@@ -106,7 +106,7 @@ spec:
 ```
 
 When a schedule is configured, the operator automatically re-runs the full
-lifecycle pipeline (clone → migrate → init) each time a cron tick boundary is
+lifecycle pipeline (clone → migrate → rotate → init) each time a cron tick boundary is
 crossed. The `trigger` field remains functional for manual overrides on top of
 the schedule — both contribute independently.
 
@@ -537,9 +537,11 @@ spec:
   # celeryBeat intentionally omitted — prevents alert double-triggers
 ```
 
-The lifecycle pipeline runs: **clone → migrate → init → components**. Components
-are not deployed until all tasks complete, and clone always drains existing
-components before running (DROP DATABASE fails with active connections).
+The lifecycle pipeline runs: **clone → migrate → rotate → init → components**. Components
+are not deployed until all enabled tasks complete, and clone always drains existing
+components before running (DROP DATABASE fails with active connections). Only
+the tasks you configure run; `rotate`, for example, is skipped when no
+`lifecycle.rotate` spec is set.
 
 ### Clone Trigger and Scheduling
 

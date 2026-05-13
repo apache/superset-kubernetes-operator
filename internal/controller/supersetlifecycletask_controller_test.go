@@ -29,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -619,6 +620,125 @@ func TestInitReconcile_PodFailed_Retries(t *testing.T) {
 	}
 	if updatedCR.Status.State != initStatePending {
 		t.Errorf("expected state Pending (for retry), got %s", updatedCR.Status.State)
+	}
+}
+
+// TestInitReconcile_BackoffGatePreventsImmediateRecreate verifies that after a
+// pod fails and the controller schedules a retry via Status.NextAttemptAt, a
+// subsequent reconcile triggered within the backoff window (e.g., by the
+// Pod-delete owner watch) does not create a new Pod — it waits until the
+// backoff deadline passes.
+func TestInitReconcile_BackoffGatePreventsImmediateRecreate(t *testing.T) {
+	scheme := testScheme(t)
+	initCR := minimalInitCR()
+	initCR.Status.State = initStateRunning
+	initCR.Status.Attempts = 0
+
+	pod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-init-abc",
+			Namespace: "default",
+			Labels: map[string]string{
+				labelInitInstance: "test-init",
+				labelInitTask:     initTaskName,
+			},
+		},
+		Status: corev1.PodStatus{
+			Phase: corev1.PodFailed,
+			ContainerStatuses: []corev1.ContainerStatus{
+				{State: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{ExitCode: 1, Reason: "Error"}}},
+			},
+		},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(initCR, pod).
+		WithStatusSubresource(initCR).
+		Build()
+
+	frozen := time.Unix(1_700_000_000, 0).UTC()
+	r := &SupersetLifecycleTaskReconciler{
+		Client:   c,
+		Scheme:   scheme,
+		Recorder: events.NewFakeRecorder(10),
+		Now:      func() time.Time { return frozen },
+	}
+
+	// First reconcile: observes failure, schedules NextAttemptAt, deletes the pod.
+	result, err := r.Reconcile(context.Background(), reconcile.Request{
+		NamespacedName: types.NamespacedName{Name: "test-init", Namespace: "default"},
+	})
+	if err != nil {
+		t.Fatalf("first reconcile: %v", err)
+	}
+	if result.RequeueAfter <= 0 {
+		t.Fatalf("expected backoff requeue after failure, got %v", result.RequeueAfter)
+	}
+
+	afterFailCR := &supersetv1alpha1.SupersetLifecycleTask{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-init", Namespace: "default"}, afterFailCR); err != nil {
+		t.Fatalf("get after fail: %v", err)
+	}
+	if afterFailCR.Status.NextAttemptAt == nil {
+		t.Fatal("expected NextAttemptAt to be set after failure")
+	}
+	if !afterFailCR.Status.NextAttemptAt.After(frozen) {
+		t.Errorf("expected NextAttemptAt to be in the future (now=%v), got %v", frozen, afterFailCR.Status.NextAttemptAt.Time)
+	}
+
+	// Second reconcile (still at `frozen` — delete-event race): must not create
+	// a new pod and must continue to requeue until the backoff expires.
+	result2, err := r.Reconcile(context.Background(), reconcile.Request{
+		NamespacedName: types.NamespacedName{Name: "test-init", Namespace: "default"},
+	})
+	if err != nil {
+		t.Fatalf("race reconcile: %v", err)
+	}
+	if result2.RequeueAfter <= 0 {
+		t.Errorf("expected positive requeue within backoff window, got %v", result2.RequeueAfter)
+	}
+
+	podList := &corev1.PodList{}
+	if err := c.List(context.Background(), podList, client.InNamespace("default"),
+		client.MatchingLabels{labelInitInstance: "test-init", labelInitTask: initTaskName}); err != nil {
+		t.Fatalf("list pods: %v", err)
+	}
+	// No live pod should exist (the failed one was deleted, no new one created).
+	for _, p := range podList.Items {
+		if p.DeletionTimestamp == nil {
+			t.Errorf("expected no live pod during backoff, found %s", p.Name)
+		}
+	}
+
+	// Advance past backoff; next reconcile should clear NextAttemptAt and
+	// create a new pod.
+	r.Now = func() time.Time { return afterFailCR.Status.NextAttemptAt.Add(time.Second) }
+	if _, err := r.Reconcile(context.Background(), reconcile.Request{
+		NamespacedName: types.NamespacedName{Name: "test-init", Namespace: "default"},
+	}); err != nil {
+		t.Fatalf("post-backoff reconcile: %v", err)
+	}
+
+	afterRetryCR := &supersetv1alpha1.SupersetLifecycleTask{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-init", Namespace: "default"}, afterRetryCR); err != nil {
+		t.Fatalf("get after retry: %v", err)
+	}
+	if afterRetryCR.Status.NextAttemptAt != nil {
+		t.Errorf("expected NextAttemptAt to be cleared after pod recreated, got %v", afterRetryCR.Status.NextAttemptAt)
+	}
+	if err := c.List(context.Background(), podList, client.InNamespace("default"),
+		client.MatchingLabels{labelInitInstance: "test-init", labelInitTask: initTaskName}); err != nil {
+		t.Fatalf("list pods after retry: %v", err)
+	}
+	live := 0
+	for _, p := range podList.Items {
+		if p.DeletionTimestamp == nil {
+			live++
+		}
+	}
+	if live != 1 {
+		t.Errorf("expected exactly 1 live pod after backoff expires, found %d", live)
 	}
 }
 

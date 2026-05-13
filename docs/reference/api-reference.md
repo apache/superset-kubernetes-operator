@@ -1342,6 +1342,7 @@ _Appears in:_
 | `completedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
 | `duration` _string_ |  |  | Optional: \{\} <br /> |
 | `attempts` _integer_ |  |  | Optional: \{\} <br /> |
+| `nextAttemptAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ | NextAttemptAt is the earliest time at which the controller may create<br />the next Pod after a failure or timeout. Persisting this prevents the<br />Pod-delete owner watch from enqueuing a reconcile that bypasses the<br />exponential backoff. |  | Optional: \{\} <br /> |
 | `image` _string_ |  |  | Optional: \{\} <br /> |
 | `message` _string_ |  |  | Optional: \{\} <br /> |
 | `configChecksum` _string_ | Config checksum that was active when the task last completed.<br />Used to detect changes and trigger re-execution. |  | Optional: \{\} <br /> |

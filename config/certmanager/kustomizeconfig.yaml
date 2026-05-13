@@ -1,0 +1,12 @@
+# Kustomize configuration hooks for cert-manager types. Kustomize doesn't
+# know about cert-manager out of the box, so we teach it that Certificate's
+# spec.issuerRef.name is a reference to an Issuer/ClusterIssuer — otherwise
+# the namePrefix transformer renames the Issuer but leaves issuerRef.name
+# pointing at the old name.
+nameReference:
+  - kind: Issuer
+    group: cert-manager.io
+    fieldSpecs:
+      - kind: Certificate
+        group: cert-manager.io
+        path: spec/issuerRef/name

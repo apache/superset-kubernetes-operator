@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -51,33 +50,33 @@ func (r *SupersetReconciler) deleteTaskCR(ctx context.Context, name, namespace s
 }
 
 // drainIfNeeded checks whether any enabled task requires drain and executes it.
-// Returns (requeueAfter, drained, error). drained=true means either drain is not
-// needed or drain completed successfully.
+// Complete=true means drain isn't needed or completed successfully; otherwise
+// RequeueAfter indicates how long to wait before re-checking.
 func (r *SupersetReconciler) drainIfNeeded(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
 	cloneEnabled, migrateEnabled, rotateEnabled, initEnabled bool,
-) (time.Duration, bool, error) {
+) (lifecycleResult, error) {
 	needsDrain := (cloneEnabled && r.taskRequiresDrain(superset, taskTypeClone)) ||
 		(migrateEnabled && r.taskRequiresDrain(superset, taskTypeMigrate)) ||
 		(rotateEnabled && r.taskRequiresDrain(superset, taskTypeRotate)) ||
 		(initEnabled && r.taskRequiresDrain(superset, taskTypeInit))
 	if !needsDrain {
-		return 0, true, nil
+		return lifecycleComplete(), nil
 	}
 
 	superset.Status.Lifecycle.Phase = lifecyclePhaseDraining
 	superset.Status.Phase = phaseDraining
 	drained, err := r.drainComponents(ctx, superset)
 	if err != nil {
-		return 0, false, fmt.Errorf("draining components: %w", err)
+		return lifecycleResult{}, fmt.Errorf("draining components: %w", err)
 	}
 	if !drained {
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
 			metav1.ConditionFalse, "Draining", "Scaling components to zero before lifecycle tasks", superset.Generation)
-		return taskRequeueInterval, false, nil
+		return lifecycleWait(), nil
 	}
-	return 0, true, nil
+	return lifecycleComplete(), nil
 }
 
 // drainComponents deletes all component child CRs, which cascades to their

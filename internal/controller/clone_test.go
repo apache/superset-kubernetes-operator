@@ -1449,3 +1449,39 @@ func TestAllTasksStillComplete_WithRotate(t *testing.T) {
 		}
 	})
 }
+
+// TestIsTaskEnabled_InvalidCronScheduleGatesClone verifies that an invalid
+// cron expression causes clone to be treated as disabled — the user's
+// malformed schedule surfaces as a ScheduleValid=False condition (set by
+// validateSchedules) and does not trigger an opportunistic one-shot clone.
+func TestIsTaskEnabled_InvalidCronScheduleGatesClone(t *testing.T) {
+	r := &SupersetReconciler{}
+
+	badExpr := "not a cron expression"
+	superset := &supersetv1alpha1.Superset{}
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		Clone: &supersetv1alpha1.CloneTaskSpec{
+			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
+				CronSchedule: &badExpr,
+			},
+			Source: supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"},
+		},
+	}
+
+	if r.isTaskEnabled(superset, taskTypeClone) {
+		t.Fatal("expected clone to be disabled when CronSchedule is invalid")
+	}
+
+	// A valid schedule re-enables clone.
+	validExpr := "0 * * * *"
+	superset.Spec.Lifecycle.Clone.CronSchedule = &validExpr
+	if !r.isTaskEnabled(superset, taskTypeClone) {
+		t.Fatal("expected clone to be enabled for a valid CronSchedule")
+	}
+
+	// No schedule at all — clone remains enabled (legacy on-demand path).
+	superset.Spec.Lifecycle.Clone.CronSchedule = nil
+	if !r.isTaskEnabled(superset, taskTypeClone) {
+		t.Fatal("expected clone to be enabled when no CronSchedule is set")
+	}
+}

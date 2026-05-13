@@ -68,6 +68,12 @@ type SupersetLifecycleTaskStatus struct {
 	Duration string `json:"duration,omitempty"`
 	// +optional
 	Attempts int32 `json:"attempts,omitempty"`
+	// NextAttemptAt is the earliest time at which the controller may create
+	// the next Pod after a failure or timeout. Persisting this prevents the
+	// Pod-delete owner watch from enqueuing a reconcile that bypasses the
+	// exponential backoff.
+	// +optional
+	NextAttemptAt *metav1.Time `json:"nextAttemptAt,omitempty"`
 	// +optional
 	Image string `json:"image,omitempty"`
 	// +optional

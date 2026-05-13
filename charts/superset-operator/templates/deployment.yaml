@@ -55,6 +55,11 @@ spec:
             - --health-probe-bind-address=:8081
             {{- if .Values.metrics.enabled }}
             - --metrics-bind-address=:{{ .Values.metrics.service.port }}
+            {{- if .Values.metrics.certSecretName }}
+            - --metrics-cert-path=/tmp/k8s-metrics-server/metrics-certs
+            - --metrics-cert-name=tls.crt
+            - --metrics-cert-key=tls.key
+            {{- end }}
             {{- else }}
             - --metrics-bind-address=0
             {{- end }}
@@ -74,6 +79,26 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- if and .Values.metrics.enabled .Values.metrics.certSecretName }}
+          volumeMounts:
+            - name: metrics-certs
+              mountPath: /tmp/k8s-metrics-server/metrics-certs
+              readOnly: true
+          {{- end }}
+      {{- if and .Values.metrics.enabled .Values.metrics.certSecretName }}
+      volumes:
+        - name: metrics-certs
+          secret:
+            secretName: {{ .Values.metrics.certSecretName }}
+            optional: false
+            items:
+              - key: ca.crt
+                path: ca.crt
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
+      {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

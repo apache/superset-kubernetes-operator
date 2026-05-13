@@ -44,12 +44,20 @@ type SupersetLifecycleTaskReconciler struct {
 	client.Client
 	Scheme   *runtime.Scheme
 	Recorder events.EventRecorder
+	// Now lets tests inject a deterministic clock for backoff timing.
+	Now func() time.Time
+}
+
+func (r *SupersetLifecycleTaskReconciler) now() time.Time {
+	if r.Now != nil {
+		return r.Now()
+	}
+	return time.Now()
 }
 
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersetlifecycletasks,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersetlifecycletasks/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;delete
-// +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch;update
 
 func (r *SupersetLifecycleTaskReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
@@ -63,6 +71,9 @@ func (r *SupersetLifecycleTaskReconciler) Reconcile(ctx context.Context, req ctr
 		return ctrl.Result{}, err
 	}
 
+	// Capture the server-side status for diffing; only patch if something changed.
+	origTaskCR := taskCR.DeepCopy()
+
 	log.Info("Reconciling SupersetLifecycleTask", "name", taskCR.Name)
 
 	// Run the init pod lifecycle.
@@ -72,9 +83,10 @@ func (r *SupersetLifecycleTaskReconciler) Reconcile(ctx context.Context, req ctr
 		return ctrl.Result{}, fmt.Errorf("reconciling init pod: %w", err)
 	}
 
-	// Update status.
+	// Update status only if something actually changed. ObservedGeneration
+	// is a frequent reason for a diff but is itself a meaningful update.
 	taskCR.Status.ObservedGeneration = taskCR.Generation
-	if err := r.Status().Update(ctx, taskCR); err != nil {
+	if err := patchStatusIfChanged(ctx, r.Client, taskCR, origTaskCR, origTaskCR.Status, taskCR.Status); err != nil {
 		return ctrl.Result{}, fmt.Errorf("updating status: %w", err)
 	}
 
@@ -109,6 +121,17 @@ func (r *SupersetLifecycleTaskReconciler) reconcileInitPod(ctx context.Context, 
 	if taskCR.Status.State == "" {
 		taskCR.Status.State = initStatePending
 		taskCR.Status.Image = image
+	}
+
+	// Honor backoff: if NextAttemptAt has been set from a previous failure
+	// and hasn't passed yet, wait without creating a pod. This prevents the
+	// Pod-delete owner watch from enqueuing a reconcile that bypasses the
+	// exponential backoff.
+	if taskCR.Status.NextAttemptAt != nil {
+		if remaining := taskCR.Status.NextAttemptAt.Sub(r.now()); remaining > 0 {
+			return ctrl.Result{RequeueAfter: remaining}, nil
+		}
+		taskCR.Status.NextAttemptAt = nil
 	}
 
 	// Look for an existing pod for this init task.
@@ -169,11 +192,14 @@ func (r *SupersetLifecycleTaskReconciler) reconcileInitPod(ctx context.Context, 
 			}
 
 			// Not exhausted -- delete the failed pod before retry.
+			backoff := calculateBackoff(taskCR.Status.Attempts)
+			next := metav1.NewTime(r.now().Add(backoff))
+			taskCR.Status.NextAttemptAt = &next
+
 			if err := r.Delete(ctx, existingPod); client.IgnoreNotFound(err) != nil {
 				return ctrl.Result{}, err
 			}
 
-			backoff := calculateBackoff(taskCR.Status.Attempts)
 			taskCR.Status.State = initStatePending
 			r.Recorder.Eventf(taskCR, nil, corev1.EventTypeWarning, "InitRetry", "Reconcile",
 				"Init failed (attempt %d/%d), retrying in %s", taskCR.Status.Attempts, maxRetries, backoff)
@@ -198,10 +224,12 @@ func (r *SupersetLifecycleTaskReconciler) reconcileInitPod(ctx context.Context, 
 							metav1.ConditionFalse, "InitTimedOut", taskCR.Status.Message, taskCR.Generation)
 						return ctrl.Result{}, nil
 					}
+					backoff := calculateBackoff(taskCR.Status.Attempts)
+					next := metav1.NewTime(r.now().Add(backoff))
+					taskCR.Status.NextAttemptAt = &next
 					if err := r.Delete(ctx, existingPod); client.IgnoreNotFound(err) != nil {
 						return ctrl.Result{}, err
 					}
-					backoff := calculateBackoff(taskCR.Status.Attempts)
 					taskCR.Status.State = initStatePending
 					return ctrl.Result{RequeueAfter: backoff}, nil
 				}
@@ -381,7 +409,6 @@ func (r *SupersetLifecycleTaskReconciler) SetupWithManager(mgr ctrl.Manager) err
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&supersetv1alpha1.SupersetLifecycleTask{}).
 		Owns(&corev1.Pod{}).
-		Owns(&corev1.ConfigMap{}).
 		Named("supersetlifecycletask").
 		Complete(r)
 }

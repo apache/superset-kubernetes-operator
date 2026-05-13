@@ -4055,6 +4055,9 @@ spec:
                 type: string
               message:
                 type: string
+              nextAttemptAt:
+                format: date-time
+                type: string
               observedGeneration:
                 format: int64
                 type: integer

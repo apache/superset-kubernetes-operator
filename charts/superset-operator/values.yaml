@@ -25,6 +25,44 @@ metrics:
   enabled: true
   service:
     port: 8443
+  # When non-empty, mount this Secret into the manager pod at
+  # /tmp/k8s-metrics-server/metrics-certs and start the manager with
+  # --metrics-cert-path so the metrics server presents a real certificate
+  # instead of the built-in self-signed one. The Secret must contain
+  # tls.crt, tls.key, and (for the scraper's CA bundle) ca.crt.
+  # Typically this is the Secret written by a cert-manager Certificate.
+  certSecretName: ""
+  # serviceMonitor creates a Prometheus Operator ServiceMonitor scraping the
+  # operator's controller-runtime metrics. Requires the prometheus-operator
+  # CRDs to be installed; otherwise Helm will fail to apply this resource.
+  serviceMonitor:
+    enabled: false
+    # How often Prometheus scrapes the operator metrics endpoint.
+    interval: 30s
+    # Empty string means "inherit Prometheus' default scrape timeout".
+    scrapeTimeout: ""
+    # Extra labels applied to the ServiceMonitor so Prometheus Operator
+    # selects it (e.g., {release: prometheus} for kube-prometheus-stack).
+    labels: {}
+    # Free-form ServiceMonitor tlsConfig. The default trusts any cert
+    # (matches the operator's built-in self-signed flow). To scrape over
+    # real TLS, provision a cert-manager-managed Secret, set metrics.certSecretName
+    # above, and override tlsConfig with something like:
+    #   tlsConfig:
+    #     insecureSkipVerify: false
+    #     serverName: <release-name>-superset-operator-metrics.<namespace>.svc
+    #     ca:
+    #       secret:
+    #         name: metrics-server-cert
+    #         key: ca.crt
+    # The metrics endpoint authenticates scrapers via bearer token, not
+    # client cert, so cert/keySecret are unnecessary unless you've
+    # configured client-cert auth yourself.
+    tlsConfig:
+      insecureSkipVerify: true
+    # Path to the token Prometheus uses to authenticate to the metrics
+    # endpoint. Default matches Prometheus Operator's in-cluster setup.
+    bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
 
 healthProbes:
   livenessProbe:

@@ -22,6 +22,11 @@ resources:
 #- ../prometheus
 # [METRICS] Expose the controller manager metrics service.
 - metrics_service.yaml
+# [CERTMANAGER] Enable cert-manager-managed TLS for the metrics endpoint.
+# Uncomment alongside the [METRICS-WITH-CERTS] patch below (and optionally
+# [PROMETHEUS-WITH-CERTS] in config/prometheus) to switch from the
+# self-signed built-in cert to a cert-manager Certificate.
+#- ../certmanager
 
 patches:
 # [METRICS] The following patch will enable the metrics endpoint using HTTPS and the port :8443.
@@ -29,3 +34,75 @@ patches:
 - path: manager_metrics_patch.yaml
   target:
     kind: Deployment
+# [METRICS-WITH-CERTS] Mount the cert-manager-issued metrics-server-cert
+# secret into the manager pod and point the metrics server at it. Requires
+# the [CERTMANAGER] resource include above (and cert-manager installed on
+# the cluster).
+#- path: cert_metrics_manager_patch.yaml
+#  target:
+#    kind: Deployment
+
+# [PROMETHEUS-WITH-CERTS] Substitute the actual metrics Service name and
+# namespace into the Certificate's dnsNames and into the ServiceMonitor's
+# tlsConfig.serverName placeholder (added by
+# config/prometheus/monitor_tls_patch.yaml). Requires the [CERTMANAGER]
+# and [PROMETHEUS] resource includes above.
+#replacements:
+#  - source:
+#      kind: Service
+#      version: v1
+#      name: controller-manager-metrics-service
+#      fieldPath: metadata.name
+#    targets:
+#      - select:
+#          kind: Certificate
+#          group: cert-manager.io
+#          version: v1
+#          name: metrics-certs
+#        fieldPaths:
+#          - spec.dnsNames.0
+#          - spec.dnsNames.1
+#        options:
+#          delimiter: '.'
+#          index: 0
+#          create: true
+#      - select:
+#          kind: ServiceMonitor
+#          group: monitoring.coreos.com
+#          version: v1
+#          name: controller-manager-metrics-monitor
+#        fieldPaths:
+#          - spec.endpoints.0.tlsConfig.serverName
+#        options:
+#          delimiter: '.'
+#          index: 0
+#          create: true
+#  - source:
+#      kind: Service
+#      version: v1
+#      name: controller-manager-metrics-service
+#      fieldPath: metadata.namespace
+#    targets:
+#      - select:
+#          kind: Certificate
+#          group: cert-manager.io
+#          version: v1
+#          name: metrics-certs
+#        fieldPaths:
+#          - spec.dnsNames.0
+#          - spec.dnsNames.1
+#        options:
+#          delimiter: '.'
+#          index: 1
+#          create: true
+#      - select:
+#          kind: ServiceMonitor
+#          group: monitoring.coreos.com
+#          version: v1
+#          name: controller-manager-metrics-monitor
+#        fieldPaths:
+#          - spec.endpoints.0.tlsConfig.serverName
+#        options:
+#          delimiter: '.'
+#          index: 1
+#          create: true

@@ -83,7 +83,7 @@ If Gateway API CRDs are not present, the controller skips HTTPRoute watch
 registration and catches `meta.IsNoMatchError` at reconciliation time. The
 operator runs with reduced functionality rather than failing.
 
-## Prometheus ServiceMonitor
+## Superset Instance Metrics
 
 Requires [prometheus-operator](https://prometheus-operator.dev/) CRDs. The operator gracefully skips if they are not installed.
 
@@ -100,6 +100,117 @@ The controller creates a Prometheus `ServiceMonitor` targeting the web-server
 component using unstructured objects (because the ServiceMonitor CRD is
 external: `monitoring.coreos.com/v1`). Default scrape interval is 30s
 (configurable). Targets pods with `app.kubernetes.io/component: web-server`.
+
+## Operator Metrics
+
+The operator itself exposes [controller-runtime](https://book.kubebuilder.io/reference/metrics.html)
+default metrics — reconcile counts and durations, work-queue depth, leader
+election state. These are served over HTTPS on port 8443, guarded by
+Kubernetes bearer-token authentication and authorization. No custom
+lifecycle metrics are emitted today; condition and event streams cover the
+per-instance lifecycle state.
+
+**RBAC.** Any scraper (typically Prometheus) needs the `metrics-reader`
+ClusterRole bound to its own ServiceAccount. Both install paths ship this
+role; bind it to your Prometheus ServiceAccount, for example:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: prometheus-superset-operator-metrics
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: superset-operator-metrics-reader  # Kustomize. For Helm, check the installed role name.
+subjects:
+  - kind: ServiceAccount
+    name: prometheus
+    namespace: monitoring
+```
+
+**TLS — out of the box.** The operator generates a self-signed certificate at
+startup, so scrapers connect over HTTPS with `insecureSkipVerify: true`. This
+is the default in both the Kustomize ServiceMonitor (`config/prometheus/monitor.yaml`)
+and the Helm chart. It's fine for a trusted cluster but not for
+zero-trust environments.
+
+### Enable via Helm
+
+The chart ships a ServiceMonitor template, off by default. The minimal
+opt-in looks like:
+
+```yaml
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    interval: 30s
+    labels:
+      release: prometheus           # selector your Prometheus picks up
+```
+
+That keeps the default self-signed + `insecureSkipVerify: true` behavior.
+
+For real TLS via cert-manager, provision a `metrics-server-cert` Secret
+(typically via a `cert-manager.io/v1` Certificate keyed to a self-signed
+Issuer) and point the chart at it:
+
+```yaml
+metrics:
+  enabled: true
+  certSecretName: metrics-server-cert   # mounts Secret into manager pod
+  serviceMonitor:
+    enabled: true
+    labels:
+      release: prometheus
+    tlsConfig:                           # free-form ServiceMonitor tlsConfig
+      insecureSkipVerify: false
+      serverName: <release>-superset-operator-metrics.<namespace>.svc
+      ca:
+        secret:
+          name: metrics-server-cert
+          key: ca.crt
+```
+
+The operator authenticates scrapers via bearer token (TokenReview), not
+mTLS, so `ca` + `serverName` are sufficient for the scraper to verify the
+server. Add `cert`/`keySecret` only if you've separately configured the
+metrics server to require client certs.
+
+Setting `metrics.certSecretName` mounts the Secret into the manager pod
+and adds `--metrics-cert-path` args so the metrics server presents that
+certificate. The full set of knobs is documented in
+`charts/superset-operator/values.yaml`.
+
+The chart does not ship the cert-manager `Certificate` or `Issuer`
+resources themselves; you create them (for example via
+`cert-manager.io/v1` manifests alongside your values). See the Kustomize
+section below for a working example of those manifests.
+
+### Enable via Kustomize
+
+Uncomment `- ../prometheus` in `config/default/kustomization.yaml` and
+re-apply. This adds the shipped ServiceMonitor in
+`config/prometheus/monitor.yaml`, which scrapes the operator's self-signed
+metrics endpoint with `insecureSkipVerify: true`.
+
+For a cert-manager-managed certificate (real TLS, no `insecureSkipVerify`),
+install [cert-manager](https://cert-manager.io/) on the cluster, then
+uncomment three more sections in `config/default/kustomization.yaml`:
+
+- `[CERTMANAGER]` — pulls in `config/certmanager` (a `selfsigned-issuer`
+  Issuer plus a `metrics-certs` Certificate that issues the
+  `metrics-server-cert` Secret).
+- `[METRICS-WITH-CERTS]` — mounts that Secret into the manager pod and
+  adds the `--metrics-cert-path` args.
+- `[PROMETHEUS-WITH-CERTS]` — a `replacements` block that substitutes the
+  real Service name and namespace into the Certificate's dnsNames and the
+  ServiceMonitor's `tlsConfig.serverName`.
+
+Also uncomment the patch reference in `config/prometheus/kustomization.yaml`
+so the ServiceMonitor picks up the real-TLS `tlsConfig` from
+`monitor_tls_patch.yaml`.
 
 ## Network Policies
 

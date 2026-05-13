@@ -22,6 +22,7 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -863,7 +864,7 @@ func TestReconcile_InitChecksumChangesOnImageAndCommand(t *testing.T) {
 
 	ctx := context.Background()
 	topLevel := convertTopLevelSpec(&superset.Spec)
-	_, _, err := r.reconcileLifecycle(ctx, superset, computeChecksum("base"), topLevel, resolveServiceAccountName(superset))
+	_, err := r.reconcileLifecycle(ctx, superset, computeChecksum("base"), topLevel, resolveServiceAccountName(superset))
 	if err != nil {
 		t.Fatalf("initial reconcileLifecycle: %v", err)
 	}
@@ -893,7 +894,7 @@ func TestReconcile_InitChecksumChangesOnImageAndCommand(t *testing.T) {
 
 	// Reconcile — parent sees checksum mismatch → deletes old CR.
 	topLevel = convertTopLevelSpec(&updated.Spec)
-	_, _, err = r.reconcileLifecycle(ctx, updated, computeChecksum("base"), topLevel, resolveServiceAccountName(updated))
+	_, err = r.reconcileLifecycle(ctx, updated, computeChecksum("base"), topLevel, resolveServiceAccountName(updated))
 	if err != nil {
 		t.Fatalf("updated reconcileLifecycle: %v", err)
 	}
@@ -931,7 +932,7 @@ func TestReconcile_InitChecksum_StableWhenAutoscalingChanges(t *testing.T) {
 
 	ctx := context.Background()
 	topLevel := convertTopLevelSpec(&superset.Spec)
-	_, _, err := r.reconcileLifecycle(ctx, superset, computeChecksum("base"), topLevel, resolveServiceAccountName(superset))
+	_, err := r.reconcileLifecycle(ctx, superset, computeChecksum("base"), topLevel, resolveServiceAccountName(superset))
 	if err != nil {
 		t.Fatalf("initial reconcileLifecycle: %v", err)
 	}
@@ -954,7 +955,7 @@ func TestReconcile_InitChecksum_StableWhenAutoscalingChanges(t *testing.T) {
 	}
 
 	topLevel = convertTopLevelSpec(&updated.Spec)
-	_, _, err = r.reconcileLifecycle(ctx, updated, computeChecksum("base"), topLevel, resolveServiceAccountName(updated))
+	_, err = r.reconcileLifecycle(ctx, updated, computeChecksum("base"), topLevel, resolveServiceAccountName(updated))
 	if err != nil {
 		t.Fatalf("updated reconcileLifecycle: %v", err)
 	}
@@ -1340,6 +1341,128 @@ func TestReconcile_InitTerminalFailure_NoRequeue(t *testing.T) {
 
 	if result.RequeueAfter != 0 {
 		t.Errorf("expected no requeue for terminal init failure, got RequeueAfter=%v", result.RequeueAfter)
+	}
+}
+
+// TestReconcile_ScheduledCloneTerminalFailure_RequeuesForNextTick verifies
+// that a scheduled clone task which has permanently failed still wakes up
+// on the next cron tick, rather than requiring a spec change to recover.
+func TestReconcile_ScheduledCloneTerminalFailure_RequeuesForNextTick(t *testing.T) {
+	scheme := testScheme(t)
+
+	// 14:30 with hourly cron at :00 ⇒ next tick at 15:00 ⇒ ~30 min requeue.
+	now := time.Date(2026, 5, 11, 14, 30, 0, 0, time.UTC)
+
+	cronExpr := "0 * * * *"
+	spec := minimalSupersetSpec()
+	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		Clone: &supersetv1alpha1.CloneTaskSpec{
+			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
+				CronSchedule: &cronExpr,
+			},
+			Source: supersetv1alpha1.CloneSourceSpec{
+				Host:     "prod-db",
+				Database: "superset",
+				Username: "reader",
+			},
+		},
+	}
+	// Supply a structured metastore so the clone target env vars are happy.
+	host := "target-db"
+	db := "superset"
+	user := "app"
+	spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+		Host: &host, Database: &db, Username: &user,
+	}
+
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-test-sched"},
+		Spec:       spec,
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(superset).
+		WithStatusSubresource(&supersetv1alpha1.Superset{}, &supersetv1alpha1.SupersetLifecycleTask{}).
+		Build()
+
+	r := &SupersetReconciler{
+		Client:   c,
+		Scheme:   scheme,
+		Recorder: events.NewFakeRecorder(10),
+		Now:      func() time.Time { return now },
+	}
+
+	// First reconcile creates the clone task CR.
+	doReconcile(t, r, "test")
+
+	ctx := context.Background()
+	cloneCR := &supersetv1alpha1.SupersetLifecycleTask{}
+	if err := c.Get(ctx, types.NamespacedName{Name: "test-clone", Namespace: "default"}, cloneCR); err != nil {
+		t.Fatalf("get clone CR: %v", err)
+	}
+
+	// Simulate permanent failure with matching checksum.
+	cloneCR.Status.State = "Failed"
+	cloneCR.Status.Attempts = defaultMaxRetries
+	cloneCR.Status.Message = "pg_dump exited non-zero"
+	cloneCR.Status.ConfigChecksum = cloneCR.Spec.ConfigChecksum
+	if err := c.Status().Update(ctx, cloneCR); err != nil {
+		t.Fatalf("update clone status: %v", err)
+	}
+
+	// Second reconcile: terminal failure + active cron schedule ⇒ requeue at next tick.
+	result, err := r.Reconcile(ctx, reconcile.Request{
+		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
+	})
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if result.RequeueAfter == 0 {
+		t.Fatal("expected a requeue for the next scheduled tick after terminal clone failure, got 0")
+	}
+	// Expect roughly 30 minutes until 15:00 (the implementation adds a 1s buffer).
+	expected := 30*time.Minute + time.Second
+	if result.RequeueAfter != expected {
+		t.Errorf("expected requeue %v, got %v", expected, result.RequeueAfter)
+	}
+}
+
+// TestReconcile_NoopStatusWritesAreSkipped verifies that two back-to-back
+// reconciles on a settled Superset do not churn the resourceVersion when
+// no observable status field has changed.
+func TestReconcile_NoopStatusWritesAreSkipped(t *testing.T) {
+	scheme := testScheme(t)
+
+	// Lifecycle disabled keeps the reconcile path short and deterministic.
+	spec := minimalSupersetSpec()
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-noop-1"},
+		Spec:       spec,
+	}
+
+	c := reconcileOnce(t, scheme, superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	// First reconcile populates status. Second reconcile should be a no-op.
+	doReconcile(t, r, "test")
+
+	ctx := context.Background()
+	after1 := &supersetv1alpha1.Superset{}
+	if err := c.Get(ctx, types.NamespacedName{Name: "test", Namespace: "default"}, after1); err != nil {
+		t.Fatalf("get after first reconcile: %v", err)
+	}
+
+	doReconcile(t, r, "test")
+
+	after2 := &supersetv1alpha1.Superset{}
+	if err := c.Get(ctx, types.NamespacedName{Name: "test", Namespace: "default"}, after2); err != nil {
+		t.Fatalf("get after second reconcile: %v", err)
+	}
+
+	if after1.ResourceVersion != after2.ResourceVersion {
+		t.Errorf("expected no-op reconcile to leave resourceVersion unchanged, got %q → %q",
+			after1.ResourceVersion, after2.ResourceVersion)
 	}
 }
 

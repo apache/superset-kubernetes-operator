@@ -129,3 +129,15 @@ func (r *SupersetReconciler) validateSchedules(superset *supersetv1alpha1.Supers
 }
 
 const conditionTypeScheduleValid = "ScheduleValid"
+
+// cloneScheduleIsValid returns true if cronSchedule is unset, empty, or a
+// valid cron expression. An invalid expression causes the caller to treat
+// the clone as disabled until the user corrects it. The matching user-facing
+// signal (condition + event) is set by validateSchedules earlier in the
+// reconcile.
+func cloneScheduleIsValid(cronSchedule *string) bool {
+	if cronSchedule == nil || *cronSchedule == "" {
+		return true
+	}
+	return schedule.Validate(*cronSchedule) == nil
+}

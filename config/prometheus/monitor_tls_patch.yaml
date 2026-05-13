@@ -1,19 +1,20 @@
-# Patch for Prometheus ServiceMonitor to enable secure TLS configuration
-# using certificates managed by cert-manager
+# Patch for the Prometheus ServiceMonitor to verify the operator's
+# cert-manager-managed serving certificate (instead of trusting any cert
+# with insecureSkipVerify: true).
+#
+# Kustomize replacements in config/default/kustomization.yaml fill in
+# SERVICE_NAME and SERVICE_NAMESPACE based on the actual metrics Service.
+#
+# Note: only ca + serverName are needed for server-cert verification. The
+# operator's metrics endpoint authenticates scrapers with a bearer token
+# (TokenReview), not mTLS, so client cert + key are intentionally omitted —
+# that keeps the serving private key out of the Prometheus pods.
 - op: replace
   path: /spec/endpoints/0/tlsConfig
   value:
-    # SERVICE_NAME and SERVICE_NAMESPACE will be substituted by kustomize
     serverName: SERVICE_NAME.SERVICE_NAMESPACE.svc
     insecureSkipVerify: false
     ca:
       secret:
         name: metrics-server-cert
         key: ca.crt
-    cert:
-      secret:
-        name: metrics-server-cert
-        key: tls.crt
-    keySecret:
-      name: metrics-server-cert
-      key: tls.key

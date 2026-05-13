@@ -19,14 +19,31 @@ limitations under the License.
 package controller
 
 import (
+	"context"
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 )
+
+// patchStatusIfChanged issues a status MergeFrom patch iff the two status
+// values are not semantically equal. origObj is the deep copy of obj
+// captured before mutation; origStatus and currentStatus are the compared
+// status values (typically obj.Status before/after mutation).
+//
+// This avoids bumping resourceVersion on reconciles where no observable
+// status field changed, cutting down on self-enqueued reconciles.
+func patchStatusIfChanged(ctx context.Context, c client.Client, obj client.Object, origObj client.Object, origStatus, currentStatus any) error {
+	if equality.Semantic.DeepEqual(origStatus, currentStatus) {
+		return nil
+	}
+	return c.Status().Patch(ctx, obj, client.MergeFrom(origObj))
+}
 
 // setCondition sets a condition on a conditions slice, replacing any existing
 // condition of the same type.

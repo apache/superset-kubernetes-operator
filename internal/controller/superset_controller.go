@@ -87,6 +87,10 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, err
 	}
 
+	// Capture the server-side status for diffing; all subsequent status writes
+	// are guarded by equality.Semantic.DeepEqual to avoid reconcile churn.
+	origSuperset := superset.DeepCopy()
+
 	// Handle suspend.
 	if superset.Spec.Suspend != nil && *superset.Spec.Suspend {
 		log.Info("Reconciliation suspended", "name", superset.Name)
@@ -94,7 +98,7 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			metav1.ConditionTrue, "Suspended", "Reconciliation is suspended", superset.Generation)
 		superset.Status.Phase = phaseSuspended
 		superset.Status.ObservedGeneration = superset.Generation
-		return ctrl.Result{}, r.Status().Update(ctx, superset)
+		return ctrl.Result{}, patchStatusIfChanged(ctx, r.Client, superset, origSuperset, origSuperset.Status, superset.Status)
 	}
 
 	// Clear Suspended condition when not suspended.
@@ -132,22 +136,27 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	topLevel := convertTopLevelSpec(&superset.Spec)
 	saName := resolveServiceAccountName(superset)
 
-	requeueAfter, lifecycleComplete, err := r.reconcileLifecycle(ctx, superset, configChecksum, topLevel, saName)
+	lifecycleRes, err := r.reconcileLifecycle(ctx, superset, configChecksum, topLevel, saName)
 	if err != nil {
 		r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile Init: %v", err)
 		return ctrl.Result{}, fmt.Errorf("reconciling Init: %w", err)
 	}
-	if !lifecycleComplete {
+	if !lifecycleRes.Complete {
 		// Update status before returning.
-		if statusErr := r.Status().Update(ctx, superset); statusErr != nil {
+		if statusErr := patchStatusIfChanged(ctx, r.Client, superset, origSuperset, origSuperset.Status, superset.Status); statusErr != nil {
 			return ctrl.Result{}, fmt.Errorf("updating status during init: %w", statusErr)
 		}
-		if requeueAfter < 0 {
-			// Terminal failure — only a spec change (watch event) can recover.
+		if lifecycleRes.TerminalFailure {
+			// Even on terminal failure, wake up for the next scheduled run
+			// (e.g., cron-driven clone) if one is configured.
+			if next := r.nextScheduleRequeue(superset); next > 0 {
+				return ctrl.Result{RequeueAfter: next}, nil
+			}
+			// No schedule; only a spec change (watch event) can recover.
 			return ctrl.Result{}, nil
 		}
-		if requeueAfter > 0 {
-			return ctrl.Result{RequeueAfter: requeueAfter}, nil
+		if lifecycleRes.RequeueAfter > 0 {
+			return ctrl.Result{RequeueAfter: lifecycleRes.RequeueAfter}, nil
 		}
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
@@ -156,7 +165,7 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	// creating components. Component creation triggers watch events that cause
 	// concurrent reconciles — if we defer this to Phase 5, a conflict there
 	// loses the checksums and the next reconcile re-enters lifecycle.
-	if statusErr := r.Status().Update(ctx, superset); statusErr != nil {
+	if statusErr := patchStatusIfChanged(ctx, r.Client, superset, origSuperset, origSuperset.Status, superset.Status); statusErr != nil {
 		return ctrl.Result{}, fmt.Errorf("updating status after lifecycle: %w", statusErr)
 	}
 
@@ -185,7 +194,7 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		_ = r.deleteMaintenanceResources(ctx, superset)
 	}
 	if !maintenanceCleared {
-		if statusErr := r.Status().Update(ctx, superset); statusErr != nil {
+		if statusErr := patchStatusIfChanged(ctx, r.Client, superset, origSuperset, origSuperset.Status, superset.Status); statusErr != nil {
 			return ctrl.Result{}, fmt.Errorf("updating status during maintenance return: %w", statusErr)
 		}
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
@@ -209,7 +218,7 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 	// Phase 5: Update aggregate status.
 	superset.Status.ConfigChecksum = configChecksum
-	if err := r.updateStatus(ctx, superset); err != nil {
+	if err := r.updateStatus(ctx, superset, origSuperset); err != nil {
 		return ctrl.Result{}, fmt.Errorf("updating status: %w", err)
 	}
 
@@ -315,7 +324,7 @@ func isOwnedBy(obj, owner client.Object) bool {
 
 // --- Status aggregation ---
 
-func (r *SupersetReconciler) updateStatus(ctx context.Context, superset *supersetv1alpha1.Superset) error {
+func (r *SupersetReconciler) updateStatus(ctx context.Context, superset *supersetv1alpha1.Superset, origSuperset *supersetv1alpha1.Superset) error {
 	superset.Status.ObservedGeneration = superset.Generation
 	superset.Status.Version = superset.Spec.Image.Tag
 
@@ -354,7 +363,7 @@ func (r *SupersetReconciler) updateStatus(ctx context.Context, superset *superse
 		superset.Status.Phase = phaseDegraded
 	}
 
-	return r.Status().Update(ctx, superset)
+	return patchStatusIfChanged(ctx, r.Client, superset, origSuperset, origSuperset.Status, superset.Status)
 }
 
 // getChildStatus reads a child CR's status using unstructured API.

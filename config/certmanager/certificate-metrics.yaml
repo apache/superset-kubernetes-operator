@@ -1,0 +1,56 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+# Self-signed Issuer for the metrics server certificate. Users who already
+# have an Issuer or ClusterIssuer they want to reuse can replace this with
+# their own by editing this manifest.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  labels:
+    app.kubernetes.io/name: superset-kubernetes-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: selfsigned-issuer
+  namespace: system
+spec:
+  selfSigned: {}
+---
+# Certificate issued by the Issuer above, stored in the metrics-server-cert
+# Secret and mounted into the manager pod by the [METRICS-WITH-CERTS] patch
+# in config/default/kustomization.yaml.
+#
+# The dnsNames entries contain the placeholders SERVICE_NAME and
+# SERVICE_NAMESPACE; Kustomize replacements (in the default overlay) swap
+# them for the actual metrics Service identity.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  labels:
+    app.kubernetes.io/name: superset-kubernetes-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: metrics-certs
+  namespace: system
+spec:
+  dnsNames:
+    - SERVICE_NAME.SERVICE_NAMESPACE.svc
+    - SERVICE_NAME.SERVICE_NAMESPACE.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: selfsigned-issuer
+  secretName: metrics-server-cert

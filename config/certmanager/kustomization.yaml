@@ -1,0 +1,9 @@
+# cert-manager resources for the operator's metrics endpoint TLS. Included
+# from config/default/kustomization.yaml via the [CERTMANAGER] section.
+resources:
+  - certificate-metrics.yaml
+
+# Teach Kustomize about cert-manager name references so issuerRef.name is
+# rewritten when the Issuer is renamed by the parent overlay's namePrefix.
+configurations:
+  - kustomizeconfig.yaml
