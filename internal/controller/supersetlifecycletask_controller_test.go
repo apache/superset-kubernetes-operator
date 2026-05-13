@@ -229,7 +229,7 @@ func TestGetInitRetentionPolicy(t *testing.T) {
 		{
 			"default",
 			&supersetv1alpha1.SupersetLifecycleTask{},
-			"Retain",
+			"RetainOnFailure",
 		},
 		{
 			"retain",
@@ -458,6 +458,9 @@ func TestInitReconcile_PodSucceeded_RetentionDeferredUntilNextReconcile(t *testi
 	initCR.Status.State = initStateRunning
 	now := metav1.Now()
 	initCR.Status.StartedAt = &now
+	// Pin retention to Retain so this test isolates the "deferred retention"
+	// semantics from whatever the chart default happens to be.
+	initCR.Spec.PodRetention = &supersetv1alpha1.PodRetentionSpec{Policy: strPtr("Retain")}
 
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -504,7 +507,7 @@ func TestInitReconcile_PodSucceeded_RetentionDeferredUntilNextReconcile(t *testi
 		t.Fatalf("reconcile 2: %v", err)
 	}
 
-	// Pod should still exist (default retention = Retain).
+	// Pod should still exist (explicit Retain policy above).
 	if err := c.List(context.Background(), podList); err != nil {
 		t.Fatalf("list pods: %v", err)
 	}
@@ -1154,7 +1157,7 @@ func TestApplyRetentionPolicy(t *testing.T) {
 		phase      corev1.PodPhase
 		wantDelete bool
 	}{
-		{"Default/Succeeded", nil, corev1.PodSucceeded, false},
+		{"Default/Succeeded", nil, corev1.PodSucceeded, true},
 		{"Default/Failed", nil, corev1.PodFailed, false},
 		{"Delete/Succeeded", strPtr("Delete"), corev1.PodSucceeded, true},
 		{"Delete/Failed", strPtr("Delete"), corev1.PodFailed, true},

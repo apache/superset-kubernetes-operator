@@ -425,12 +425,13 @@ type AdminUserSpec struct {
 // PodRetentionSpec defines retention behavior for init pods.
 type PodRetentionSpec struct {
 	// Retention policy: Delete removes pods after completion, Retain keeps all,
-	// RetainOnFailure keeps only failed pods for debugging. Retained pods are
-	// automatically cleaned up by garbage collection when the task CR is
-	// deleted on the next lifecycle run.
+	// RetainOnFailure (the default) keeps only failed pods for debugging and
+	// deletes successful ones to reduce noise. Retained pods are automatically
+	// cleaned up by garbage collection when the task CR is deleted on the
+	// next lifecycle run.
 	// +optional
 	// +kubebuilder:validation:Enum=Delete;Retain;RetainOnFailure
-	// +kubebuilder:default=Retain
+	// +kubebuilder:default=RetainOnFailure
 	Policy *string `json:"policy,omitempty"`
 }
 

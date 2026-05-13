@@ -32,7 +32,7 @@ import (
 const (
 	defaultInitTimeout           = 300 * time.Second
 	defaultMaxRetries      int32 = 3
-	defaultRetentionPolicy       = retentionRetain
+	defaultRetentionPolicy       = retentionRetainOnFail
 
 	retentionDelete       = "Delete"
 	retentionRetain       = "Retain"
