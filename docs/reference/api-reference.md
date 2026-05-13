@@ -84,6 +84,7 @@ _Appears in:_
 - [CloneTaskSpec](#clonetaskspec)
 - [InitTaskSpec](#inittaskspec)
 - [MigrateTaskSpec](#migratetaskspec)
+- [RotateTaskSpec](#rotatetaskspec)
 - [SchedulableBaseTaskSpec](#schedulablebasetaskspec)
 
 | Field | Description | Default | Validation |
@@ -654,6 +655,7 @@ _Appears in:_
 | `maintenancePage` _[MaintenancePageSpec](#maintenancepagespec)_ | MaintenancePage configures a lightweight maintenance page served during<br />lifecycle drain and task execution. Presence enables the feature.<br />In managed mode (no image override), an nginx:alpine container serves<br />a default or custom HTML page. In custom mode (image set), the user's<br />image handles serving, and content fields are passed as env vars. |  | Optional: \{\} <br /> |
 | `clone` _[CloneTaskSpec](#clonetaskspec)_ | Clone configures database cloning from an external source before running<br />migrations. The clone target is always spec.metastore. Only allowed in dev mode. |  | Optional: \{\} <br /> |
 | `migrate` _[MigrateTaskSpec](#migratetaskspec)_ | Database migration task configuration. |  | Optional: \{\} <br /> |
+| `rotate` _[RotateTaskSpec](#rotatetaskspec)_ | Secret key rotation task configuration. Runs after migrate and before init.<br />Presence enables the task; absence disables it. |  | Optional: \{\} <br /> |
 | `init` _[InitTaskSpec](#inittaskspec)_ | Application initialization task configuration. |  | Optional: \{\} <br /> |
 
 
@@ -670,11 +672,12 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `phase` _string_ | Phase of the lifecycle: Idle, Cloning, Migrating, Initializing, Complete, Blocked, AwaitingApproval. |  | Optional: \{\} <br /> |
+| `phase` _string_ | Phase of the lifecycle: Idle, Cloning, Migrating, Rotating, Initializing, Complete, Blocked, AwaitingApproval. |  | Optional: \{\} <br /> |
 | `maintenanceActive` _boolean_ | MaintenanceActive indicates the maintenance page is currently serving traffic<br />via the web-server Service. |  | Optional: \{\} <br /> |
 | `lastCompletedChecksums` _object (keys:string, values:string)_ | LastCompletedChecksums maps task type to its ConfigChecksum at last<br />successful completion. Used to detect input drift when task CRs are absent. |  | Optional: \{\} <br /> |
 | `clone` _[TaskRefStatus](#taskrefstatus)_ | Clone task status summary. |  | Optional: \{\} <br /> |
 | `migrate` _[TaskRefStatus](#taskrefstatus)_ | Migrate task status summary. |  | Optional: \{\} <br /> |
+| `rotate` _[TaskRefStatus](#taskrefstatus)_ | Rotate task status summary. |  | Optional: \{\} <br /> |
 | `init` _[TaskRefStatus](#taskrefstatus)_ | Init task status summary. |  | Optional: \{\} <br /> |
 | `upgrade` _[UpgradeContext](#upgradecontext)_ | Upgrade context (populated during active upgrade). |  | Optional: \{\} <br /> |
 
@@ -927,6 +930,30 @@ _Appears in:_
 | `enableServiceLinks` _boolean_ | Controls whether service environment variables are injected into pods. |  | Optional: \{\} <br /> |
 | `resources` _[ResourceRequirements](https://pkg.go.dev/k8s.io/api/core/v1#ResourceRequirements)_ | Pod-level resource requirements (CPU, memory). When set, defines the total<br />resources for the entire pod, enabling resource sharing among containers.<br />Requires Kubernetes 1.34+ with the PodLevelResources feature gate. |  | Optional: \{\} <br /> |
 | `container` _[ContainerTemplate](#containertemplate)_ | Main container configuration. |  | Optional: \{\} <br /> |
+
+
+#### RotateTaskSpec
+
+
+
+RotateTaskSpec defines the secret key rotation task.
+Runs superset re-encrypt-secrets between migrate and init when the
+secret key is rotated. Requires previousSecretKey or previousSecretKeyFrom
+to be set on the parent spec.
+
+
+
+_Appears in:_
+- [LifecycleSpec](#lifecyclespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `command` _string array_ | Command override for the task pod. |  | Optional: \{\} <br /> |
+| `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be scaled to zero before<br />this task runs. When true, the operator deletes all component child CRs<br />before executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
+| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
+| `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
+| `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
 
 
 #### SQLAlchemyEngineOptionsSpec
@@ -1288,7 +1315,7 @@ _Appears in:_
 | `serviceAccountName` _string_ | ServiceAccountName to set on the pod. |  | Optional: \{\} <br /> |
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Autoscaling configuration. |  | Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
-| `type` _string_ | Type identifies the task purpose. Future task types will require schema additions. |  | Enum: [Clone Migrate Init] <br /> |
+| `type` _string_ | Type identifies the task purpose. Future task types will require schema additions. |  | Enum: [Clone Migrate Rotate Init] <br /> |
 | `command` _string array_ | Command to execute in the task pod. |  |  |
 | `configChecksum` _string_ | Config checksum for detecting changes that require re-run. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per task pod attempt. |  | Optional: \{\} <br /> |
@@ -1406,6 +1433,8 @@ _Appears in:_
 | `environment` _string_ | Environment mode: "Development", "Staging", or "Production". Controls validation strictness.<br />In Production mode, CRD validation rejects plain text secrets and disallows cloning.<br />In Staging mode, secrets are enforced (like Production) but cloning is allowed.<br />In Development mode, plain text secrets, cloning, admin user, and load examples are all permitted. | Production | Enum: [Development Staging Production] <br />Optional: \{\} <br /> |
 | `secretKey` _string_ | Plain text secret key for session signing. Only allowed in dev mode.<br />In prod, use secretKeyFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
 | `secretKeyFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the secret key for session signing.<br />Mutually exclusive with secretKey. |  | Optional: \{\} <br /> |
+| `previousSecretKey` _string_ | Plain text previous secret key for key rotation. Only allowed in dev mode.<br />When set, rendered as PREVIOUS_SECRET_KEY in superset_config.py for all<br />Python components, enabling fallback decryption during key transitions. |  | Optional: \{\} <br /> |
+| `previousSecretKeyFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the previous secret key for rotation.<br />Mutually exclusive with previousSecretKey. |  | Optional: \{\} <br /> |
 | `metastore` _[MetastoreSpec](#metastorespec)_ | Metastore database connection configuration. |  | Optional: \{\} <br /> |
 | `valkey` _[ValkeySpec](#valkeyspec)_ | Valkey cache, broker, and results backend configuration. |  | Optional: \{\} <br /> |
 | `config` _string_ | Raw Python appended after operator-generated superset_config.py. |  | Optional: \{\} <br /> |

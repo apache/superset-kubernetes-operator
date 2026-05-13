@@ -59,18 +59,18 @@ parent CR name. Owned by the parent CR and garbage-collected on parent deletion.
 ### Phase 3: Lifecycle Tasks
 
 The parent controller creates `SupersetLifecycleTask` child CRs:
-`{parentName}-clone`, `{parentName}-migrate`, and `{parentName}-init`. The parent
+`{parentName}-clone`, `{parentName}-migrate`, `{parentName}-rotate`, and `{parentName}-init`. The parent
 uses a Get+Create/Delete pattern (never CreateOrUpdate) to avoid races with the
 task controller's status writes. When a task needs to re-run (checksum mismatch),
 the parent deletes the old CR and creates a fresh one on the next reconcile.
 
-Tasks run sequentially: clone → migrate → init. Each task can be independently
+Tasks run sequentially: clone → migrate → rotate → init. Each task can be independently
 disabled via `disabled: true`. Clone also supports periodic re-execution via
 `cronSchedule`. Checksums cascade downstream: a re-clone forces re-migrate,
-which forces re-init.
+which forces re-rotate, which forces re-init.
 
-When a task requires drain (`requiresDrain: true`, the default for clone and
-migrate), the operator deletes all component child CRs before running that task.
+When a task requires drain (`requiresDrain: true`, the default for clone,
+migrate, and rotate), the operator deletes all component child CRs before running that task.
 The parent verifies all component pods have terminated (not just Deployments
 deleted) before proceeding to task execution. This ensures no application pods
 access the metastore during schema changes. If `maintenancePage` is configured,
@@ -326,7 +326,7 @@ During lifecycle drain, the parent:
    labels, instantly routing traffic to maintenance pods.
 3. Drains all component child CRs (GC cascades to Deployments and Pods, but the
    Service is unaffected because it belongs to the parent).
-4. Runs lifecycle tasks (clone → migrate → init).
+4. Runs lifecycle tasks (clone → migrate → rotate → init).
 5. After tasks complete and the web-server child CR is recreated, waits for the
    web-server Deployment to become ready.
 6. Switches the Service selector back to the web-server pod labels.

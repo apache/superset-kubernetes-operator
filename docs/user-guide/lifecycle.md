@@ -25,11 +25,12 @@ troubleshooting.
 
 ## Overview
 
-The `spec.lifecycle` section controls up to three sequential tasks:
+The `spec.lifecycle` section controls up to four sequential tasks:
 
 1. **clone** — database snapshot from an external source (staging workflows)
 2. **migrate** — `superset db upgrade` (database schema migration)
-3. **init** — `superset init` (application initialization: roles, permissions)
+3. **rotate** — `superset re-encrypt-secrets` (secret key rotation)
+4. **init** — `superset init` (application initialization: roles, permissions)
 
 Tasks run as bare Pods (`restartPolicy: Never`) managed by dedicated
 `SupersetLifecycleTask` child CRs. The parent Superset controller orchestrates
@@ -41,7 +42,7 @@ explicitly with `spec.lifecycle.disabled: true`.
 
 **Key behaviors:**
 
-- Clone must complete before migrate starts; migrate must complete before init starts
+- Clone must complete before migrate starts; migrate before rotate; rotate before init
 - Components are not created or updated until all enabled tasks complete
 - When config or image changes require a re-run, the parent deletes the old task CR and creates a fresh one
 
@@ -53,6 +54,7 @@ Each task has hardcoded trigger inputs — what it watches for changes:
 |------|---------|-----------------|
 | Clone | `trigger` field, `cronSchedule` tick, source config, excludes | Trigger value changes, schedule tick boundary crossed, or source DB config changes |
 | Migrate | Image (resolved lifecycle image) | Image tag or repository changes |
+| Rotate | `trigger` field, `secretKeyFrom` ref, `previousSecretKeyFrom` ref | Secret key references change or trigger value changes |
 | Init | Config checksum (rendered Python config) | Any config-affecting field changes |
 
 All tasks also re-run when an upstream task re-executes (automatic propagation).
@@ -178,6 +180,7 @@ and recreates components after the pipeline completes.
 |------|------------------------|-----------|
 | Clone | `true` | DROP DATABASE fails with active connections |
 | Migrate | `true` | Schema changes risk deadlocks and version/schema inconsistencies |
+| Rotate | `true` | After re-encryption, stored secrets use the new key — components with the old key would fail to decrypt |
 | Init | `false` | Role/permission operations are safe with components running |
 
 Override per-task when needed:
@@ -282,8 +285,11 @@ flowchart TD
     C -->|Automatic| E
     C -->|Supervised| D[Await approval]
     D --> E{Any task requires drain?}
-    E -->|Yes| F[Drain: delete component CRs, wait for pod termination]
+    E -->|Yes| MP{Maintenance page configured?}
     E -->|No| G
+    MP -->|Yes| MP1[Deploy maintenance page, switch Service selector]
+    MP -->|No| F
+    MP1 --> F[Drain: delete component CRs, wait for pod termination]
     F --> G[Clone task]
     G -->|checksum match| H[Skip]
     G -->|checksum mismatch| G1[Execute clone pod]
@@ -292,7 +298,11 @@ flowchart TD
     I -->|checksum match| J[Skip]
     I -->|checksum mismatch| I1[Execute migrate pod]
     I1 --> J
-    J --> K[Init task]
+    J --> R[Rotate task]
+    R -->|checksum match| S[Skip]
+    R -->|checksum mismatch| R1[Execute rotate pod]
+    R1 --> S
+    S --> K[Init task]
     K -->|checksum match| L[Skip]
     K -->|checksum mismatch| K1[Execute init pod]
     K1 --> L
@@ -411,6 +421,63 @@ spec:
     migrate:
       command: ["/bin/sh", "-c", "superset db upgrade"]
 ```
+
+## Secret Key Rotation
+
+The rotate task runs `superset re-encrypt-secrets` to re-encrypt stored secrets
+when the application secret key is rotated. It runs after migrate and before init.
+
+To enable secret key rotation, set `previousSecretKey` (dev mode) or
+`previousSecretKeyFrom` (staging/production) on the parent spec, and add
+`lifecycle.rotate: {}`:
+
+```yaml
+apiVersion: superset.apache.org/v1alpha1
+kind: Superset
+metadata:
+  name: my-superset
+spec:
+  secretKeyFrom:
+    name: superset-secret-v2
+    key: secret-key
+  previousSecretKeyFrom:
+    name: superset-secret-v1
+    key: secret-key
+  lifecycle:
+    rotate: {}
+```
+
+The operator injects both `SECRET_KEY` and `PREVIOUS_SECRET_KEY` into all Python
+components. The rotate task pod uses both to decrypt stored secrets with the old
+key and re-encrypt with the new one. After rotation completes, components restart
+with the new key and can use `PREVIOUS_SECRET_KEY` for fallback decryption during
+the transition.
+
+The command is idempotent: re-running it skips already-converted values. If no
+`PREVIOUS_SECRET_KEY` is set, it exits cleanly. If decryption fails for any entry,
+the entire transaction rolls back.
+
+### Rotation Triggers
+
+The task re-runs when:
+
+- The `secretKeyFrom` or `previousSecretKeyFrom` references change (different
+  Secret name or key)
+- The `trigger` field changes (use this for in-place Secret content updates where
+  the reference stays the same)
+
+### Drain
+
+By default, the rotate task requires drain (`requiresDrain: true`). After
+re-encryption commits, stored secrets are encrypted with the new key — components
+still running with the old key would fail to decrypt them. Override with
+`requiresDrain: false` only if you understand the implications.
+
+### Cleanup
+
+After confirming rotation succeeded, remove `previousSecretKeyFrom` and the
+`lifecycle.rotate` section. The previous secret key is no longer needed once all
+components have restarted with the new key.
 
 ## Clone (Development and Staging Mode Only)
 
@@ -558,7 +625,9 @@ clone.checksum   = hash(parentUID, "Clone", command, trigger, source, excludes)
                          ↓ (stored in clone CR status on completion)
 migrate.checksum = hash(clone.status.checksum, "Migrate", command, trigger, image)
                          ↓ (stored in migrate CR status on completion)
-init.checksum    = hash(migrate.status.checksum, "Init", command, trigger, configChecksum)
+rotate.checksum  = hash(migrate.status.checksum, "Rotate", command, trigger, secretKeyFrom, previousSecretKeyFrom)
+                         ↓ (stored in rotate CR status on completion)
+init.checksum    = hash(rotate.status.checksum, "Init", command, trigger, configChecksum)
 ```
 
 **The universal rule:** a task executes when its computed checksum differs from
@@ -567,7 +636,7 @@ the checksum stored on its completed task CR. If they match, the task skips.
 **Upstream propagation is automatic:** when clone re-runs (e.g., trigger
 changed), its status checksum changes. That new value flows into migrate's
 checksum computation, making it differ from its stored value — so migrate
-re-runs too. The chain continues transitively to init.
+re-runs too. The chain continues transitively through rotate to init.
 
 **Isolation by design:** each task watches only its own relevant inputs.
 Image changes affect only migrate (and downstream via propagation). Config
@@ -619,7 +688,7 @@ Lifecycle task progress is tracked per-task in the parent status:
 ```yaml
 status:
   lifecycle:
-    phase: Complete        # Idle | Cloning | Draining | Migrating | Initializing | Complete | Blocked | AwaitingApproval
+    phase: Complete        # Idle | Cloning | Draining | Migrating | Rotating | Initializing | Complete | Blocked | AwaitingApproval
     clone:
       state: Complete      # Pending | Running | Complete | Failed (only present when clone is enabled)
       podName: superset-staging-clone-k8x2m

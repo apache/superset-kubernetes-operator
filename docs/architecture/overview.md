@@ -97,7 +97,7 @@ Components fall into two categories:
 
 | CRD Kind | Parent field | Suffix | Creates |
 |---|---|---|---|
-| `SupersetLifecycleTask` | `lifecycle` | `-clone`, `-migrate`, `-init` | Pods, ConfigMap |
+| `SupersetLifecycleTask` | `lifecycle` | `-clone`, `-migrate`, `-rotate`, `-init` | Pods, ConfigMap |
 | `SupersetCeleryBeat` | `celeryBeat` | `-celery-beat` | Deployment, ConfigMap |
 
 **Presence = enabled**: Setting `celeryWorker: {}` deploys workers with

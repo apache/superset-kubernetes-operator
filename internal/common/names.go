@@ -42,6 +42,7 @@ const (
 	SuffixMaintenancePage = "-maintenance"      // matches ComponentMaintenancePage
 	SuffixInit            = "-init"             // matches ComponentInit
 	SuffixClone           = "-clone"
+	SuffixRotate          = "-rotate"
 	SuffixConfig          = "-config"
 	SuffixNetworkPolicy   = "-netpol"
 )
@@ -95,14 +96,15 @@ const (
 // Env var names for operator-managed environment variables.
 const (
 	// Operator-internal transport vars (used by rendered superset_config.py).
-	EnvSecretKey   = "SUPERSET_OPERATOR__SECRET_KEY"
-	EnvDatabaseURI = "SUPERSET_OPERATOR__DB_URI"
-	EnvDBHost      = "SUPERSET_OPERATOR__DB_HOST"
-	EnvDBPort      = "SUPERSET_OPERATOR__DB_PORT"
-	EnvDBName      = "SUPERSET_OPERATOR__DB_NAME"
-	EnvDBUser      = "SUPERSET_OPERATOR__DB_USER"
-	EnvDBPass      = "SUPERSET_OPERATOR__DB_PASS"
-	EnvForceReload = "SUPERSET_OPERATOR__FORCE_RELOAD"
+	EnvSecretKey         = "SUPERSET_OPERATOR__SECRET_KEY"
+	EnvPreviousSecretKey = "SUPERSET_OPERATOR__PREVIOUS_SECRET_KEY"
+	EnvDatabaseURI       = "SUPERSET_OPERATOR__DB_URI"
+	EnvDBHost            = "SUPERSET_OPERATOR__DB_HOST"
+	EnvDBPort            = "SUPERSET_OPERATOR__DB_PORT"
+	EnvDBName            = "SUPERSET_OPERATOR__DB_NAME"
+	EnvDBUser            = "SUPERSET_OPERATOR__DB_USER"
+	EnvDBPass            = "SUPERSET_OPERATOR__DB_PASS"
+	EnvForceReload       = "SUPERSET_OPERATOR__FORCE_RELOAD"
 
 	// Valkey operator-internal transport vars.
 	EnvValkeyHost = "SUPERSET_OPERATOR__VALKEY_HOST"

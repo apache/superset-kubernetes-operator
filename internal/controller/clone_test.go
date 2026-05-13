@@ -480,6 +480,12 @@ func TestIsTaskEnabled(t *testing.T) {
 			expected: true,
 		},
 		{
+			name:     "nil lifecycle: rotate disabled",
+			spec:     nil,
+			taskType: taskTypeRotate,
+			expected: false,
+		},
+		{
 			name: "clone present and not disabled",
 			spec: &supersetv1alpha1.LifecycleSpec{
 				Clone: &supersetv1alpha1.CloneTaskSpec{
@@ -514,6 +520,28 @@ func TestIsTaskEnabled(t *testing.T) {
 				Init: &supersetv1alpha1.InitTaskSpec{BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: common.Ptr(true)}},
 			},
 			taskType: taskTypeInit,
+			expected: false,
+		},
+		{
+			name: "rotate present and not disabled",
+			spec: &supersetv1alpha1.LifecycleSpec{
+				Rotate: &supersetv1alpha1.RotateTaskSpec{},
+			},
+			taskType: taskTypeRotate,
+			expected: true,
+		},
+		{
+			name: "rotate explicitly disabled",
+			spec: &supersetv1alpha1.LifecycleSpec{
+				Rotate: &supersetv1alpha1.RotateTaskSpec{BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: common.Ptr(true)}},
+			},
+			taskType: taskTypeRotate,
+			expected: false,
+		},
+		{
+			name:     "rotate nil with lifecycle set",
+			spec:     &supersetv1alpha1.LifecycleSpec{},
+			taskType: taskTypeRotate,
 			expected: false,
 		},
 	}
@@ -590,6 +618,7 @@ func TestTaskRequiresDrain_Defaults(t *testing.T) {
 	}{
 		{taskTypeClone, true},
 		{taskTypeMigrate, true},
+		{taskTypeRotate, true},
 		{taskTypeInit, false},
 	}
 
@@ -1115,13 +1144,13 @@ func TestAllTasksStillComplete_SkipsDrainWhenNothingChanged(t *testing.T) {
 	}
 
 	t.Run("returns true when nothing changed", func(t *testing.T) {
-		if !r.allTasksStillComplete(superset, false, true, true, configChecksum) {
+		if !r.allTasksStillComplete(superset, false, true, false, true, configChecksum) {
 			t.Error("expected allTasksStillComplete=true when checksums match")
 		}
 	})
 
 	t.Run("returns false when config changes", func(t *testing.T) {
-		if r.allTasksStillComplete(superset, false, true, true, "config-changed") {
+		if r.allTasksStillComplete(superset, false, true, false, true, "config-changed") {
 			t.Error("expected allTasksStillComplete=false when config checksum changed")
 		}
 	})
@@ -1129,7 +1158,7 @@ func TestAllTasksStillComplete_SkipsDrainWhenNothingChanged(t *testing.T) {
 	t.Run("returns false when image changes", func(t *testing.T) {
 		modified := superset.DeepCopy()
 		modified.Spec.Image.Tag = "5.0.0"
-		if r.allTasksStillComplete(modified, false, true, true, configChecksum) {
+		if r.allTasksStillComplete(modified, false, true, false, true, configChecksum) {
 			t.Error("expected allTasksStillComplete=false when image changed")
 		}
 	})
@@ -1137,7 +1166,7 @@ func TestAllTasksStillComplete_SkipsDrainWhenNothingChanged(t *testing.T) {
 	t.Run("returns false with no stored checksums", func(t *testing.T) {
 		modified := superset.DeepCopy()
 		modified.Status.Lifecycle.LastCompletedChecksums = nil
-		if r.allTasksStillComplete(modified, false, true, true, configChecksum) {
+		if r.allTasksStillComplete(modified, false, true, false, true, configChecksum) {
 			t.Error("expected allTasksStillComplete=false with nil checksums")
 		}
 	})
@@ -1147,7 +1176,7 @@ func TestAllTasksStillComplete_SkipsDrainWhenNothingChanged(t *testing.T) {
 		modified.Spec.Lifecycle.Migrate = &supersetv1alpha1.MigrateTaskSpec{
 			BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Trigger: common.Ptr("force-v1")},
 		}
-		if r.allTasksStillComplete(modified, false, true, true, configChecksum) {
+		if r.allTasksStillComplete(modified, false, true, false, true, configChecksum) {
 			t.Error("expected allTasksStillComplete=false when trigger changed")
 		}
 	})
@@ -1192,7 +1221,7 @@ func TestAllTasksStillComplete_WithCloneSchedule(t *testing.T) {
 	}
 
 	t.Run("stable within cron window", func(t *testing.T) {
-		if !r.allTasksStillComplete(superset, true, true, true, configChecksum) {
+		if !r.allTasksStillComplete(superset, true, true, false, true, configChecksum) {
 			t.Error("expected allTasksStillComplete=true within same cron window")
 		}
 	})
@@ -1200,8 +1229,223 @@ func TestAllTasksStillComplete_WithCloneSchedule(t *testing.T) {
 	t.Run("returns false when cron tick crosses boundary", func(t *testing.T) {
 		nextHour := time.Date(2026, 5, 11, 15, 1, 0, 0, time.UTC)
 		r2 := &SupersetReconciler{Now: func() time.Time { return nextHour }}
-		if r2.allTasksStillComplete(superset, true, true, true, configChecksum) {
+		if r2.allTasksStillComplete(superset, true, true, false, true, configChecksum) {
 			t.Error("expected allTasksStillComplete=false after cron boundary crossing")
+		}
+	})
+}
+
+func TestCollectSecretEnvVars_PreviousSecretKey(t *testing.T) {
+	t.Run("dev mode plaintext", func(t *testing.T) {
+		spec := &supersetv1alpha1.SupersetSpec{
+			Environment:       common.Ptr("Development"),
+			SecretKey:         common.Ptr("new-key"),
+			PreviousSecretKey: common.Ptr("old-key"),
+		}
+		envs := collectSecretEnvVars(spec)
+		found := false
+		for _, e := range envs {
+			if e.Name == common.EnvPreviousSecretKey {
+				found = true
+				if e.Value != "old-key" {
+					t.Errorf("expected plaintext value 'old-key', got %q", e.Value)
+				}
+			}
+		}
+		if !found {
+			t.Error("expected SUPERSET_OPERATOR__PREVIOUS_SECRET_KEY env var")
+		}
+	})
+
+	t.Run("prod mode secretKeyRef", func(t *testing.T) {
+		ref := &corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: "prev-secret"},
+			Key:                  "key",
+		}
+		spec := &supersetv1alpha1.SupersetSpec{
+			SecretKeyFrom:         &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "s"}, Key: "k"},
+			PreviousSecretKeyFrom: ref,
+		}
+		envs := collectSecretEnvVars(spec)
+		found := false
+		for _, e := range envs {
+			if e.Name == common.EnvPreviousSecretKey {
+				found = true
+				if e.ValueFrom == nil || e.ValueFrom.SecretKeyRef == nil {
+					t.Fatal("expected secretKeyRef")
+				}
+				if e.ValueFrom.SecretKeyRef.Name != "prev-secret" {
+					t.Errorf("expected secret name 'prev-secret', got %q", e.ValueFrom.SecretKeyRef.Name)
+				}
+			}
+		}
+		if !found {
+			t.Error("expected SUPERSET_OPERATOR__PREVIOUS_SECRET_KEY env var")
+		}
+	})
+
+	t.Run("not present when not configured", func(t *testing.T) {
+		spec := &supersetv1alpha1.SupersetSpec{
+			SecretKeyFrom: &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "s"}, Key: "k"},
+		}
+		envs := collectSecretEnvVars(spec)
+		for _, e := range envs {
+			if e.Name == common.EnvPreviousSecretKey {
+				t.Error("should not have SUPERSET_OPERATOR__PREVIOUS_SECRET_KEY when not configured")
+			}
+		}
+	})
+}
+
+func TestDefaultRotateCommand(t *testing.T) {
+	t.Run("default command", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{}
+		cmd := defaultRotateCommand(superset)
+		if len(cmd) != 3 || cmd[2] != "superset re-encrypt-secrets" {
+			t.Errorf("unexpected default command: %v", cmd)
+		}
+	})
+
+	t.Run("custom command", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{}
+		superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+			Rotate: &supersetv1alpha1.RotateTaskSpec{
+				BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{
+					Command: []string{"/bin/sh", "-c", "custom-rotate"},
+				},
+			},
+		}
+		cmd := defaultRotateCommand(superset)
+		if len(cmd) != 3 || cmd[2] != "custom-rotate" {
+			t.Errorf("expected custom command, got: %v", cmd)
+		}
+	})
+}
+
+func TestRotateInputs(t *testing.T) {
+	r := &SupersetReconciler{}
+
+	secretRef := &corev1.SecretKeySelector{
+		LocalObjectReference: corev1.LocalObjectReference{Name: "secret-v1"},
+		Key:                  "key",
+	}
+	prevRef := &corev1.SecretKeySelector{
+		LocalObjectReference: corev1.LocalObjectReference{Name: "secret-v0"},
+		Key:                  "key",
+	}
+
+	superset := &supersetv1alpha1.Superset{}
+	superset.Spec.SecretKeyFrom = secretRef
+	superset.Spec.PreviousSecretKeyFrom = prevRef
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		Rotate: &supersetv1alpha1.RotateTaskSpec{},
+	}
+
+	cmd := defaultRotateCommand(superset)
+	base := r.computeStepChecksum("seed", taskTypeRotate, cmd, r.rotateInputs(superset))
+
+	t.Run("changes when previousSecretKeyFrom changes", func(t *testing.T) {
+		modified := superset.DeepCopy()
+		modified.Spec.PreviousSecretKeyFrom = &corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: "secret-v0-changed"},
+			Key:                  "key",
+		}
+		check := r.computeStepChecksum("seed", taskTypeRotate, cmd, r.rotateInputs(modified))
+		if check == base {
+			t.Error("expected checksum to change when previousSecretKeyFrom changes")
+		}
+	})
+
+	t.Run("changes when secretKeyFrom changes", func(t *testing.T) {
+		modified := superset.DeepCopy()
+		modified.Spec.SecretKeyFrom = &corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: "secret-v2"},
+			Key:                  "key",
+		}
+		check := r.computeStepChecksum("seed", taskTypeRotate, cmd, r.rotateInputs(modified))
+		if check == base {
+			t.Error("expected checksum to change when secretKeyFrom changes")
+		}
+	})
+
+	t.Run("changes when trigger changes", func(t *testing.T) {
+		modified := superset.DeepCopy()
+		modified.Spec.Lifecycle.Rotate.Trigger = common.Ptr("force-v1")
+		check := r.computeStepChecksum("seed", taskTypeRotate, cmd, r.rotateInputs(modified))
+		if check == base {
+			t.Error("expected checksum to change when trigger changes")
+		}
+	})
+
+	t.Run("stable when nothing changes", func(t *testing.T) {
+		check := r.computeStepChecksum("seed", taskTypeRotate, cmd, r.rotateInputs(superset))
+		if check != base {
+			t.Error("expected checksum to be stable when nothing changes")
+		}
+	})
+}
+
+func TestAllTasksStillComplete_WithRotate(t *testing.T) {
+	r := &SupersetReconciler{}
+
+	secretRef := &corev1.SecretKeySelector{
+		LocalObjectReference: corev1.LocalObjectReference{Name: "secret-v1"},
+		Key:                  "key",
+	}
+	prevRef := &corev1.SecretKeySelector{
+		LocalObjectReference: corev1.LocalObjectReference{Name: "secret-v0"},
+		Key:                  "key",
+	}
+
+	superset := &supersetv1alpha1.Superset{}
+	superset.UID = "test-uid"
+	superset.Spec.Image = supersetv1alpha1.ImageSpec{Tag: "4.1.4"}
+	superset.Spec.SecretKeyFrom = secretRef
+	superset.Spec.PreviousSecretKeyFrom = prevRef
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		Rotate: &supersetv1alpha1.RotateTaskSpec{},
+	}
+
+	configChecksum := "config-abc"
+
+	incomingChecksum := string(superset.UID)
+	migrateCmd := defaultMigrateCommand(superset)
+	migrateChecksum := r.computeStepChecksum(incomingChecksum, taskTypeMigrate, migrateCmd, r.migrateInputs(superset))
+	rotateCmd := defaultRotateCommand(superset)
+	rotateChecksum := r.computeStepChecksum(migrateChecksum, taskTypeRotate, rotateCmd, r.rotateInputs(superset))
+	initCmd := defaultInitCommand(superset)
+	initChecksum := r.computeStepChecksum(rotateChecksum, taskTypeInit, initCmd, r.initInputs(superset, configChecksum))
+
+	superset.Status.Lifecycle = &supersetv1alpha1.LifecycleStatus{
+		LastCompletedChecksums: map[string]string{
+			taskTypeMigrate: migrateChecksum,
+			taskTypeRotate:  rotateChecksum,
+			taskTypeInit:    initChecksum,
+		},
+	}
+
+	t.Run("returns true when nothing changed", func(t *testing.T) {
+		if !r.allTasksStillComplete(superset, false, true, true, true, configChecksum) {
+			t.Error("expected allTasksStillComplete=true when checksums match")
+		}
+	})
+
+	t.Run("returns false when previousSecretKeyFrom changes", func(t *testing.T) {
+		modified := superset.DeepCopy()
+		modified.Spec.PreviousSecretKeyFrom = &corev1.SecretKeySelector{
+			LocalObjectReference: corev1.LocalObjectReference{Name: "rotated"},
+			Key:                  "key",
+		}
+		if r.allTasksStillComplete(modified, false, true, true, true, configChecksum) {
+			t.Error("expected allTasksStillComplete=false when previousSecretKeyFrom changes")
+		}
+	})
+
+	t.Run("rotate cascades to init", func(t *testing.T) {
+		modified := superset.DeepCopy()
+		modified.Spec.Lifecycle.Rotate.Trigger = common.Ptr("force")
+		if r.allTasksStillComplete(modified, false, true, true, true, configChecksum) {
+			t.Error("expected allTasksStillComplete=false when rotate trigger changes (cascades to init)")
 		}
 	})
 }

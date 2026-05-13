@@ -42,10 +42,12 @@ const (
 	taskTypeMigrate = "Migrate"
 	taskTypeInit    = "Init"
 	taskTypeClone   = "Clone"
+	taskTypeRotate  = "Rotate"
 
 	suffixMigrate = "-migrate"
 	suffixInit    = "-init"
 	suffixClone   = "-clone"
+	suffixRotate  = "-rotate"
 
 	upgradeModeAutomatic  = "Automatic"
 	upgradeModeSupervsied = "Supervised"
@@ -54,6 +56,7 @@ const (
 	lifecyclePhaseCloning          = "Cloning"
 	lifecyclePhaseDraining         = "Draining"
 	lifecyclePhaseMigrating        = "Migrating"
+	lifecyclePhaseRotating         = "Rotating"
 	lifecyclePhaseInitializing     = "Initializing"
 	lifecyclePhaseComplete         = "Complete"
 	lifecyclePhaseBlocked          = "Blocked"
@@ -125,14 +128,15 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	// Determine which tasks are enabled and prune orphans for disabled ones.
 	cloneEnabled := r.isTaskEnabled(superset, taskTypeClone)
 	migrateEnabled := r.isTaskEnabled(superset, taskTypeMigrate)
+	rotateEnabled := r.isTaskEnabled(superset, taskTypeRotate)
 	initEnabled := r.isTaskEnabled(superset, taskTypeInit)
 
-	if err := r.pruneDisabledTasks(ctx, superset, cloneEnabled, migrateEnabled, initEnabled); err != nil {
+	if err := r.pruneDisabledTasks(ctx, superset, cloneEnabled, migrateEnabled, rotateEnabled, initEnabled); err != nil {
 		return 0, false, err
 	}
 
 	// If no tasks are enabled, lifecycle is complete.
-	if !cloneEnabled && !migrateEnabled && !initEnabled {
+	if !cloneEnabled && !migrateEnabled && !rotateEnabled && !initEnabled {
 		superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
 			metav1.ConditionTrue, "LifecycleComplete", "Lifecycle tasks completed successfully", superset.Generation)
@@ -142,7 +146,7 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	// Fast path: if all enabled tasks already completed with matching checksums,
 	// skip drain and pipeline entirely. This prevents unnecessary component
 	// deletion on reconciles triggered by child CR creation.
-	if r.allTasksStillComplete(superset, cloneEnabled, migrateEnabled, initEnabled, configChecksum) {
+	if r.allTasksStillComplete(superset, cloneEnabled, migrateEnabled, rotateEnabled, initEnabled, configChecksum) {
 		superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
 			metav1.ConditionTrue, "LifecycleComplete", "Lifecycle tasks completed successfully", superset.Generation)
@@ -152,6 +156,7 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	// Spin up the maintenance page before drain (if configured).
 	needsDrain := (cloneEnabled && r.taskRequiresDrain(superset, taskTypeClone)) ||
 		(migrateEnabled && r.taskRequiresDrain(superset, taskTypeMigrate)) ||
+		(rotateEnabled && r.taskRequiresDrain(superset, taskTypeRotate)) ||
 		(initEnabled && r.taskRequiresDrain(superset, taskTypeInit))
 	if isMaintenancePageEnabled(superset) && needsDrain {
 		ready, err := r.reconcileMaintenancePageUp(ctx, superset)
@@ -169,14 +174,14 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	}
 
 	// Drain components if any enabled task requires it.
-	if requeueAfter, drained, err := r.drainIfNeeded(ctx, superset, cloneEnabled, migrateEnabled, initEnabled); err != nil {
+	if requeueAfter, drained, err := r.drainIfNeeded(ctx, superset, cloneEnabled, migrateEnabled, rotateEnabled, initEnabled); err != nil {
 		return 0, false, err
 	} else if !drained {
 		return requeueAfter, false, nil
 	}
 
-	// Orchestrate lifecycle pipeline: clone → migrate → init.
-	if requeueAfter, complete, err := r.runLifecyclePipeline(ctx, superset, cloneEnabled, migrateEnabled, initEnabled, imageChanged, configChecksum, topLevel, saName); err != nil {
+	// Orchestrate lifecycle pipeline: clone → migrate → rotate → init.
+	if requeueAfter, complete, err := r.runLifecyclePipeline(ctx, superset, cloneEnabled, migrateEnabled, rotateEnabled, initEnabled, imageChanged, configChecksum, topLevel, saName); err != nil {
 		return 0, false, err
 	} else if !complete {
 		return requeueAfter, false, nil
@@ -220,7 +225,7 @@ func (r *SupersetReconciler) finalizeLifecycle(
 func (r *SupersetReconciler) runLifecyclePipeline(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
-	cloneEnabled, migrateEnabled, initEnabled, imageChanged bool,
+	cloneEnabled, migrateEnabled, rotateEnabled, initEnabled, imageChanged bool,
 	configChecksum string,
 	topLevel *resolution.SharedInput,
 	saName string,
@@ -260,6 +265,21 @@ func (r *SupersetReconciler) runLifecyclePipeline(
 			return requeueAfter, false, nil
 		}
 		incomingChecksum = r.getTaskStatusChecksum(ctx, superset, suffixMigrate)
+	}
+
+	if rotateEnabled {
+		superset.Status.Lifecycle.Phase = lifecyclePhaseRotating
+
+		rotateCmd := defaultRotateCommand(superset)
+		taskChecksum := r.computeStepChecksum(incomingChecksum, taskTypeRotate, rotateCmd, r.rotateInputs(superset))
+		requeueAfter, complete, err := r.reconcileLifecycleTask(ctx, superset, taskTypeRotate, suffixRotate, rotateCmd, taskChecksum, configChecksum, topLevel, saName)
+		if err != nil {
+			return 0, false, fmt.Errorf("reconciling rotate task: %w", err)
+		}
+		if !complete {
+			return requeueAfter, false, nil
+		}
+		incomingChecksum = r.getTaskStatusChecksum(ctx, superset, suffixRotate)
 	}
 
 	if initEnabled {
@@ -458,6 +478,8 @@ func (r *SupersetReconciler) reconcileLifecycleTask(
 		superset.Status.Lifecycle.Clone = taskRef
 	case taskTypeMigrate:
 		superset.Status.Lifecycle.Migrate = taskRef
+	case taskTypeRotate:
+		superset.Status.Lifecycle.Rotate = taskRef
 	case taskTypeInit:
 		superset.Status.Lifecycle.Init = taskRef
 	}
@@ -615,6 +637,8 @@ func suffixForTaskType(taskType string) string {
 		return suffixClone
 	case taskTypeMigrate:
 		return suffixMigrate
+	case taskTypeRotate:
+		return suffixRotate
 	case taskTypeInit:
 		return suffixInit
 	default:
@@ -640,13 +664,12 @@ func (r *SupersetReconciler) taskPodRetention(superset *supersetv1alpha1.Superse
 	return superset.Spec.Lifecycle.PodRetention
 }
 
-// isTaskEnabled returns true if the task is part of the lifecycle pipeline (strategy != Never).
 // isTaskEnabled returns true if the task is part of the lifecycle pipeline.
 // A task is enabled when its spec exists (presence = enabled) and Disabled != true.
-// Clone requires spec.lifecycle.clone to be set; migrate/init are enabled by default.
+// Clone and rotate require their spec to be set; migrate/init are enabled by default.
 func (r *SupersetReconciler) isTaskEnabled(superset *supersetv1alpha1.Superset, taskType string) bool {
 	if superset.Spec.Lifecycle == nil {
-		return taskType != taskTypeClone
+		return taskType != taskTypeClone && taskType != taskTypeRotate
 	}
 	switch taskType {
 	case taskTypeClone:
@@ -654,6 +677,11 @@ func (r *SupersetReconciler) isTaskEnabled(superset *supersetv1alpha1.Superset, 
 			return false
 		}
 		return superset.Spec.Lifecycle.Clone.Disabled == nil || !*superset.Spec.Lifecycle.Clone.Disabled
+	case taskTypeRotate:
+		if superset.Spec.Lifecycle.Rotate == nil {
+			return false
+		}
+		return superset.Spec.Lifecycle.Rotate.Disabled == nil || !*superset.Spec.Lifecycle.Rotate.Disabled
 	case taskTypeMigrate:
 		if superset.Spec.Lifecycle.Migrate != nil {
 			return superset.Spec.Lifecycle.Migrate.Disabled == nil || !*superset.Spec.Lifecycle.Migrate.Disabled
@@ -669,7 +697,7 @@ func (r *SupersetReconciler) isTaskEnabled(superset *supersetv1alpha1.Superset, 
 }
 
 // pruneDisabledTasks deletes task CRs for disabled tasks.
-func (r *SupersetReconciler) pruneDisabledTasks(ctx context.Context, superset *supersetv1alpha1.Superset, cloneEnabled, migrateEnabled, initEnabled bool) error {
+func (r *SupersetReconciler) pruneDisabledTasks(ctx context.Context, superset *supersetv1alpha1.Superset, cloneEnabled, migrateEnabled, rotateEnabled, initEnabled bool) error {
 	if !cloneEnabled {
 		if err := r.deleteTaskCR(ctx, superset.Name+suffixClone, superset.Namespace); err != nil {
 			return fmt.Errorf("deleting clone task CR: %w", err)
@@ -678,6 +706,11 @@ func (r *SupersetReconciler) pruneDisabledTasks(ctx context.Context, superset *s
 	if !migrateEnabled {
 		if err := r.deleteTaskCR(ctx, superset.Name+suffixMigrate, superset.Namespace); err != nil {
 			return fmt.Errorf("deleting migrate task CR: %w", err)
+		}
+	}
+	if !rotateEnabled {
+		if err := r.deleteTaskCR(ctx, superset.Name+suffixRotate, superset.Namespace); err != nil {
+			return fmt.Errorf("deleting rotate task CR: %w", err)
 		}
 	}
 	if !initEnabled {
@@ -788,12 +821,40 @@ func (r *SupersetReconciler) initInputs(superset *supersetv1alpha1.Superset, con
 	}
 }
 
+// rotateInputs returns the rotate-specific inputs: secret key references and trigger.
+func (r *SupersetReconciler) rotateInputs(superset *supersetv1alpha1.Superset) any {
+	trigger := ""
+	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Rotate != nil {
+		trigger = derefOrDefault(superset.Spec.Lifecycle.Rotate.Trigger, "")
+	}
+	return struct {
+		Trigger               string
+		SecretKey             string
+		SecretKeyFrom         *corev1.SecretKeySelector
+		PreviousSecretKey     string
+		PreviousSecretKeyFrom *corev1.SecretKeySelector
+	}{
+		Trigger:               trigger,
+		SecretKey:             derefOrDefault(superset.Spec.SecretKey, ""),
+		SecretKeyFrom:         superset.Spec.SecretKeyFrom,
+		PreviousSecretKey:     derefOrDefault(superset.Spec.PreviousSecretKey, ""),
+		PreviousSecretKeyFrom: superset.Spec.PreviousSecretKeyFrom,
+	}
+}
+
+func defaultRotateCommand(superset *supersetv1alpha1.Superset) []string {
+	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Rotate != nil && len(superset.Spec.Lifecycle.Rotate.Command) > 0 {
+		return superset.Spec.Lifecycle.Rotate.Command
+	}
+	return []string{"/bin/sh", "-c", "superset re-encrypt-secrets"}
+}
+
 // allTasksStillComplete checks whether all enabled tasks have already completed
 // with checksums matching the current inputs. Used as a fast path to avoid
 // unnecessary draining on reconciles where nothing has changed.
 func (r *SupersetReconciler) allTasksStillComplete(
 	superset *supersetv1alpha1.Superset,
-	cloneEnabled, migrateEnabled, initEnabled bool,
+	cloneEnabled, migrateEnabled, rotateEnabled, initEnabled bool,
 	configChecksum string,
 ) bool {
 	if superset.Status.Lifecycle == nil || superset.Status.Lifecycle.LastCompletedChecksums == nil {
@@ -820,6 +881,15 @@ func (r *SupersetReconciler) allTasksStillComplete(
 		incomingChecksum = checksums[taskTypeMigrate]
 	}
 
+	if rotateEnabled {
+		rotateCmd := defaultRotateCommand(superset)
+		taskChecksum := r.computeStepChecksum(incomingChecksum, taskTypeRotate, rotateCmd, r.rotateInputs(superset))
+		if checksums[taskTypeRotate] != taskChecksum {
+			return false
+		}
+		incomingChecksum = checksums[taskTypeRotate]
+	}
+
 	if initEnabled {
 		initCmd := defaultInitCommand(superset)
 		taskChecksum := r.computeStepChecksum(incomingChecksum, taskTypeInit, initCmd, r.initInputs(superset, configChecksum))
@@ -843,6 +913,10 @@ func (r *SupersetReconciler) taskMaxRetries(superset *supersetv1alpha1.Superset,
 	case taskTypeMigrate:
 		if superset.Spec.Lifecycle.Migrate != nil {
 			return superset.Spec.Lifecycle.Migrate.MaxRetries
+		}
+	case taskTypeRotate:
+		if superset.Spec.Lifecycle.Rotate != nil {
+			return superset.Spec.Lifecycle.Rotate.MaxRetries
 		}
 	case taskTypeInit:
 		if superset.Spec.Lifecycle.Init != nil {
@@ -871,6 +945,10 @@ func (r *SupersetReconciler) taskTimeout(superset *supersetv1alpha1.Superset, ta
 	case taskTypeMigrate:
 		if superset.Spec.Lifecycle.Migrate != nil {
 			return superset.Spec.Lifecycle.Migrate.Timeout
+		}
+	case taskTypeRotate:
+		if superset.Spec.Lifecycle.Rotate != nil {
+			return superset.Spec.Lifecycle.Rotate.Timeout
 		}
 	case taskTypeInit:
 		if superset.Spec.Lifecycle.Init != nil {
@@ -1095,6 +1173,10 @@ func (r *SupersetReconciler) taskRequiresDrain(superset *supersetv1alpha1.Supers
 			if superset.Spec.Lifecycle.Migrate != nil {
 				spec = &superset.Spec.Lifecycle.Migrate.BaseTaskSpec
 			}
+		case taskTypeRotate:
+			if superset.Spec.Lifecycle.Rotate != nil {
+				spec = &superset.Spec.Lifecycle.Rotate.BaseTaskSpec
+			}
 		case taskTypeInit:
 			if superset.Spec.Lifecycle.Init != nil {
 				spec = &superset.Spec.Lifecycle.Init.BaseTaskSpec
@@ -1106,7 +1188,7 @@ func (r *SupersetReconciler) taskRequiresDrain(superset *supersetv1alpha1.Supers
 	}
 	// Defaults per task type.
 	switch taskType {
-	case taskTypeClone, taskTypeMigrate:
+	case taskTypeClone, taskTypeMigrate, taskTypeRotate:
 		return true
 	default:
 		return false

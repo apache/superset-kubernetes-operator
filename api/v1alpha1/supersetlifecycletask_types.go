@@ -27,7 +27,7 @@ type SupersetLifecycleTaskSpec struct {
 	FlatComponentSpec `json:",inline"`
 
 	// Type identifies the task purpose. Future task types will require schema additions.
-	// +kubebuilder:validation:Enum=Clone;Migrate;Init
+	// +kubebuilder:validation:Enum=Clone;Migrate;Rotate;Init
 	Type string `json:"type"`
 
 	// Command to execute in the task pod.

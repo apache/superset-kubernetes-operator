@@ -517,3 +517,31 @@ func TestRenderConfig_EngineOptionsSectionOrder(t *testing.T) {
 		t.Errorf("SQLALCHEMY_ENGINE_OPTIONS should appear before Valkey config")
 	}
 }
+
+func TestRenderConfig_PreviousSecretKey(t *testing.T) {
+	t.Run("rendered when HasPreviousSecretKey is true", func(t *testing.T) {
+		input := &ConfigInput{
+			MetastoreMode:        MetastoreNone,
+			HasPreviousSecretKey: true,
+		}
+		result := RenderConfig(ComponentInit, input)
+		assertContains(t, result, "PREVIOUS_SECRET_KEY = os.environ.get('SUPERSET_OPERATOR__PREVIOUS_SECRET_KEY')")
+	})
+
+	t.Run("not rendered when HasPreviousSecretKey is false", func(t *testing.T) {
+		input := &ConfigInput{
+			MetastoreMode: MetastoreNone,
+		}
+		result := RenderConfig(ComponentInit, input)
+		assertNotContains(t, result, "PREVIOUS_SECRET_KEY")
+	})
+
+	t.Run("rendered for web server component", func(t *testing.T) {
+		input := &ConfigInput{
+			MetastoreMode:        MetastoreNone,
+			HasPreviousSecretKey: true,
+		}
+		result := RenderConfig(ComponentWebServer, input)
+		assertContains(t, result, "PREVIOUS_SECRET_KEY = os.environ.get('SUPERSET_OPERATOR__PREVIOUS_SECRET_KEY')")
+	})
+}

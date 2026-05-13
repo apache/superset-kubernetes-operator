@@ -56,10 +56,11 @@ func (r *SupersetReconciler) deleteTaskCR(ctx context.Context, name, namespace s
 func (r *SupersetReconciler) drainIfNeeded(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
-	cloneEnabled, migrateEnabled, initEnabled bool,
+	cloneEnabled, migrateEnabled, rotateEnabled, initEnabled bool,
 ) (time.Duration, bool, error) {
 	needsDrain := (cloneEnabled && r.taskRequiresDrain(superset, taskTypeClone)) ||
 		(migrateEnabled && r.taskRequiresDrain(superset, taskTypeMigrate)) ||
+		(rotateEnabled && r.taskRequiresDrain(superset, taskTypeRotate)) ||
 		(initEnabled && r.taskRequiresDrain(superset, taskTypeInit))
 	if !needsDrain {
 		return 0, true, nil

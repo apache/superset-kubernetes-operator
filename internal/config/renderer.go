@@ -107,6 +107,9 @@ type ConfigInput struct {
 	// Engine options for SQLALCHEMY_ENGINE_OPTIONS. Nil = do not render.
 	EngineOptions *EngineOptionsInput
 
+	// Whether to render PREVIOUS_SECRET_KEY from env var.
+	HasPreviousSecretKey bool
+
 	// Top-level raw Python from spec.config.
 	Config string
 
@@ -141,6 +144,11 @@ func RenderConfig(componentType ComponentType, input *ConfigInput) string {
 
 	// SECRET_KEY from operator-internal env var.
 	fmt.Fprintf(&b, "SECRET_KEY = os.environ['%s']\n", common.EnvSecretKey)
+
+	// PREVIOUS_SECRET_KEY for key rotation (optional, read with get()).
+	if input.HasPreviousSecretKey {
+		fmt.Fprintf(&b, "PREVIOUS_SECRET_KEY = os.environ.get('%s')\n", common.EnvPreviousSecretKey)
+	}
 
 	// Passthrough metastore: read full URI from operator-internal env var.
 	if input.MetastoreMode == MetastorePassthrough {

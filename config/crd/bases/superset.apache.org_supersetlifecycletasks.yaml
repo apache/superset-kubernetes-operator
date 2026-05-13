@@ -3995,6 +3995,7 @@ spec:
                 enum:
                 - Clone
                 - Migrate
+                - Rotate
                 - Init
                 type: string
             required:

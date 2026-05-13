@@ -131,6 +131,8 @@ func buildConfigInput(spec *supersetv1alpha1.SupersetSpec) *supersetconfig.Confi
 		input.Config = *spec.Config
 	}
 
+	input.HasPreviousSecretKey = spec.PreviousSecretKey != nil || spec.PreviousSecretKeyFrom != nil
+
 	return input
 }
 
@@ -241,6 +243,19 @@ func collectSecretEnvVars(spec *supersetv1alpha1.SupersetSpec) []corev1.EnvVar {
 		envs = append(envs, corev1.EnvVar{
 			Name:      naming.EnvSecretKey,
 			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: spec.SecretKeyFrom},
+		})
+	}
+
+	// SUPERSET_OPERATOR__PREVIOUS_SECRET_KEY — for key rotation.
+	if isDev && spec.PreviousSecretKey != nil {
+		envs = append(envs, corev1.EnvVar{
+			Name:  naming.EnvPreviousSecretKey,
+			Value: *spec.PreviousSecretKey,
+		})
+	} else if spec.PreviousSecretKeyFrom != nil {
+		envs = append(envs, corev1.EnvVar{
+			Name:      naming.EnvPreviousSecretKey,
+			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: spec.PreviousSecretKeyFrom},
 		})
 	}
 

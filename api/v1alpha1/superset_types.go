@@ -39,6 +39,9 @@ import (
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && (self.environment == 'Development' || self.environment == 'Staging')) || !has(self.lifecycle) || !has(self.lifecycle.clone)",message="lifecycle.clone is only allowed when environment is Development or Staging; cloning performs a destructive DROP DATABASE on the target metastore"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.lifecycle) || !has(self.lifecycle.clone) || !has(self.lifecycle.clone.source) || !has(self.lifecycle.clone.source.password)",message="lifecycle.clone.source.password is only allowed when environment is Development; use lifecycle.clone.source.passwordFrom in Staging"
 // +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.clone) || (has(self.metastore) && has(self.metastore.host))",message="lifecycle.clone requires structured metastore configuration (host must be set)"
+// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.previousSecretKey)",message="previousSecretKey is only allowed when environment is Development; use previousSecretKeyFrom in Production"
+// +kubebuilder:validation:XValidation:rule="!has(self.previousSecretKey) || !has(self.previousSecretKeyFrom)",message="previousSecretKey and previousSecretKeyFrom are mutually exclusive"
+// +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.rotate) || has(self.previousSecretKey) || has(self.previousSecretKeyFrom)",message="lifecycle.rotate requires previousSecretKey (dev) or previousSecretKeyFrom to be set"
 type SupersetSpec struct {
 	// Image configuration inherited by all components.
 	Image ImageSpec `json:"image"`
@@ -77,6 +80,17 @@ type SupersetSpec struct {
 	// Mutually exclusive with secretKey.
 	// +optional
 	SecretKeyFrom *corev1.SecretKeySelector `json:"secretKeyFrom,omitempty"`
+
+	// Plain text previous secret key for key rotation. Only allowed in dev mode.
+	// When set, rendered as PREVIOUS_SECRET_KEY in superset_config.py for all
+	// Python components, enabling fallback decryption during key transitions.
+	// +optional
+	PreviousSecretKey *string `json:"previousSecretKey,omitempty"`
+
+	// Reference to a Secret key containing the previous secret key for rotation.
+	// Mutually exclusive with previousSecretKey.
+	// +optional
+	PreviousSecretKeyFrom *corev1.SecretKeySelector `json:"previousSecretKeyFrom,omitempty"`
 
 	// Metastore database connection configuration.
 	// +optional
@@ -344,6 +358,11 @@ type LifecycleSpec struct {
 	// +optional
 	Migrate *MigrateTaskSpec `json:"migrate,omitempty"`
 
+	// Secret key rotation task configuration. Runs after migrate and before init.
+	// Presence enables the task; absence disables it.
+	// +optional
+	Rotate *RotateTaskSpec `json:"rotate,omitempty"`
+
 	// Application initialization task configuration.
 	// +optional
 	Init *InitTaskSpec `json:"init,omitempty"`
@@ -352,6 +371,14 @@ type LifecycleSpec struct {
 // MigrateTaskSpec defines the database migration task.
 // Triggers on image (version) changes and upstream task re-execution.
 type MigrateTaskSpec struct {
+	BaseTaskSpec `json:",inline"`
+}
+
+// RotateTaskSpec defines the secret key rotation task.
+// Runs superset re-encrypt-secrets between migrate and init when the
+// secret key is rotated. Requires previousSecretKey or previousSecretKeyFrom
+// to be set on the parent spec.
+type RotateTaskSpec struct {
 	BaseTaskSpec `json:",inline"`
 }
 
@@ -672,7 +699,7 @@ type SupersetStatus struct {
 
 // LifecycleStatus tracks the current lifecycle task execution state.
 type LifecycleStatus struct {
-	// Phase of the lifecycle: Idle, Cloning, Migrating, Initializing, Complete, Blocked, AwaitingApproval.
+	// Phase of the lifecycle: Idle, Cloning, Migrating, Rotating, Initializing, Complete, Blocked, AwaitingApproval.
 	// +optional
 	Phase string `json:"phase,omitempty"`
 	// MaintenanceActive indicates the maintenance page is currently serving traffic
@@ -689,6 +716,9 @@ type LifecycleStatus struct {
 	// Migrate task status summary.
 	// +optional
 	Migrate *TaskRefStatus `json:"migrate,omitempty"`
+	// Rotate task status summary.
+	// +optional
+	Rotate *TaskRefStatus `json:"rotate,omitempty"`
 	// Init task status summary.
 	// +optional
 	Init *TaskRefStatus `json:"init,omitempty"`
@@ -779,6 +809,7 @@ type ComponentRefStatus struct {
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.websocketServer) || size(self.metadata.name) <= 46",message="metadata.name must be at most 46 characters when websocketServer is enabled (sub-resource suffix '-websocket-server' is 17 chars)"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.mcpServer) || size(self.metadata.name) <= 52",message="metadata.name must be at most 52 characters when mcpServer is enabled (sub-resource suffix '-mcp-server' is 11 chars)"
 // +kubebuilder:validation:XValidation:rule="!has(self.spec.lifecycle) || !has(self.spec.lifecycle.maintenancePage) || size(self.metadata.name) <= 46",message="metadata.name must be at most 46 characters when lifecycle.maintenancePage is enabled (sub-resource suffix '-maintenance-page' is 17 chars)"
+// +kubebuilder:validation:XValidation:rule="!has(self.spec.lifecycle) || !has(self.spec.lifecycle.rotate) || size(self.metadata.name) <= 49",message="metadata.name must be at most 49 characters when lifecycle.rotate is enabled (task name '{parent}-rotate' + ConfigMap suffix '-config' must fit within 63 chars)"
 // +kubebuilder:validation:XValidation:rule="(has(self.spec.lifecycle) && has(self.spec.lifecycle.disabled) && self.spec.lifecycle.disabled == true) || size(self.metadata.name) <= 48",message="metadata.name must be at most 48 characters when lifecycle is enabled (task name '{parent}-migrate' + ConfigMap suffix '-config' must fit within 63 chars)"
 
 // Superset is the top-level resource representing a complete Superset deployment.

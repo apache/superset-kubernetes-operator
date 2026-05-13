@@ -33,7 +33,7 @@ The operator manages the full Superset lifecycle: database migrations, configura
 - **Full control** — every default is overridable, from high-level presets down to individual container fields, with a raw Python escape hatch for anything not covered
 - **Component toggle** — enable CeleryWorker, CeleryBeat, CeleryFlower, WebsocketServer, or McpServer by setting their spec; omit to disable
 - **Zero-downtime upgrades** — maintenance page serves users during database migrations; the operator drains components gracefully, runs lifecycle tasks, and restores traffic only after the new version is healthy
-- **Database cloning** — snapshot a production database into staging or QA environments on demand or on a cron schedule, with automatic migration and init afterward
+- **Lifecycle automation** — database cloning, schema migrations, secret key rotation, and application init run as sequenced tasks with automatic change detection and checksum-based re-execution
 - **Networking** — Gateway API (HTTPRoute) and Ingress support with per-component routing
 - **Production hardening** — HPA with custom metrics, PodDisruptionBudgets, NetworkPolicies, Prometheus ServiceMonitor
 

@@ -22933,6 +22933,27 @@ spec:
                           type: object
                         type: array
                     type: object
+                  rotate:
+                    properties:
+                      command:
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      disabled:
+                        type: boolean
+                      maxRetries:
+                        default: 3
+                        format: int32
+                        minimum: 1
+                        type: integer
+                      requiresDrain:
+                        type: boolean
+                      timeout:
+                        type: string
+                      trigger:
+                        type: string
+                    type: object
                   sqlaEngineOptions:
                     properties:
                       maxOverflow:
@@ -30903,6 +30924,21 @@ spec:
                       type: object
                     type: array
                 type: object
+              previousSecretKey:
+                type: string
+              previousSecretKeyFrom:
+                properties:
+                  key:
+                    type: string
+                  name:
+                    default: ""
+                    type: string
+                  optional:
+                    type: boolean
+                required:
+                - key
+                type: object
+                x-kubernetes-map-type: atomic
               replicas:
                 format: int32
                 type: integer
@@ -39124,6 +39160,16 @@ spec:
                 (host must be set)
               rule: '!has(self.lifecycle) || !has(self.lifecycle.clone) || (has(self.metastore)
                 && has(self.metastore.host))'
+            - message: previousSecretKey is only allowed when environment is Development;
+                use previousSecretKeyFrom in Production
+              rule: (has(self.environment) && self.environment == 'Development') ||
+                !has(self.previousSecretKey)
+            - message: previousSecretKey and previousSecretKeyFrom are mutually exclusive
+              rule: '!has(self.previousSecretKey) || !has(self.previousSecretKeyFrom)'
+            - message: lifecycle.rotate requires previousSecretKey (dev) or previousSecretKeyFrom
+                to be set
+              rule: '!has(self.lifecycle) || !has(self.lifecycle.rotate) || has(self.previousSecretKey)
+                || has(self.previousSecretKeyFrom)'
           status:
             properties:
               components:
@@ -39350,6 +39396,39 @@ spec:
                     type: object
                   phase:
                     type: string
+                  rotate:
+                    properties:
+                      attempts:
+                        format: int32
+                        type: integer
+                      completedAt:
+                        format: date-time
+                        type: string
+                      duration:
+                        type: string
+                      image:
+                        type: string
+                      lastScheduledAt:
+                        format: date-time
+                        type: string
+                      message:
+                        type: string
+                      nextScheduleAt:
+                        format: date-time
+                        type: string
+                      podName:
+                        type: string
+                      startedAt:
+                        format: date-time
+                        type: string
+                      state:
+                        enum:
+                        - Pending
+                        - Running
+                        - Complete
+                        - Failed
+                        type: string
+                    type: object
                   upgrade:
                     properties:
                       direction:
@@ -39415,6 +39494,11 @@ spec:
             is enabled (sub-resource suffix '-maintenance-page' is 17 chars)
           rule: '!has(self.spec.lifecycle) || !has(self.spec.lifecycle.maintenancePage)
             || size(self.metadata.name) <= 46'
+        - message: metadata.name must be at most 49 characters when lifecycle.rotate
+            is enabled (task name '{parent}-rotate' + ConfigMap suffix '-config' must
+            fit within 63 chars)
+          rule: '!has(self.spec.lifecycle) || !has(self.spec.lifecycle.rotate) ||
+            size(self.metadata.name) <= 49'
         - message: metadata.name must be at most 48 characters when lifecycle is enabled
             (task name '{parent}-migrate' + ConfigMap suffix '-config' must fit within
             63 chars)
