@@ -133,7 +133,11 @@ subjects:
 startup, so scrapers connect over HTTPS with `insecureSkipVerify: true`. This
 is the default in both the Kustomize ServiceMonitor (`config/prometheus/monitor.yaml`)
 and the Helm chart. It's fine for a trusted cluster but not for
-zero-trust environments.
+zero-trust environments. Authentication and authorization are always enforced
+via bearer tokens (`TokenReview`/`SubjectAccessReview`) regardless of TLS
+setup — see
+[Design Decisions](../reference/security.md#design-decisions) in the security
+reference for the trust-model context.
 
 ### Enable via Helm
 
@@ -242,3 +246,10 @@ Creates per-component NetworkPolicies that:
 If you need to restrict external ingress to specific sources, disable the built-in
 network policy and create your own NetworkPolicy resources with the desired `from`
 selectors.
+
+The built-in policy is ingress segmentation only — egress is intentionally
+unrestricted so workloads can reach the metastore database, Valkey, SMTP
+servers, and other user-configured dependencies. For the rationale and
+hardening path, see
+[Design Decisions](../reference/security.md#design-decisions) in the security
+reference.

@@ -47,6 +47,33 @@ via `spec.config`. The same applies to child CRDs (`SupersetWebServer`,
 `SupersetCeleryWorker`, etc.) which can be created directly and carry the same
 fields. Restrict access to all Superset CRDs using Kubernetes RBAC.
 
+### Child CRDs Are Controller-Managed Internals
+
+Child CRDs (`SupersetWebServer`, `SupersetCeleryWorker`, `SupersetCeleryBeat`,
+`SupersetCeleryFlower`, `SupersetWebsocketServer`, `SupersetMcpServer`, and
+`SupersetLifecycleTask`) are an implementation detail of the parent `Superset`
+reconciler. Writing them directly bypasses parent CEL validation (e.g.,
+prod-mode inline secret rejection) and lifecycle orchestration (task
+sequencing, drain gating).
+
+The bundled `superset-editor-role`, `superset-admin-role`, and
+`superset-viewer-role` therefore grant write access only to the parent
+`supersets` resource; child CRDs are exposed as read-only for inspection.
+Administrators who genuinely need to delegate direct child-CR authoring must
+author a custom role that lists the specific child-CRD verbs required.
+
+### ServiceAccount Selection Is Part of CR Write Access
+
+CR authors can set `serviceAccount.name` with `serviceAccount.create: false`
+to bind workloads to any existing ServiceAccount in the namespace — including
+ServiceAccounts linked to cloud IAM or workload-identity setups (IRSA, GKE
+Workload Identity, Azure AD). This is intentional and enables legitimate
+integration patterns, but it means a CR author inherits whatever permissions
+the selected ServiceAccount has. Cluster and namespace admins should treat
+"can create Superset CRs" as equivalent to "can run workloads under any
+ServiceAccount in this namespace" and restrict ServiceAccount distribution
+accordingly.
+
 ## Security Model
 
 ### Prod vs Dev Mode
@@ -190,6 +217,24 @@ repeat review cycles:
   create or update Superset parent or child CRs are trusted namespace operators
   and already have the effective ability to manage the corresponding workloads
   and resources.
+- **NetworkPolicy provides baseline ingress segmentation, not egress
+  restriction.** When the built-in NetworkPolicy is enabled, the operator
+  installs policies that isolate ingress between Superset instances and allow
+  external clients to reach user-facing components (web, websocket, flower,
+  MCP). Egress is intentionally unrestricted so workloads can reach the
+  metastore database, Valkey, SMTP servers, object stores, and any other
+  user-configured dependencies. Users who require strict egress isolation
+  should disable the built-in policy and author their own.
+- **Metrics endpoint ships with a permissive TLS default.** The bundled
+  ServiceMonitor defaults to `insecureSkipVerify: true` against the manager's
+  self-signed serving certificate so that Prometheus can scrape metrics
+  out-of-the-box on clusters without cert-manager. Authentication and
+  authorization are still enforced via bearer tokens validated by
+  `TokenReview`/`SubjectAccessReview` (see [RBAC Justification](#rbac-justification)),
+  so the endpoint is not anonymously accessible. Production deployments
+  should switch to cert-manager-issued certificates and set
+  `insecureSkipVerify: false` — `charts/superset-operator/values.yaml`
+  documents the flip.
 
 ## RBAC Justification
 
@@ -219,6 +264,19 @@ The operator does **not** request:
 - `impersonate` or RBAC management permissions
 - `cluster-admin` or equivalent
 - Kubernetes Secret read or write permissions
+
+### Install Scope
+
+The operator currently installs cluster-scoped: the manager ServiceAccount is
+bound to a `ClusterRole` and watches `Superset` CRs across every namespace.
+This is the common operator pattern and fits clusters where the operator is
+administered centrally by cluster admins.
+
+A namespace-scoped install mode (single-namespace watch with
+`Role`/`RoleBinding` instead of `ClusterRole`/`ClusterRoleBinding`) is a
+future consideration for single-tenant deployments that want a tighter blast
+radius. CRD installation would still require cluster-admin privileges; only
+the runtime watch scope and RBAC would narrow.
 
 ## What Is In Scope
 
@@ -264,6 +322,12 @@ one of these conditions materially worse:
 - **Arbitrary Python via `spec.config`** — this field accepts raw Python by
   design; CR creators can already deploy arbitrary containers, so Python
   configuration does not expand the attack surface
+- **Lifecycle clone task command is trusted input** — the `lifecycle.clone`
+  task runs whatever image and command the CR author configures, so shell
+  and SQL content embedded in that command is trusted input. CR authors
+  already deploy arbitrary containers, so the clone task does not expand the
+  attack surface. Review clone commands as part of CR review, not as a
+  separable vulnerability class.
 - **Container image vulnerabilities** — the operator does not control the
   contents of the Superset container image
 - **Workload pod security contexts** — the operator propagates user-configured

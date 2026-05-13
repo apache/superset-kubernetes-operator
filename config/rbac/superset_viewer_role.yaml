@@ -1,9 +1,9 @@
 # This rule is not used by the project superset-kubernetes-operator itself.
 # It is provided to allow the cluster admin to help manage permissions for users.
 #
-# Grants read-only access to superset.apache.org resources.
-# This role is intended for users who need visibility into these resources
-# without permissions to modify them. It is ideal for monitoring purposes and limited-access viewing.
+# Grants read-only access to superset.apache.org resources — both the parent
+# `supersets` CR and all controller-managed child CRs (useful for monitoring
+# and inspection without modification).
 
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -17,6 +17,13 @@ rules:
   - superset.apache.org
   resources:
   - supersets
+  - supersetcelerybeats
+  - supersetceleryflowers
+  - supersetceleryworkers
+  - supersetlifecycletasks
+  - supersetmcpservers
+  - supersetwebservers
+  - supersetwebsocketservers
   verbs:
   - get
   - list
@@ -25,5 +32,12 @@ rules:
   - superset.apache.org
   resources:
   - supersets/status
+  - supersetcelerybeats/status
+  - supersetceleryflowers/status
+  - supersetceleryworkers/status
+  - supersetlifecycletasks/status
+  - supersetmcpservers/status
+  - supersetwebservers/status
+  - supersetwebsocketservers/status
   verbs:
   - get

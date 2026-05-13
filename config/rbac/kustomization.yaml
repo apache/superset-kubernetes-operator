@@ -18,13 +18,13 @@ resources:
 - metrics_auth_role.yaml
 - metrics_auth_role_binding.yaml
 - metrics_reader_role.yaml
-# For each CRD, "Admin", "Editor" and "Viewer" roles are scaffolded by
-# default, aiding admins in cluster management. Those roles are
-# not used by the superset-kubernetes-operator itself. You can comment the following lines
-# if you do not want those helpers be installed with your Project.
+# Optional "Admin", "Editor", and "Viewer" helper roles for the parent Superset
+# CRD. These are not used by the operator itself — they exist so cluster admins
+# can delegate Superset management without writing custom roles. Admin and
+# editor roles intentionally grant write access only to the parent `supersets`
+# resource; child CRDs (SupersetWebServer, SupersetCeleryWorker,
+# SupersetLifecycleTask, etc.) are controller-managed internals and are exposed
+# here as read-only. Comment these lines out if you do not want them installed.
 - superset_admin_role.yaml
 - superset_editor_role.yaml
 - superset_viewer_role.yaml
-- supersetlifecycletask_admin_role.yaml
-- supersetlifecycletask_editor_role.yaml
-- supersetlifecycletask_viewer_role.yaml
