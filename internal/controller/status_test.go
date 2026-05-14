@@ -96,6 +96,22 @@ func TestSetCondition_ReasonChangePreservesTransitionTime(t *testing.T) {
 	}
 }
 
+func TestSetCondition_MessageChangeUpdatesMessageNotTransitionTime(t *testing.T) {
+	ts := metav1.Now()
+	conditions := []metav1.Condition{
+		{Type: supersetv1alpha1.ConditionTypeReady, Status: metav1.ConditionFalse, Reason: "NotReady", Message: "old diagnostic", LastTransitionTime: ts, ObservedGeneration: 1},
+	}
+
+	setCondition(&conditions, supersetv1alpha1.ConditionTypeReady, metav1.ConditionFalse, "NotReady", "new diagnostic", 1)
+
+	if conditions[0].Message != "new diagnostic" {
+		t.Errorf("expected message updated to %q, got %q", "new diagnostic", conditions[0].Message)
+	}
+	if !conditions[0].LastTransitionTime.Equal(&ts) {
+		t.Errorf("expected LastTransitionTime preserved when only message changes")
+	}
+}
+
 func TestUpdateComponentStatusFromDeployment(t *testing.T) {
 	tests := []struct {
 		name          string

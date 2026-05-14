@@ -284,7 +284,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `ready` _string_ | "2/2" format showing ready vs desired replicas. |  |  |
 | `ref` _string_ | Reference to the child CR. |  |  |
-| `configChecksum` _string_ | Config checksum on the child. |  | Optional: \{\} <br /> |
+| `configChecksum` _string_ | Checksum stamped on the child CR's spec by the parent. Drives rolling<br />restarts; surfaced here so users can see which revision each child is<br />reconciling against. |  | Optional: \{\} <br /> |
 
 
 #### ComponentServiceSpec

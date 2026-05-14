@@ -28,12 +28,13 @@ import (
 
 // Condition type constants for Superset resources.
 const (
-	ConditionTypeReady        = "Ready"
-	ConditionTypeProgressing  = "Progressing"
-	ConditionTypeDegraded     = "Degraded"
-	ConditionTypeSuspended    = "Suspended"
-	ConditionTypeInitComplete = "InitComplete"
-	ConditionTypeAvailable    = "Available"
+	ConditionTypeReady             = "Ready"
+	ConditionTypeProgressing       = "Progressing"
+	ConditionTypeDegraded          = "Degraded"
+	ConditionTypeSuspended         = "Suspended"
+	ConditionTypeAvailable         = "Available"
+	ConditionTypeTaskComplete      = "TaskComplete"      // on SupersetLifecycleTask
+	ConditionTypeLifecycleComplete = "LifecycleComplete" // on Superset (aggregate lifecycle gate)
 )
 
 // --- Image types ---

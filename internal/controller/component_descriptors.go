@@ -51,7 +51,6 @@ type componentAccessor struct {
 // componentDescriptor captures all per-component variation needed to
 // reconcile a child CR from the parent Superset controller.
 type componentDescriptor struct {
-	suffix          string
 	componentType   naming.ComponentType
 	hasPythonConfig bool
 	kind            string
@@ -64,7 +63,7 @@ type componentDescriptor struct {
 }
 
 // childName returns the child CR name, which is always the parent name.
-func (d *componentDescriptor) childName(spec *supersetv1alpha1.SupersetSpec, parentName string) string {
+func (d *componentDescriptor) childName(_ *supersetv1alpha1.SupersetSpec, parentName string) string {
 	return parentName
 }
 
@@ -154,6 +153,16 @@ func (r *SupersetReconciler) reconcileComponent(
 	}
 
 	if accessor == nil {
+		// Component removed from spec: delete the parent-owned ConfigMap too.
+		// Child CR deletion cascades Deployments/Services via ownerRefs, but the
+		// ConfigMap is owned by the parent and would otherwise linger until the
+		// parent CR itself is deleted.
+		if desc.hasPythonConfig {
+			orphanBase := naming.ResourceBaseName(superset.Name, desc.componentType)
+			if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, "", orphanBase); err != nil {
+				return fmt.Errorf("pruning ConfigMap for disabled %s: %w", desc.componentType, err)
+			}
+		}
 		return nil
 	}
 
@@ -170,6 +179,9 @@ func (r *SupersetReconciler) reconcileComponent(
 		compConfigInput := buildConfigInput(&superset.Spec)
 		if accessor.config != nil {
 			compConfigInput.ComponentConfig = *accessor.config
+		}
+		if desc.componentType == naming.ComponentWebServer {
+			compConfigInput.WebServerPort = resolveWebServerPort(superset)
 		}
 
 		// Compute SQLALCHEMY_ENGINE_OPTIONS per component.
@@ -286,7 +298,6 @@ func extractScalable(s *supersetv1alpha1.ScalableComponentSpec, config *string, 
 }
 
 var webServerDescriptor = &componentDescriptor{
-	suffix:          naming.SuffixWebServer,
 	componentType:   naming.ComponentWebServer,
 	hasPythonConfig: true,
 	kind:            "SupersetWebServer",
@@ -314,7 +325,6 @@ var webServerDescriptor = &componentDescriptor{
 }
 
 var celeryWorkerDescriptor = &componentDescriptor{
-	suffix:          naming.SuffixCeleryWorker,
 	componentType:   naming.ComponentCeleryWorker,
 	hasPythonConfig: true,
 	kind:            "SupersetCeleryWorker",
@@ -341,7 +351,6 @@ var celeryWorkerDescriptor = &componentDescriptor{
 }
 
 var celeryBeatDescriptor = &componentDescriptor{
-	suffix:          naming.SuffixCeleryBeat,
 	componentType:   naming.ComponentCeleryBeat,
 	hasPythonConfig: true,
 	kind:            "SupersetCeleryBeat",
@@ -373,7 +382,6 @@ var celeryBeatDescriptor = &componentDescriptor{
 }
 
 var celeryFlowerDescriptor = &componentDescriptor{
-	suffix:          naming.SuffixCeleryFlower,
 	componentType:   naming.ComponentCeleryFlower,
 	hasPythonConfig: true,
 	kind:            "SupersetCeleryFlower",
@@ -398,7 +406,6 @@ var celeryFlowerDescriptor = &componentDescriptor{
 }
 
 var mcpServerDescriptor = &componentDescriptor{
-	suffix:          naming.SuffixMcpServer,
 	componentType:   naming.ComponentMcpServer,
 	hasPythonConfig: true,
 	kind:            "SupersetMcpServer",
@@ -425,7 +432,6 @@ var mcpServerDescriptor = &componentDescriptor{
 }
 
 var websocketServerDescriptor = &componentDescriptor{
-	suffix:          naming.SuffixWebsocketServer,
 	componentType:   naming.ComponentWebsocketServer,
 	hasPythonConfig: false,
 	kind:            "SupersetWebsocketServer",

@@ -34,6 +34,7 @@ import (
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
+	"github.com/apache/superset-kubernetes-operator/internal/resolution"
 )
 
 // +kubebuilder:rbac:groups=gateway.networking.k8s.io,resources=httproutes,verbs=get;list;watch;create;update;patch;delete
@@ -116,7 +117,7 @@ func (r *SupersetReconciler) reconcileWebServerService(ctx context.Context, supe
 	}
 
 	svcSpec := superset.Spec.WebServer.Service
-	containerPort := resolveWebServerContainerPort(superset.Spec.WebServer)
+	containerPort := resolveWebServerPort(superset)
 	webServerLabels := componentLabels(string(common.ComponentWebServer), superset.Name)
 
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, svc, func() error {
@@ -141,11 +142,23 @@ func (r *SupersetReconciler) reconcileWebServerService(ctx context.Context, supe
 	return err
 }
 
-// resolveWebServerContainerPort returns the container port for the web-server,
-// falling back to the default if not overridden.
-func resolveWebServerContainerPort(ws *supersetv1alpha1.WebServerComponentSpec) int32 {
-	if ws != nil && ws.PodTemplate != nil && ws.PodTemplate.Container != nil && len(ws.PodTemplate.Container.Ports) > 0 {
-		return ws.PodTemplate.Container.Ports[0].ContainerPort
+// resolveWebServerPort returns the resolved web-server container port, taking
+// into account top-level and per-component pod template port overrides. Mirrors
+// the port resolution used by the generic child Service reconciler so the
+// parent-owned web-server Service, the rendered SUPERSET_WEBSERVER_PORT, and
+// the child CR's container port all agree.
+func resolveWebServerPort(superset *supersetv1alpha1.Superset) int32 {
+	if superset == nil || superset.Spec.WebServer == nil {
+		return common.PortWebServer
+	}
+	topLevel := convertTopLevelSpec(&superset.Spec)
+	accessor := webServerDescriptor.extract(&superset.Spec)
+	flat := resolution.ResolveChildSpec(
+		common.ComponentWebServer, topLevel, convertComponent(accessor),
+		nil, &resolution.OperatorInjected{},
+	)
+	if flat != nil && flat.PodTemplate != nil && flat.PodTemplate.Container != nil && len(flat.PodTemplate.Container.Ports) > 0 {
+		return flat.PodTemplate.Container.Ports[0].ContainerPort
 	}
 	return common.PortWebServer
 }
