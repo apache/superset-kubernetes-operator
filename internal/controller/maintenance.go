@@ -78,7 +78,7 @@ func (r *SupersetReconciler) reconcileMaintenancePageUp(
 ) (bool, error) {
 	log := logf.FromContext(ctx)
 	spec := superset.Spec.Lifecycle.MaintenancePage
-	port := resolveWebServerContainerPort(superset.Spec.WebServer)
+	port := resolveWebServerPort(superset)
 
 	// Step 1: Reconcile ConfigMap (managed mode only).
 	if !isCustomMode(spec) {

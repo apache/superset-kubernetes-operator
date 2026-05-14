@@ -94,36 +94,64 @@ func TestRenderNginxConf_UsesDefaultPort(t *testing.T) {
 	}
 }
 
-func TestResolveWebServerContainerPort_Default(t *testing.T) {
-	ws := &supersetv1alpha1.WebServerComponentSpec{}
-	port := resolveWebServerContainerPort(ws)
+func TestResolveWebServerPort_Default(t *testing.T) {
+	s := &supersetv1alpha1.Superset{
+		Spec: supersetv1alpha1.SupersetSpec{
+			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
+		},
+	}
+	port := resolveWebServerPort(s)
 	if port != common.PortWebServer {
 		t.Errorf("expected default port %d, got %d", common.PortWebServer, port)
 	}
 }
 
-func TestResolveWebServerContainerPort_CustomPort(t *testing.T) {
-	ws := &supersetv1alpha1.WebServerComponentSpec{
-		ScalableComponentSpec: supersetv1alpha1.ScalableComponentSpec{
-			PodTemplate: &supersetv1alpha1.PodTemplate{
-				Container: &supersetv1alpha1.ContainerTemplate{
-					Ports: []corev1.ContainerPort{
-						{Name: "http", ContainerPort: 9090},
+func TestResolveWebServerPort_ComponentOverride(t *testing.T) {
+	s := &supersetv1alpha1.Superset{
+		Spec: supersetv1alpha1.SupersetSpec{
+			WebServer: &supersetv1alpha1.WebServerComponentSpec{
+				ScalableComponentSpec: supersetv1alpha1.ScalableComponentSpec{
+					PodTemplate: &supersetv1alpha1.PodTemplate{
+						Container: &supersetv1alpha1.ContainerTemplate{
+							Ports: []corev1.ContainerPort{
+								{Name: "http", ContainerPort: 9090},
+							},
+						},
 					},
 				},
 			},
 		},
 	}
-	port := resolveWebServerContainerPort(ws)
+	port := resolveWebServerPort(s)
 	if port != 9090 {
 		t.Errorf("expected custom port 9090, got %d", port)
 	}
 }
 
-func TestResolveWebServerContainerPort_Nil(t *testing.T) {
-	port := resolveWebServerContainerPort(nil)
+func TestResolveWebServerPort_TopLevelOverride(t *testing.T) {
+	s := &supersetv1alpha1.Superset{
+		Spec: supersetv1alpha1.SupersetSpec{
+			PodTemplate: &supersetv1alpha1.PodTemplate{
+				Container: &supersetv1alpha1.ContainerTemplate{
+					Ports: []corev1.ContainerPort{
+						{Name: "http", ContainerPort: 7070},
+					},
+				},
+			},
+			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
+		},
+	}
+	port := resolveWebServerPort(s)
+	if port != 7070 {
+		t.Errorf("expected top-level port 7070 inherited, got %d", port)
+	}
+}
+
+func TestResolveWebServerPort_NoWebServer(t *testing.T) {
+	s := &supersetv1alpha1.Superset{}
+	port := resolveWebServerPort(s)
 	if port != common.PortWebServer {
-		t.Errorf("expected default port %d for nil spec, got %d", common.PortWebServer, port)
+		t.Errorf("expected default port %d for nil WebServer, got %d", common.PortWebServer, port)
 	}
 }
 

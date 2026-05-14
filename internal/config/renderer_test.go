@@ -41,6 +41,17 @@ func TestRenderConfig_WebServer(t *testing.T) {
 	assertContains(t, result, "WEBSERVER_THREADS = 16")
 }
 
+func TestRenderConfig_WebServer_CustomPort(t *testing.T) {
+	input := &ConfigInput{
+		MetastoreMode: MetastoreNone,
+		WebServerPort: 9090,
+	}
+
+	result := RenderConfig(ComponentWebServer, input)
+	assertContains(t, result, "SUPERSET_WEBSERVER_PORT = 9090")
+	assertNotContains(t, result, "SUPERSET_WEBSERVER_PORT = 8088")
+}
+
 func TestRenderConfig_PassthroughMetastore(t *testing.T) {
 	input := &ConfigInput{
 		MetastoreMode: MetastorePassthrough,

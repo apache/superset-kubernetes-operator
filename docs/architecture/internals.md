@@ -388,9 +388,9 @@ status:
     - type: Available
       status: "True"
       reason: AllComponentsReady
-    - type: InitComplete
+    - type: LifecycleComplete
       status: "True"
-      reason: InitComplete
+      reason: LifecycleComplete
     - type: Suspended
       status: "False"
 ```

@@ -115,6 +115,10 @@ type ConfigInput struct {
 
 	// Per-component raw Python from component.config.
 	ComponentConfig string
+
+	// Resolved web-server container port. Zero means "use default". Only
+	// consulted for the web-server component; ignored elsewhere.
+	WebServerPort int32
 }
 
 // RenderConfig generates the superset_config.py content for a given component type.
@@ -176,7 +180,11 @@ func RenderConfig(componentType ComponentType, input *ConfigInput) string {
 
 	// Web server port (web server only).
 	if componentType == ComponentWebServer {
-		fmt.Fprintf(&b, "SUPERSET_WEBSERVER_PORT = %d\n", common.PortWebServer)
+		port := input.WebServerPort
+		if port == 0 {
+			port = common.PortWebServer
+		}
+		fmt.Fprintf(&b, "SUPERSET_WEBSERVER_PORT = %d\n", port)
 	}
 
 	b.WriteString("\n")

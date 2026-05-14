@@ -72,7 +72,7 @@ func (r *SupersetReconciler) drainIfNeeded(
 		return lifecycleResult{}, fmt.Errorf("draining components: %w", err)
 	}
 	if !drained {
-		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 			metav1.ConditionFalse, "Draining", "Scaling components to zero before lifecycle tasks", superset.Generation)
 		return lifecycleWait(), nil
 	}

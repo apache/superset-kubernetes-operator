@@ -232,7 +232,7 @@ the `#`-comment form:
 
 ### Do
 
-- **Use shared helpers** from `child_reconciler.go` (`reconcileChildConfigMap`, `reconcileChildDeployment`, `reconcileChildService`, `reconcileScaling`, `updateChildStatus`, `buildChecksumAnnotations`)
+- **Use shared helpers** from `child_reconciler.go` (`reconcileChildDeployment`, `reconcileChildService`, `reconcileScaling`, `updateChildStatus`, `buildChecksumAnnotations`). ConfigMaps are owned by the parent — use `reconcileParentOwnedConfigMap` from `superset_controller.go`.
 - **Use `componentLabels(component, instance)`** for consistent label generation
 - **Stamp `parentLabels(parentName)` on all parent-owned resources** (ServiceAccount, Ingress, HTTPRoute, ServiceMonitor) — this enables label-based cleanup
 - **Use `controllerutil.CreateOrUpdate`** for idempotent reconciliation

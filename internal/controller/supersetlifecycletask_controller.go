@@ -171,8 +171,8 @@ func (r *SupersetLifecycleTaskReconciler) reconcileInitPod(ctx context.Context, 
 			taskCR.Status.Message = "Completed successfully"
 			taskCR.Status.ConfigChecksum = taskCR.Spec.ConfigChecksum
 
-			setCondition(&taskCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-				metav1.ConditionTrue, "InitComplete", "Initialization completed successfully", taskCR.Generation)
+			setCondition(&taskCR.Status.Conditions, supersetv1alpha1.ConditionTypeTaskComplete,
+				metav1.ConditionTrue, "TaskComplete", "Task completed successfully", taskCR.Generation)
 
 			return ctrl.Result{}, nil
 
@@ -184,10 +184,10 @@ func (r *SupersetLifecycleTaskReconciler) reconcileInitPod(ctx context.Context, 
 			if taskCR.Status.Attempts >= maxRetries {
 				taskCR.Status.State = initStateFailed
 				taskCR.Status.ConfigChecksum = taskCR.Spec.ConfigChecksum
-				r.Recorder.Eventf(taskCR, nil, corev1.EventTypeWarning, "InitFailed", "Reconcile",
-					"Init failed after %d attempts: %s", taskCR.Status.Attempts, taskCR.Status.Message)
-				setCondition(&taskCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-					metav1.ConditionFalse, "InitFailed", taskCR.Status.Message, taskCR.Generation)
+				r.Recorder.Eventf(taskCR, nil, corev1.EventTypeWarning, "TaskFailed", "Reconcile",
+					"Task failed after %d attempts: %s", taskCR.Status.Attempts, taskCR.Status.Message)
+				setCondition(&taskCR.Status.Conditions, supersetv1alpha1.ConditionTypeTaskComplete,
+					metav1.ConditionFalse, "TaskFailed", taskCR.Status.Message, taskCR.Generation)
 				return ctrl.Result{}, nil
 			}
 
@@ -201,27 +201,27 @@ func (r *SupersetLifecycleTaskReconciler) reconcileInitPod(ctx context.Context, 
 			}
 
 			taskCR.Status.State = initStatePending
-			r.Recorder.Eventf(taskCR, nil, corev1.EventTypeWarning, "InitRetry", "Reconcile",
-				"Init failed (attempt %d/%d), retrying in %s", taskCR.Status.Attempts, maxRetries, backoff)
-			setCondition(&taskCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-				metav1.ConditionFalse, "InitRetrying", fmt.Sprintf("Retrying after attempt %d", taskCR.Status.Attempts), taskCR.Generation)
+			r.Recorder.Eventf(taskCR, nil, corev1.EventTypeWarning, "TaskRetry", "Reconcile",
+				"Task failed (attempt %d/%d), retrying in %s", taskCR.Status.Attempts, maxRetries, backoff)
+			setCondition(&taskCR.Status.Conditions, supersetv1alpha1.ConditionTypeTaskComplete,
+				metav1.ConditionFalse, "TaskRetrying", fmt.Sprintf("Retrying after attempt %d", taskCR.Status.Attempts), taskCR.Generation)
 			return ctrl.Result{RequeueAfter: backoff}, nil
 
 		case corev1.PodRunning, corev1.PodPending:
 			taskCR.Status.State = initStateRunning
 			// Check timeout.
 			if taskCR.Status.StartedAt != nil {
-				if time.Since(taskCR.Status.StartedAt.Time) > timeout {
+				if r.now().Sub(taskCR.Status.StartedAt.Time) > timeout {
 					log.Info("Init pod timed out", "timeout", timeout)
 					taskCR.Status.Message = fmt.Sprintf("Timed out after %s", timeout)
 					taskCR.Status.Attempts++
 					if taskCR.Status.Attempts >= maxRetries {
 						taskCR.Status.State = initStateFailed
 						taskCR.Status.ConfigChecksum = taskCR.Spec.ConfigChecksum
-						r.Recorder.Eventf(taskCR, nil, corev1.EventTypeWarning, "InitFailed", "Reconcile",
-							"Init timed out after %d attempts", taskCR.Status.Attempts)
-						setCondition(&taskCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-							metav1.ConditionFalse, "InitTimedOut", taskCR.Status.Message, taskCR.Generation)
+						r.Recorder.Eventf(taskCR, nil, corev1.EventTypeWarning, "TaskFailed", "Reconcile",
+							"Task timed out after %d attempts", taskCR.Status.Attempts)
+						setCondition(&taskCR.Status.Conditions, supersetv1alpha1.ConditionTypeTaskComplete,
+							metav1.ConditionFalse, "TaskTimedOut", taskCR.Status.Message, taskCR.Generation)
 						return ctrl.Result{}, nil
 					}
 					backoff := calculateBackoff(taskCR.Status.Attempts)
@@ -234,8 +234,8 @@ func (r *SupersetLifecycleTaskReconciler) reconcileInitPod(ctx context.Context, 
 					return ctrl.Result{RequeueAfter: backoff}, nil
 				}
 			}
-			setCondition(&taskCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-				metav1.ConditionFalse, "InitInProgress", "Initialization is in progress", taskCR.Generation)
+			setCondition(&taskCR.Status.Conditions, supersetv1alpha1.ConditionTypeTaskComplete,
+				metav1.ConditionFalse, "TaskInProgress", "Task is in progress", taskCR.Generation)
 			return ctrl.Result{RequeueAfter: initRequeueInterval}, nil
 		}
 
@@ -275,11 +275,11 @@ func (r *SupersetLifecycleTaskReconciler) reconcileInitPod(ctx context.Context, 
 	taskCR.Status.Image = image
 	taskCR.Status.Message = ""
 
-	r.Recorder.Eventf(taskCR, nil, corev1.EventTypeNormal, "InitStarted", "Reconcile",
-		"Started init pod: %s", pod.Name)
+	r.Recorder.Eventf(taskCR, nil, corev1.EventTypeNormal, "TaskStarted", "Reconcile",
+		"Started task pod: %s", pod.Name)
 
-	setCondition(&taskCR.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
-		metav1.ConditionFalse, "InitInProgress", "Initialization is in progress", taskCR.Generation)
+	setCondition(&taskCR.Status.Conditions, supersetv1alpha1.ConditionTypeTaskComplete,
+		metav1.ConditionFalse, "TaskInProgress", "Task is in progress", taskCR.Generation)
 
 	return ctrl.Result{RequeueAfter: initRequeueInterval}, nil
 }

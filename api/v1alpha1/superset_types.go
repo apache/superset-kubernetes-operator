@@ -790,7 +790,9 @@ type ComponentRefStatus struct {
 	Ready string `json:"ready"`
 	// Reference to the child CR.
 	Ref string `json:"ref"`
-	// Config checksum on the child.
+	// Checksum stamped on the child CR's spec by the parent. Drives rolling
+	// restarts; surfaced here so users can see which revision each child is
+	// reconciling against.
 	// +optional
 	ConfigChecksum string `json:"configChecksum,omitempty"`
 }

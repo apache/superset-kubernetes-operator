@@ -51,7 +51,7 @@ func setCondition(conditions *[]metav1.Condition, conditionType string, status m
 	now := metav1.Now()
 	for i, c := range *conditions {
 		if c.Type == conditionType {
-			if c.Status != status || c.Reason != reason || c.ObservedGeneration != observedGeneration {
+			if c.Status != status || c.Reason != reason || c.Message != message || c.ObservedGeneration != observedGeneration {
 				transitionTime := c.LastTransitionTime
 				if c.Status != status {
 					transitionTime = now

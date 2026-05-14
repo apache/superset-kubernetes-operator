@@ -387,10 +387,15 @@ func (r *SupersetReconciler) getChildStatus(ctx context.Context, namespace, chil
 
 	// Read the status.ready field from the unstructured object.
 	ready, _, _ := unstructured.NestedString(obj.Object, "status", "ready")
+	// Config checksum is stamped on child spec by the parent and drives
+	// rolling restarts. Surfacing it on parent status lets users confirm
+	// that a change has propagated to each child.
+	configChecksum, _, _ := unstructured.NestedString(obj.Object, "spec", "configChecksum")
 
 	return &supersetv1alpha1.ComponentRefStatus{
-		Ready: ready,
-		Ref:   kind + "/" + childName,
+		Ready:          ready,
+		Ref:            kind + "/" + childName,
+		ConfigChecksum: configChecksum,
 	}
 }
 

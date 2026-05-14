@@ -121,7 +121,7 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		if err := r.cleanupMaintenanceResources(ctx, superset); err != nil {
 			return lifecycleResult{}, fmt.Errorf("cleaning up maintenance resources: %w", err)
 		}
-		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 			metav1.ConditionTrue, "LifecycleDisabled", "Lifecycle tasks are disabled", superset.Generation)
 		superset.Status.Lifecycle = nil
 		return lifecycleComplete(), nil
@@ -162,7 +162,7 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	// If no tasks are enabled, lifecycle is complete.
 	if !cloneEnabled && !migrateEnabled && !rotateEnabled && !initEnabled {
 		superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
-		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 			metav1.ConditionTrue, "LifecycleComplete", "Lifecycle tasks completed successfully", superset.Generation)
 		return lifecycleComplete(), nil
 	}
@@ -172,7 +172,7 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	// deletion on reconciles triggered by child CR creation.
 	if r.allTasksStillComplete(superset, cloneEnabled, migrateEnabled, rotateEnabled, initEnabled, configChecksum) {
 		superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
-		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 			metav1.ConditionTrue, "LifecycleComplete", "Lifecycle tasks completed successfully", superset.Generation)
 		return lifecycleComplete(), nil
 	}
@@ -261,7 +261,7 @@ func (r *SupersetReconciler) finalizeLifecycle(
 		}
 	}
 
-	setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+	setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 		metav1.ConditionTrue, "LifecycleComplete", "Lifecycle tasks completed successfully", superset.Generation)
 	return nil
 }
@@ -369,7 +369,7 @@ func (r *SupersetReconciler) checkUpgradeGates(
 
 	if direction == DirectionDowngrade {
 		log.Info("Downgrade detected, blocking lifecycle", "from", oldTag, "to", newTag)
-		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 			metav1.ConditionFalse, "DowngradeBlocked",
 			fmt.Sprintf("Downgrade from %s to %s is not supported. Alembic migrations are forward-only.", oldTag, newTag),
 			superset.Generation)
@@ -400,7 +400,7 @@ func (r *SupersetReconciler) checkUpgradeGates(
 		annotations := superset.GetAnnotations()
 		if annotations == nil || annotations[annotationApproveUpgrade] != "true" {
 			log.Info("Upgrade awaiting approval")
-			setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+			setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 				metav1.ConditionFalse, "AwaitingApproval",
 				fmt.Sprintf("Upgrade from %s to %s detected. Approve with: kubectl annotate superset %s %s=true",
 					superset.Status.Lifecycle.Upgrade.FromVersion,
@@ -492,7 +492,7 @@ func (r *SupersetReconciler) reconcileLifecycleTask(
 			return lifecycleResult{}, fmt.Errorf("creating SupersetLifecycleTask %s: %w", childName, err)
 		}
 		log.Info("Created lifecycle task CR", "task", taskType)
-		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 			metav1.ConditionFalse, "TaskInProgress", fmt.Sprintf("%s task is in progress", taskType), superset.Generation)
 		return lifecycleWait(), nil
 	}
@@ -555,7 +555,7 @@ func (r *SupersetReconciler) reconcileLifecycleTask(
 		if child.Status.Attempts >= maxRetries {
 			if child.Status.ConfigChecksum == taskChecksum {
 				log.Info("Task permanently failed", "task", taskType)
-				setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+				setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 					metav1.ConditionFalse, "TaskFailed", fmt.Sprintf("%s: %s", taskType, child.Status.Message), superset.Generation)
 				superset.Status.Phase = phaseInitializing
 				return lifecycleTerminal(), nil
@@ -566,13 +566,13 @@ func (r *SupersetReconciler) reconcileLifecycleTask(
 			}
 			return lifecycleWait(), nil
 		}
-		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 			metav1.ConditionFalse, "TaskRetrying", fmt.Sprintf("%s task is retrying", taskType), superset.Generation)
 		return lifecycleWait(), nil
 
 	default:
 		log.Info("Task not yet complete", "task", taskType, "state", child.Status.State)
-		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeInitComplete,
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 			metav1.ConditionFalse, "TaskInProgress", fmt.Sprintf("%s task is in progress", taskType), superset.Generation)
 		return lifecycleWait(), nil
 	}
