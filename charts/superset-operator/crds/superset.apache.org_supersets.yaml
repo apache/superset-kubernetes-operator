@@ -21,6 +21,9 @@ spec:
     - jsonPath: .status.phase
       name: Phase
       type: string
+    - jsonPath: .status.ready
+      name: Ready
+      type: string
     - jsonPath: .status.conditions[?(@.type=="Available")].status
       name: Available
       type: string
@@ -39176,72 +39179,342 @@ spec:
                 properties:
                   celeryBeat:
                     properties:
+                      availableReplicas:
+                        format: int32
+                        type: integer
                       configChecksum:
+                        type: string
+                      image:
+                        type: string
+                      message:
+                        type: string
+                      phase:
+                        enum:
+                        - Pending
+                        - Progressing
+                        - Ready
+                        - Unavailable
                         type: string
                       ready:
                         type: string
+                      readyReplicas:
+                        format: int32
+                        type: integer
                       ref:
                         type: string
+                      replicas:
+                        format: int32
+                        type: integer
+                      resources:
+                        items:
+                          properties:
+                            kind:
+                              type: string
+                            name:
+                              type: string
+                            status:
+                              enum:
+                              - Present
+                              - Missing
+                              type: string
+                          required:
+                          - kind
+                          - name
+                          - status
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - kind
+                        - name
+                        x-kubernetes-list-type: map
+                      updatedReplicas:
+                        format: int32
+                        type: integer
                     required:
                     - ready
                     - ref
                     type: object
                   celeryFlower:
                     properties:
+                      availableReplicas:
+                        format: int32
+                        type: integer
                       configChecksum:
+                        type: string
+                      image:
+                        type: string
+                      message:
+                        type: string
+                      phase:
+                        enum:
+                        - Pending
+                        - Progressing
+                        - Ready
+                        - Unavailable
                         type: string
                       ready:
                         type: string
+                      readyReplicas:
+                        format: int32
+                        type: integer
                       ref:
                         type: string
+                      replicas:
+                        format: int32
+                        type: integer
+                      resources:
+                        items:
+                          properties:
+                            kind:
+                              type: string
+                            name:
+                              type: string
+                            status:
+                              enum:
+                              - Present
+                              - Missing
+                              type: string
+                          required:
+                          - kind
+                          - name
+                          - status
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - kind
+                        - name
+                        x-kubernetes-list-type: map
+                      updatedReplicas:
+                        format: int32
+                        type: integer
                     required:
                     - ready
                     - ref
                     type: object
                   celeryWorker:
                     properties:
+                      availableReplicas:
+                        format: int32
+                        type: integer
                       configChecksum:
+                        type: string
+                      image:
+                        type: string
+                      message:
+                        type: string
+                      phase:
+                        enum:
+                        - Pending
+                        - Progressing
+                        - Ready
+                        - Unavailable
                         type: string
                       ready:
                         type: string
+                      readyReplicas:
+                        format: int32
+                        type: integer
                       ref:
                         type: string
+                      replicas:
+                        format: int32
+                        type: integer
+                      resources:
+                        items:
+                          properties:
+                            kind:
+                              type: string
+                            name:
+                              type: string
+                            status:
+                              enum:
+                              - Present
+                              - Missing
+                              type: string
+                          required:
+                          - kind
+                          - name
+                          - status
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - kind
+                        - name
+                        x-kubernetes-list-type: map
+                      updatedReplicas:
+                        format: int32
+                        type: integer
                     required:
                     - ready
                     - ref
                     type: object
                   mcpServer:
                     properties:
+                      availableReplicas:
+                        format: int32
+                        type: integer
                       configChecksum:
+                        type: string
+                      image:
+                        type: string
+                      message:
+                        type: string
+                      phase:
+                        enum:
+                        - Pending
+                        - Progressing
+                        - Ready
+                        - Unavailable
                         type: string
                       ready:
                         type: string
+                      readyReplicas:
+                        format: int32
+                        type: integer
                       ref:
                         type: string
+                      replicas:
+                        format: int32
+                        type: integer
+                      resources:
+                        items:
+                          properties:
+                            kind:
+                              type: string
+                            name:
+                              type: string
+                            status:
+                              enum:
+                              - Present
+                              - Missing
+                              type: string
+                          required:
+                          - kind
+                          - name
+                          - status
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - kind
+                        - name
+                        x-kubernetes-list-type: map
+                      updatedReplicas:
+                        format: int32
+                        type: integer
                     required:
                     - ready
                     - ref
                     type: object
                   webServer:
                     properties:
+                      availableReplicas:
+                        format: int32
+                        type: integer
                       configChecksum:
+                        type: string
+                      image:
+                        type: string
+                      message:
+                        type: string
+                      phase:
+                        enum:
+                        - Pending
+                        - Progressing
+                        - Ready
+                        - Unavailable
                         type: string
                       ready:
                         type: string
+                      readyReplicas:
+                        format: int32
+                        type: integer
                       ref:
                         type: string
+                      replicas:
+                        format: int32
+                        type: integer
+                      resources:
+                        items:
+                          properties:
+                            kind:
+                              type: string
+                            name:
+                              type: string
+                            status:
+                              enum:
+                              - Present
+                              - Missing
+                              type: string
+                          required:
+                          - kind
+                          - name
+                          - status
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - kind
+                        - name
+                        x-kubernetes-list-type: map
+                      updatedReplicas:
+                        format: int32
+                        type: integer
                     required:
                     - ready
                     - ref
                     type: object
                   websocketServer:
                     properties:
+                      availableReplicas:
+                        format: int32
+                        type: integer
                       configChecksum:
+                        type: string
+                      image:
+                        type: string
+                      message:
+                        type: string
+                      phase:
+                        enum:
+                        - Pending
+                        - Progressing
+                        - Ready
+                        - Unavailable
                         type: string
                       ready:
                         type: string
+                      readyReplicas:
+                        format: int32
+                        type: integer
                       ref:
                         type: string
+                      replicas:
+                        format: int32
+                        type: integer
+                      resources:
+                        items:
+                          properties:
+                            kind:
+                              type: string
+                            name:
+                              type: string
+                            status:
+                              enum:
+                              - Present
+                              - Missing
+                              type: string
+                          required:
+                          - kind
+                          - name
+                          - status
+                          type: object
+                        type: array
+                        x-kubernetes-list-map-keys:
+                        - kind
+                        - name
+                        x-kubernetes-list-type: map
+                      updatedReplicas:
+                        format: int32
+                        type: integer
                     required:
                     - ready
                     - ref
@@ -39297,6 +39570,48 @@ spec:
                       completedAt:
                         format: date-time
                         type: string
+                      completedChecksum:
+                        type: string
+                      conditions:
+                        items:
+                          properties:
+                            lastTransitionTime:
+                              format: date-time
+                              type: string
+                            message:
+                              maxLength: 32768
+                              type: string
+                            observedGeneration:
+                              format: int64
+                              minimum: 0
+                              type: integer
+                            reason:
+                              maxLength: 1024
+                              minLength: 1
+                              pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                              type: string
+                            status:
+                              enum:
+                              - "True"
+                              - "False"
+                              - Unknown
+                              type: string
+                            type:
+                              maxLength: 316
+                              pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                              type: string
+                          required:
+                          - lastTransitionTime
+                          - message
+                          - reason
+                          - status
+                          - type
+                          type: object
+                        type: array
+                      configMapRef:
+                        type: string
+                      desiredChecksum:
+                        type: string
                       duration:
                         type: string
                       image:
@@ -39304,12 +39619,20 @@ spec:
                       lastScheduledAt:
                         format: date-time
                         type: string
+                      maxRetries:
+                        format: int32
+                        type: integer
                       message:
+                        type: string
+                      nextAttemptAt:
+                        format: date-time
                         type: string
                       nextScheduleAt:
                         format: date-time
                         type: string
                       podName:
+                        type: string
+                      ref:
                         type: string
                       startedAt:
                         format: date-time
@@ -39330,6 +39653,48 @@ spec:
                       completedAt:
                         format: date-time
                         type: string
+                      completedChecksum:
+                        type: string
+                      conditions:
+                        items:
+                          properties:
+                            lastTransitionTime:
+                              format: date-time
+                              type: string
+                            message:
+                              maxLength: 32768
+                              type: string
+                            observedGeneration:
+                              format: int64
+                              minimum: 0
+                              type: integer
+                            reason:
+                              maxLength: 1024
+                              minLength: 1
+                              pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                              type: string
+                            status:
+                              enum:
+                              - "True"
+                              - "False"
+                              - Unknown
+                              type: string
+                            type:
+                              maxLength: 316
+                              pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                              type: string
+                          required:
+                          - lastTransitionTime
+                          - message
+                          - reason
+                          - status
+                          - type
+                          type: object
+                        type: array
+                      configMapRef:
+                        type: string
+                      desiredChecksum:
+                        type: string
                       duration:
                         type: string
                       image:
@@ -39337,12 +39702,20 @@ spec:
                       lastScheduledAt:
                         format: date-time
                         type: string
+                      maxRetries:
+                        format: int32
+                        type: integer
                       message:
+                        type: string
+                      nextAttemptAt:
+                        format: date-time
                         type: string
                       nextScheduleAt:
                         format: date-time
                         type: string
                       podName:
+                        type: string
+                      ref:
                         type: string
                       startedAt:
                         format: date-time
@@ -39369,6 +39742,48 @@ spec:
                       completedAt:
                         format: date-time
                         type: string
+                      completedChecksum:
+                        type: string
+                      conditions:
+                        items:
+                          properties:
+                            lastTransitionTime:
+                              format: date-time
+                              type: string
+                            message:
+                              maxLength: 32768
+                              type: string
+                            observedGeneration:
+                              format: int64
+                              minimum: 0
+                              type: integer
+                            reason:
+                              maxLength: 1024
+                              minLength: 1
+                              pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                              type: string
+                            status:
+                              enum:
+                              - "True"
+                              - "False"
+                              - Unknown
+                              type: string
+                            type:
+                              maxLength: 316
+                              pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                              type: string
+                          required:
+                          - lastTransitionTime
+                          - message
+                          - reason
+                          - status
+                          - type
+                          type: object
+                        type: array
+                      configMapRef:
+                        type: string
+                      desiredChecksum:
+                        type: string
                       duration:
                         type: string
                       image:
@@ -39376,12 +39791,20 @@ spec:
                       lastScheduledAt:
                         format: date-time
                         type: string
+                      maxRetries:
+                        format: int32
+                        type: integer
                       message:
+                        type: string
+                      nextAttemptAt:
+                        format: date-time
                         type: string
                       nextScheduleAt:
                         format: date-time
                         type: string
                       podName:
+                        type: string
+                      ref:
                         type: string
                       startedAt:
                         format: date-time
@@ -39404,6 +39827,48 @@ spec:
                       completedAt:
                         format: date-time
                         type: string
+                      completedChecksum:
+                        type: string
+                      conditions:
+                        items:
+                          properties:
+                            lastTransitionTime:
+                              format: date-time
+                              type: string
+                            message:
+                              maxLength: 32768
+                              type: string
+                            observedGeneration:
+                              format: int64
+                              minimum: 0
+                              type: integer
+                            reason:
+                              maxLength: 1024
+                              minLength: 1
+                              pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                              type: string
+                            status:
+                              enum:
+                              - "True"
+                              - "False"
+                              - Unknown
+                              type: string
+                            type:
+                              maxLength: 316
+                              pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                              type: string
+                          required:
+                          - lastTransitionTime
+                          - message
+                          - reason
+                          - status
+                          - type
+                          type: object
+                        type: array
+                      configMapRef:
+                        type: string
+                      desiredChecksum:
+                        type: string
                       duration:
                         type: string
                       image:
@@ -39411,12 +39876,20 @@ spec:
                       lastScheduledAt:
                         format: date-time
                         type: string
+                      maxRetries:
+                        format: int32
+                        type: integer
                       message:
+                        type: string
+                      nextAttemptAt:
+                        format: date-time
                         type: string
                       nextScheduleAt:
                         format: date-time
                         type: string
                       podName:
+                        type: string
+                      ref:
                         type: string
                       startedAt:
                         format: date-time
@@ -39459,6 +39932,8 @@ spec:
                 - Suspended
                 - Blocked
                 - AwaitingApproval
+                type: string
+              ready:
                 type: string
               version:
                 type: string

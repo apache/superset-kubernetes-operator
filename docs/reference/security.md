@@ -33,8 +33,8 @@ The operator operates across three trust levels:
 | **Namespace admin** | Creates and modifies `Superset` CRs in their namespace | Trusted — can deploy arbitrary workloads |
 | **Superset end-user** | Accesses the Superset web UI and API | Untrusted — no operator interaction |
 
-**Key assumption:** Granting `create` or `update` on any Superset CRD — parent
-or child — is equivalent to granting the ability to create Pods, Deployments,
+**Key assumption:** Granting `create` or `update` on the `Superset` CRD is
+equivalent to granting the ability to create Pods, Deployments,
 Services (including NodePort and LoadBalancer if cluster policy allows),
 ConfigMaps, ServiceAccounts, Ingresses, HTTPRoutes, NetworkPolicies,
 HorizontalPodAutoscalers, PodDisruptionBudgets, and ServiceMonitors in that
@@ -43,24 +43,17 @@ variables, volumes, and ServiceAccount references. This is inherent to the
 Kubernetes operator pattern and is not a vulnerability.
 
 A `Superset` CR controls all of the above plus arbitrary Python configuration
-via `spec.config`. The same applies to child CRDs (`SupersetWebServer`,
-`SupersetCeleryWorker`, etc.) which can be created directly and carry the same
-fields. Restrict access to all Superset CRDs using Kubernetes RBAC.
+via `spec.config`. Restrict access to the `supersets` resource using Kubernetes
+RBAC.
 
-### Child CRDs Are Controller-Managed Internals
+### Single Public CRD
 
-Child CRDs (`SupersetWebServer`, `SupersetCeleryWorker`, `SupersetCeleryBeat`,
-`SupersetCeleryFlower`, `SupersetWebsocketServer`, `SupersetMcpServer`, and
-`SupersetLifecycleTask`) are an implementation detail of the parent `Superset`
-reconciler. Writing them directly bypasses parent CEL validation (e.g.,
-prod-mode inline secret rejection) and lifecycle orchestration (task
-sequencing, drain gating).
-
-The bundled `superset-editor-role`, `superset-admin-role`, and
-`superset-viewer-role` therefore grant write access only to the parent
-`supersets` resource; child CRDs are exposed as read-only for inspection.
-Administrators who genuinely need to delegate direct child-CR authoring must
-author a custom role that lists the specific child-CRD verbs required.
+The operator exposes one public custom resource, `Superset`. Component
+Deployments, Services, ConfigMaps, HPAs, PDBs, lifecycle task Pods, networking,
+monitoring, and NetworkPolicies are reconciled as parent-owned Kubernetes
+resources. The bundled `superset-editor-role`, `superset-admin-role`, and
+`superset-viewer-role` therefore only need permissions for the `supersets`
+resource and its status subresource.
 
 ### ServiceAccount Selection Is Part of CR Write Access
 
@@ -90,10 +83,10 @@ modes:
   development convenience. Additionally, `lifecycle.init.adminUser` and
   `lifecycle.init.loadExamples` are permitted — these create a default admin account and
   load sample data during initialization. Admin credentials from `adminUser`
-  are stored as plain-text environment variables on the parent Superset CR, the
-  child SupersetLifecycleTask CR, and the resulting task Pod spec (visible to anyone with
-  read access to these resources in the namespace). The admin password also
-  appears in the Pod's process arguments via shell expansion.
+  are stored as plain-text environment variables on the parent Superset CR and
+  the resulting task Pod spec (visible to anyone with read access to these
+  resources in the namespace). The admin password also appears in the Pod's
+  process arguments via shell expansion.
 
 Dev mode is intentionally less secure. It exists for local development with Kind
 or Minikube where secret management infrastructure is not available. This is not
@@ -119,7 +112,7 @@ In prod mode, secrets follow this path:
    status fields, or Events
 
 **Task pod caveat:** When a task pod fails, the operator records a truncated
-version of the container's termination message in the SupersetLifecycleTask CR status and
+version of the container's termination message in the parent Superset status and
 Kubernetes Events for debugging. If the task command writes sensitive data to
 its termination message (e.g., a database connection error that includes
 credentials), a truncated form may appear in status. This is bounded to 256
@@ -129,10 +122,10 @@ operator-managed secret references.
 **Scope of this guarantee:** The above applies to operator-managed secret
 references (`secretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`,
 `valkey.passwordFrom`). User-authored fields — raw Python in `spec.config`,
-component-level `config`, `podTemplate.container.env`, and directly-created
-child CRs — are trusted input and may contain arbitrary values including
-secrets. Users with read access to Superset CRs (parent or child) or the
-generated ConfigMaps will see any values placed in these fields. These are out
+component-level `config`, and `podTemplate.container.env` — are trusted input
+and may contain arbitrary values including secrets. Users with read access to
+Superset CRs or the generated ConfigMaps will see any values placed in these
+fields. These are out
 of scope for the operator's secret handling guarantees
 (see [What Is Generally Out of Scope](#what-is-generally-out-of-scope)).
 
@@ -179,12 +172,12 @@ repeat review cycles:
   call sites, Status and Reason change together, so message-only changes are a
   no-op by design. `LastTransitionTime` is only updated when Status changes
   (per Kubernetes API conventions), not on Reason or generation changes alone.
-- **`FlatComponentSpec` is shared across all child CRDs including Init.** The
-  Init controller uses bare Pods (no Deployment), so fields like Autoscaling,
+- **`FlatComponentSpec` is shared across component Deployments and lifecycle tasks.**
+  Lifecycle tasks use bare Pods (no Deployment), so fields like Autoscaling,
   PDB, and Replicas are unused. The parent controller nils these fields before
-  writing the Init child CR. A dedicated `FlatInitSpec` may be introduced in a
-  future API version, but the shared struct avoids duplicating Image,
-  PodTemplate, and ServiceAccountName today.
+  creating task Pods. A dedicated `FlatInitSpec` may be introduced in a future
+  API version, but the shared struct avoids duplicating Image, PodTemplate, and
+  ServiceAccountName today.
 - **`computeChecksum` has an unreachable fallback.** The `fmt.Sprintf("%v")`
   fallback after `json.Marshal` cannot fire for CRD types (which always marshal
   successfully). It exists as a defensive guard, not as an expected code path.
@@ -209,14 +202,13 @@ repeat review cycles:
   Superset CR, the operator refuses to adopt it and reports an error. Users who
   want to reference a pre-existing ServiceAccount should set `create: false`.
 - **Managed resource adoption and cleanup.** The operator reconciles managed
-  resources at deterministic names derived from the Superset or child CR name.
+  resources at deterministic names derived from the Superset name.
   Kubernetes controller-owner semantics prevent adopting resources already
   controlled by another controller. Unowned resources with the same managed
   name, or resources carrying the operator's cleanup labels, may be adopted or
   deleted during reconciliation. This is within the trust model: users who can
-  create or update Superset parent or child CRs are trusted namespace operators
-  and already have the effective ability to manage the corresponding workloads
-  and resources.
+  create or update Superset CRs are trusted namespace operators and already have
+  the effective ability to manage the corresponding workloads and resources.
 - **NetworkPolicy provides baseline ingress segmentation, not egress
   restriction.** When the built-in NetworkPolicy is enabled, the operator
   installs policies that isolate ingress between Superset instances and allow
@@ -246,7 +238,7 @@ across namespaces. Each permission is justified below:
 | `configmaps` | CRUD | Stores generated `superset_config.py` per component |
 | `services` | CRUD | Exposes web server, Flower, websocket, MCP server |
 | `serviceaccounts` | CRUD | Creates per-instance ServiceAccount for pod identity |
-| `pods` | create, delete, get, list, watch | Manages bare task pods (not Deployments) for `SupersetLifecycleTask` |
+| `pods` | create, delete, get, list, watch | Manages bare lifecycle task pods (not Deployments) |
 | `events` | create, patch | Records reconciliation events |
 | `deployments` | CRUD | Manages component Deployments |
 | `horizontalpodautoscalers` | CRUD | Manages HPA for scalable components |
@@ -255,8 +247,7 @@ across namespaces. Each permission is justified below:
 | `httproutes` | CRUD | Optional Gateway API support |
 | `servicemonitors` | CRUD | Optional Prometheus integration |
 | `tokenreviews`, `subjectaccessreviews` | create | Metrics endpoint auth/authz (controller-runtime secure metrics) |
-| Superset parent CRD | get, list, watch + status | Reads the parent `Superset` CR and updates its status |
-| Superset child CRDs + status | CRUD | Creates, updates, and deletes child CRs; updates child status |
+| `supersets` + `supersets/status` | get, list, watch, update, patch + status update | Reads `Superset` CRs and updates status |
 
 The operator does **not** request:
 

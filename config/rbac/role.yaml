@@ -112,41 +112,16 @@ rules:
 - apiGroups:
   - superset.apache.org
   resources:
-  - supersetcelerybeats
-  - supersetceleryflowers
-  - supersetceleryworkers
-  - supersetlifecycletasks
-  - supersetmcpservers
-  - supersetwebservers
-  - supersetwebsocketservers
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - superset.apache.org
-  resources:
-  - supersetcelerybeats/status
-  - supersetceleryflowers/status
-  - supersetceleryworkers/status
-  - supersetlifecycletasks/status
-  - supersetmcpservers/status
-  - supersets/status
-  - supersetwebservers/status
-  - supersetwebsocketservers/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - superset.apache.org
-  resources:
   - supersets
   verbs:
   - get
   - list
   - watch
+- apiGroups:
+  - superset.apache.org
+  resources:
+  - supersets/status
+  verbs:
+  - get
+  - patch
+  - update

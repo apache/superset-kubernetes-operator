@@ -41,8 +41,6 @@ const (
 	initRequeueInterval = 10 * time.Second
 	taskRequeueInterval = initRequeueInterval
 
-	initTaskName = common.InitTaskInit
-
 	labelInitTask     = common.LabelKeyInitTask
 	labelInitInstance = common.LabelKeyInitInstance
 
@@ -96,6 +94,60 @@ func podFailureMessage(pod *corev1.Pod) string {
 	return "Pod failed"
 }
 
+// buildInitPod builds a PodSpec from the flat component spec for a lifecycle task pod.
+func buildInitPod(spec *supersetv1alpha1.FlatComponentSpec) corev1.PodSpec {
+	pt := safePodTemplatePtr(spec.PodTemplate)
+	ct := safeContainerTemplatePtr(pt.Container)
+
+	image := fmt.Sprintf("%s:%s", spec.Image.Repository, spec.Image.Tag)
+	container := corev1.Container{
+		Name:            common.Container,
+		Image:           image,
+		ImagePullPolicy: spec.Image.PullPolicy,
+		Command:         ct.Command,
+		Args:            ct.Args,
+		Env:             ct.Env,
+		EnvFrom:         ct.EnvFrom,
+		VolumeMounts:    ct.VolumeMounts,
+		SecurityContext: ct.SecurityContext,
+	}
+	if ct.Resources != nil {
+		container.Resources = *ct.Resources
+	}
+
+	podSpec := corev1.PodSpec{
+		RestartPolicy:                 corev1.RestartPolicyNever,
+		Containers:                    []corev1.Container{container},
+		Volumes:                       pt.Volumes,
+		ImagePullSecrets:              spec.Image.PullSecrets,
+		NodeSelector:                  pt.NodeSelector,
+		Tolerations:                   pt.Tolerations,
+		Affinity:                      pt.Affinity,
+		TopologySpreadConstraints:     pt.TopologySpreadConstraints,
+		HostAliases:                   pt.HostAliases,
+		SecurityContext:               pt.PodSecurityContext,
+		TerminationGracePeriodSeconds: pt.TerminationGracePeriodSeconds,
+		RuntimeClassName:              pt.RuntimeClassName,
+		ShareProcessNamespace:         pt.ShareProcessNamespace,
+		EnableServiceLinks:            pt.EnableServiceLinks,
+		DNSConfig:                     pt.DNSConfig,
+		Resources:                     pt.Resources,
+	}
+	if pt.PriorityClassName != nil {
+		podSpec.PriorityClassName = *pt.PriorityClassName
+	}
+	if spec.ServiceAccountName != "" {
+		podSpec.ServiceAccountName = spec.ServiceAccountName
+	}
+	if pt.DNSPolicy != nil {
+		podSpec.DNSPolicy = *pt.DNSPolicy
+	}
+	podSpec.Containers = append(podSpec.Containers, pt.Sidecars...)
+	podSpec.InitContainers = pt.InitContainers
+
+	return podSpec
+}
+
 // ShouldDeletePod determines if a pod should be deleted based on retention policy and pod phase.
 func ShouldDeletePod(policy string, phase corev1.PodPhase) bool {
 	switch policy {
@@ -108,10 +160,4 @@ func ShouldDeletePod(policy string, phase corev1.PodPhase) bool {
 	default:
 		return true
 	}
-}
-
-// isInitDisabled checks if lifecycle is disabled on the parent Superset CR.
-// Kept as a compatibility alias; the main logic uses isLifecycleDisabled.
-func isInitDisabled(superset *supersetv1alpha1.Superset) bool {
-	return isLifecycleDisabled(superset)
 }

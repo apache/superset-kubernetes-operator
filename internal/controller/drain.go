@@ -23,10 +23,11 @@ import (
 	"fmt"
 	"strings"
 
+	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	policyv1 "k8s.io/api/policy/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -36,17 +37,6 @@ import (
 
 func isLifecycleDisabled(superset *supersetv1alpha1.Superset) bool {
 	return superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Disabled != nil && *superset.Spec.Lifecycle.Disabled
-}
-
-func (r *SupersetReconciler) deleteTaskCR(ctx context.Context, name, namespace string) error {
-	task := &supersetv1alpha1.SupersetLifecycleTask{}
-	if err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: namespace}, task); err != nil {
-		if errors.IsNotFound(err) {
-			return nil
-		}
-		return err
-	}
-	return r.Delete(ctx, task)
 }
 
 // drainIfNeeded checks whether any enabled task requires drain and executes it.
@@ -79,33 +69,40 @@ func (r *SupersetReconciler) drainIfNeeded(
 	return lifecycleComplete(), nil
 }
 
-// drainComponents deletes all component child CRs, which cascades to their
-// Deployments, Services, and HPAs via ownerReference garbage collection.
+// drainComponents deletes component workloads and traffic resources directly.
 // Returns (drained, error) where drained=true means no component Deployments remain.
 func (r *SupersetReconciler) drainComponents(ctx context.Context, superset *supersetv1alpha1.Superset) (bool, error) {
 	log := logf.FromContext(ctx)
 
-	// Delete child CRs for each component type (not task CRs).
 	for _, desc := range componentDescriptors {
 		if desc.extract(&superset.Spec) == nil {
 			continue
 		}
-		childName := superset.Name
-		childObj := desc.newChild()
-		childObj.SetName(childName)
-		childObj.SetNamespace(superset.Namespace)
-		if err := r.Delete(ctx, childObj); err != nil {
-			if !errors.IsNotFound(err) {
-				return false, fmt.Errorf("deleting child CR %s/%s: %w", desc.componentType, childName, err)
-			}
-		} else {
-			log.Info("Deleted child CR for drain", "component", desc.componentType)
+		resourceBaseName := naming.ResourceBaseName(superset.Name, desc.componentType)
+		deleteNamed := func(obj client.Object) error {
+			obj.SetName(resourceBaseName)
+			obj.SetNamespace(superset.Namespace)
+			return client.IgnoreNotFound(r.Delete(ctx, obj))
 		}
+		if err := deleteNamed(&appsv1.Deployment{}); err != nil {
+			return false, fmt.Errorf("deleting Deployment for drain %s: %w", desc.componentType, err)
+		}
+		if err := deleteNamed(&autoscalingv2.HorizontalPodAutoscaler{}); err != nil {
+			return false, fmt.Errorf("deleting HPA for drain %s: %w", desc.componentType, err)
+		}
+		if err := deleteNamed(&policyv1.PodDisruptionBudget{}); err != nil {
+			return false, fmt.Errorf("deleting PDB for drain %s: %w", desc.componentType, err)
+		}
+		if desc.componentType != naming.ComponentWebServer {
+			if err := deleteNamed(&corev1.Service{}); err != nil {
+				return false, fmt.Errorf("deleting Service for drain %s: %w", desc.componentType, err)
+			}
+		}
+		log.Info("Deleted component resources for drain", "component", desc.componentType)
 	}
 
 	// Verify all component pods are terminated. Pods are the last resource in
-	// the GC cascade (CR → Deployment → ReplicaSet → Pod), so their absence
-	// confirms the full cascade is complete.
+	// the Deployment cascade, so their absence confirms the workload is gone.
 	podList := &corev1.PodList{}
 	if err := r.List(ctx, podList,
 		client.InNamespace(superset.Namespace),

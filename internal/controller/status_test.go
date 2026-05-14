@@ -19,12 +19,17 @@ limitations under the License.
 package controller
 
 import (
+	"context"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
+	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
 func TestSetCondition(t *testing.T) {
@@ -112,42 +117,91 @@ func TestSetCondition_MessageChangeUpdatesMessageNotTransitionTime(t *testing.T)
 	}
 }
 
-func TestUpdateComponentStatusFromDeployment(t *testing.T) {
+func TestGetComponentStatusFromDeployment(t *testing.T) {
 	tests := []struct {
 		name          string
 		replicas      int32
 		readyReplicas int32
 		wantReady     string
-		wantCondition metav1.ConditionStatus
 	}{
-		{"all ready", 3, 3, "3/3", metav1.ConditionTrue},
-		{"partially ready", 3, 1, "1/3", metav1.ConditionFalse},
-		{"not ready", 2, 0, "0/2", metav1.ConditionFalse},
+		{"all ready", 3, 3, "3/3"},
+		{"partially ready", 3, 1, "1/3"},
+		{"not ready", 2, 0, "0/2"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			scheme := testScheme(t)
 			replicas := tt.replicas
 			deploy := &appsv1.Deployment{
-				Spec:   appsv1.DeploymentSpec{Replicas: &replicas},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-web-server",
+					Namespace: "default",
+				},
+				Spec: appsv1.DeploymentSpec{
+					Replicas: &replicas,
+					Template: corePodTemplateWithChecksum("sha256:test"),
+				},
 				Status: appsv1.DeploymentStatus{Replicas: tt.replicas, ReadyReplicas: tt.readyReplicas},
 			}
+			superset := &supersetv1alpha1.Superset{
+				ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+				Spec: supersetv1alpha1.SupersetSpec{
+					Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+					WebServer: &supersetv1alpha1.WebServerComponentSpec{},
+				},
+			}
+			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, deploy).Build()
+			r := &SupersetReconciler{Client: c, Scheme: scheme}
 
-			status := &supersetv1alpha1.ChildComponentStatus{}
-			updateComponentStatusFromDeployment(status, deploy, 0)
+			status := r.getComponentStatus(context.Background(), superset, webServerDescriptor)
 
 			if status.Ready != tt.wantReady {
 				t.Errorf("expected Ready=%s, got %s", tt.wantReady, status.Ready)
 			}
-			var gotStatus metav1.ConditionStatus
-			for _, c := range status.Conditions {
-				if c.Type == supersetv1alpha1.ConditionTypeReady {
-					gotStatus = c.Status
-				}
+			if status.Ref != "Deployment/test-web-server" {
+				t.Errorf("expected deployment ref, got %s", status.Ref)
 			}
-			if gotStatus != tt.wantCondition {
-				t.Errorf("expected Ready condition %s, got %s", tt.wantCondition, gotStatus)
+			if status.ConfigChecksum != "sha256:test" {
+				t.Errorf("expected config checksum, got %s", status.ConfigChecksum)
 			}
 		})
+	}
+}
+
+func corePodTemplateWithChecksum(checksum string) corev1.PodTemplateSpec {
+	return corev1.PodTemplateSpec{
+		ObjectMeta: metav1.ObjectMeta{
+			Annotations: map[string]string{
+				common.AnnotationConfigChecksum: checksum,
+			},
+		},
+	}
+}
+
+func TestGetComponentStatusMissingDeployment(t *testing.T) {
+	scheme := testScheme(t)
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec: supersetv1alpha1.SupersetSpec{
+			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
+		},
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme}
+
+	status := r.getComponentStatus(context.Background(), superset, webServerDescriptor)
+	if status.Ready != "0/1" {
+		t.Fatalf("expected missing deployment to report 0/1, got %s", status.Ready)
+	}
+	if status.Ref != "Deployment/test-web-server" {
+		t.Fatalf("expected missing deployment ref, got %s", status.Ref)
+	}
+
+	deploy := &appsv1.Deployment{}
+	err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, deploy)
+	if err == nil {
+		t.Fatal("expected deployment to remain absent")
 	}
 }

@@ -32,10 +32,10 @@ The `spec.lifecycle` section controls up to four sequential tasks:
 3. **rotate** — `superset re-encrypt-secrets` (secret key rotation)
 4. **init** — `superset init` (application initialization: roles, permissions)
 
-Tasks run as bare Pods (`restartPolicy: Never`) managed by dedicated
-`SupersetLifecycleTask` child CRs. The parent Superset controller orchestrates
-sequencing, gating, and re-runs; the task controller manages pod lifecycle,
-retries, and timeouts.
+Tasks run as parent-owned bare Pods (`restartPolicy: Never`). The parent
+Superset controller orchestrates sequencing, gating, re-runs, pod lifecycle,
+retries, and timeouts, and stores durable task state in
+`status.lifecycle`.
 
 Lifecycle is enabled by default even when `spec.lifecycle` is nil; disable it
 explicitly with `spec.lifecycle.disabled: true`.
@@ -44,7 +44,7 @@ explicitly with `spec.lifecycle.disabled: true`.
 
 - Clone must complete before migrate starts; migrate before rotate; rotate before init
 - Components are not created or updated until all enabled tasks complete
-- When config or image changes require a re-run, the parent deletes the old task CR and creates a fresh one
+- When config or image changes require a re-run, the parent deletes the old task Pod and creates a fresh one
 
 ## Task Triggers
 
@@ -194,8 +194,8 @@ spec:
       requiresDrain: true   # force drain before init (rare)
 ```
 
-During a drain, Ingress/HTTPRoute and NetworkPolicy resources are preserved (they
-are owned by the parent CR, not child CRs). Once all lifecycle tasks complete,
+During a drain, Ingress/HTTPRoute and NetworkPolicy resources are preserved
+because they are owned by the parent CR. Once all lifecycle tasks complete,
 components are recreated and traffic resumes automatically.
 
 ### Maintenance Page

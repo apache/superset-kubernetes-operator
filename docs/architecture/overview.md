@@ -19,52 +19,70 @@ under the License.
 
 # Architecture Overview
 
-For runtime behavior details — reconciliation lifecycle, child controller
-pattern, and status reporting — see [Internals](internals.md). For lifecycle
+For runtime behavior details — reconciliation lifecycle, parent-owned resource
+management, and status reporting — see [Internals](internals.md). For lifecycle
 task orchestration (migrations, upgrades, drain strategies), see
 [Lifecycle](../user-guide/lifecycle.md).
 
-## Two-Tier CRD Architecture
+## Single Superset CRD Architecture
 
-The operator uses a two-tier CRD architecture. A single parent `Superset`
-resource defines the complete deployment. The parent controller resolves all
-configuration into fully-flattened child CRDs that each manage one component.
+The operator exposes one user-facing CRD: `Superset`. A single `Superset`
+resource defines the complete deployment. The parent controller resolves shared
+top-level configuration and per-component overrides into concrete Kubernetes
+resources: Deployments, Services, ConfigMaps, HPAs, PDBs, lifecycle task Pods,
+networking, monitoring, and NetworkPolicies.
 
-### Why two tiers?
+### Why one CRD?
 
-A single-controller design would require one reconciliation loop to manage all
-sub-resources (Deployments, Services, ConfigMaps, HPA, PDB) for every component.
-This creates a large blast radius — a bug in Celery worker reconciliation can
-block web server updates — and makes the controller harder to test and reason
-about.
+`Superset` is the reconciliation boundary for one Superset installation. The
+runtime components do not have independent desired state: they share instance
+configuration, secret material, database migration ordering, drain/maintenance
+behavior, rollout gates, and aggregate readiness. A lifecycle task can block or
+replace every component, and a component rollout may depend on lifecycle state
+that only the parent can evaluate.
 
-Splitting into dedicated child CRDs and controllers isolates each component's
-lifecycle. The web server controller only watches `SupersetWebServer` resources;
-it cannot interfere with Celery or init. Each child controller is simple and
-generic (all six share `ChildReconciler`), while the parent controller focuses
-solely on configuration resolution and child CR orchestration. This separation
-also enables independent scaling of controller watches and makes `kubectl get`
-output immediately useful — `kubectl get supersetwebservers` shows web server
-status without filtering.
+Because of that coupling, separate component CRDs would mostly expose internal
+controller decomposition as Kubernetes APIs. They would imply that components
+can be created, updated, or observed as independently managed custom resources,
+even though the controller cannot safely reconcile them without the parent's
+configuration, lifecycle, and rollout context.
+
+A single CRD matches the actual ownership model:
+
+- Users declare one desired state: the `Superset` resource.
+- The controller reconciles Deployments, Services, ConfigMaps, HPAs, PDBs,
+  lifecycle task Pods, networking, monitoring, and NetworkPolicies as
+  parent-owned secondary resources.
+- The `Superset` status subresource is the canonical visibility surface for
+  component readiness, resource references, lifecycle task progress, and
+  failure messages.
+
+This keeps the public API small, avoids partially managed intermediate custom
+resources, and makes `kubectl describe superset <name>` the place to inspect the
+state of the whole installation.
+
+The implementation remains modular internally. Component descriptors,
+deployment defaults, config rendering, lifecycle task orchestration, resource
+reconciliation, and status projection are separated in code and covered by
+focused tests. The single CRD is an API and ownership decision, not a mandate for
+one monolithic controller implementation.
 
 ### How it works
 
-Each child CRD contains the fully resolved spec — `kubectl get supersetwebserver -o yaml`
-shows exactly what is running with no layering to trace. While child CRDs can
-technically be created directly, doing so bypasses the parent's lifecycle
-orchestration (task sequencing, drain strategies, component gating). Manual child
-CRs are not recommended for production use. Because child CRs carry the same
-fields as the parent (images, commands, env vars, volumes), their writers should
-be treated as equally trusted — see [Security](../reference/security.md#trust-boundaries)
-for details.
+For each enabled component, the parent controller renders any needed
+`superset_config.py`, merges top-level and per-component templates into a flat
+runtime spec, reconciles the parent-owned Kubernetes resources, and projects
+workload state back into `status.components`.
+
+Lifecycle tasks follow the same model: the parent resolves the task pod spec,
+creates a parent-owned ConfigMap when needed, runs a parent-owned bare Pod, and
+stores durable task state in `status.lifecycle`.
 
 ---
 
-## CRD Hierarchy
+## API Shape
 
-### Parent: `Superset`
-
-The top-level resource. Users create this to deploy Superset.
+Users create one top-level resource:
 
 ```yaml
 apiVersion: superset.apache.org/v1alpha1
@@ -79,26 +97,24 @@ spec:
     uri: postgresql+psycopg2://superset:superset@postgres:5432/superset
 ```
 
-### Children (fully-flattened, operator-managed)
-
-Components fall into two categories:
+Components fall into two runtime categories:
 
 **Scalable components** support replicas, HPA, and PodDisruptionBudgets:
 
-| CRD Kind | Parent field | Suffix | Creates |
-|---|---|---|---|
-| `SupersetWebServer` | `webServer` | `-web-server` | Deployment, Service, ConfigMap, HPA |
-| `SupersetCeleryWorker` | `celeryWorker` | `-celery-worker` | Deployment, ConfigMap, HPA |
-| `SupersetCeleryFlower` | `celeryFlower` | `-celery-flower` | Deployment, Service, ConfigMap |
-| `SupersetWebsocketServer` | `websocketServer` | `-websocket-server` | Deployment, Service |
-| `SupersetMcpServer` | `mcpServer` | `-mcp-server` | Deployment, Service, ConfigMap |
+| Parent field | Suffix | Creates |
+|---|---|---|
+| `webServer` | `-web-server` | Deployment, Service, ConfigMap, HPA, PDB |
+| `celeryWorker` | `-celery-worker` | Deployment, ConfigMap, HPA, PDB |
+| `celeryFlower` | `-celery-flower` | Deployment, Service, ConfigMap, HPA, PDB |
+| `websocketServer` | `-websocket-server` | Deployment, Service, HPA, PDB |
+| `mcpServer` | `-mcp-server` | Deployment, Service, ConfigMap, HPA, PDB |
 
 **Singleton components** run exactly one instance and don't support scaling:
 
-| CRD Kind | Parent field | Suffix | Creates |
-|---|---|---|---|
-| `SupersetLifecycleTask` | `lifecycle` | `-clone`, `-migrate`, `-rotate`, `-init` | Pods, ConfigMap |
-| `SupersetCeleryBeat` | `celeryBeat` | `-celery-beat` | Deployment, ConfigMap |
+| Parent field | Suffix | Creates |
+|---|---|---|
+| `lifecycle` | `-clone`, `-migrate`, `-rotate`, `-init` | bare Pods, ConfigMap for Superset-image tasks |
+| `celeryBeat` | `-celery-beat` | Deployment, ConfigMap |
 
 **Presence = enabled**: Setting `celeryWorker: {}` deploys workers with
 defaults. Omitting `celeryWorker` entirely means no workers. No
@@ -156,8 +172,8 @@ spec:
             cpu: "8"                   # component replaces entire resources struct
 ```
 
-Result on SupersetCeleryWorker: `resources.limits = {cpu: "8"}` (resources
-is a scalar/struct field — component replaces entirely).
+Result on the celery worker Deployment: `resources.limits = {cpu: "8"}`
+(resources is a scalar/struct field — component replaces entirely).
 
 ### Example: How env vars resolve for webServer
 
@@ -174,7 +190,7 @@ spec:
           - {name: GUNICORN_WORKERS, value: "4"}   # merged with top-level
 ```
 
-Result on SupersetWebServer: both env vars present.
+Result on the web server Deployment: both env vars present.
 
 ---
 
@@ -286,9 +302,9 @@ never appear in ConfigMaps or CRD status fields.
 
 ## Checksum-Driven Rollouts
 
-Each child CR carries a config checksum stamped as a pod template
-annotation. When the checksum changes (due to config or secret reference
-changes on the CR), Kubernetes triggers a rolling restart of the affected
+The parent computes a per-component config checksum and stamps it on the
+component Deployment pod template. When the checksum changes (due to config or
+secret reference changes on the CR), Kubernetes triggers a rolling restart of the affected
 component. Note: rotating a referenced Secret's value without changing the
 CR does not trigger a rollout — use
 [Force Reload](../user-guide/configuration.md#force-reload) for this case. See
@@ -300,9 +316,7 @@ table and per-component isolation details.
 ## Resource Ownership
 
 All resources use Kubernetes owner references for automatic cleanup. The parent
-`Superset` CR owns child CRDs (SupersetLifecycleTask, SupersetWebServer, etc.),
-networking resources (Ingress/HTTPRoute), ServiceMonitor, and NetworkPolicies.
-Each child CR in turn owns its managed resources (Deployment, ConfigMap, Service,
-HPA, PDB for component CRDs; Pods and ConfigMap for SupersetLifecycleTask). Deleting
-the parent cascades to everything. Removing a component from the parent spec
-deletes its child CR, which cascades to all owned resources.
+`Superset` CR owns component Deployments, Services, ConfigMaps, HPAs, PDBs,
+lifecycle task Pods, networking resources (Ingress/HTTPRoute), ServiceMonitor,
+and NetworkPolicies. Deleting the parent cascades to everything. Removing a
+component from the parent spec deletes the resources for that component.

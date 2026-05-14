@@ -121,7 +121,8 @@ func (r *SupersetReconciler) reconcileWebServerService(ctx context.Context, supe
 	webServerLabels := componentLabels(string(common.ComponentWebServer), superset.Name)
 
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, svc, func() error {
-		// Clear existing owner references to handle migration from child CR ownership.
+		// Clear existing owner references to handle upgrades from earlier
+		// versions where the Service may have been owned by another controller.
 		svc.OwnerReferences = nil
 		if err := controllerutil.SetControllerReference(superset, svc, r.Scheme); err != nil {
 			return err
@@ -144,16 +145,16 @@ func (r *SupersetReconciler) reconcileWebServerService(ctx context.Context, supe
 
 // resolveWebServerPort returns the resolved web-server container port, taking
 // into account top-level and per-component pod template port overrides. Mirrors
-// the port resolution used by the generic child Service reconciler so the
+// the port resolution used by the generic component Service reconciler so the
 // parent-owned web-server Service, the rendered SUPERSET_WEBSERVER_PORT, and
-// the child CR's container port all agree.
+// the rendered Deployment container port all agree.
 func resolveWebServerPort(superset *supersetv1alpha1.Superset) int32 {
 	if superset == nil || superset.Spec.WebServer == nil {
 		return common.PortWebServer
 	}
 	topLevel := convertTopLevelSpec(&superset.Spec)
 	accessor := webServerDescriptor.extract(&superset.Spec)
-	flat := resolution.ResolveChildSpec(
+	flat := resolution.ResolveComponentSpec(
 		common.ComponentWebServer, topLevel, convertComponent(accessor),
 		nil, &resolution.OperatorInjected{},
 	)

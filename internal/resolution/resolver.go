@@ -74,12 +74,12 @@ type FlatSpec struct {
 // defaultReplicas is the fallback when neither component nor defaults specify replicas.
 var defaultReplicas = int32(1)
 
-// ResolveChildSpec produces a fully-flattened spec from a 2-level model:
+// ResolveComponentSpec produces a fully-flattened spec from a 2-level model:
 // top-level SharedInput + per-component ComponentInput. The DeploymentTemplate
 // is field-level merged (component wins on conflict for scalars/structs,
 // collections merge by name or append). Operator-injected values are folded
 // in at the appropriate template level.
-func ResolveChildSpec(
+func ResolveComponentSpec(
 	componentType ComponentType,
 	topLevel *SharedInput,
 	component *ComponentInput,

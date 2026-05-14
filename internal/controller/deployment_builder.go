@@ -38,7 +38,7 @@ var (
 )
 
 // DeploymentConfig holds the component-specific defaults needed to build
-// a Deployment for any Superset child component.
+// a Deployment for any Superset component.
 type DeploymentConfig struct {
 	// ContainerName is the name of the main container (e.g. "superset-web-server").
 	ContainerName string
@@ -65,7 +65,7 @@ type DeploymentConfig struct {
 	DefaultStartupProbe *corev1.Probe
 }
 
-// buildDeploymentSpec constructs a complete DeploymentSpec from the flat child spec,
+// buildDeploymentSpec constructs a complete DeploymentSpec from the flat component spec,
 // component-specific defaults, pod annotations, and selector labels.
 // All deployment/pod/container fields are read from the DeploymentTemplate hierarchy.
 func buildDeploymentSpec(

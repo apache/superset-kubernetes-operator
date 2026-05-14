@@ -20,12 +20,8 @@ package controller
 
 import (
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/tools/events"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
@@ -60,18 +56,6 @@ func tcpProbe(port int32, initialDelay int32) *corev1.Probe {
 	}
 }
 
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetwebservers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetwebservers/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetceleryworkers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetceleryworkers/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetcelerybeats,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetcelerybeats/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetceleryflowers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetceleryflowers/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetwebsocketservers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetwebsocketservers/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetmcpservers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetmcpservers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
@@ -79,19 +63,18 @@ func tcpProbe(port int32, initialDelay int32) *corev1.Probe {
 // +kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
 
-// ChildControllerDef defines the data needed to register a child controller.
-type ChildControllerDef struct {
+// ComponentResourceDef defines the resource defaults for one component.
+type ComponentResourceDef struct {
 	Name   string
-	config childReconcilerConfig
-	newObj func() ChildCR
+	config componentReconcilerConfig
 }
 
-// ChildControllerDefs returns the definitions for all child controllers.
-func ChildControllerDefs() []ChildControllerDef {
-	return []ChildControllerDef{
+// ComponentResourceDefs returns the resource defaults for all components.
+func ComponentResourceDefs() []ComponentResourceDef {
+	return []ComponentResourceDef{
 		{
 			Name: "superset-webserver",
-			config: childReconcilerConfig{
+			config: componentReconcilerConfig{
 				componentName: string(common.ComponentWebServer),
 				deployConfig: DeploymentConfig{
 					ContainerName:  common.Container,
@@ -107,11 +90,10 @@ func ChildControllerDefs() []ChildControllerDef {
 				hasConfig:   true,
 				hasScaling:  true,
 			},
-			newObj: func() ChildCR { return &supersetv1alpha1.SupersetWebServer{} },
 		},
 		{
 			Name: "superset-celeryworker",
-			config: childReconcilerConfig{
+			config: componentReconcilerConfig{
 				componentName: string(common.ComponentCeleryWorker),
 				deployConfig: DeploymentConfig{
 					ContainerName:  common.Container,
@@ -121,11 +103,10 @@ func ChildControllerDefs() []ChildControllerDef {
 				hasConfig:   true,
 				hasScaling:  true,
 			},
-			newObj: func() ChildCR { return &supersetv1alpha1.SupersetCeleryWorker{} },
 		},
 		{
 			Name: "superset-celerybeat",
-			config: childReconcilerConfig{
+			config: componentReconcilerConfig{
 				componentName: string(common.ComponentCeleryBeat),
 				deployConfig: DeploymentConfig{
 					ContainerName:  common.Container,
@@ -136,11 +117,10 @@ func ChildControllerDefs() []ChildControllerDef {
 				hasConfig:   true,
 				hasScaling:  false,
 			},
-			newObj: func() ChildCR { return &supersetv1alpha1.SupersetCeleryBeat{} },
 		},
 		{
 			Name: "superset-celeryflower",
-			config: childReconcilerConfig{
+			config: componentReconcilerConfig{
 				componentName: string(common.ComponentCeleryFlower),
 				deployConfig: DeploymentConfig{
 					ContainerName:  common.Container,
@@ -155,11 +135,10 @@ func ChildControllerDefs() []ChildControllerDef {
 				hasConfig:   true,
 				hasScaling:  true,
 			},
-			newObj: func() ChildCR { return &supersetv1alpha1.SupersetCeleryFlower{} },
 		},
 		{
 			Name: "superset-websocket",
-			config: childReconcilerConfig{
+			config: componentReconcilerConfig{
 				componentName: string(common.ComponentWebsocketServer),
 				deployConfig: DeploymentConfig{
 					ContainerName:  common.Container,
@@ -174,11 +153,10 @@ func ChildControllerDefs() []ChildControllerDef {
 				hasConfig:   false,
 				hasScaling:  true,
 			},
-			newObj: func() ChildCR { return &supersetv1alpha1.SupersetWebsocketServer{} },
 		},
 		{
 			Name: "superset-mcpserver",
-			config: childReconcilerConfig{
+			config: componentReconcilerConfig{
 				componentName: string(common.ComponentMcpServer),
 				deployConfig: DeploymentConfig{
 					ContainerName:  common.Container,
@@ -193,18 +171,15 @@ func ChildControllerDefs() []ChildControllerDef {
 				hasConfig:   true,
 				hasScaling:  true,
 			},
-			newObj: func() ChildCR { return &supersetv1alpha1.SupersetMcpServer{} },
 		},
 	}
 }
 
-// NewChildReconciler creates a ChildReconciler from a ChildControllerDef.
-func NewChildReconciler(c client.Client, s *runtime.Scheme, r events.EventRecorder, def ChildControllerDef) *ChildReconciler {
-	return &ChildReconciler{
-		Client:   c,
-		Scheme:   s,
-		Recorder: r,
-		Config:   def.config,
-		NewObj:   def.newObj,
+func componentResourceConfig(componentType common.ComponentType) (componentReconcilerConfig, bool) {
+	for _, def := range ComponentResourceDefs() {
+		if def.config.componentName == string(componentType) {
+			return def.config, true
+		}
 	}
+	return componentReconcilerConfig{}, false
 }

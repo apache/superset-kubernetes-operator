@@ -32,21 +32,16 @@ See `docs/contributing/development-setup.md` and `docs/contributing/development-
 
 ## Architecture
 
-The operator uses a **two-tier CRD architecture** where the parent `Superset` resource resolves shared top-level and per-component configuration into fully-flattened child CRDs. See `docs/architecture/overview.md` for detailed design.
+The operator uses a **single public CRD architecture** where the parent `Superset` resource resolves shared top-level and per-component configuration into parent-owned Kubernetes resources. See `docs/architecture/overview.md` for detailed design.
 
 ### CRD Hierarchy
 
 - **Superset** (parent) — top-level CR with shared spec (top-level + per-component), environment, secretKey/secretKeyFrom, metastore (with uriFrom/passwordFrom), valkey (cache/broker/results), config, LifecycleSpec, NetworkingSpec, MonitoringSpec
-- **SupersetLifecycleTask** — lifecycle task runner: bare Pods + ConfigMap. Exclusively created and managed by the parent controller (not user-created). Four sequential tasks: "clone" (database snapshot from external source), "migrate" (`superset db upgrade`), "rotate" (`superset re-encrypt-secrets` for secret key rotation), and "init" (`superset init`). Each task can be independently disabled via `disabled: true`. Clone supports `cronSchedule` for periodic re-execution. Named `{parentName}-clone`, `{parentName}-migrate`, `{parentName}-rotate`, and `{parentName}-init`.
-- **SupersetWebServer** — gunicorn web server Deployment + Service + ConfigMap
-- **SupersetCeleryWorker** — async task worker Deployment + ConfigMap
-- **SupersetCeleryBeat** — periodic task scheduler Deployment + ConfigMap (singleton, always 1 replica)
-- **SupersetCeleryFlower** — Celery monitoring UI Deployment + Service + ConfigMap
-- **SupersetWebsocketServer** — websocket server Deployment + Service (Node.js, no ConfigMap)
-- **SupersetMcpServer** — FastMCP server Deployment + Service + ConfigMap (Python, port 8088)
+- **Lifecycle tasks** — parent-owned bare Pods + ConfigMap. Four sequential tasks: "clone" (database snapshot from external source), "migrate" (`superset db upgrade`), "rotate" (`superset re-encrypt-secrets` for secret key rotation), and "init" (`superset init`). Each task can be independently disabled via `disabled: true`. Clone supports `cronSchedule` for periodic re-execution.
+- **Deployment components** — web server, Celery worker, Celery beat, Flower, websocket, and MCP server Deployments with Services/ConfigMaps/HPA/PDB as applicable.
 
 **Key principles:**
-- **Parent resolves, children execute.** All layering logic lives in the parent controller. Child CRs are fully flattened — no inheritance to trace.
+- **Parent resolves and reconciles.** All layering logic lives in the parent controller, which writes Kubernetes resources directly.
 - **Presence = enabled.** No `enabled: true/false`. If `celeryWorker: {}` is set, workers deploy. Lifecycle tasks (migrate, init) run by default; disable individual tasks via `disabled: true`. Clone runs when `spec.lifecycle.clone` is set. Rotate runs when `spec.lifecycle.rotate` is set.
 - **Secrets never touch ConfigMaps.** In prod mode, CRD CEL validation rejects inline `secretKey`, `metastore.uri`, `metastore.password`, and `valkey.password`. Use `secretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`, or `valkey.passwordFrom` to reference Kubernetes Secrets (operator injects `valueFrom.secretKeyRef` env vars). In dev mode, inline secrets are allowed.
 - **Per-component config rendering.** All Python components get `SECRET_KEY` rendered from `SUPERSET_OPERATOR__SECRET_KEY`. Web gets port config. Structured metastore renders an f-string URI from `SUPERSET_OPERATOR__DB_*` env vars. When `spec.valkey` is set, operator renders all cache configs (`CACHE_CONFIG`, `DATA_CACHE_CONFIG`, etc.), `CeleryConfig`, and `RESULTS_BACKEND` from `SUPERSET_OPERATOR__VALKEY_*` env vars. Websocket gets nothing (Node.js).
@@ -55,41 +50,33 @@ The operator uses a **two-tier CRD architecture** where the parent `Superset` re
 
 - `api/v1alpha1/` — CRD type definitions
   - `shared_types.go` — ImageSpec, MetastoreSpec, ValkeySpec (ValkeySSLSpec, ValkeyCacheSpec, ValkeyCelerySpec, ValkeyResultsBackendSpec), GunicornSpec, CeleryWorkerProcessSpec, SQLAlchemyEngineOptionsSpec, FlatComponentSpec, DeploymentTemplate, PodTemplate, ContainerTemplate, ScalableComponentSpec, ComponentSpec, AutoscalingSpec, PDBSpec
-  - `superset_types.go` — Parent CRD: SupersetSpec (environment, secretKey/secretKeyFrom, metastore with uriFrom/passwordFrom, valkey, config, sqlaEngineOptions, autoscaling, podDisruptionBudget), component specs (GunicornSpec on webServer, CeleryWorkerProcessSpec on celeryWorker, SQLAlchemyEngineOptionsSpec on all Python components except Flower), LifecycleSpec (clone/migrate/init tasks, upgradeMode, maintenancePage), AdminUserSpec, NetworkingSpec, MonitoringSpec, status types (LifecycleStatus, LastLifecycleImage)
-  - `supersetlifecycletask_types.go` — Flat child CRD (Config + checksums, Pods + ConfigMap)
-  - `supersetwebserver_types.go` — Flat child CRD (Config + Service + checksums)
-  - `supersetceleryworker_types.go` — Flat child CRD (Config + checksums)
-  - `supersetcelerybeat_types.go` — Flat child CRD (Config + checksums, singleton)
-  - `supersetceleryflower_types.go` — Flat child CRD (Config + Service + checksums)
-  - `supersetwebsocketserver_types.go` — Flat child CRD (Service only, no Python config)
-  - `supersetmcpserver_types.go` — Flat child CRD (Config + Service + checksums)
+  - `superset_types.go` — SupersetSpec (environment, secretKey/secretKeyFrom, metastore with uriFrom/passwordFrom, valkey, config, sqlaEngineOptions, autoscaling, podDisruptionBudget), component specs (GunicornSpec on webServer, CeleryWorkerProcessSpec on celeryWorker, SQLAlchemyEngineOptionsSpec on all Python components except Flower), LifecycleSpec (clone/migrate/init tasks, upgradeMode, maintenancePage), AdminUserSpec, NetworkingSpec, MonitoringSpec, status types (LifecycleStatus, ComponentStatusMap, LastLifecycleImage)
 
 - `internal/resolution/` — Pure Go spec resolution engine (zero controller-runtime deps)
   - `merge.go` — MergeMaps, MergeEnvVars, MergeVolumes, MergeVolumeMounts, MergeHostAliases, MergeContainers
   - `resolve.go` — ResolveScalar, ResolveOverridableMap/Slice/Value
-  - `resolver.go` — ResolveChildSpec() — core flattening engine
+  - `resolver.go` — ResolveComponentSpec() — core flattening engine
 - `internal/config/` — Pure Go config rendering pipeline (zero controller-runtime deps)
   - `renderer.go` — Per-component superset_config.py generation
   - `gunicorn.go` — Gunicorn preset resolution, env var generation
   - `celery.go` — Celery worker preset resolution, command construction
   - `engine_options.go` — SQLALCHEMY_ENGINE_OPTIONS computation (pool sizing from worker/thread counts)
-- `internal/common/` — Shared types (ComponentType, Ptr), naming functions (ChildName, ConfigMapName, ComponentLabels), constants (labels, suffixes, ports)
+- `internal/common/` — Shared types (ComponentType, Ptr), naming functions (DerivedName, ConfigMapName, ComponentLabels), constants (labels, suffixes, ports)
 - `internal/controller/` — Reconciler implementations
-  - `superset_controller.go` — Parent `SupersetReconciler`: top-level Reconcile loop, child CR apply, orphan pruning, status
+  - `superset_controller.go` — Parent `SupersetReconciler`: top-level Reconcile loop, parent-owned resource reconciliation, cleanup, status
   - `lifecycle.go` — Lifecycle pipeline orchestration: task sequencing, checksum computation, upgrade gates
-  - `drain.go` — Component drain logic: child CR deletion, pod termination verification
+  - `drain.go` — Component drain logic: resource deletion, pod termination verification
   - `schedule.go` — Cron schedule handling: tick computation, requeue timing
   - `config_builder.go` — Spec conversion: top-level → SharedInput, config rendering, env var collection
   - `maintenance.go` — Maintenance page: parent-owned Deployment + ConfigMap, Service selector switching
-  - `child_reconciler.go` — generic `ChildReconciler` with `ChildCR` interface: shared sub-resource lifecycle (ConfigMap, Deployment, Service, Scaling) used by all 6 child controllers
-  - `child_controllers.go` — `ChildControllerDefs()`: registers all 6 generic child controllers with per-component DeploymentConfig (default commands, ports, scaling flags)
-  - `component_descriptors.go` — table-driven component descriptors for parent→child conversion
+  - `component_reconciler.go` — shared component resource lifecycle (ConfigMap, Deployment, Service, Scaling)
+  - `component_resources.go` — `ComponentResourceDefs()`: per-component DeploymentConfig defaults (commands, ports, scaling flags)
+  - `component_descriptors.go` — table-driven component descriptors for parent resource reconciliation
   - `deployment_builder.go` — builds Deployment from FlatComponentSpec + DeploymentConfig
   - `initpod.go` — Task pod lifecycle helpers (backoff, retention, failure messages)
-  - `supersetlifecycletask_controller.go` — SupersetLifecycleTask reconciler (pod state machine, retries, timeout)
   - `version.go` — Version comparison logic (upgrade/downgrade detection)
   - `helpers.go` — componentLabels(), mergeLabels(), mergeAnnotations()
-  - `status.go` — condition helpers, ChildComponentStatus update
+  - `status.go` — condition helpers
   - `scaling.go` — HPA (with custom metrics) + PDB reconciliation
   - `networking.go` — HTTPRoute/Ingress reconciliation
   - `monitoring.go` — ServiceMonitor reconciliation (unstructured)
@@ -102,7 +89,7 @@ The operator uses a **two-tier CRD architecture** where the parent `Superset` re
 
 ## Key Patterns
 
-- **Two-tier resolution**: Parent resolves top-level + per-component fields into flat child spec. `internal/resolution/ResolveChildSpec()` is the core engine.
+- **Component resolution**: Parent resolves top-level + per-component fields into a flat runtime spec. `internal/resolution/ResolveComponentSpec()` is the core engine.
 - **Deployment template hierarchy**: All Deployment/Pod/Container configuration flows through `deploymentTemplate` (Deployment-level) and `podTemplate` (Pod-level with nested `container` for main container fields) as siblings on the component spec. Top-level values provide defaults; per-component values are field-level merged (scalars: component wins; named collections: merge by name; unnamed collections: append). Task pods use `podTemplate` only (no Deployment-level). See `docs/user-guide/configuration.md#deployment-template` for full semantics.
 - **ScalableComponentSpec**: Has `DeploymentTemplate`, `PodTemplate`, and scaling fields (`Replicas`, `Autoscaling`, `PDB`). Used by scalable components. CeleryBeat has `DeploymentTemplate` + `PodTemplate` directly (no scaling). Task pods have `PodTemplate` only.
 - **ComponentSpec**: Per-component image override field (`Image`). Embedded by all component specs except LifecycleSpec.
@@ -113,17 +100,17 @@ The operator uses a **two-tier CRD architecture** where the parent `Superset` re
 - **Environment modes**: `environment: Development` allows inline `secretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, `lifecycle.adminUser`, and `lifecycle.loadExamples`. `environment: Production` (default) rejects these via CRD validation; use `secretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`, or `valkey.passwordFrom` to reference Kubernetes Secrets (operator injects `valueFrom.secretKeyRef` env vars).
 - **Env var tiers**: Operator-internal transport vars (`SUPERSET_OPERATOR__SECRET_KEY`, `SUPERSET_OPERATOR__DB_URI`, `SUPERSET_OPERATOR__DB_HOST`, `SUPERSET_OPERATOR__VALKEY_HOST`, `SUPERSET_OPERATOR__FORCE_RELOAD`, etc.).
 - **SECRET_KEY validation**: CEL requires either `secretKey` (dev mode) or `secretKeyFrom` (any mode) to be set.
-- **Deployment builder**: All child controllers use `buildDeploymentSpec()` with flat `FlatComponentSpec`. Reads all fields from the merged `DeploymentTemplate` hierarchy. No parent lookup needed.
-- **Generic child reconciler**: 6 child controllers (all except SupersetLifecycleTask) use a shared `ChildReconciler` with a `ChildCR` interface. Each child CRD type implements accessor methods (`GetFlatSpec`, `GetConfig`, `GetService`, etc.).
+- **Deployment builder**: Component resource reconciliation uses `buildDeploymentSpec()` with flat `FlatComponentSpec`. Reads all fields from the merged `DeploymentTemplate` hierarchy.
+- **Generic component reconciler**: Deployment components share helper functions for ConfigMap, Deployment, Service, HPA, and PDB reconciliation.
 - **Idempotent reconciliation**: Controllers use `controllerutil.CreateOrUpdate` for all resources.
 - **Ownership**: `controllerutil.SetControllerReference` for garbage collection cascade.
-- **Operator labels protected**: Operator labels (`app.kubernetes.io/*`, `superset.apache.org/parent`) are merged last — users cannot override them. Child CRs, workload pods, and NetworkPolicies carry `superset.apache.org/parent` + `app.kubernetes.io/component` for label-based orphan discovery and instance-scoped NetworkPolicy isolation.
-- **Child name resolution**: Child CRs always use the parent name (differentiated by Kind), except lifecycle tasks which are named `{parentName}-{taskName}`. Sub-resource names (Deployment, Service, ConfigMap) are `{parentName}-{componentType}`, computed locally by each child controller from its CR name and component type via `naming.ResourceBaseName()`.
+- **Operator labels protected**: Operator labels (`app.kubernetes.io/*`, `superset.apache.org/parent`) are merged last — users cannot override them. Workload pods and NetworkPolicies carry `superset.apache.org/parent` + `app.kubernetes.io/component` for label-based discovery and instance-scoped NetworkPolicy isolation.
+- **Resource name resolution**: Component resources are named `{parentName}-{componentType}`. Lifecycle task Pods use generated names based on `{parentName}-{taskName}`.
 - **Checksum-driven rollouts**: Config checksums stamped as pod annotations trigger rolling restarts. Use `forceReload` for Secret rotations.
 - **HPA**: When `autoscaling` is set, Deployment replicas is nil (HPA manages). Supports custom metrics via `autoscalingv2.MetricSpec`. Top-level `autoscaling`/`podDisruptionBudget` provide defaults inherited by all scalable components; per-component values override (not merge). CeleryBeat and lifecycle tasks are excluded (singleton/bare pods).
 - **Beat singleton**: CeleryBeat always forces replicas=1 regardless of spec.
 - **Gateway API**: Uses `sigs.k8s.io/gateway-api` types. Graceful handling of missing CRDs via `meta.IsNoMatchError`.
-- **Lifecycle tasks**: `spec.lifecycle` on the parent CRD (type `LifecycleSpec`) defines up to four sequential tasks: "clone" (database snapshot from external source), "migrate" (`superset db upgrade`), "rotate" (`superset re-encrypt-secrets` for secret key rotation), and "init" (`superset init`). Each produces a `SupersetLifecycleTask` child CR named `{parentName}-clone`, `{parentName}-migrate`, `{parentName}-rotate`, and `{parentName}-init`. The parent controller is the sole orchestrator: it creates task CRs (Get+Create/Delete pattern, never CreateOrUpdate), sequences them (migrate waits for clone, rotate waits for migrate, init waits for rotate), gates component deployment, and triggers re-runs by deleting and recreating CRs when checksums change. The task controller is a pure pod executor — it creates pods, watches status, handles retries, and never autonomously resets tasks. Tasks run as bare Pods (restartPolicy: Never) with exponential backoff on failure. Each task can be independently disabled via `disabled: true`. Clone supports `cronSchedule` for periodic re-execution. Checksums cascade: a re-clone triggers re-migrate, which triggers re-rotate, which triggers re-init. Version comparison detects upgrade vs downgrade; downgrades are blocked (phase: `Blocked`). `upgradeMode: Automatic` (default) runs tasks immediately; `Supervised` waits for an annotation approval before proceeding (phase: `AwaitingApproval`). Lifecycle gates component deployment — components are not updated until all enabled tasks complete. Dev-mode-only `adminUser` and `loadExamples` fields append steps to the init task command. Parent status tracks `LastLifecycleImage` and `Lifecycle *LifecycleStatus` (with `Phase` enum: `Upgrading`, `Blocked`, `AwaitingApproval`, etc.). Drain: parent brings up maintenance Deployment (if `maintenancePage` set), switches the parent-owned web-server Service selector to maintenance-page labels, drains components, runs tasks, waits for web-server ready, switches selector back, and deletes maintenance resources.
+- **Lifecycle tasks**: `spec.lifecycle` on the parent CRD (type `LifecycleSpec`) defines up to four sequential tasks: "clone" (database snapshot from external source), "migrate" (`superset db upgrade`), "rotate" (`superset re-encrypt-secrets` for secret key rotation), and "init" (`superset init`). The parent controller sequences them (migrate waits for clone, rotate waits for migrate, init waits for rotate), gates component deployment, and triggers re-runs by deleting and recreating task Pods when checksums change. Tasks run as bare Pods (restartPolicy: Never) with exponential backoff on failure, and durable state is stored in parent `status.lifecycle`. Each task can be independently disabled via `disabled: true`. Clone supports `cronSchedule` for periodic re-execution. Checksums cascade: a re-clone triggers re-migrate, which triggers re-rotate, which triggers re-init. Version comparison detects upgrade vs downgrade; downgrades are blocked (phase: `Blocked`). `upgradeMode: Automatic` (default) runs tasks immediately; `Supervised` waits for an annotation approval before proceeding (phase: `AwaitingApproval`). Lifecycle gates component deployment — components are not updated until all enabled tasks complete. Dev-mode-only `adminUser` and `loadExamples` fields append steps to the init task command. Parent status tracks `LastLifecycleImage` and `Lifecycle *LifecycleStatus` (with `Phase` enum: `Upgrading`, `Blocked`, `AwaitingApproval`, etc.). Drain: parent brings up maintenance Deployment (if `maintenancePage` set), switches the parent-owned web-server Service selector to maintenance-page labels, drains components, runs tasks, waits for web-server ready, switches selector back, and deletes maintenance resources.
 - **CRD validation**: All validation uses CEL (`x-kubernetes-validations`) on CRD types — no admission webhooks. Rules cover: environment mode restrictions, secret mutual exclusivity, metastore/valkey validation, networking constraints, monitoring constraints. Defaults (repository, pullPolicy, environment) use kubebuilder default markers.
 - **Metrics**: Operator exposes controller-runtime default metrics (reconcile counts, durations, leader election) on HTTPS :8443 with Kubernetes auth/authz. No custom metrics — controller-runtime defaults are sufficient. Superset instance monitoring via optional `spec.monitoring.serviceMonitor` (creates a Prometheus ServiceMonitor targeting the web-server component using unstructured objects; gracefully skips if CRD is absent).
 - **Config mount path**: `/app/pythonpath` for superset_config.py.
@@ -131,24 +118,24 @@ The operator uses a **two-tier CRD architecture** where the parent `Superset` re
 
 ## Naming Conventions
 
-| Parent field | CRD Kind | Component suffix | Container name |
-|---|---|---|---|
-| `lifecycle` (clone) | `SupersetLifecycleTask` | `clone` | `superset` |
-| `lifecycle` (migrate) | `SupersetLifecycleTask` | `migrate` | `superset` |
-| `lifecycle` (rotate) | `SupersetLifecycleTask` | `rotate` | `superset` |
-| `lifecycle` (init) | `SupersetLifecycleTask` | `init` | `superset` |
-| `webServer` | `SupersetWebServer` | `web-server` | `superset` |
-| `celeryWorker` | `SupersetCeleryWorker` | `celery-worker` | `superset` |
-| `celeryBeat` | `SupersetCeleryBeat` | `celery-beat` | `superset` |
-| `celeryFlower` | `SupersetCeleryFlower` | `celery-flower` | `superset` |
-| `websocketServer` | `SupersetWebsocketServer` | `websocket-server` | `superset` |
-| `mcpServer` | `SupersetMcpServer` | `mcp-server` | `superset` |
+| Parent field | Component suffix | Container name |
+|---|---|---|
+| `lifecycle` (clone) | `clone` | `superset` |
+| `lifecycle` (migrate) | `migrate` | `superset` |
+| `lifecycle` (rotate) | `rotate` | `superset` |
+| `lifecycle` (init) | `init` | `superset` |
+| `webServer` | `web-server` | `superset` |
+| `celeryWorker` | `celery-worker` | `superset` |
+| `celeryBeat` | `celery-beat` | `superset` |
+| `celeryFlower` | `celery-flower` | `superset` |
+| `websocketServer` | `websocket-server` | `superset` |
+| `mcpServer` | `mcp-server` | `superset` |
 
-**Two-level naming:** Child CRs always use the parent name (differentiated by Kind), except lifecycle tasks which use `{parentName}-{taskName}` (e.g., `{parentName}-clone`, `{parentName}-migrate`, `{parentName}-rotate`, `{parentName}-init`). Sub-resources (Deployments, Services, ConfigMaps) are named `{parentName}-{componentType}`. Each child controller computes sub-resource names locally from its CR name and known component type. Example: parent `my-superset` → child CR `SupersetWebServer/my-superset` → Deployment `my-superset-web-server`, Service `my-superset-web-server`. Task example: parent `my-superset` → `SupersetLifecycleTask/my-superset-migrate`.
+**Resource naming:** Component resources (Deployments, Services, ConfigMaps) are named `{parentName}-{componentType}`. Lifecycle task Pods use generated names based on `{parentName}-{taskName}-`.
 
 All components use the reserved container name `superset` for the main container. Since each component runs in its own Pod, names never collide. This allows `kubectl exec -it <pod> -c superset` without needing to know the component type.
 
-All CRD names (parent and child) are validated via CEL to be valid DNS labels (lowercase alphanumeric and hyphens, `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`, max 63 characters). DNS-label syntax is required because the operator derives Service names from the parent name + component suffix. Per-component CEL rules enforce that the parent name is short enough for each enabled component's suffix to fit within the 63-char Service name limit (e.g., `-websocket-server` = 17 chars limits parent to 46).
+Superset CR names are validated via CEL to be valid DNS labels (lowercase alphanumeric and hyphens, `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`, max 63 characters). DNS-label syntax is required because the operator derives Service names from the parent name + component suffix. Per-component CEL rules enforce that the parent name is short enough for each enabled component's suffix to fit within the 63-char Service name limit (e.g., `-websocket-server` = 17 chars limits parent to 46).
 
 ## PR Conventions
 

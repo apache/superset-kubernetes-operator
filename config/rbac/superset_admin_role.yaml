@@ -1,12 +1,8 @@
 # This rule is not used by the project superset-kubernetes-operator itself.
 # It is provided to allow the cluster admin to help manage permissions for users.
 #
-# Grants full (`*`) permissions on the parent `supersets` resource only. Child
-# CRDs (SupersetWebServer, SupersetCeleryWorker, SupersetLifecycleTask, etc.)
-# are controller-managed internals; this role grants read-only access to them
-# for inspection. Administrators who need to delegate direct child-CR write
-# access must build a custom role with the specific child-resource verbs
-# required.
+# Grants full (`*`) permissions on the parent `supersets` resource. Component
+# and lifecycle state is exposed on the parent status.
 
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -25,27 +21,6 @@ rules:
 - apiGroups:
   - superset.apache.org
   resources:
-  - supersetcelerybeats
-  - supersetceleryflowers
-  - supersetceleryworkers
-  - supersetlifecycletasks
-  - supersetmcpservers
-  - supersetwebservers
-  - supersetwebsocketservers
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - superset.apache.org
-  resources:
   - supersets/status
-  - supersetcelerybeats/status
-  - supersetceleryflowers/status
-  - supersetceleryworkers/status
-  - supersetlifecycletasks/status
-  - supersetmcpservers/status
-  - supersetwebservers/status
-  - supersetwebsocketservers/status
   verbs:
   - get

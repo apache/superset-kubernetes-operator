@@ -553,15 +553,14 @@ A Superset CR with no components enabled is valid — the operator will run
 initialization (if not disabled) but deploy no workloads. The parent status
 will report `Phase: Running` with condition reason `NoComponentsEnabled`.
 
-### Child CR and Sub-Resource Names
+### Resource Names
 
-Component child CRs share the parent's name (differentiated by Kind). For
-example, a parent named `my-superset` creates `SupersetWebServer/my-superset`,
-`SupersetCeleryWorker/my-superset`, etc. Lifecycle task CRs are named
-`{parentName}-migrate` and `{parentName}-init` (e.g.
-`SupersetLifecycleTask/my-superset-migrate`, `SupersetLifecycleTask/my-superset-init`).
-Sub-resources (Deployments, Services, ConfigMaps) are named
-`{parentName}-{componentType}` (e.g. `my-superset-web-server`).
+Component resources are named `{parentName}-{componentType}`. For example, a
+parent named `my-superset` creates resources such as
+`my-superset-web-server`, `my-superset-celery-worker`, and
+`my-superset-mcp-server`. ConfigMaps add the `-config` suffix, for example
+`my-superset-web-server-config`. Lifecycle task Pods use generated names based
+on `{parentName}-{taskName}-`, such as `my-superset-migrate-abcde`.
 
 The parent name must be a valid DNS label: lowercase alphanumeric and hyphens
 only (`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`), at most 63 characters. Since
@@ -784,7 +783,7 @@ spec:
 ```
 
 When suspended, the operator stops all reconciliation — no init pods run, no
-child CRs are created or updated, and no resources are deleted. Set
+component resources are created or updated, and no resources are deleted. Set
 `suspend: false` (or remove the field) to resume.
 
 ## Connecting PostgreSQL and Valkey

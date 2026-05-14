@@ -162,9 +162,9 @@ spec:
 EOF
 ```
 
-The operator will create SupersetLifecycleTask child CRs to perform database migration
-and initialization, then create the web server child CR and its resources.
-Check task status with `kubectl get supersetlifecycletasks`.
+The operator will create parent-owned lifecycle task Pods to perform database
+migration and initialization, then create the web server Deployment, Service,
+and ConfigMap. Check task status with `kubectl describe superset my-superset`.
 
 ## 4. Watch it come up
 
@@ -172,7 +172,7 @@ Check task status with `kubectl get supersetlifecycletasks`.
 # Watch the parent CR status
 kubectl get superset my-superset -w
 
-# Watch init pods
+# Watch lifecycle task pods
 kubectl get pods -l superset.apache.org/init-task -w
 
 # Watch all pods
@@ -238,12 +238,12 @@ spec:
 EOF
 ```
 
-The operator will create the CeleryWorker and CeleryBeat child CRs and their
-Deployments automatically.
+The operator will create the CeleryWorker and CeleryBeat Deployments and their
+ConfigMaps automatically.
 
 ## Next steps
 
 - [Configuration](configuration.md) — full configuration reference
 - [Lifecycle](lifecycle.md) — database migration and upgrade management
 - [Networking & Monitoring](networking-and-monitoring.md) — Gateway API, Ingress, ServiceMonitor
-- [Architecture](../architecture/overview.md) — how the two-tier CRD design works
+- [Architecture](../architecture/overview.md) — how the single-CRD design works

@@ -47,7 +47,7 @@ func TestReconcileHPA_CreatesHPA(t *testing.T) {
 	_ = autoscalingv2.AddToScheme(scheme)
 	_ = policyv1.AddToScheme(scheme)
 
-	owner := &supersetv1alpha1.SupersetWebServer{
+	owner := &supersetv1alpha1.Superset{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-web-server", Namespace: "default", UID: "uid-1"},
 	}
 
@@ -102,7 +102,7 @@ func TestReconcileHPA_NilAutoscaling(t *testing.T) {
 	scheme := testScheme(t)
 	_ = autoscalingv2.AddToScheme(scheme)
 
-	owner := &supersetv1alpha1.SupersetWebServer{
+	owner := &supersetv1alpha1.Superset{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-web-server", Namespace: "default", UID: "uid-1"},
 	}
 
@@ -137,7 +137,7 @@ func TestReconcileHPA_CustomMetrics(t *testing.T) {
 	scheme := testScheme(t)
 	_ = autoscalingv2.AddToScheme(scheme)
 
-	owner := &supersetv1alpha1.SupersetWebServer{
+	owner := &supersetv1alpha1.Superset{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-web-server", Namespace: "default", UID: "uid-1"},
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner).Build()
@@ -179,7 +179,7 @@ func TestReconcilePDB_CreatesPDB(t *testing.T) {
 	scheme := testScheme(t)
 	_ = policyv1.AddToScheme(scheme)
 
-	owner := &supersetv1alpha1.SupersetWebServer{
+	owner := &supersetv1alpha1.Superset{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-web-server", Namespace: "default", UID: "uid-1"},
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner).Build()
@@ -208,7 +208,7 @@ func TestReconcilePDB_MaxUnavailable(t *testing.T) {
 	scheme := testScheme(t)
 	_ = policyv1.AddToScheme(scheme)
 
-	owner := &supersetv1alpha1.SupersetWebServer{
+	owner := &supersetv1alpha1.Superset{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-web-server", Namespace: "default", UID: "uid-1"},
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner).Build()
@@ -234,7 +234,7 @@ func TestReconcilePDB_NilSpec(t *testing.T) {
 	scheme := testScheme(t)
 	_ = policyv1.AddToScheme(scheme)
 
-	owner := &supersetv1alpha1.SupersetWebServer{
+	owner := &supersetv1alpha1.Superset{
 		ObjectMeta: metav1.ObjectMeta{Name: "test-web-server", Namespace: "default", UID: "uid-1"},
 	}
 	labels := map[string]string{"app": "test"}

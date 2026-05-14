@@ -23,93 +23,21 @@ import (
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
-	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
-	policyv1 "k8s.io/api/policy/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
-	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
-// ChildCR is implemented by all child CRD types for generic reconciliation.
-type ChildCR interface {
-	client.Object
-	GetFlatSpec() *supersetv1alpha1.FlatComponentSpec
-	GetConfigChecksum() string
-	GetService() *supersetv1alpha1.ComponentServiceSpec
-	GetAutoscaling() *supersetv1alpha1.AutoscalingSpec
-	GetPDB() *supersetv1alpha1.PDBSpec
-	GetComponentStatus() *supersetv1alpha1.ChildComponentStatus
-}
-
-// ChildReconciler is a generic reconciler for all child CRDs.
-type ChildReconciler struct {
-	client.Client
-	Scheme   *runtime.Scheme
-	Recorder events.EventRecorder
-	Config   childReconcilerConfig
-	NewObj   func() ChildCR
-}
-
-// Reconcile handles the reconciliation loop for a child CRD.
-func (r *ChildReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	log := logf.FromContext(ctx)
-
-	obj := r.NewObj()
-	if err := r.Get(ctx, req.NamespacedName, obj); err != nil {
-		if errors.IsNotFound(err) {
-			return ctrl.Result{}, nil
-		}
-		return ctrl.Result{}, err
-	}
-
-	log.Info("Reconciling "+r.Config.componentName, "name", obj.GetName())
-
-	if err := reconcileChildResources(ctx, r.Client, r.Scheme, r.Recorder, obj,
-		obj.GetFlatSpec(), r.Config,
-		obj.GetConfigChecksum(),
-		obj.GetService(), obj.GetAutoscaling(), obj.GetPDB(),
-	); err != nil {
-		return ctrl.Result{}, err
-	}
-
-	return ctrl.Result{}, updateChildStatus(ctx, r.Client, r.Client, obj, obj.GetComponentStatus(), obj.GetGeneration(),
-		common.ResourceBaseName(obj.GetName(), common.ComponentType(r.Config.componentName)))
-}
-
-// SetupWithManager registers the controller with the manager.
-func (r *ChildReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	b := ctrl.NewControllerManagedBy(mgr).
-		For(r.NewObj()).
-		Owns(&appsv1.Deployment{})
-
-	if r.Config.hasConfig {
-		b = b.Owns(&corev1.ConfigMap{})
-	}
-	if r.Config.defaultPort > 0 {
-		b = b.Owns(&corev1.Service{})
-	}
-	if r.Config.hasScaling {
-		b = b.Owns(&autoscalingv2.HorizontalPodAutoscaler{}).
-			Owns(&policyv1.PodDisruptionBudget{})
-	}
-
-	return b.Named(r.Config.componentName).Complete(r)
-}
-
-// childReconcilerConfig captures the component-specific parameters needed
-// by reconcileChildResources to orchestrate sub-resource reconciliation.
-type childReconcilerConfig struct {
+// componentReconcilerConfig captures the component-specific parameters needed
+// by reconcileComponentResources to orchestrate resource reconciliation.
+type componentReconcilerConfig struct {
 	componentName string
 	deployConfig  DeploymentConfig
 	defaultPort   int32 // 0 = no service
@@ -117,16 +45,16 @@ type childReconcilerConfig struct {
 	hasScaling    bool
 }
 
-// reconcileChildResources orchestrates the standard sub-resource lifecycle for
-// a Deployment-based child controller: ConfigMap -> Deployment -> Service -> Scaling.
-func reconcileChildResources(
+// reconcileComponentResources orchestrates the standard resource lifecycle for
+// a Deployment-based component: ConfigMap -> Deployment -> Service -> Scaling.
+func reconcileComponentResources(
 	ctx context.Context,
 	c client.Client,
 	scheme *runtime.Scheme,
 	recorder events.EventRecorder,
 	owner client.Object,
 	spec *supersetv1alpha1.FlatComponentSpec,
-	cfg childReconcilerConfig,
+	cfg componentReconcilerConfig,
 	configChecksum string,
 	service *supersetv1alpha1.ComponentServiceSpec,
 	autoscaling *supersetv1alpha1.AutoscalingSpec,
@@ -139,7 +67,7 @@ func reconcileChildResources(
 	if cfg.hasConfig {
 		checksums = buildChecksumAnnotations(configChecksum)
 	}
-	if err := reconcileChildDeployment(ctx, c, scheme, owner, spec, cfg.deployConfig, checksums, cfg.componentName, resourceBaseName); err != nil {
+	if err := reconcileComponentDeployment(ctx, c, scheme, owner, spec, cfg.deployConfig, checksums, cfg.componentName, resourceBaseName); err != nil {
 		recorder.Eventf(owner, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile Deployment: %v", err)
 		return fmt.Errorf("reconciling Deployment: %w", err)
 	}
@@ -147,7 +75,7 @@ func reconcileChildResources(
 	// Service (if defaultPort > 0).
 	if cfg.defaultPort > 0 {
 		containerPort := resolveContainerPort(spec, cfg.defaultPort)
-		if err := reconcileChildService(ctx, c, scheme, owner, service, cfg.componentName, containerPort, cfg.defaultPort, resourceBaseName); err != nil {
+		if err := reconcileComponentService(ctx, c, scheme, owner, service, cfg.componentName, containerPort, cfg.defaultPort, resourceBaseName); err != nil {
 			recorder.Eventf(owner, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile Service: %v", err)
 			return fmt.Errorf("reconciling Service: %w", err)
 		}
@@ -164,8 +92,8 @@ func reconcileChildResources(
 	return nil
 }
 
-// reconcileChildDeployment creates or updates a Deployment from the flat component spec.
-func reconcileChildDeployment(
+// reconcileComponentDeployment creates or updates a Deployment from the flat component spec.
+func reconcileComponentDeployment(
 	ctx context.Context,
 	c client.Client,
 	scheme *runtime.Scheme,
@@ -195,8 +123,8 @@ func reconcileChildDeployment(
 	return err
 }
 
-// reconcileChildService creates or updates a Service for the component.
-func reconcileChildService(
+// reconcileComponentService creates or updates a Service for the component.
+func reconcileComponentService(
 	ctx context.Context,
 	c client.Client,
 	scheme *runtime.Scheme,
@@ -259,25 +187,6 @@ func buildChecksumAnnotations(configChecksum string) map[string]string {
 		annotations[common.AnnotationConfigChecksum] = configChecksum
 	}
 	return annotations
-}
-
-// updateChildStatus reads the Deployment and updates the ChildComponentStatus on the owner.
-func updateChildStatus(
-	ctx context.Context,
-	c client.Client,
-	statusClient client.StatusClient,
-	owner client.Object,
-	status *supersetv1alpha1.ChildComponentStatus,
-	generation int64,
-	resourceBaseName string,
-) error {
-	deploy := &appsv1.Deployment{}
-	if err := c.Get(ctx, types.NamespacedName{Name: resourceBaseName, Namespace: owner.GetNamespace()}, deploy); err != nil {
-		return err
-	}
-
-	updateComponentStatusFromDeployment(status, deploy, generation)
-	return statusClient.Status().Update(ctx, owner)
 }
 
 // reconcileScaling reconciles both HPA and PDB for a component.

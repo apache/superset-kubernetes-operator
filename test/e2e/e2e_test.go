@@ -300,12 +300,13 @@ spec:
 				g.Expect(output).NotTo(BeEmpty(), "status.phase should be set")
 			}, 60*time.Second, time.Second).Should(Succeed())
 
-			By("verifying SupersetWebServer child CR exists")
+			By("verifying parent status reports the web-server component")
 			Eventually(func(g Gomega) {
-				cmd := exec.Command("kubectl", "get", "supersetwebserver",
-					crName, "-n", namespace)
-				_, err := utils.Run(cmd)
+				cmd := exec.Command("kubectl", "get", "superset",
+					crName, "-n", namespace, "-o", "jsonpath={.status.components.webServer.ref}")
+				output, err := utils.Run(cmd)
 				g.Expect(err).NotTo(HaveOccurred())
+				g.Expect(output).To(Equal("Deployment/" + crName + "-web-server"))
 			}, 30*time.Second, time.Second).Should(Succeed())
 
 			By("verifying the ConfigMap contains operator-generated content")
@@ -349,14 +350,6 @@ spec:
 				"--timeout=60s")
 			_, err = utils.Run(cmd)
 			Expect(err).NotTo(HaveOccurred(), "Failed to delete Superset CR")
-
-			By("verifying cascade deletion removes the web server child CR")
-			Eventually(func(g Gomega) {
-				cmd := exec.Command("kubectl", "get", "supersetwebserver",
-					crName, "-n", namespace)
-				_, err := utils.Run(cmd)
-				g.Expect(err).To(HaveOccurred(), "SupersetWebServer should be deleted")
-			}, 60*time.Second, time.Second).Should(Succeed())
 
 			By("verifying cascade deletion removes the Deployment")
 			Eventually(func(g Gomega) {
@@ -403,28 +396,28 @@ spec:
 			_, err := utils.Run(cmd)
 			Expect(err).NotTo(HaveOccurred(), "Failed to apply multi-component Superset CR")
 
-			By("verifying all 6 child CRs exist")
-			childKinds := []string{
-				"supersetwebserver",
-				"supersetceleryworker",
-				"supersetcelerybeat",
-				"supersetceleryflower",
-				"supersetwebsocketserver",
-				"supersetmcpserver",
+			By("verifying all 6 component Deployments exist")
+			componentDeployments := []string{
+				crName + "-web-server",
+				crName + "-celery-worker",
+				crName + "-celery-beat",
+				crName + "-celery-flower",
+				crName + "-websocket-server",
+				crName + "-mcp-server",
 			}
 			Eventually(func(g Gomega) {
-				for _, kind := range childKinds {
-					cmd := exec.Command("kubectl", "get", kind, crName, "-n", namespace)
+				for _, deploy := range componentDeployments {
+					cmd := exec.Command("kubectl", "get", "deployment", deploy, "-n", namespace)
 					_, err := utils.Run(cmd)
-					g.Expect(err).NotTo(HaveOccurred(), "child CR %s/%s should exist", kind, crName)
+					g.Expect(err).NotTo(HaveOccurred(), "Deployment %s should exist", deploy)
 				}
 			}, 60*time.Second, time.Second).Should(Succeed())
 
-			By("verifying web server child CR has replicas=2")
+			By("verifying parent status reports web server replicas=2")
 			Eventually(func(g Gomega) {
-				cmd := exec.Command("kubectl", "get", "supersetwebserver",
+				cmd := exec.Command("kubectl", "get", "superset",
 					crName, "-n", namespace,
-					"-o", "jsonpath={.spec.replicas}")
+					"-o", "jsonpath={.status.components.webServer.replicas}")
 				output, err := utils.Run(cmd)
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(output).To(Equal("2"))
@@ -510,12 +503,12 @@ spec:
 			_, err = utils.Run(cmd)
 			Expect(err).NotTo(HaveOccurred(), "Failed to delete multi-component Superset CR")
 
-			By("verifying cascade deletion removes child CRs")
+			By("verifying cascade deletion removes component Deployments")
 			Eventually(func(g Gomega) {
-				for _, kind := range childKinds {
-					cmd := exec.Command("kubectl", "get", kind, crName, "-n", namespace)
+				for _, deploy := range componentDeployments {
+					cmd := exec.Command("kubectl", "get", "deployment", deploy, "-n", namespace)
 					_, err := utils.Run(cmd)
-					g.Expect(err).To(HaveOccurred(), "child CR %s/%s should be deleted", kind, crName)
+					g.Expect(err).To(HaveOccurred(), "Deployment %s should be deleted", deploy)
 				}
 			}, 60*time.Second, time.Second).Should(Succeed())
 		})

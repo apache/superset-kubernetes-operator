@@ -332,7 +332,7 @@ func defaultDBPort(driver *string) int32 {
 
 // --- Operator-injected volumes/env/mounts ---
 
-func buildOperatorInjected(renderedConfig, childName, forceReload string, configEnvVars []corev1.EnvVar) *resolution.OperatorInjected {
+func buildOperatorInjected(renderedConfig, resourceBaseName, forceReload string, configEnvVars []corev1.EnvVar) *resolution.OperatorInjected {
 	injected := &resolution.OperatorInjected{}
 
 	if renderedConfig != "" {
@@ -342,7 +342,7 @@ func buildOperatorInjected(renderedConfig, childName, forceReload string, config
 			VolumeSource: corev1.VolumeSource{
 				ConfigMap: &corev1.ConfigMapVolumeSource{
 					LocalObjectReference: corev1.LocalObjectReference{
-						Name: naming.ConfigMapName(childName),
+						Name: naming.ConfigMapName(resourceBaseName),
 					},
 				},
 			},

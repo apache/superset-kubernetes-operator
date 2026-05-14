@@ -87,7 +87,7 @@ func (r *SupersetReconciler) reconcileServiceMonitor(ctx context.Context, supers
 				"matchLabels": map[string]interface{}{
 					common.LabelKeyName:      common.LabelValueApp,
 					common.LabelKeyComponent: string(common.ComponentWebServer),
-					common.LabelKeyInstance:  webServerDescriptor.childName(&superset.Spec, superset.Name),
+					common.LabelKeyInstance:  webServerDescriptor.instanceName(&superset.Spec, superset.Name),
 				},
 			},
 			"namespaceSelector": map[string]interface{}{

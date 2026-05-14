@@ -102,17 +102,6 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(mgr)
 	Expect(err).NotTo(HaveOccurred())
 
-	// Register child reconcilers.
-	for _, def := range ChildControllerDefs() {
-		Expect(NewChildReconciler(mgr.GetClient(), mgr.GetScheme(),
-			mgr.GetEventRecorder("test"), def).SetupWithManager(mgr)).To(Succeed())
-	}
-	Expect((&SupersetLifecycleTaskReconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorder("test"),
-	}).SetupWithManager(mgr)).To(Succeed())
-
 	// Start manager in background goroutine.
 	go func() {
 		defer GinkgoRecover()

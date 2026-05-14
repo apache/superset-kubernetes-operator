@@ -24,7 +24,7 @@ under the License.
 
 A Kubernetes operator for deploying and managing [Apache Superset](https://superset.apache.org/). Built with the Go-based [Operator SDK](https://sdk.operatorframework.io/).
 
-The operator manages the full Superset lifecycle: database migrations, configuration rendering, component deployment, scaling, and networking. Users define a single `Superset` custom resource, and the operator resolves it into per-component child CRDs that each manage their own Deployment, ConfigMap, and Service.
+The operator manages the full Superset lifecycle: database migrations, configuration rendering, component deployment, scaling, and networking. Users define a single `Superset` custom resource, and the operator reconciles the Deployments, ConfigMaps, Services, lifecycle task Pods, and supporting resources for that instance.
 
 ## Features
 
@@ -93,17 +93,15 @@ spec:
   mcpServer: {}
 ```
 
-The operator resolves this into child CRDs and their underlying resources. The init child CR runs database migrations before components deploy:
+The operator resolves this into parent-owned resources. Lifecycle task Pods run database migrations before components deploy, and their durable state is projected onto the parent status:
 
 ```
 $ kubectl get supersets
-NAME           PHASE     VERSION   AGE
-my-superset    Running   latest     5m
+NAME           VERSION   PHASE     READY   AVAILABLE   AGE
+my-superset    latest    Running   3/3     True        5m
 
-$ kubectl get supersetlifecycletasks
-NAME                     PHASE      ATTEMPTS   AGE
-my-superset-migrate      Complete   1          5m
-my-superset-init         Complete   1          5m
+$ kubectl get superset my-superset -o jsonpath='{.status.lifecycle.migrate.state}'
+Complete
 
 $ kubectl get pods -l app.kubernetes.io/name=superset
 NAME                                          READY   STATUS    AGE
@@ -128,7 +126,7 @@ my-superset-mcp-server-5c6d7e8f9-x9y1z        1/1     Running   4m
 **Understanding how the operator works?**
 
 - [Architecture](architecture/overview.md) — CRD hierarchy, config rendering pipeline
-- [Internals](architecture/internals.md) — reconciliation phases, child controllers, status
+- [Internals](architecture/internals.md) — reconciliation phases, resource ownership, status
 
 **Contributing code?**
 

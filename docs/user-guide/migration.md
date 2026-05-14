@@ -103,7 +103,7 @@ The main differences are deliberate:
 
 | Helm chart value | Operator equivalent | Notes |
 |---|---|---|
-| `nameOverride`, `fullnameOverride` | `metadata.name` | The operator derives child and workload names from the CR name. Generated names are not independently overridden. |
+| `nameOverride`, `fullnameOverride` | `metadata.name` | The operator derives workload names from the CR name. Generated names are not independently overridden. |
 | `extraLabels` | Resource-specific labels | Use `podTemplate.labels`, component `service.labels`, `networking.ingress.labels`, or `networking.gateway.labels`. There is no single global label field for every generated object. |
 | `image.repository`, `image.tag`, `image.pullPolicy` | `spec.image.repository`, `spec.image.tag`, `spec.image.pullPolicy` | Per-component image overrides are available under each component's `image` field. |
 | `imagePullSecrets` | `spec.image.pullSecrets` | Applied to all component pods. |

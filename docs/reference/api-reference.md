@@ -10,13 +10,6 @@ Package v1alpha1 contains API Schema definitions for the superset v1alpha1 API g
 
 ### Resource Types
 - [Superset](#superset)
-- [SupersetCeleryBeat](#supersetcelerybeat)
-- [SupersetCeleryFlower](#supersetceleryflower)
-- [SupersetCeleryWorker](#supersetceleryworker)
-- [SupersetLifecycleTask](#supersetlifecycletask)
-- [SupersetMcpServer](#supersetmcpserver)
-- [SupersetWebServer](#supersetwebserver)
-- [SupersetWebsocketServer](#supersetwebsocketserver)
 
 
 
@@ -54,14 +47,7 @@ _Appears in:_
 - [FlatComponentSpec](#flatcomponentspec)
 - [McpServerComponentSpec](#mcpservercomponentspec)
 - [ScalableComponentSpec](#scalablecomponentspec)
-- [SupersetCeleryBeatSpec](#supersetcelerybeatspec)
-- [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
-- [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
-- [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
-- [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
-- [SupersetWebServerSpec](#supersetwebserverspec)
-- [SupersetWebsocketServerSpec](#supersetwebsocketserverspec)
 - [WebServerComponentSpec](#webservercomponentspec)
 - [WebsocketServerComponentSpec](#websocketservercomponentspec)
 
@@ -91,7 +77,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task pod. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be scaled to zero before<br />this task runs. When true, the operator deletes all component child CRs<br />before executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -191,29 +177,6 @@ _Appears in:_
 | `timeLimit` _integer_ | Hard time limit in seconds — kills the task (0 = disabled). |  | Minimum: 0 <br />Optional: \{\} <br /> |
 
 
-#### ChildComponentStatus
-
-
-
-ChildComponentStatus reports the operational state of a child component.
-
-
-
-_Appears in:_
-- [SupersetCeleryBeatStatus](#supersetcelerybeatstatus)
-- [SupersetCeleryFlowerStatus](#supersetceleryflowerstatus)
-- [SupersetCeleryWorkerStatus](#supersetceleryworkerstatus)
-- [SupersetMcpServerStatus](#supersetmcpserverstatus)
-- [SupersetWebServerStatus](#supersetwebserverstatus)
-- [SupersetWebsocketServerStatus](#supersetwebsocketserverstatus)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `ready` _string_ | "2/2" format showing ready vs desired replicas. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ | Standard conditions. |  | Optional: \{\} <br /> |
-| `observedGeneration` _integer_ | ObservedGeneration for leader election consistency. |  | Optional: \{\} <br /> |
-
-
 #### CloneSourceSpec
 
 
@@ -255,7 +218,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task pod. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be scaled to zero before<br />this task runs. When true, the operator deletes all component child CRs<br />before executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -273,7 +236,7 @@ _Appears in:_
 
 
 
-ComponentRefStatus holds the status summary of a child component.
+ComponentRefStatus holds the status summary of a managed component.
 
 
 
@@ -282,9 +245,36 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
+| `phase` _string_ | Phase summarizes the component workload state. |  | Enum: [Pending Progressing Ready Unavailable] <br />Optional: \{\} <br /> |
 | `ready` _string_ | "2/2" format showing ready vs desired replicas. |  |  |
-| `ref` _string_ | Reference to the child CR. |  |  |
-| `configChecksum` _string_ | Checksum stamped on the child CR's spec by the parent. Drives rolling<br />restarts; surfaced here so users can see which revision each child is<br />reconciling against. |  | Optional: \{\} <br /> |
+| `ref` _string_ | Reference to the primary workload resource for this component. |  |  |
+| `resources` _[ComponentResourceStatus](#componentresourcestatus) array_ | Resources lists the Kubernetes resources currently expected for this<br />component and whether the operator can observe them. |  | Optional: \{\} <br /> |
+| `image` _string_ | Image currently configured on the component's main container. |  | Optional: \{\} <br /> |
+| `replicas` _integer_ | Desired replica count used for status reporting. |  | Optional: \{\} <br /> |
+| `readyReplicas` _integer_ | ReadyReplicas is the number of ready component pods. |  | Optional: \{\} <br /> |
+| `updatedReplicas` _integer_ | UpdatedReplicas is the number of pods updated to the current template. |  | Optional: \{\} <br /> |
+| `availableReplicas` _integer_ | AvailableReplicas is the number of available component pods. |  | Optional: \{\} <br /> |
+| `configChecksum` _string_ | Checksum stamped on the component pod template by the parent. Drives<br />rolling restarts; surfaced here so users can see which revision each<br />component is reconciling against. |  | Optional: \{\} <br /> |
+| `message` _string_ | Message gives a short human-oriented reason when the component is not ready. |  | Optional: \{\} <br /> |
+
+
+#### ComponentResourceStatus
+
+
+
+ComponentResourceStatus describes one Kubernetes resource managed for a
+component.
+
+
+
+_Appears in:_
+- [ComponentRefStatus](#componentrefstatus)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `kind` _string_ | Resource kind, for example Deployment, Service, ConfigMap, HorizontalPodAutoscaler. |  |  |
+| `name` _string_ | Resource name. |  |  |
+| `status` _string_ | Observed status: Present or Missing. |  | Enum: [Present Missing] <br /> |
 
 
 #### ComponentServiceSpec
@@ -298,10 +288,6 @@ ComponentServiceSpec defines the Service configuration for a component.
 _Appears in:_
 - [CeleryFlowerComponentSpec](#celeryflowercomponentspec)
 - [McpServerComponentSpec](#mcpservercomponentspec)
-- [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
-- [SupersetMcpServerSpec](#supersetmcpserverspec)
-- [SupersetWebServerSpec](#supersetwebserverspec)
-- [SupersetWebsocketServerSpec](#supersetwebsocketserverspec)
 - [WebServerComponentSpec](#webservercomponentspec)
 - [WebsocketServerComponentSpec](#websocketservercomponentspec)
 
@@ -403,14 +389,7 @@ _Appears in:_
 - [MaintenancePageSpec](#maintenancepagespec)
 - [McpServerComponentSpec](#mcpservercomponentspec)
 - [ScalableComponentSpec](#scalablecomponentspec)
-- [SupersetCeleryBeatSpec](#supersetcelerybeatspec)
-- [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
-- [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
-- [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
-- [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
-- [SupersetWebServerSpec](#supersetwebserverspec)
-- [SupersetWebsocketServerSpec](#supersetwebsocketserverspec)
 - [WebServerComponentSpec](#webservercomponentspec)
 - [WebsocketServerComponentSpec](#websocketservercomponentspec)
 
@@ -422,33 +401,6 @@ _Appears in:_
 | `strategy` _[DeploymentStrategy](https://pkg.go.dev/k8s.io/api/apps/v1#DeploymentStrategy)_ | Deployment update strategy. |  | Optional: \{\} <br /> |
 
 
-#### FlatComponentSpec
-
-
-
-FlatComponentSpec defines the common fields for all fully-resolved child specs.
-This is embedded (inlined) in each child CRD spec type.
-
-
-
-_Appears in:_
-- [SupersetCeleryBeatSpec](#supersetcelerybeatspec)
-- [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
-- [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
-- [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
-- [SupersetMcpServerSpec](#supersetmcpserverspec)
-- [SupersetWebServerSpec](#supersetwebserverspec)
-- [SupersetWebsocketServerSpec](#supersetwebsocketserverspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `image` _[ImageSpec](#imagespec)_ | Container image configuration. |  |  |
-| `replicas` _integer_ | Desired replica count. | 1 | Optional: \{\} <br /> |
-| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Fully-resolved deployment template. |  | Optional: \{\} <br /> |
-| `podTemplate` _[PodTemplate](#podtemplate)_ | Fully-resolved pod template. |  | Optional: \{\} <br /> |
-| `serviceAccountName` _string_ | ServiceAccountName to set on the pod. |  | Optional: \{\} <br /> |
-| `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Autoscaling configuration. |  | Optional: \{\} <br /> |
-| `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
 
 
 #### GatewaySpec
@@ -535,14 +487,7 @@ _Appears in:_
 - [CloneTaskSpec](#clonetaskspec)
 - [FlatComponentSpec](#flatcomponentspec)
 - [MaintenancePageSpec](#maintenancepagespec)
-- [SupersetCeleryBeatSpec](#supersetcelerybeatspec)
-- [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
-- [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
-- [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
-- [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
-- [SupersetWebServerSpec](#supersetwebserverspec)
-- [SupersetWebsocketServerSpec](#supersetwebsocketserverspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -623,7 +568,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task pod. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be scaled to zero before<br />this task runs. When true, the operator deletes all component child CRs<br />before executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -774,7 +719,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task pod. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be scaled to zero before<br />this task runs. When true, the operator deletes all component child CRs<br />before executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -844,14 +789,7 @@ _Appears in:_
 - [FlatComponentSpec](#flatcomponentspec)
 - [McpServerComponentSpec](#mcpservercomponentspec)
 - [ScalableComponentSpec](#scalablecomponentspec)
-- [SupersetCeleryBeatSpec](#supersetcelerybeatspec)
-- [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
-- [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
-- [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
-- [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
-- [SupersetWebServerSpec](#supersetwebserverspec)
-- [SupersetWebsocketServerSpec](#supersetwebsocketserverspec)
 - [WebServerComponentSpec](#webservercomponentspec)
 - [WebsocketServerComponentSpec](#websocketservercomponentspec)
 
@@ -872,7 +810,6 @@ PodRetentionSpec defines retention behavior for init pods.
 _Appears in:_
 - [CloneTaskSpec](#clonetaskspec)
 - [LifecycleSpec](#lifecyclespec)
-- [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
@@ -897,14 +834,7 @@ _Appears in:_
 - [MaintenancePageSpec](#maintenancepagespec)
 - [McpServerComponentSpec](#mcpservercomponentspec)
 - [ScalableComponentSpec](#scalablecomponentspec)
-- [SupersetCeleryBeatSpec](#supersetcelerybeatspec)
-- [SupersetCeleryFlowerSpec](#supersetceleryflowerspec)
-- [SupersetCeleryWorkerSpec](#supersetceleryworkerspec)
-- [SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)
-- [SupersetMcpServerSpec](#supersetmcpserverspec)
 - [SupersetSpec](#supersetspec)
-- [SupersetWebServerSpec](#supersetwebserverspec)
-- [SupersetWebsocketServerSpec](#supersetwebsocketserverspec)
 - [WebServerComponentSpec](#webservercomponentspec)
 - [WebsocketServerComponentSpec](#websocketservercomponentspec)
 
@@ -950,7 +880,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task pod. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be scaled to zero before<br />this task runs. When true, the operator deletes all component child CRs<br />before executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -1028,7 +958,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task pod. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be scaled to zero before<br />this task runs. When true, the operator deletes all component child CRs<br />before executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -1090,328 +1020,6 @@ Superset is the top-level resource representing a complete Superset deployment.
 | `status` _[SupersetStatus](#supersetstatus)_ |  |  |  |
 
 
-#### SupersetCeleryBeat
-
-
-
-SupersetCeleryBeat is the Schema for the supersetcelerybeats API.
-It manages the Celery beat scheduler Deployment (singleton).
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `superset.apache.org/v1alpha1` | | |
-| `kind` _string_ | `SupersetCeleryBeat` | | |
-| `metadata` _[ObjectMeta](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#ObjectMeta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[SupersetCeleryBeatSpec](#supersetcelerybeatspec)_ |  |  |  |
-| `status` _[SupersetCeleryBeatStatus](#supersetcelerybeatstatus)_ |  |  |  |
-
-
-#### SupersetCeleryBeatSpec
-
-
-
-SupersetCeleryBeatSpec is the fully-resolved, flat spec for celery beat.
-Beat is always a singleton (1 replica).
-
-
-
-_Appears in:_
-- [SupersetCeleryBeat](#supersetcelerybeat)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `image` _[ImageSpec](#imagespec)_ | Container image configuration. |  |  |
-| `replicas` _integer_ | Desired replica count. | 1 | Optional: \{\} <br /> |
-| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Fully-resolved deployment template. |  | Optional: \{\} <br /> |
-| `podTemplate` _[PodTemplate](#podtemplate)_ | Fully-resolved pod template. |  | Optional: \{\} <br /> |
-| `serviceAccountName` _string_ | ServiceAccountName to set on the pod. |  | Optional: \{\} <br /> |
-| `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Autoscaling configuration. |  | Optional: \{\} <br /> |
-| `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
-| `configChecksum` _string_ | Checksum for rolling restarts. |  | Optional: \{\} <br /> |
-
-
-#### SupersetCeleryBeatStatus
-
-
-
-SupersetCeleryBeatStatus defines the observed state of SupersetCeleryBeat.
-
-
-
-_Appears in:_
-- [SupersetCeleryBeat](#supersetcelerybeat)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `ready` _string_ | "2/2" format showing ready vs desired replicas. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ | Standard conditions. |  | Optional: \{\} <br /> |
-| `observedGeneration` _integer_ | ObservedGeneration for leader election consistency. |  | Optional: \{\} <br /> |
-
-
-#### SupersetCeleryFlower
-
-
-
-SupersetCeleryFlower is the Schema for the supersetceleryflowers API.
-It manages the Celery Flower monitoring UI Deployment and Service.
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `superset.apache.org/v1alpha1` | | |
-| `kind` _string_ | `SupersetCeleryFlower` | | |
-| `metadata` _[ObjectMeta](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#ObjectMeta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[SupersetCeleryFlowerSpec](#supersetceleryflowerspec)_ |  |  |  |
-| `status` _[SupersetCeleryFlowerStatus](#supersetceleryflowerstatus)_ |  |  |  |
-
-
-#### SupersetCeleryFlowerSpec
-
-
-
-SupersetCeleryFlowerSpec is the fully-resolved, flat spec for celery flower.
-
-
-
-_Appears in:_
-- [SupersetCeleryFlower](#supersetceleryflower)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `image` _[ImageSpec](#imagespec)_ | Container image configuration. |  |  |
-| `replicas` _integer_ | Desired replica count. | 1 | Optional: \{\} <br /> |
-| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Fully-resolved deployment template. |  | Optional: \{\} <br /> |
-| `podTemplate` _[PodTemplate](#podtemplate)_ | Fully-resolved pod template. |  | Optional: \{\} <br /> |
-| `serviceAccountName` _string_ | ServiceAccountName to set on the pod. |  | Optional: \{\} <br /> |
-| `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Autoscaling configuration. |  | Optional: \{\} <br /> |
-| `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
-| `configChecksum` _string_ | Checksum for rolling restarts. |  | Optional: \{\} <br /> |
-| `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration. |  | Optional: \{\} <br /> |
-
-
-#### SupersetCeleryFlowerStatus
-
-
-
-SupersetCeleryFlowerStatus defines the observed state of SupersetCeleryFlower.
-
-
-
-_Appears in:_
-- [SupersetCeleryFlower](#supersetceleryflower)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `ready` _string_ | "2/2" format showing ready vs desired replicas. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ | Standard conditions. |  | Optional: \{\} <br /> |
-| `observedGeneration` _integer_ | ObservedGeneration for leader election consistency. |  | Optional: \{\} <br /> |
-
-
-#### SupersetCeleryWorker
-
-
-
-SupersetCeleryWorker is the Schema for the supersetceleryworkers API.
-It manages the Celery worker Deployment.
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `superset.apache.org/v1alpha1` | | |
-| `kind` _string_ | `SupersetCeleryWorker` | | |
-| `metadata` _[ObjectMeta](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#ObjectMeta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[SupersetCeleryWorkerSpec](#supersetceleryworkerspec)_ |  |  |  |
-| `status` _[SupersetCeleryWorkerStatus](#supersetceleryworkerstatus)_ |  |  |  |
-
-
-#### SupersetCeleryWorkerSpec
-
-
-
-SupersetCeleryWorkerSpec is the fully-resolved, flat spec for a celery worker.
-
-
-
-_Appears in:_
-- [SupersetCeleryWorker](#supersetceleryworker)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `image` _[ImageSpec](#imagespec)_ | Container image configuration. |  |  |
-| `replicas` _integer_ | Desired replica count. | 1 | Optional: \{\} <br /> |
-| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Fully-resolved deployment template. |  | Optional: \{\} <br /> |
-| `podTemplate` _[PodTemplate](#podtemplate)_ | Fully-resolved pod template. |  | Optional: \{\} <br /> |
-| `serviceAccountName` _string_ | ServiceAccountName to set on the pod. |  | Optional: \{\} <br /> |
-| `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Autoscaling configuration. |  | Optional: \{\} <br /> |
-| `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
-| `configChecksum` _string_ | Checksum for rolling restarts. |  | Optional: \{\} <br /> |
-
-
-#### SupersetCeleryWorkerStatus
-
-
-
-SupersetCeleryWorkerStatus defines the observed state of SupersetCeleryWorker.
-
-
-
-_Appears in:_
-- [SupersetCeleryWorker](#supersetceleryworker)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `ready` _string_ | "2/2" format showing ready vs desired replicas. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ | Standard conditions. |  | Optional: \{\} <br /> |
-| `observedGeneration` _integer_ | ObservedGeneration for leader election consistency. |  | Optional: \{\} <br /> |
-
-
-#### SupersetLifecycleTask
-
-
-
-SupersetLifecycleTask is the Schema for the supersetlifecycletasks API.
-It manages lifecycle tasks (database migrations, init commands).
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `superset.apache.org/v1alpha1` | | |
-| `kind` _string_ | `SupersetLifecycleTask` | | |
-| `metadata` _[ObjectMeta](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#ObjectMeta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[SupersetLifecycleTaskSpec](#supersetlifecycletaskspec)_ |  |  |  |
-| `status` _[SupersetLifecycleTaskStatus](#supersetlifecycletaskstatus)_ |  |  |  |
-
-
-#### SupersetLifecycleTaskSpec
-
-
-
-SupersetLifecycleTaskSpec defines the fully-resolved spec for a lifecycle task.
-
-
-
-_Appears in:_
-- [SupersetLifecycleTask](#supersetlifecycletask)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `image` _[ImageSpec](#imagespec)_ | Container image configuration. |  |  |
-| `replicas` _integer_ | Desired replica count. | 1 | Optional: \{\} <br /> |
-| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Fully-resolved deployment template. |  | Optional: \{\} <br /> |
-| `podTemplate` _[PodTemplate](#podtemplate)_ | Fully-resolved pod template. |  | Optional: \{\} <br /> |
-| `serviceAccountName` _string_ | ServiceAccountName to set on the pod. |  | Optional: \{\} <br /> |
-| `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Autoscaling configuration. |  | Optional: \{\} <br /> |
-| `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
-| `type` _string_ | Type identifies the task purpose. Future task types will require schema additions. |  | Enum: [Clone Migrate Rotate Init] <br /> |
-| `command` _string array_ | Command to execute in the task pod. |  |  |
-| `configChecksum` _string_ | Config checksum for detecting changes that require re-run. |  | Optional: \{\} <br /> |
-| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per task pod attempt. |  | Optional: \{\} <br /> |
-| `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
-| `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Pod retention policy for completed task pods. |  | Optional: \{\} <br /> |
-
-
-#### SupersetLifecycleTaskStatus
-
-
-
-SupersetLifecycleTaskStatus reports the status of a lifecycle task.
-
-
-
-_Appears in:_
-- [SupersetLifecycleTask](#supersetlifecycletask)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `state` _string_ |  |  | Enum: [Pending Running Complete Failed] <br />Optional: \{\} <br /> |
-| `podName` _string_ |  |  | Optional: \{\} <br /> |
-| `startedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
-| `completedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
-| `duration` _string_ |  |  | Optional: \{\} <br /> |
-| `attempts` _integer_ |  |  | Optional: \{\} <br /> |
-| `nextAttemptAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ | NextAttemptAt is the earliest time at which the controller may create<br />the next Pod after a failure or timeout. Persisting this prevents the<br />Pod-delete owner watch from enqueuing a reconcile that bypasses the<br />exponential backoff. |  | Optional: \{\} <br /> |
-| `image` _string_ |  |  | Optional: \{\} <br /> |
-| `message` _string_ |  |  | Optional: \{\} <br /> |
-| `configChecksum` _string_ | Config checksum that was active when the task last completed.<br />Used to detect changes and trigger re-execution. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ |  |  | Optional: \{\} <br /> |
-| `observedGeneration` _integer_ |  |  | Optional: \{\} <br /> |
-
-
-#### SupersetMcpServer
-
-
-
-SupersetMcpServer is the Schema for the supersetmcpservers API.
-It manages the FastMCP server Deployment and Service.
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `superset.apache.org/v1alpha1` | | |
-| `kind` _string_ | `SupersetMcpServer` | | |
-| `metadata` _[ObjectMeta](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#ObjectMeta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[SupersetMcpServerSpec](#supersetmcpserverspec)_ |  |  |  |
-| `status` _[SupersetMcpServerStatus](#supersetmcpserverstatus)_ |  |  |  |
-
-
-#### SupersetMcpServerSpec
-
-
-
-SupersetMcpServerSpec is the fully-resolved, flat spec for the MCP server.
-
-
-
-_Appears in:_
-- [SupersetMcpServer](#supersetmcpserver)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `image` _[ImageSpec](#imagespec)_ | Container image configuration. |  |  |
-| `replicas` _integer_ | Desired replica count. | 1 | Optional: \{\} <br /> |
-| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Fully-resolved deployment template. |  | Optional: \{\} <br /> |
-| `podTemplate` _[PodTemplate](#podtemplate)_ | Fully-resolved pod template. |  | Optional: \{\} <br /> |
-| `serviceAccountName` _string_ | ServiceAccountName to set on the pod. |  | Optional: \{\} <br /> |
-| `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Autoscaling configuration. |  | Optional: \{\} <br /> |
-| `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
-| `configChecksum` _string_ | Checksum for rolling restarts. |  | Optional: \{\} <br /> |
-| `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration. |  | Optional: \{\} <br /> |
-
-
-#### SupersetMcpServerStatus
-
-
-
-SupersetMcpServerStatus defines the observed state of SupersetMcpServer.
-
-
-
-_Appears in:_
-- [SupersetMcpServer](#supersetmcpserver)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `ready` _string_ | "2/2" format showing ready vs desired replicas. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ | Standard conditions. |  | Optional: \{\} <br /> |
-| `observedGeneration` _integer_ | ObservedGeneration for leader election consistency. |  | Optional: \{\} <br /> |
-
-
 #### SupersetSpec
 
 
@@ -1470,136 +1078,13 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ |  |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ |  |  | Optional: \{\} <br /> |
+| `ready` _string_ | Ready summarizes ready component replicas across all enabled components<br />in "ready/desired" format. |  | Optional: \{\} <br /> |
 | `components` _[ComponentStatusMap](#componentstatusmap)_ |  |  | Optional: \{\} <br /> |
 | `lifecycle` _[LifecycleStatus](#lifecyclestatus)_ | Lifecycle tracks the current lifecycle state. |  | Optional: \{\} <br /> |
 | `lastLifecycleImage` _string_ | Last image (repository:tag) that successfully completed the lifecycle.<br />Used to detect image changes on subsequent reconciles. |  | Optional: \{\} <br /> |
 | `version` _string_ |  |  | Optional: \{\} <br /> |
 | `configChecksum` _string_ |  |  | Optional: \{\} <br /> |
 | `phase` _string_ | High-level phase. |  | Enum: [Initializing Upgrading Draining Running Degraded Suspended Blocked AwaitingApproval] <br />Optional: \{\} <br /> |
-
-
-#### SupersetWebServer
-
-
-
-SupersetWebServer is the Schema for the supersetwebservers API.
-It manages the Superset web server (gunicorn) Deployment.
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `superset.apache.org/v1alpha1` | | |
-| `kind` _string_ | `SupersetWebServer` | | |
-| `metadata` _[ObjectMeta](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#ObjectMeta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[SupersetWebServerSpec](#supersetwebserverspec)_ |  |  |  |
-| `status` _[SupersetWebServerStatus](#supersetwebserverstatus)_ |  |  |  |
-
-
-#### SupersetWebServerSpec
-
-
-
-SupersetWebServerSpec is the fully-resolved, flat spec for a web server.
-
-
-
-_Appears in:_
-- [SupersetWebServer](#supersetwebserver)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `image` _[ImageSpec](#imagespec)_ | Container image configuration. |  |  |
-| `replicas` _integer_ | Desired replica count. | 1 | Optional: \{\} <br /> |
-| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Fully-resolved deployment template. |  | Optional: \{\} <br /> |
-| `podTemplate` _[PodTemplate](#podtemplate)_ | Fully-resolved pod template. |  | Optional: \{\} <br /> |
-| `serviceAccountName` _string_ | ServiceAccountName to set on the pod. |  | Optional: \{\} <br /> |
-| `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Autoscaling configuration. |  | Optional: \{\} <br /> |
-| `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
-| `configChecksum` _string_ | Checksum stamped as pod template annotation for rolling restarts. |  | Optional: \{\} <br /> |
-| `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration. |  | Optional: \{\} <br /> |
-
-
-#### SupersetWebServerStatus
-
-
-
-SupersetWebServerStatus defines the observed state of SupersetWebServer.
-
-
-
-_Appears in:_
-- [SupersetWebServer](#supersetwebserver)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `ready` _string_ | "2/2" format showing ready vs desired replicas. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ | Standard conditions. |  | Optional: \{\} <br /> |
-| `observedGeneration` _integer_ | ObservedGeneration for leader election consistency. |  | Optional: \{\} <br /> |
-
-
-#### SupersetWebsocketServer
-
-
-
-SupersetWebsocketServer is the Schema for the supersetwebsocketservers API.
-It manages the Superset websocket server Deployment.
-
-
-
-
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `apiVersion` _string_ | `superset.apache.org/v1alpha1` | | |
-| `kind` _string_ | `SupersetWebsocketServer` | | |
-| `metadata` _[ObjectMeta](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#ObjectMeta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
-| `spec` _[SupersetWebsocketServerSpec](#supersetwebsocketserverspec)_ |  |  |  |
-| `status` _[SupersetWebsocketServerStatus](#supersetwebsocketserverstatus)_ |  |  |  |
-
-
-#### SupersetWebsocketServerSpec
-
-
-
-SupersetWebsocketServerSpec is the fully-resolved, flat spec for a websocket server.
-The websocket server is a Node.js application — it does NOT use superset_config.py.
-
-
-
-_Appears in:_
-- [SupersetWebsocketServer](#supersetwebsocketserver)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `image` _[ImageSpec](#imagespec)_ | Container image configuration. |  |  |
-| `replicas` _integer_ | Desired replica count. | 1 | Optional: \{\} <br /> |
-| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Fully-resolved deployment template. |  | Optional: \{\} <br /> |
-| `podTemplate` _[PodTemplate](#podtemplate)_ | Fully-resolved pod template. |  | Optional: \{\} <br /> |
-| `serviceAccountName` _string_ | ServiceAccountName to set on the pod. |  | Optional: \{\} <br /> |
-| `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Autoscaling configuration. |  | Optional: \{\} <br /> |
-| `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget configuration. |  | Optional: \{\} <br /> |
-| `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration. |  | Optional: \{\} <br /> |
-
-
-#### SupersetWebsocketServerStatus
-
-
-
-SupersetWebsocketServerStatus defines the observed state of SupersetWebsocketServer.
-
-
-
-_Appears in:_
-- [SupersetWebsocketServer](#supersetwebsocketserver)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `ready` _string_ | "2/2" format showing ready vs desired replicas. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ | Standard conditions. |  | Optional: \{\} <br /> |
-| `observedGeneration` _integer_ | ObservedGeneration for leader election consistency. |  | Optional: \{\} <br /> |
 
 
 #### TaskRefStatus
@@ -1616,13 +1101,20 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `state` _string_ |  |  | Enum: [Pending Running Complete Failed] <br />Optional: \{\} <br /> |
+| `ref` _string_ | Reference to the current or most recent task pod. |  | Optional: \{\} <br /> |
 | `startedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
 | `completedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
 | `duration` _string_ |  |  | Optional: \{\} <br /> |
 | `attempts` _integer_ |  |  | Optional: \{\} <br /> |
+| `maxRetries` _integer_ | Maximum number of attempts before the task is considered permanently failed. |  | Optional: \{\} <br /> |
 | `podName` _string_ |  |  | Optional: \{\} <br /> |
+| `configMapRef` _string_ | Reference to the rendered task ConfigMap. |  | Optional: \{\} <br /> |
 | `image` _string_ |  |  | Optional: \{\} <br /> |
 | `message` _string_ |  |  | Optional: \{\} <br /> |
+| `nextAttemptAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ | NextAttemptAt is the earliest time the operator may retry this task after<br />a failure or timeout. |  | Optional: \{\} <br /> |
+| `desiredChecksum` _string_ | DesiredChecksum is the checksum for the task inputs the operator is<br />currently trying to execute. |  | Optional: \{\} <br /> |
+| `completedChecksum` _string_ | CompletedChecksum is the task input checksum that last reached a terminal<br />Complete or Failed state. |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ |  |  | Optional: \{\} <br /> |
 | `lastScheduledAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ | LastScheduledAt is the cron tick that triggered the most recent scheduled run. |  | Optional: \{\} <br /> |
 | `nextScheduleAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ | NextScheduleAt is the next future cron tick when the schedule will fire. |  | Optional: \{\} <br /> |
 

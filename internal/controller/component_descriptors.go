@@ -22,7 +22,10 @@ import (
 	"context"
 	"fmt"
 
+	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
+	policyv1 "k8s.io/api/policy/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
@@ -48,29 +51,28 @@ type componentAccessor struct {
 	sqlaEngineOptions  *supersetv1alpha1.SQLAlchemyEngineOptionsSpec
 }
 
-// componentDescriptor captures all per-component variation needed to
-// reconcile a child CR from the parent Superset controller.
+// componentDescriptor captures all per-component variation needed to reconcile
+// parent-owned resources from the parent Superset controller.
 type componentDescriptor struct {
 	componentType   naming.ComponentType
 	hasPythonConfig bool
-	kind            string
 
-	extract   func(*supersetv1alpha1.SupersetSpec) *componentAccessor
-	newChild  func() client.Object
-	newList   func() client.ObjectList
-	applySpec func(obj client.Object, flat supersetv1alpha1.FlatComponentSpec, checksum string, a *componentAccessor)
-	setStatus func(*supersetv1alpha1.ComponentStatusMap, *supersetv1alpha1.ComponentRefStatus)
+	extract        func(*supersetv1alpha1.SupersetSpec) *componentAccessor
+	adjustSpec     func(*supersetv1alpha1.FlatComponentSpec)
+	statusAccessor func(*supersetv1alpha1.ComponentStatusMap) **supersetv1alpha1.ComponentRefStatus
 }
 
-// childName returns the child CR name, which is always the parent name.
-func (d *componentDescriptor) childName(_ *supersetv1alpha1.SupersetSpec, parentName string) string {
+// instanceName returns the logical component instance name, currently the parent
+// name for all components.
+func (d *componentDescriptor) instanceName(_ *supersetv1alpha1.SupersetSpec, parentName string) string {
 	return parentName
 }
 
-// resourceBaseName resolves the sub-resource base name: {childCRName}-{componentType}.
+// resourceBaseName resolves the component resource base name:
+// {componentInstanceName}-{componentType}.
 func (d *componentDescriptor) resourceBaseName(spec *supersetv1alpha1.SupersetSpec, parentName string) string {
-	childName := d.childName(spec, parentName)
-	return naming.ResourceBaseName(childName, d.componentType)
+	instanceName := d.instanceName(spec, parentName)
+	return naming.ResourceBaseName(instanceName, d.componentType)
 }
 
 // componentDescriptors lists all components reconciled by the parent controller.
@@ -130,7 +132,9 @@ func envFromPodTemplate(pt *supersetv1alpha1.PodTemplate) []corev1.EnvVar {
 	return pt.Container.Env
 }
 
-// reconcileComponent is the generic reconciler for all child CRs (both Python and non-Python).
+// reconcileComponent is the generic reconciler for all component resources
+// (both Python and non-Python). The parent Superset CR owns the rendered
+// ConfigMap, Deployment, Service, HPA, and PDB resources directly.
 func (r *SupersetReconciler) reconcileComponent(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
@@ -143,30 +147,15 @@ func (r *SupersetReconciler) reconcileComponent(
 	var desiredName string
 	var desiredResourceBaseName string
 	if accessor != nil {
-		desiredName = desc.childName(&superset.Spec, superset.Name)
+		desiredName = desc.instanceName(&superset.Spec, superset.Name)
 		desiredResourceBaseName = naming.ResourceBaseName(desiredName, desc.componentType)
 	}
 
-	if err := r.pruneOrphans(ctx, superset.Namespace, superset.Name,
-		desc.componentType, desc.newList, desiredName); err != nil {
-		return err
-	}
-
 	if accessor == nil {
-		// Component removed from spec: delete the parent-owned ConfigMap too.
-		// Child CR deletion cascades Deployments/Services via ownerRefs, but the
-		// ConfigMap is owned by the parent and would otherwise linger until the
-		// parent CR itself is deleted.
-		if desc.hasPythonConfig {
-			orphanBase := naming.ResourceBaseName(superset.Name, desc.componentType)
-			if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, "", orphanBase); err != nil {
-				return fmt.Errorf("pruning ConfigMap for disabled %s: %w", desc.componentType, err)
-			}
-		}
-		return nil
+		return r.deleteComponentResources(ctx, superset, desc)
 	}
 
-	childName := desiredName
+	instanceName := desiredName
 	resourceBaseName := desiredResourceBaseName
 
 	comp := convertComponent(accessor)
@@ -210,7 +199,7 @@ func (r *SupersetReconciler) reconcileComponent(
 		secretEnvVars = collectSecretEnvVars(&superset.Spec)
 		operatorInjected = buildOperatorInjected(renderedConfig, resourceBaseName, superset.Spec.ForceReload, secretEnvVars)
 
-		// Create/update the component ConfigMap (owned by parent, not child CR).
+		// Create/update the component ConfigMap.
 		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, renderedConfig, resourceBaseName); err != nil {
 			return fmt.Errorf("reconciling ConfigMap for %s: %w", desc.componentType, err)
 		}
@@ -249,24 +238,64 @@ func (r *SupersetReconciler) reconcileComponent(
 
 	warnEnvVarOverrides(ctx, topLevel, comp, operatorInjected)
 
-	flat := resolution.ResolveChildSpec(
+	flat := resolution.ResolveComponentSpec(
 		desc.componentType, topLevel, comp,
-		podOperatorLabels(string(desc.componentType), childName, superset.Name), operatorInjected,
+		podOperatorLabels(string(desc.componentType), instanceName, superset.Name), operatorInjected,
 	)
 
 	componentChecksum := computeChecksum(configChecksum + renderedConfig)
 
-	return r.applyChildCR(ctx, superset, childName, desc.componentType, flat, componentChecksum, saName, accessor.image,
-		desc.newChild,
-		func(obj client.Object, flatSpec supersetv1alpha1.FlatComponentSpec, checksum string) {
-			desc.applySpec(obj, flatSpec, checksum, accessor)
-		},
-	)
+	flatSpec := flatSpecFromResolution(flat, &superset.Spec.Image, accessor.image, saName)
+	if desc.adjustSpec != nil {
+		desc.adjustSpec(&flatSpec)
+	}
+
+	cfg, ok := componentResourceConfig(desc.componentType)
+	if !ok {
+		return fmt.Errorf("missing resource config for %s", desc.componentType)
+	}
+
+	return reconcileComponentResources(ctx, r.Client, r.Scheme, r.Recorder, superset,
+		&flatSpec, cfg, componentChecksum, accessor.service, flatSpec.Autoscaling, flatSpec.PodDisruptionBudget)
+}
+
+func (r *SupersetReconciler) deleteComponentResources(ctx context.Context, superset *supersetv1alpha1.Superset, desc *componentDescriptor) error {
+	resourceBaseName := naming.ResourceBaseName(superset.Name, desc.componentType)
+
+	deleteNamed := func(obj client.Object) error {
+		obj.SetName(resourceBaseName)
+		obj.SetNamespace(superset.Namespace)
+		return client.IgnoreNotFound(r.Delete(ctx, obj))
+	}
+
+	if err := deleteNamed(&appsv1.Deployment{}); err != nil {
+		return fmt.Errorf("deleting Deployment for disabled %s: %w", desc.componentType, err)
+	}
+	if err := deleteNamed(&autoscalingv2.HorizontalPodAutoscaler{}); err != nil {
+		return fmt.Errorf("deleting HPA for disabled %s: %w", desc.componentType, err)
+	}
+	if err := deleteNamed(&policyv1.PodDisruptionBudget{}); err != nil {
+		return fmt.Errorf("deleting PDB for disabled %s: %w", desc.componentType, err)
+	}
+
+	cfg, ok := componentResourceConfig(desc.componentType)
+	if ok && cfg.defaultPort > 0 {
+		if err := deleteNamed(&corev1.Service{}); err != nil {
+			return fmt.Errorf("deleting Service for disabled %s: %w", desc.componentType, err)
+		}
+	}
+
+	if desc.hasPythonConfig {
+		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, "", resourceBaseName); err != nil {
+			return fmt.Errorf("deleting ConfigMap for disabled %s: %w", desc.componentType, err)
+		}
+	}
+	return nil
 }
 
 // injectCeleryCommand sets the celery worker command on the ComponentInput's
 // pod template, allowing the resolution engine to use it instead of the
-// child controller's DefaultCommand.
+// component DeploymentConfig default command.
 func injectCeleryCommand(comp *resolution.ComponentInput, cmd []string) {
 	if comp == nil {
 		return
@@ -300,7 +329,6 @@ func extractScalable(s *supersetv1alpha1.ScalableComponentSpec, config *string, 
 var webServerDescriptor = &componentDescriptor{
 	componentType:   naming.ComponentWebServer,
 	hasPythonConfig: true,
-	kind:            "SupersetWebServer",
 	extract: func(spec *supersetv1alpha1.SupersetSpec) *componentAccessor {
 		c := spec.WebServer
 		if c == nil {
@@ -311,23 +339,14 @@ var webServerDescriptor = &componentDescriptor{
 		a.sqlaEngineOptions = c.SQLAlchemyEngineOptions
 		return a
 	},
-	newChild: func() client.Object { return &supersetv1alpha1.SupersetWebServer{} },
-	newList:  func() client.ObjectList { return &supersetv1alpha1.SupersetWebServerList{} },
-	applySpec: func(obj client.Object, flat supersetv1alpha1.FlatComponentSpec, checksum string, a *componentAccessor) {
-		ww := obj.(*supersetv1alpha1.SupersetWebServer)
-		ww.Spec.FlatComponentSpec = flat
-		ww.Spec.ConfigChecksum = checksum
-		ww.Spec.Service = a.service
-	},
-	setStatus: func(m *supersetv1alpha1.ComponentStatusMap, s *supersetv1alpha1.ComponentRefStatus) {
-		m.WebServer = s
+	statusAccessor: func(m *supersetv1alpha1.ComponentStatusMap) **supersetv1alpha1.ComponentRefStatus {
+		return &m.WebServer
 	},
 }
 
 var celeryWorkerDescriptor = &componentDescriptor{
 	componentType:   naming.ComponentCeleryWorker,
 	hasPythonConfig: true,
-	kind:            "SupersetCeleryWorker",
 	extract: func(spec *supersetv1alpha1.SupersetSpec) *componentAccessor {
 		c := spec.CeleryWorker
 		if c == nil {
@@ -338,22 +357,14 @@ var celeryWorkerDescriptor = &componentDescriptor{
 		a.sqlaEngineOptions = c.SQLAlchemyEngineOptions
 		return a
 	},
-	newChild: func() client.Object { return &supersetv1alpha1.SupersetCeleryWorker{} },
-	newList:  func() client.ObjectList { return &supersetv1alpha1.SupersetCeleryWorkerList{} },
-	applySpec: func(obj client.Object, flat supersetv1alpha1.FlatComponentSpec, checksum string, a *componentAccessor) {
-		cw := obj.(*supersetv1alpha1.SupersetCeleryWorker)
-		cw.Spec.FlatComponentSpec = flat
-		cw.Spec.ConfigChecksum = checksum
-	},
-	setStatus: func(m *supersetv1alpha1.ComponentStatusMap, s *supersetv1alpha1.ComponentRefStatus) {
-		m.CeleryWorker = s
+	statusAccessor: func(m *supersetv1alpha1.ComponentStatusMap) **supersetv1alpha1.ComponentRefStatus {
+		return &m.CeleryWorker
 	},
 }
 
 var celeryBeatDescriptor = &componentDescriptor{
 	componentType:   naming.ComponentCeleryBeat,
 	hasPythonConfig: true,
-	kind:            "SupersetCeleryBeat",
 	extract: func(spec *supersetv1alpha1.SupersetSpec) *componentAccessor {
 		c := spec.CeleryBeat
 		if c == nil {
@@ -367,24 +378,18 @@ var celeryBeatDescriptor = &componentDescriptor{
 			sqlaEngineOptions:  c.SQLAlchemyEngineOptions,
 		}
 	},
-	newChild: func() client.Object { return &supersetv1alpha1.SupersetCeleryBeat{} },
-	newList:  func() client.ObjectList { return &supersetv1alpha1.SupersetCeleryBeatList{} },
-	applySpec: func(obj client.Object, flat supersetv1alpha1.FlatComponentSpec, checksum string, _ *componentAccessor) {
-		cb := obj.(*supersetv1alpha1.SupersetCeleryBeat)
+	adjustSpec: func(flat *supersetv1alpha1.FlatComponentSpec) {
 		flat.Autoscaling = nil
 		flat.PodDisruptionBudget = nil
-		cb.Spec.FlatComponentSpec = flat
-		cb.Spec.ConfigChecksum = checksum
 	},
-	setStatus: func(m *supersetv1alpha1.ComponentStatusMap, s *supersetv1alpha1.ComponentRefStatus) {
-		m.CeleryBeat = s
+	statusAccessor: func(m *supersetv1alpha1.ComponentStatusMap) **supersetv1alpha1.ComponentRefStatus {
+		return &m.CeleryBeat
 	},
 }
 
 var celeryFlowerDescriptor = &componentDescriptor{
 	componentType:   naming.ComponentCeleryFlower,
 	hasPythonConfig: true,
-	kind:            "SupersetCeleryFlower",
 	extract: func(spec *supersetv1alpha1.SupersetSpec) *componentAccessor {
 		c := spec.CeleryFlower
 		if c == nil {
@@ -392,23 +397,14 @@ var celeryFlowerDescriptor = &componentDescriptor{
 		}
 		return extractScalable(&c.ScalableComponentSpec, c.Config, c.Image, c.Service)
 	},
-	newChild: func() client.Object { return &supersetv1alpha1.SupersetCeleryFlower{} },
-	newList:  func() client.ObjectList { return &supersetv1alpha1.SupersetCeleryFlowerList{} },
-	applySpec: func(obj client.Object, flat supersetv1alpha1.FlatComponentSpec, checksum string, a *componentAccessor) {
-		cf := obj.(*supersetv1alpha1.SupersetCeleryFlower)
-		cf.Spec.FlatComponentSpec = flat
-		cf.Spec.ConfigChecksum = checksum
-		cf.Spec.Service = a.service
-	},
-	setStatus: func(m *supersetv1alpha1.ComponentStatusMap, s *supersetv1alpha1.ComponentRefStatus) {
-		m.CeleryFlower = s
+	statusAccessor: func(m *supersetv1alpha1.ComponentStatusMap) **supersetv1alpha1.ComponentRefStatus {
+		return &m.CeleryFlower
 	},
 }
 
 var mcpServerDescriptor = &componentDescriptor{
 	componentType:   naming.ComponentMcpServer,
 	hasPythonConfig: true,
-	kind:            "SupersetMcpServer",
 	extract: func(spec *supersetv1alpha1.SupersetSpec) *componentAccessor {
 		c := spec.McpServer
 		if c == nil {
@@ -418,23 +414,14 @@ var mcpServerDescriptor = &componentDescriptor{
 		a.sqlaEngineOptions = c.SQLAlchemyEngineOptions
 		return a
 	},
-	newChild: func() client.Object { return &supersetv1alpha1.SupersetMcpServer{} },
-	newList:  func() client.ObjectList { return &supersetv1alpha1.SupersetMcpServerList{} },
-	applySpec: func(obj client.Object, flat supersetv1alpha1.FlatComponentSpec, checksum string, a *componentAccessor) {
-		ms := obj.(*supersetv1alpha1.SupersetMcpServer)
-		ms.Spec.FlatComponentSpec = flat
-		ms.Spec.ConfigChecksum = checksum
-		ms.Spec.Service = a.service
-	},
-	setStatus: func(m *supersetv1alpha1.ComponentStatusMap, s *supersetv1alpha1.ComponentRefStatus) {
-		m.McpServer = s
+	statusAccessor: func(m *supersetv1alpha1.ComponentStatusMap) **supersetv1alpha1.ComponentRefStatus {
+		return &m.McpServer
 	},
 }
 
 var websocketServerDescriptor = &componentDescriptor{
 	componentType:   naming.ComponentWebsocketServer,
 	hasPythonConfig: false,
-	kind:            "SupersetWebsocketServer",
 	extract: func(spec *supersetv1alpha1.SupersetSpec) *componentAccessor {
 		c := spec.WebsocketServer
 		if c == nil {
@@ -442,14 +429,7 @@ var websocketServerDescriptor = &componentDescriptor{
 		}
 		return extractScalable(&c.ScalableComponentSpec, nil, c.Image, c.Service)
 	},
-	newChild: func() client.Object { return &supersetv1alpha1.SupersetWebsocketServer{} },
-	newList:  func() client.ObjectList { return &supersetv1alpha1.SupersetWebsocketServerList{} },
-	applySpec: func(obj client.Object, flat supersetv1alpha1.FlatComponentSpec, _ string, a *componentAccessor) {
-		wss := obj.(*supersetv1alpha1.SupersetWebsocketServer)
-		wss.Spec.FlatComponentSpec = flat
-		wss.Spec.Service = a.service
-	},
-	setStatus: func(m *supersetv1alpha1.ComponentStatusMap, s *supersetv1alpha1.ComponentRefStatus) {
-		m.WebsocketServer = s
+	statusAccessor: func(m *supersetv1alpha1.ComponentStatusMap) **supersetv1alpha1.ComponentRefStatus {
+		return &m.WebsocketServer
 	},
 }

@@ -26,6 +26,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,6 +35,8 @@ import (
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
+
+func strPtr(s string) *string { return &s }
 
 var _ = Describe("Integration", Ordered, func() {
 	const (
@@ -244,18 +247,18 @@ var _ = Describe("Integration", Ordered, func() {
 			createNamespace(ns)
 		})
 
-		It("should create child CRs when parent Superset CR is created", func() {
+		It("should create parent-owned resources when parent Superset CR is created", func() {
 			cr := newSuperset("lifecycle", ns)
 			cr.Spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{}
 			cr.Spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{}
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 
-			By("waiting for the SupersetWebServer child CR to be created")
-			webServer := &supersetv1alpha1.SupersetWebServer{}
+			By("waiting for the web-server Deployment to be created")
+			webServerDeploy := &appsv1.Deployment{}
 			Eventually(func() error {
 				return k8sClient.Get(ctx, types.NamespacedName{
-					Name: "lifecycle", Namespace: ns,
-				}, webServer)
+					Name: "lifecycle-web-server", Namespace: ns,
+				}, webServerDeploy)
 			}, timeout, interval).Should(Succeed())
 
 			By("verifying the ConfigMap has rendered config")
@@ -268,11 +271,11 @@ var _ = Describe("Integration", Ordered, func() {
 			Expect(cm.Data["superset_config.py"]).To(ContainSubstring("import os"))
 			Expect(cm.Data["superset_config.py"]).To(ContainSubstring("SUPERSET_WEBSERVER_PORT"))
 
-			By("waiting for the SupersetCeleryWorker child CR to be created")
-			worker := &supersetv1alpha1.SupersetCeleryWorker{}
+			By("waiting for the CeleryWorker Deployment to be created")
+			worker := &appsv1.Deployment{}
 			Eventually(func() error {
 				return k8sClient.Get(ctx, types.NamespacedName{
-					Name: "lifecycle", Namespace: ns,
+					Name: "lifecycle-celery-worker", Namespace: ns,
 				}, worker)
 			}, timeout, interval).Should(Succeed())
 
@@ -286,7 +289,7 @@ var _ = Describe("Integration", Ordered, func() {
 			Expect(cm.Data).To(HaveKey("superset_config.py"))
 		})
 
-		It("should delete child CR when component is removed from parent", func() {
+		It("should delete parent-owned resources when component is removed from parent", func() {
 			cr := &supersetv1alpha1.Superset{}
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "lifecycle", Namespace: ns}, cr)).To(Succeed())
 
@@ -294,31 +297,31 @@ var _ = Describe("Integration", Ordered, func() {
 			cr.Spec.CeleryWorker = nil
 			Expect(k8sClient.Update(ctx, cr)).To(Succeed())
 
-			By("waiting for the CeleryWorker child CR to be deleted")
+			By("waiting for the CeleryWorker Deployment to be deleted")
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, types.NamespacedName{
-					Name: "lifecycle", Namespace: ns,
-				}, &supersetv1alpha1.SupersetCeleryWorker{})
+					Name: "lifecycle-celery-worker", Namespace: ns,
+				}, &appsv1.Deployment{})
 				return errors.IsNotFound(err)
 			}, timeout, interval).Should(BeTrue())
 		})
 
-		It("should update child CR config when parent config changes", func() {
+		It("should update Deployment checksum and ConfigMap when parent config changes", func() {
 			cr := &supersetv1alpha1.Superset{}
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "lifecycle", Namespace: ns}, cr)).To(Succeed())
 
-			webServer := &supersetv1alpha1.SupersetWebServer{}
+			webServer := &appsv1.Deployment{}
 			Expect(k8sClient.Get(ctx, types.NamespacedName{
-				Name: "lifecycle", Namespace: ns,
+				Name: "lifecycle-web-server", Namespace: ns,
 			}, webServer)).To(Succeed())
-			oldChecksum := webServer.Spec.ConfigChecksum
+			oldChecksum := webServer.Spec.Template.Annotations[common.AnnotationConfigChecksum]
 
 			By("adding user config to the parent CR")
 			userConfig := "CUSTOM_FLAG = True"
 			cr.Spec.Config = &userConfig
 			Expect(k8sClient.Update(ctx, cr)).To(Succeed())
 
-			By("waiting for the child CR config to include the user config")
+			By("waiting for the ConfigMap to include the user config")
 			Eventually(func() string {
 				cm := &corev1.ConfigMap{}
 				if err := k8sClient.Get(ctx, types.NamespacedName{
@@ -331,13 +334,13 @@ var _ = Describe("Integration", Ordered, func() {
 
 			By("verifying the checksum changed")
 			Eventually(func() string {
-				ws := &supersetv1alpha1.SupersetWebServer{}
+				ws := &appsv1.Deployment{}
 				if err := k8sClient.Get(ctx, types.NamespacedName{
-					Name: "lifecycle", Namespace: ns,
+					Name: "lifecycle-web-server", Namespace: ns,
 				}, ws); err != nil {
 					return oldChecksum
 				}
-				return ws.Spec.ConfigChecksum
+				return ws.Spec.Template.Annotations[common.AnnotationConfigChecksum]
 			}, timeout, interval).ShouldNot(Equal(oldChecksum))
 		})
 

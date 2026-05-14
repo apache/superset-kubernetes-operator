@@ -28,12 +28,12 @@ contributions to the operator. For environment setup, see
 See [Architecture](../architecture/overview.md) for the structural overview (CRD
 hierarchy, configuration model, config rendering) and
 [Internals](../architecture/internals.md) for runtime behavior (reconciliation
-lifecycle, child controller pattern, status reporting). Key points:
+lifecycle, parent-owned resource reconciliation, status reporting). Key points:
 
-- **Two-tier CRD**: Parent `Superset` resolves shared spec (top-level + per-component) into flat child CRDs
-- **7 child types**: SupersetLifecycleTask, SupersetWebServer, SupersetCeleryWorker, SupersetCeleryBeat, SupersetCeleryFlower, SupersetWebsocketServer, SupersetMcpServer
+- **Single public CRD**: `Superset` resolves shared spec (top-level + per-component) into parent-owned Kubernetes resources
+- **6 deployment components + lifecycle tasks**: web server, Celery worker, Celery beat, Flower, websocket, MCP, and task Pods for clone/migrate/rotate/init
 - **3 pure Go packages**: `internal/resolution/` (spec flattening), `internal/config/` (Python rendering), `internal/common/` (shared types)
-- **Parent resolves, children execute**: All layering logic in the parent controller; child CRs are fully flattened
+- **Parent resolves and executes**: All layering, lifecycle orchestration, resource reconciliation, and status projection live in the parent controller
 
 ---
 
@@ -43,8 +43,8 @@ lifecycle, child controller pattern, status reporting). Key points:
 
 For a Kubernetes operator, the "user" is the person writing a CR and
 `kubectl apply`-ing it. **Integration and e2e tests** should mirror this
-directly: apply a CR and assert on what the user observes — child CRs,
-Deployments, Services, ConfigMaps, status conditions.
+directly: apply a CR and assert on what the user observes — Deployments,
+Services, ConfigMaps, lifecycle task Pods, and parent status conditions.
 
 **Unit tests** serve a different purpose: they provide rich permutation
 coverage of business logic (merge semantics, config rendering, preset
@@ -99,9 +99,9 @@ validation, CRD defaulting, multi-controller interaction).
 **Unit tests** (`*_test.go` with `testing` package + `fake.NewClientBuilder`):
 - Resolution engine: merge semantics, override behavior, beat singleton
 - Config rendering: per-component Python output, metastore URI, config
-- Parent controller: reconciliation logic, child CR creation/deletion,
+- Parent controller: reconciliation logic, parent-owned resource creation/deletion,
   config env var injection, image overrides, status aggregation, suspend
-- Child controller helpers: ConfigMap, Deployment, Service reconciliation
+- Component resource helpers: ConfigMap, Deployment, Service reconciliation
 - Task pods: pod spec building, retention policy, backoff calculation
 
 **Integration tests** (Ginkgo + envtest):
@@ -111,7 +111,7 @@ validation, CRD defaulting, multi-controller interaction).
 
 **E2E tests** (Ginkgo + Kind cluster):
 - Operator health: controller pod running, metrics endpoint serving
-- CR lifecycle: apply Superset CR → child CRs created → Deployments + ConfigMaps exist → status populated
+- CR lifecycle: apply Superset CR → Deployments + ConfigMaps exist → parent status populated
 - Multi-component: all component types reconciled with correct sub-resources
 
 ### Running E2E tests locally
@@ -147,7 +147,7 @@ func TestReconcile_MyScenario(t *testing.T) {
     c := fake.NewClientBuilder().
         WithScheme(scheme).
         WithObjects(superset).
-        WithStatusSubresource(superset, &supersetv1alpha1.SupersetWebServer{}).
+        WithStatusSubresource(superset).
         Build()
 
     r := &SupersetReconciler{
@@ -169,7 +169,7 @@ Key patterns:
 - Use `boolPtr(true)` for `Lifecycle.Disabled` to bypass lifecycle task execution
 - Register all types in the scheme via `testScheme(t)` helper
 - Use `WithStatusSubresource` for objects whose status is updated
-- Assert on child CR fields, not on intermediate state
+- Assert on parent-owned resources and parent status, not on internal helper state
 
 ### Testing pure packages
 
@@ -232,7 +232,7 @@ the `#`-comment form:
 
 ### Do
 
-- **Use shared helpers** from `child_reconciler.go` (`reconcileChildDeployment`, `reconcileChildService`, `reconcileScaling`, `updateChildStatus`, `buildChecksumAnnotations`). ConfigMaps are owned by the parent — use `reconcileParentOwnedConfigMap` from `superset_controller.go`.
+- **Use shared helpers** from `component_reconciler.go` (`reconcileComponentDeployment`, `reconcileComponentService`, `reconcileScaling`, `buildChecksumAnnotations`). ConfigMaps are owned by the parent — use `reconcileParentOwnedConfigMap` from `superset_controller.go`.
 - **Use `componentLabels(component, instance)`** for consistent label generation
 - **Stamp `parentLabels(parentName)` on all parent-owned resources** (ServiceAccount, Ingress, HTTPRoute, ServiceMonitor) — this enables label-based cleanup
 - **Use `controllerutil.CreateOrUpdate`** for idempotent reconciliation
@@ -245,10 +245,10 @@ the `#`-comment form:
 
 ### Don't
 
-- **Don't hardcode child CR names** — always use `componentDescriptor.childName()` to resolve names. Child CRs use the parent name (differentiated by Kind); sub-resources are named `{parentName}-{componentType}`.
-- **Don't fetch resources by name for cleanup** — use `deleteByLabels` with `parentLabels(parentName)` (parent-owned resources) or `componentLabels` (child-owned resources) to discover and clean up. Name-based `CreateOrUpdate` and status reads are fine — those address resources whose names the operator controls.
+- **Don't hardcode resource names** — use `componentDescriptor.resourceBaseName()` and naming helpers. Component resources are named `{parentName}-{componentType}`.
+- **Don't fetch resources by name for cleanup** — use `deleteByLabels` with parent/component labels to discover and clean up. Name-based `CreateOrUpdate` and status reads are fine — those address resources whose names the operator controls.
 - **Don't hardcode commands/ports** — use `DeploymentConfig` defaults
-- **Don't duplicate controller logic** — use `child_reconciler.go` helpers
+- **Don't duplicate controller logic** — use `component_reconciler.go` helpers
 - **Don't add fields without doc comments** — they become CRD descriptions
 - **Don't use `bool` with `omitempty`** — use `*bool` to distinguish false from unset
 - **Don't write integration tests for unit-testable logic** — use fake client
@@ -280,28 +280,19 @@ New Deployment/Pod/Container fields go into the template hierarchy:
 
 ## How to Add a New Component
 
-1. Create `api/v1alpha1/supersetnewcomponent_types.go`:
-   - Define flat spec type embedding `FlatComponentSpec`
-   - Add `Config`/checksum fields (if Python) or just `Service` (if not)
-   - Register in `init()` via `SchemeBuilder.Register`
-
-2. Add component spec to parent in `superset_types.go`
-
-3. Add a child controller definition in `internal/controller/child_controllers.go`:
-   - Add a `ChildControllerDef` entry to `ChildControllerDefs()` with component name,
-     `DeploymentConfig` (container name, default command, ports), `hasConfig`, `hasScaling`
-   - Ensure the child CRD type implements the `ChildCR` interface from `child_reconciler.go`
-   - Add RBAC markers at the top of the file
-
-4. Register in parent controller (`internal/controller/component_descriptors.go`):
-   - Add a `componentDescriptor` entry with `extract`, `newChild`, `newList`,
-     `applySpec`, and `setStatus` functions
-   - Add the descriptor to the `componentDescriptors` slice
-   - Add `Owns()` in parent `SetupWithManager()`
-
-5. Run `make manifests generate` (child controller registration in `cmd/main.go`
-   is automatic via the `ChildControllerDefs()` loop)
-6. Add sample CR and unit tests
+1. Add the component spec to the parent `SupersetSpec` in `superset_types.go`.
+2. Add resource defaults in `internal/controller/component_resources.go` via
+   `ComponentResourceDefs()` with component name, `DeploymentConfig`
+   (container name, default command, ports), `hasConfig`, and `hasScaling`.
+3. Register the component in `internal/controller/component_descriptors.go`:
+   - Add a `componentDescriptor` entry with `extract`, optional `adjustSpec`,
+     and `statusAccessor` functions.
+   - Add the descriptor to the `componentDescriptors` slice.
+4. Add status fields if the component needs a dedicated slot under
+   `ComponentStatusMap`.
+5. Run `make codegen`.
+6. Add sample CR coverage, focused unit tests, and e2e assertions for the
+   parent-owned resources.
 
 ## Package Structure
 
@@ -309,14 +300,14 @@ New Deployment/Pod/Container fields go into the template hierarchy:
 internal/
 ├── resolution/       # Pure Go — spec flattening engine
 │                     # Zero controller-runtime deps, fully unit-testable
-│                     # MergeMaps, MergeEnvVars, ResolveChildSpec(), etc.
+│                     # MergeMaps, MergeEnvVars, ResolveComponentSpec(), etc.
 ├── config/           # Pure Go — Python config renderer
 │                     # Per-component rendering, metastore URI,
 │                     # config appending
 ├── common/           # Shared types (ComponentType, Ptr helper)
 └── controller/       # controller-runtime — reconcilers
-                      # Parent controller, 7 child controllers,
-                      # InitPod lifecycle, status, scaling, networking
+                      # Parent controller, component resources,
+                      # task pod lifecycle, status, scaling, networking
 ```
 
 ---
@@ -328,16 +319,15 @@ internal/
 | `api/v1alpha1/shared_types.go` | ImageSpec, MetastoreSpec, DeploymentTemplate, PodTemplate, ContainerTemplate, FlatComponentSpec |
 | `api/v1alpha1/superset_types.go` | Parent SupersetSpec, component specs, InitSpec, CEL validation rules, status |
 | `internal/common/types.go` | Shared ComponentType, Ptr helper |
-| `internal/resolution/resolver.go` | ResolveChildSpec — core flattening engine |
+| `internal/resolution/resolver.go` | ResolveComponentSpec — core flattening engine |
 | `internal/config/renderer.go` | RenderConfig — per-component Python generation |
-| `internal/controller/child_reconciler.go` | Shared helpers for all child controllers |
-| `internal/controller/child_controllers.go` | `ChildControllerDefs()` — table-driven child controller registration |
-| `internal/controller/component_descriptors.go` | Parent-side component descriptors for child CR creation |
+| `internal/controller/component_reconciler.go` | Shared helpers for component resources |
+| `internal/controller/component_resources.go` | `ComponentResourceDefs()` — table-driven component resource defaults |
+| `internal/controller/component_descriptors.go` | Parent-side component descriptors for resource reconciliation and status |
 | `internal/controller/superset_controller.go` | Parent reconciler (orchestrates everything) |
 | `internal/controller/deployment_builder.go` | Deployment construction from flat spec |
-| `internal/controller/supersetlifecycletask_controller.go` | SupersetLifecycleTask lifecycle manager |
 | `internal/controller/initpod.go` | Task pod spec building, retention, backoff |
-| `internal/controller/reconcile_test.go` | Parent controller unit tests (fake client) |
+| `internal/controller/reconcile_parent_resources_test.go` | Parent controller resource tests (fake client) |
 
 ---
 

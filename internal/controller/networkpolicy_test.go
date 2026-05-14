@@ -71,19 +71,19 @@ func TestReconcileNetworkPolicies_CreatesForEnabledComponents(t *testing.T) {
 
 	// WebServer NP should exist.
 	wsNP := &networkingv1.NetworkPolicy{}
-	wsNPName := common.ChildName("test", common.SuffixWebServer) + common.SuffixNetworkPolicy
+	wsNPName := common.DerivedName("test", common.SuffixWebServer) + common.SuffixNetworkPolicy
 	if err := c.Get(context.Background(), types.NamespacedName{Name: wsNPName, Namespace: "default"}, wsNP); err != nil {
 		t.Fatalf("expected web server NetworkPolicy: %v", err)
 	}
 
 	// CeleryBeat NP should exist.
-	beatNPName := common.ChildName("test", common.SuffixCeleryBeat) + common.SuffixNetworkPolicy
+	beatNPName := common.DerivedName("test", common.SuffixCeleryBeat) + common.SuffixNetworkPolicy
 	if err := c.Get(context.Background(), types.NamespacedName{Name: beatNPName, Namespace: "default"}, &networkingv1.NetworkPolicy{}); err != nil {
 		t.Fatalf("expected celery beat NetworkPolicy: %v", err)
 	}
 
 	// CeleryWorker NP should NOT exist (component not enabled).
-	workerNPName := common.ChildName("test", common.SuffixCeleryWorker) + common.SuffixNetworkPolicy
+	workerNPName := common.DerivedName("test", common.SuffixCeleryWorker) + common.SuffixNetworkPolicy
 	err := c.Get(context.Background(), types.NamespacedName{Name: workerNPName, Namespace: "default"}, &networkingv1.NetworkPolicy{})
 	if !errors.IsNotFound(err) {
 		t.Fatalf("expected celery worker NetworkPolicy to not exist, got: %v", err)
@@ -119,13 +119,13 @@ func TestReconcileComponentNetworkPolicy_WebServer(t *testing.T) {
 		t.Fatalf("expected NetworkPolicy: %v", err)
 	}
 
-	// Verify pod selector uses the child CR name (not resourceBaseName) so it
+	// Verify pod selector uses the component instance name (not resourceBaseName) so it
 	// matches the labels on Deployment pod templates.
 	if np.Spec.PodSelector.MatchLabels[common.LabelKeyComponent] != string(common.ComponentWebServer) {
 		t.Errorf("expected component label %s, got %s", common.ComponentWebServer, np.Spec.PodSelector.MatchLabels[common.LabelKeyComponent])
 	}
 	if np.Spec.PodSelector.MatchLabels[common.LabelKeyInstance] != "test" {
-		t.Errorf("expected instance label %q (child CR name), got %q", "test", np.Spec.PodSelector.MatchLabels[common.LabelKeyInstance])
+		t.Errorf("expected instance label %q (component instance name), got %q", "test", np.Spec.PodSelector.MatchLabels[common.LabelKeyInstance])
 	}
 
 	// Verify policy types.
@@ -203,7 +203,7 @@ func TestReconcileNetworkPolicies_CustomContainerPort(t *testing.T) {
 	}
 
 	np := &networkingv1.NetworkPolicy{}
-	npName := common.ChildName("test", common.SuffixWebServer) + common.SuffixNetworkPolicy
+	npName := common.DerivedName("test", common.SuffixWebServer) + common.SuffixNetworkPolicy
 	if err := c.Get(context.Background(), types.NamespacedName{Name: npName, Namespace: "default"}, np); err != nil {
 		t.Fatalf("expected NetworkPolicy: %v", err)
 	}
@@ -411,7 +411,7 @@ func TestNetworkPolicySelectorMatchesDeploymentLabels(t *testing.T) {
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).
-		WithStatusSubresource(&supersetv1alpha1.Superset{}, &supersetv1alpha1.SupersetWebServer{}).Build()
+		WithStatusSubresource(&supersetv1alpha1.Superset{}).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	if err := r.reconcileNetworkPolicies(context.Background(), superset); err != nil {
@@ -424,7 +424,7 @@ func TestNetworkPolicySelectorMatchesDeploymentLabels(t *testing.T) {
 		t.Fatalf("expected NetworkPolicy: %v", err)
 	}
 
-	// The pod selector must use the child CR name (defaults to parent name),
+	// The pod selector must use the component instance name (the parent name),
 	// not the resourceBaseName, to match the labels on Deployment pod templates.
 	deployLabels := componentLabels(string(common.ComponentWebServer), superset.Name)
 	for k, v := range np.Spec.PodSelector.MatchLabels {

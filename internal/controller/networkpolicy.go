@@ -43,31 +43,31 @@ func (r *SupersetReconciler) reconcileNetworkPolicies(ctx context.Context, super
 	// Define all components that need NetworkPolicies (no Init).
 	components := []struct {
 		resourceBaseName string
-		childName        string
+		instanceName     string
 		component        string
 		enabled          bool
 		port             int32 // non-zero for externally-facing components
 	}{
 		{webServerDescriptor.resourceBaseName(&superset.Spec, superset.Name),
-			webServerDescriptor.childName(&superset.Spec, superset.Name),
+			webServerDescriptor.instanceName(&superset.Spec, superset.Name),
 			string(common.ComponentWebServer), superset.Spec.WebServer != nil,
 			npContainerPort(common.PortWebServer, topPT, scalablePT(superset.Spec.WebServer))},
 		{celeryWorkerDescriptor.resourceBaseName(&superset.Spec, superset.Name),
-			celeryWorkerDescriptor.childName(&superset.Spec, superset.Name),
+			celeryWorkerDescriptor.instanceName(&superset.Spec, superset.Name),
 			string(common.ComponentCeleryWorker), superset.Spec.CeleryWorker != nil, 0},
 		{celeryBeatDescriptor.resourceBaseName(&superset.Spec, superset.Name),
-			celeryBeatDescriptor.childName(&superset.Spec, superset.Name),
+			celeryBeatDescriptor.instanceName(&superset.Spec, superset.Name),
 			string(common.ComponentCeleryBeat), superset.Spec.CeleryBeat != nil, 0},
 		{celeryFlowerDescriptor.resourceBaseName(&superset.Spec, superset.Name),
-			celeryFlowerDescriptor.childName(&superset.Spec, superset.Name),
+			celeryFlowerDescriptor.instanceName(&superset.Spec, superset.Name),
 			string(common.ComponentCeleryFlower), superset.Spec.CeleryFlower != nil,
 			npContainerPort(common.PortCeleryFlower, topPT, scalablePT(superset.Spec.CeleryFlower))},
 		{websocketServerDescriptor.resourceBaseName(&superset.Spec, superset.Name),
-			websocketServerDescriptor.childName(&superset.Spec, superset.Name),
+			websocketServerDescriptor.instanceName(&superset.Spec, superset.Name),
 			string(common.ComponentWebsocketServer), superset.Spec.WebsocketServer != nil,
 			npContainerPort(common.PortWebsocket, topPT, scalablePT(superset.Spec.WebsocketServer))},
 		{mcpServerDescriptor.resourceBaseName(&superset.Spec, superset.Name),
-			mcpServerDescriptor.childName(&superset.Spec, superset.Name),
+			mcpServerDescriptor.instanceName(&superset.Spec, superset.Name),
 			string(common.ComponentMcpServer), superset.Spec.McpServer != nil,
 			npContainerPort(common.PortMcpServer, topPT, scalablePT(superset.Spec.McpServer))},
 	}
@@ -90,7 +90,7 @@ func (r *SupersetReconciler) reconcileNetworkPolicies(ctx context.Context, super
 			continue
 		}
 
-		if err := r.reconcileComponentNetworkPolicy(ctx, superset, desiredNPName, comp.component, comp.childName, comp.port); err != nil {
+		if err := r.reconcileComponentNetworkPolicy(ctx, superset, desiredNPName, comp.component, comp.instanceName, comp.port); err != nil {
 			return err
 		}
 	}
@@ -101,7 +101,7 @@ func (r *SupersetReconciler) reconcileNetworkPolicies(ctx context.Context, super
 func (r *SupersetReconciler) reconcileComponentNetworkPolicy(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
-	npName, component, childName string,
+	npName, component, instanceName string,
 	externalPort int32,
 ) error {
 	np := &networkingv1.NetworkPolicy{
@@ -111,7 +111,7 @@ func (r *SupersetReconciler) reconcileComponentNetworkPolicy(
 		},
 	}
 
-	labels := componentLabels(component, childName)
+	labels := componentLabels(component, instanceName)
 	npSpec := superset.Spec.NetworkPolicy
 
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, np, func() error {

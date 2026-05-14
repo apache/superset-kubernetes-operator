@@ -134,24 +134,24 @@ const (
 	EnvMaintenanceBody    = "SUPERSET_OPERATOR__MAINTENANCE_BODY"
 )
 
-// ChildName constructs a child resource name from parent name and suffix.
-func ChildName(parentName string, suffix string) string {
+// DerivedName constructs a derived resource name from parent name and suffix.
+func DerivedName(parentName string, suffix string) string {
 	return parentName + suffix
 }
 
-// SubResourceName constructs a sub-resource name from the child CR name and suffix.
-func SubResourceName(childName string, suffix string) string {
-	return childName + "-" + suffix
+// SubResourceName constructs a resource name from a base name and suffix.
+func SubResourceName(baseName string, suffix string) string {
+	return baseName + "-" + suffix
 }
 
-// ResourceBaseName returns the sub-resource base name: {childName}-{componentType}.
-func ResourceBaseName(childName string, componentType ComponentType) string {
-	return SubResourceName(childName, string(componentType))
+// ResourceBaseName returns the component resource base name: {parentName}-{componentType}.
+func ResourceBaseName(parentName string, componentType ComponentType) string {
+	return SubResourceName(parentName, string(componentType))
 }
 
-// ConfigMapName constructs a ConfigMap name for a child component.
-func ConfigMapName(childName string) string {
-	return childName + SuffixConfig
+// ConfigMapName constructs a ConfigMap name for a component or task resource.
+func ConfigMapName(baseName string) string {
+	return baseName + SuffixConfig
 }
 
 // ComponentLabels returns the standard Kubernetes labels for a Superset component.

@@ -22,7 +22,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
@@ -33,7 +32,7 @@ const (
 	ConditionTypeDegraded          = "Degraded"
 	ConditionTypeSuspended         = "Suspended"
 	ConditionTypeAvailable         = "Available"
-	ConditionTypeTaskComplete      = "TaskComplete"      // on SupersetLifecycleTask
+	ConditionTypeTaskComplete      = "TaskComplete"
 	ConditionTypeLifecycleComplete = "LifecycleComplete" // on Superset (aggregate lifecycle gate)
 )
 
@@ -626,10 +625,10 @@ type PDBSpec struct {
 	MaxUnavailable *intstr.IntOrString `json:"maxUnavailable,omitempty"`
 }
 
-// --- Flat child spec base (embedded by all child CRDs) ---
+// --- Flat component spec base (used by resolved runtime resources) ---
 
-// FlatComponentSpec defines the common fields for all fully-resolved child specs.
-// This is embedded (inlined) in each child CRD spec type.
+// FlatComponentSpec defines the common fields for fully-resolved component
+// Deployments and lifecycle task Pods.
 type FlatComponentSpec struct {
 	// Container image configuration.
 	Image ImageSpec `json:"image"`
@@ -658,17 +657,4 @@ type FlatComponentSpec struct {
 	// PodDisruptionBudget configuration.
 	// +optional
 	PodDisruptionBudget *PDBSpec `json:"podDisruptionBudget,omitempty"`
-}
-
-// ChildComponentStatus reports the operational state of a child component.
-type ChildComponentStatus struct {
-	// "2/2" format showing ready vs desired replicas.
-	// +optional
-	Ready string `json:"ready,omitempty"`
-	// Standard conditions.
-	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
-	// ObservedGeneration for leader election consistency.
-	// +optional
-	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 }

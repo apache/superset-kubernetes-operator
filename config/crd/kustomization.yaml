@@ -3,11 +3,4 @@
 # It should be run by config/default
 resources:
 - bases/superset.apache.org_supersets.yaml
-- bases/superset.apache.org_supersetlifecycletasks.yaml
-- bases/superset.apache.org_supersetwebservers.yaml
-- bases/superset.apache.org_supersetceleryworkers.yaml
-- bases/superset.apache.org_supersetcelerybeats.yaml
-- bases/superset.apache.org_supersetceleryflowers.yaml
-- bases/superset.apache.org_supersetwebsocketservers.yaml
-- bases/superset.apache.org_supersetmcpservers.yaml
 # +kubebuilder:scaffold:crdkustomizeresource

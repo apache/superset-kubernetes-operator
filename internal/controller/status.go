@@ -23,12 +23,22 @@ import (
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
+	policyv1 "k8s.io/api/policy/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
+	naming "github.com/apache/superset-kubernetes-operator/internal/common"
+)
+
+const (
+	componentPhaseReady       = "Ready"
+	componentPhaseProgressing = "Progressing"
+	componentPhaseUnavailable = "Unavailable"
 )
 
 // patchStatusIfChanged issues a status MergeFrom patch iff the two status
@@ -78,64 +88,231 @@ func setCondition(conditions *[]metav1.Condition, conditionType string, status m
 	})
 }
 
-// updateComponentStatusFromDeployment updates a ChildComponentStatus from a Deployment's status.
-func updateComponentStatusFromDeployment(compStatus *supersetv1alpha1.ChildComponentStatus, deploy *appsv1.Deployment, observedGeneration int64) {
-	desired := int32(1)
+func (r *SupersetReconciler) updateStatus(ctx context.Context, superset *supersetv1alpha1.Superset, origSuperset *supersetv1alpha1.Superset) error {
+	superset.Status.ObservedGeneration = superset.Generation
+	superset.Status.Version = superset.Spec.Image.Tag
+
+	if superset.Status.Components == nil {
+		superset.Status.Components = &supersetv1alpha1.ComponentStatusMap{}
+	}
+
+	allReady := true
+	totalReady := int32(0)
+	totalDesired := int32(0)
+
+	for _, desc := range componentDescriptors {
+		isEnabled := desc.extract(&superset.Spec) != nil
+		statusSlot := desc.statusAccessor(superset.Status.Components)
+		if isEnabled {
+			status := r.getComponentStatus(ctx, superset, desc)
+			*statusSlot = status
+			if status != nil {
+				totalReady += status.ReadyReplicas
+				totalDesired += status.Replicas
+			}
+			if status != nil && !isComponentReady(status) {
+				allReady = false
+			}
+		} else {
+			*statusSlot = nil
+		}
+	}
+	superset.Status.Ready = fmt.Sprintf("%d/%d", totalReady, totalDesired)
+
+	if !anyComponentEnabled(superset) {
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeAvailable,
+			metav1.ConditionTrue, "NoComponentsEnabled", "No components are enabled", superset.Generation)
+		superset.Status.Phase = phaseRunning
+	} else if allReady {
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeAvailable,
+			metav1.ConditionTrue, "AllComponentsReady", "All components are ready", superset.Generation)
+		superset.Status.Phase = phaseRunning
+	} else {
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeAvailable,
+			metav1.ConditionFalse, "ComponentsNotReady", "One or more components are not ready", superset.Generation)
+		superset.Status.Phase = phaseDegraded
+	}
+
+	return patchStatusIfChanged(ctx, r.Client, superset, origSuperset, origSuperset.Status, superset.Status)
+}
+
+func (r *SupersetReconciler) getComponentStatus(ctx context.Context, superset *supersetv1alpha1.Superset, desc *componentDescriptor) *supersetv1alpha1.ComponentRefStatus {
+	resourceBaseName := desc.resourceBaseName(&superset.Spec, superset.Name)
+	ref := "Deployment/" + resourceBaseName
+	accessor := desc.extract(&superset.Spec)
+	cfg, _ := componentResourceConfig(desc.componentType)
+	desired := desiredReplicasForStatus(superset, desc, accessor)
+	resources := []supersetv1alpha1.ComponentResourceStatus{}
+
+	deploy := &appsv1.Deployment{}
+	if err := r.Get(ctx, client.ObjectKey{Namespace: superset.Namespace, Name: resourceBaseName}, deploy); err != nil {
+		log := logf.FromContext(ctx)
+		log.Info("component Deployment not found for status", "component", desc.componentType, "name", resourceBaseName, "error", err)
+		resources = append(resources, componentResourceStatus("Deployment", resourceBaseName, false))
+		resources = append(resources, r.expectedComponentResources(ctx, superset, desc, accessor, cfg, resourceBaseName)...)
+		return &supersetv1alpha1.ComponentRefStatus{
+			Phase:     "Pending",
+			Ready:     fmt.Sprintf("0/%d", desired),
+			Ref:       ref,
+			Resources: resources,
+			Replicas:  desired,
+			Message:   fmt.Sprintf("Deployment %s not found", resourceBaseName),
+		}
+	}
+	resources = append(resources, componentResourceStatus("Deployment", resourceBaseName, true))
+	resources = append(resources, r.expectedComponentResources(ctx, superset, desc, accessor, cfg, resourceBaseName)...)
+
 	if deploy.Spec.Replicas != nil {
 		desired = *deploy.Spec.Replicas
 	} else if deploy.Status.Replicas > 0 {
 		desired = deploy.Status.Replicas
 	}
+	configChecksum := deploy.Spec.Template.Annotations[naming.AnnotationConfigChecksum]
+	phase, message := componentPhaseAndMessage(deploy, desired)
 
-	compStatus.Ready = fmt.Sprintf("%d/%d", deploy.Status.ReadyReplicas, desired)
-	compStatus.ObservedGeneration = observedGeneration
-
-	if deploy.Status.ReadyReplicas >= desired && desired > 0 {
-		setCondition(&compStatus.Conditions,
-			supersetv1alpha1.ConditionTypeReady,
-			metav1.ConditionTrue,
-			"AllReplicasReady",
-			"All replicas are ready",
-			observedGeneration,
-		)
-	} else if deploy.Status.ReadyReplicas > 0 {
-		setCondition(&compStatus.Conditions,
-			supersetv1alpha1.ConditionTypeReady,
-			metav1.ConditionFalse,
-			"PartiallyReady",
-			"Some replicas are not ready",
-			observedGeneration,
-		)
-	} else {
-		setCondition(&compStatus.Conditions,
-			supersetv1alpha1.ConditionTypeReady,
-			metav1.ConditionFalse,
-			"NotReady",
-			"No replicas are ready",
-			observedGeneration,
-		)
+	return &supersetv1alpha1.ComponentRefStatus{
+		Phase:             phase,
+		Ready:             fmt.Sprintf("%d/%d", deploy.Status.ReadyReplicas, desired),
+		Ref:               ref,
+		Resources:         resources,
+		Image:             deploymentMainImage(deploy),
+		Replicas:          desired,
+		ReadyReplicas:     deploy.Status.ReadyReplicas,
+		UpdatedReplicas:   deploy.Status.UpdatedReplicas,
+		AvailableReplicas: deploy.Status.AvailableReplicas,
+		ConfigChecksum:    configChecksum,
+		Message:           message,
 	}
+}
 
-	// Check for progressing condition from Deployment.
-	for _, c := range deploy.Status.Conditions {
-		if c.Type == appsv1.DeploymentProgressing {
-			if c.Status == corev1.ConditionTrue && c.Reason == "NewReplicaSetAvailable" {
-				setCondition(&compStatus.Conditions,
-					supersetv1alpha1.ConditionTypeProgressing,
-					metav1.ConditionFalse,
-					"RolloutComplete",
-					"Deployment rollout is complete",
-					observedGeneration,
-				)
-			} else if c.Status == corev1.ConditionTrue {
-				setCondition(&compStatus.Conditions,
-					supersetv1alpha1.ConditionTypeProgressing,
-					metav1.ConditionTrue,
-					"RolloutInProgress",
-					"Deployment rollout is in progress",
-					observedGeneration,
-				)
-			}
+func (r *SupersetReconciler) expectedComponentResources(
+	ctx context.Context,
+	superset *supersetv1alpha1.Superset,
+	desc *componentDescriptor,
+	accessor *componentAccessor,
+	cfg componentReconcilerConfig,
+	resourceBaseName string,
+) []supersetv1alpha1.ComponentResourceStatus {
+	resources := []supersetv1alpha1.ComponentResourceStatus{}
+	if desc.hasPythonConfig {
+		resources = append(resources, r.observedResourceStatus(ctx, superset.Namespace, "ConfigMap", naming.ConfigMapName(resourceBaseName), &corev1.ConfigMap{}))
+	}
+	if componentHasService(desc, cfg) {
+		resources = append(resources, r.observedResourceStatus(ctx, superset.Namespace, "Service", resourceBaseName, &corev1.Service{}))
+	}
+	if cfg.hasScaling {
+		if effectiveAutoscalingForStatus(superset, accessor) != nil {
+			resources = append(resources, r.observedResourceStatus(ctx, superset.Namespace, "HorizontalPodAutoscaler", resourceBaseName, &autoscalingv2.HorizontalPodAutoscaler{}))
+		}
+		if effectivePDBForStatus(superset, accessor) != nil {
+			resources = append(resources, r.observedResourceStatus(ctx, superset.Namespace, "PodDisruptionBudget", resourceBaseName, &policyv1.PodDisruptionBudget{}))
 		}
 	}
+	return resources
+}
+
+func (r *SupersetReconciler) observedResourceStatus(ctx context.Context, namespace, kind, name string, obj client.Object) supersetv1alpha1.ComponentResourceStatus {
+	obj.SetName(name)
+	obj.SetNamespace(namespace)
+	err := r.Get(ctx, client.ObjectKey{Namespace: namespace, Name: name}, obj)
+	return componentResourceStatus(kind, name, err == nil)
+}
+
+func componentResourceStatus(kind, name string, present bool) supersetv1alpha1.ComponentResourceStatus {
+	status := "Missing"
+	if present {
+		status = "Present"
+	}
+	return supersetv1alpha1.ComponentResourceStatus{
+		Kind:   kind,
+		Name:   name,
+		Status: status,
+	}
+}
+
+func componentHasService(desc *componentDescriptor, cfg componentReconcilerConfig) bool {
+	return cfg.defaultPort > 0 || desc.componentType == naming.ComponentWebServer
+}
+
+func effectiveAutoscalingForStatus(superset *supersetv1alpha1.Superset, accessor *componentAccessor) *supersetv1alpha1.AutoscalingSpec {
+	if accessor != nil && accessor.autoscaling != nil {
+		return accessor.autoscaling
+	}
+	return superset.Spec.Autoscaling
+}
+
+func effectivePDBForStatus(superset *supersetv1alpha1.Superset, accessor *componentAccessor) *supersetv1alpha1.PDBSpec {
+	if accessor != nil && accessor.pdb != nil {
+		return accessor.pdb
+	}
+	return superset.Spec.PodDisruptionBudget
+}
+
+func desiredReplicasForStatus(superset *supersetv1alpha1.Superset, desc *componentDescriptor, accessor *componentAccessor) int32 {
+	if desc.componentType == naming.ComponentCeleryBeat {
+		return celeryBeatSingletonReplica
+	}
+	if autoscaling := effectiveAutoscalingForStatus(superset, accessor); autoscaling != nil {
+		if autoscaling.MinReplicas != nil {
+			return *autoscaling.MinReplicas
+		}
+		return 1
+	}
+	if accessor != nil && accessor.replicas != nil {
+		return *accessor.replicas
+	}
+	if superset.Spec.Replicas != nil {
+		return *superset.Spec.Replicas
+	}
+	return 1
+}
+
+func deploymentMainImage(deploy *appsv1.Deployment) string {
+	if len(deploy.Spec.Template.Spec.Containers) == 0 {
+		return ""
+	}
+	for _, c := range deploy.Spec.Template.Spec.Containers {
+		if c.Name == naming.Container {
+			return c.Image
+		}
+	}
+	return deploy.Spec.Template.Spec.Containers[0].Image
+}
+
+func componentPhaseAndMessage(deploy *appsv1.Deployment, desired int32) (string, string) {
+	if desired == 0 {
+		return componentPhaseReady, "Scaled to zero"
+	}
+	if deploy.Status.ReadyReplicas == desired &&
+		deploy.Status.UpdatedReplicas >= desired &&
+		deploy.Status.AvailableReplicas >= desired {
+		return componentPhaseReady, ""
+	}
+	if deploy.Generation > deploy.Status.ObservedGeneration {
+		return componentPhaseProgressing, "Deployment has not observed the latest generation"
+	}
+	for _, condition := range deploy.Status.Conditions {
+		if condition.Type == appsv1.DeploymentProgressing &&
+			condition.Status == corev1.ConditionFalse &&
+			condition.Reason == "ProgressDeadlineExceeded" {
+			return componentPhaseUnavailable, condition.Message
+		}
+	}
+	if deploy.Status.ReadyReplicas > 0 || deploy.Status.UpdatedReplicas > 0 {
+		return componentPhaseProgressing, fmt.Sprintf("%d of %d replicas are ready", deploy.Status.ReadyReplicas, desired)
+	}
+	return componentPhaseUnavailable, fmt.Sprintf("%d of %d replicas are ready", deploy.Status.ReadyReplicas, desired)
+}
+
+func anyComponentEnabled(superset *supersetv1alpha1.Superset) bool {
+	return superset.Spec.WebServer != nil ||
+		superset.Spec.CeleryWorker != nil ||
+		superset.Spec.CeleryBeat != nil ||
+		superset.Spec.CeleryFlower != nil ||
+		superset.Spec.WebsocketServer != nil ||
+		superset.Spec.McpServer != nil
+}
+
+func isComponentReady(status *supersetv1alpha1.ComponentRefStatus) bool {
+	return status.Phase == componentPhaseReady
 }

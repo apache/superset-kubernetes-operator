@@ -71,10 +71,11 @@ The operator runs database migrations and initialization, then deploys the web s
 kubectl get superset my-superset -w
 ```
 
-Wait for `PHASE: Running`. You can also watch the lifecycle tasks:
+Wait for `PHASE: Running`. You can also inspect lifecycle task state on the
+parent:
 
 ```bash
-kubectl get supersetlifecycletasks
+kubectl describe superset my-superset
 ```
 
 ## 4. Access Superset

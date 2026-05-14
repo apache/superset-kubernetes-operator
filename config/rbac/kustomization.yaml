@@ -20,11 +20,9 @@ resources:
 - metrics_reader_role.yaml
 # Optional "Admin", "Editor", and "Viewer" helper roles for the parent Superset
 # CRD. These are not used by the operator itself — they exist so cluster admins
-# can delegate Superset management without writing custom roles. Admin and
-# editor roles intentionally grant write access only to the parent `supersets`
-# resource; child CRDs (SupersetWebServer, SupersetCeleryWorker,
-# SupersetLifecycleTask, etc.) are controller-managed internals and are exposed
-# here as read-only. Comment these lines out if you do not want them installed.
+# can delegate Superset management without writing custom roles. Component and
+# lifecycle state is exposed through the parent `supersets/status` subresource.
+# Comment these lines out if you do not want them installed.
 - superset_admin_role.yaml
 - superset_editor_role.yaml
 - superset_viewer_role.yaml

@@ -263,9 +263,9 @@ type BaseTaskSpec struct {
 	// +optional
 	Trigger *string `json:"trigger,omitempty"`
 
-	// RequiresDrain controls whether components must be scaled to zero before
-	// this task runs. When true, the operator deletes all component child CRs
-	// before executing the task pod, preventing database connection conflicts.
+	// RequiresDrain controls whether components must be drained before this
+	// task runs. When true, the operator removes component workloads before
+	// executing the task pod, preventing database connection conflicts.
 	// Defaults vary per task type: true for clone and migrate, false for init.
 	// +optional
 	RequiresDrain *bool `json:"requiresDrain,omitempty"`
@@ -679,6 +679,10 @@ type SupersetStatus struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+	// Ready summarizes ready component replicas across all enabled components
+	// in "ready/desired" format.
+	// +optional
+	Ready string `json:"ready,omitempty"`
 	// +optional
 	Components *ComponentStatusMap `json:"components,omitempty"`
 	// Lifecycle tracks the current lifecycle state.
@@ -733,6 +737,9 @@ type TaskRefStatus struct {
 	// +optional
 	// +kubebuilder:validation:Enum=Pending;Running;Complete;Failed
 	State string `json:"state,omitempty"`
+	// Reference to the current or most recent task pod.
+	// +optional
+	Ref string `json:"ref,omitempty"`
 	// +optional
 	StartedAt *metav1.Time `json:"startedAt,omitempty"`
 	// +optional
@@ -741,12 +748,32 @@ type TaskRefStatus struct {
 	Duration string `json:"duration,omitempty"`
 	// +optional
 	Attempts int32 `json:"attempts,omitempty"`
+	// Maximum number of attempts before the task is considered permanently failed.
+	// +optional
+	MaxRetries int32 `json:"maxRetries,omitempty"`
 	// +optional
 	PodName string `json:"podName,omitempty"`
+	// Reference to the rendered task ConfigMap.
+	// +optional
+	ConfigMapRef string `json:"configMapRef,omitempty"`
 	// +optional
 	Image string `json:"image,omitempty"`
 	// +optional
 	Message string `json:"message,omitempty"`
+	// NextAttemptAt is the earliest time the operator may retry this task after
+	// a failure or timeout.
+	// +optional
+	NextAttemptAt *metav1.Time `json:"nextAttemptAt,omitempty"`
+	// DesiredChecksum is the checksum for the task inputs the operator is
+	// currently trying to execute.
+	// +optional
+	DesiredChecksum string `json:"desiredChecksum,omitempty"`
+	// CompletedChecksum is the task input checksum that last reached a terminal
+	// Complete or Failed state.
+	// +optional
+	CompletedChecksum string `json:"completedChecksum,omitempty"`
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 	// LastScheduledAt is the cron tick that triggered the most recent scheduled run.
 	// +optional
 	LastScheduledAt *metav1.Time `json:"lastScheduledAt,omitempty"`
@@ -784,23 +811,65 @@ type ComponentStatusMap struct {
 	McpServer *ComponentRefStatus `json:"mcpServer,omitempty"`
 }
 
-// ComponentRefStatus holds the status summary of a child component.
+// ComponentRefStatus holds the status summary of a managed component.
 type ComponentRefStatus struct {
+	// Phase summarizes the component workload state.
+	// +optional
+	// +kubebuilder:validation:Enum=Pending;Progressing;Ready;Unavailable
+	Phase string `json:"phase,omitempty"`
 	// "2/2" format showing ready vs desired replicas.
 	Ready string `json:"ready"`
-	// Reference to the child CR.
+	// Reference to the primary workload resource for this component.
 	Ref string `json:"ref"`
-	// Checksum stamped on the child CR's spec by the parent. Drives rolling
-	// restarts; surfaced here so users can see which revision each child is
-	// reconciling against.
+	// Resources lists the Kubernetes resources currently expected for this
+	// component and whether the operator can observe them.
+	// +optional
+	// +listType=map
+	// +listMapKey=kind
+	// +listMapKey=name
+	Resources []ComponentResourceStatus `json:"resources,omitempty"`
+	// Image currently configured on the component's main container.
+	// +optional
+	Image string `json:"image,omitempty"`
+	// Desired replica count used for status reporting.
+	// +optional
+	Replicas int32 `json:"replicas,omitempty"`
+	// ReadyReplicas is the number of ready component pods.
+	// +optional
+	ReadyReplicas int32 `json:"readyReplicas,omitempty"`
+	// UpdatedReplicas is the number of pods updated to the current template.
+	// +optional
+	UpdatedReplicas int32 `json:"updatedReplicas,omitempty"`
+	// AvailableReplicas is the number of available component pods.
+	// +optional
+	AvailableReplicas int32 `json:"availableReplicas,omitempty"`
+	// Checksum stamped on the component pod template by the parent. Drives
+	// rolling restarts; surfaced here so users can see which revision each
+	// component is reconciling against.
 	// +optional
 	ConfigChecksum string `json:"configChecksum,omitempty"`
+	// Message gives a short human-oriented reason when the component is not ready.
+	// +optional
+	Message string `json:"message,omitempty"`
+}
+
+// ComponentResourceStatus describes one Kubernetes resource managed for a
+// component.
+type ComponentResourceStatus struct {
+	// Resource kind, for example Deployment, Service, ConfigMap, HorizontalPodAutoscaler.
+	Kind string `json:"kind"`
+	// Resource name.
+	Name string `json:"name"`
+	// Observed status: Present or Missing.
+	// +kubebuilder:validation:Enum=Present;Missing
+	Status string `json:"status"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Version",type=string,JSONPath=`.status.version`
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.ready`
 // +kubebuilder:printcolumn:name="Available",type=string,JSONPath=`.status.conditions[?(@.type=="Available")].status`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 // +kubebuilder:validation:XValidation:rule="size(self.metadata.name) <= 63",message="metadata.name must be at most 63 characters (label values and Service names are limited to 63 characters)"

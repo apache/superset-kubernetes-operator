@@ -22,7 +22,7 @@ import (
 	"testing"
 )
 
-func TestChildName(t *testing.T) {
+func TestDerivedName(t *testing.T) {
 	tests := []struct {
 		parent string
 		suffix string
@@ -40,9 +40,9 @@ func TestChildName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.parent+tt.suffix, func(t *testing.T) {
-			got := ChildName(tt.parent, tt.suffix)
+			got := DerivedName(tt.parent, tt.suffix)
 			if got != tt.want {
-				t.Errorf("ChildName(%q, %q) = %q, want %q", tt.parent, tt.suffix, got, tt.want)
+				t.Errorf("DerivedName(%q, %q) = %q, want %q", tt.parent, tt.suffix, got, tt.want)
 			}
 		})
 	}
@@ -50,9 +50,9 @@ func TestChildName(t *testing.T) {
 
 func TestSubResourceName(t *testing.T) {
 	tests := []struct {
-		childName string
-		suffix    string
-		want      string
+		instanceName string
+		suffix       string
+		want         string
 	}{
 		{"my-superset", "web-server", "my-superset-web-server"},
 		{"my-superset", "celery-worker", "my-superset-celery-worker"},
@@ -61,10 +61,10 @@ func TestSubResourceName(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.childName+"-"+tt.suffix, func(t *testing.T) {
-			got := SubResourceName(tt.childName, tt.suffix)
+		t.Run(tt.instanceName+"-"+tt.suffix, func(t *testing.T) {
+			got := SubResourceName(tt.instanceName, tt.suffix)
 			if got != tt.want {
-				t.Errorf("SubResourceName(%q, %q) = %q, want %q", tt.childName, tt.suffix, got, tt.want)
+				t.Errorf("SubResourceName(%q, %q) = %q, want %q", tt.instanceName, tt.suffix, got, tt.want)
 			}
 		})
 	}
@@ -73,7 +73,7 @@ func TestSubResourceName(t *testing.T) {
 func TestResourceBaseName(t *testing.T) {
 	tests := []struct {
 		name          string
-		childName     string
+		instanceName  string
 		componentType ComponentType
 		want          string
 	}{
@@ -84,7 +84,7 @@ func TestResourceBaseName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := ResourceBaseName(tt.childName, tt.componentType)
+			got := ResourceBaseName(tt.instanceName, tt.componentType)
 			if got != tt.want {
 				t.Errorf("ResourceBaseName() = %q, want %q", got, tt.want)
 			}
@@ -94,8 +94,8 @@ func TestResourceBaseName(t *testing.T) {
 
 func TestConfigMapName(t *testing.T) {
 	tests := []struct {
-		childName string
-		want      string
+		instanceName string
+		want         string
 	}{
 		{"my-superset-web-server", "my-superset-web-server-config"},
 		{"my-superset-celery-worker", "my-superset-celery-worker-config"},
@@ -104,10 +104,10 @@ func TestConfigMapName(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.childName, func(t *testing.T) {
-			got := ConfigMapName(tt.childName)
+		t.Run(tt.instanceName, func(t *testing.T) {
+			got := ConfigMapName(tt.instanceName)
 			if got != tt.want {
-				t.Errorf("ConfigMapName(%q) = %q, want %q", tt.childName, got, tt.want)
+				t.Errorf("ConfigMapName(%q) = %q, want %q", tt.instanceName, got, tt.want)
 			}
 		})
 	}

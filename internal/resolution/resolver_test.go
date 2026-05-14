@@ -40,15 +40,15 @@ func pt(p *supersetv1alpha1.PodTemplate, ct *supersetv1alpha1.ContainerTemplate)
 	return p
 }
 
-func TestResolveChildSpec_NilTopLevelAndNilComponent(t *testing.T) {
-	result := ResolveChildSpec(ComponentWebServer, nil, nil, nil, nil)
+func TestResolveComponentSpec_NilTopLevelAndNilComponent(t *testing.T) {
+	result := ResolveComponentSpec(ComponentWebServer, nil, nil, nil, nil)
 
 	if result.Replicas != 1 {
 		t.Errorf("expected default replicas 1, got %d", result.Replicas)
 	}
 }
 
-func TestResolveChildSpec_TopLevelInheritedWhenComponentNil(t *testing.T) {
+func TestResolveComponentSpec_TopLevelInheritedWhenComponentNil(t *testing.T) {
 	topLevel := &SharedInput{
 		Replicas: Ptr(int32(3)),
 		PodTemplate: pt(
@@ -77,7 +77,7 @@ func TestResolveChildSpec_TopLevelInheritedWhenComponentNil(t *testing.T) {
 		),
 	}
 
-	result := ResolveChildSpec(ComponentWebServer, topLevel, nil, nil, nil)
+	result := ResolveComponentSpec(ComponentWebServer, topLevel, nil, nil, nil)
 	pt := result.PodTemplate
 	ct := pt.Container
 
@@ -128,7 +128,7 @@ func TestResolveChildSpec_TopLevelInheritedWhenComponentNil(t *testing.T) {
 	}
 }
 
-func TestResolveChildSpec_ComponentMergesWithTopLevel(t *testing.T) {
+func TestResolveComponentSpec_ComponentMergesWithTopLevel(t *testing.T) {
 	topLevel := &SharedInput{
 		Replicas: Ptr(int32(2)),
 		PodTemplate: pt(
@@ -192,7 +192,7 @@ func TestResolveChildSpec_ComponentMergesWithTopLevel(t *testing.T) {
 		Env: []corev1.EnvVar{{Name: "SUPERSET_OPERATOR__SECRET_KEY", Value: "test"}},
 	}
 
-	result := ResolveChildSpec(ComponentCeleryWorker, topLevel, component, operatorLabels, operator)
+	result := ResolveComponentSpec(ComponentCeleryWorker, topLevel, component, operatorLabels, operator)
 	pt := result.PodTemplate
 	ct := pt.Container
 
@@ -295,38 +295,38 @@ func TestResolveChildSpec_ComponentMergesWithTopLevel(t *testing.T) {
 	}
 }
 
-func TestResolveChildSpec_BeatSingleton(t *testing.T) {
+func TestResolveComponentSpec_BeatSingleton(t *testing.T) {
 	topLevel := &SharedInput{Replicas: Ptr(int32(4))}
 	component := &ComponentInput{
 		SharedInput: SharedInput{Replicas: Ptr(int32(3))},
 	}
 
-	result := ResolveChildSpec(ComponentCeleryBeat, topLevel, component, nil, nil)
+	result := ResolveComponentSpec(ComponentCeleryBeat, topLevel, component, nil, nil)
 
 	if result.Replicas != 1 {
 		t.Errorf("beat must always be 1 replica, got %d", result.Replicas)
 	}
 }
 
-func TestResolveChildSpec_BeatSingletonNilInputs(t *testing.T) {
-	result := ResolveChildSpec(ComponentCeleryBeat, nil, nil, nil, nil)
+func TestResolveComponentSpec_BeatSingletonNilInputs(t *testing.T) {
+	result := ResolveComponentSpec(ComponentCeleryBeat, nil, nil, nil, nil)
 
 	if result.Replicas != 1 {
 		t.Errorf("beat must always be 1 replica even with nil inputs, got %d", result.Replicas)
 	}
 }
 
-func TestResolveChildSpec_OperatorLabelsWithMinimalInput(t *testing.T) {
+func TestResolveComponentSpec_OperatorLabelsWithMinimalInput(t *testing.T) {
 	operatorLabels := map[string]string{"app.kubernetes.io/name": "superset"}
 
-	result := ResolveChildSpec(ComponentWebServer, nil, nil, operatorLabels, nil)
+	result := ResolveComponentSpec(ComponentWebServer, nil, nil, operatorLabels, nil)
 
 	if result.PodTemplate.Labels["app.kubernetes.io/name"] != "superset" {
 		t.Errorf("expected operator labels, got %v", result.PodTemplate.Labels)
 	}
 }
 
-func TestResolveChildSpec_OperatorInjectedMerged(t *testing.T) {
+func TestResolveComponentSpec_OperatorInjectedMerged(t *testing.T) {
 	topLevel := &SharedInput{
 		PodTemplate: pt(
 			&supersetv1alpha1.PodTemplate{
@@ -352,7 +352,7 @@ func TestResolveChildSpec_OperatorInjectedMerged(t *testing.T) {
 		InitContainers: []corev1.Container{{Name: "op-init", Image: "init:op"}},
 	}
 
-	result := ResolveChildSpec(ComponentWebServer, topLevel, nil, nil, operator)
+	result := ResolveComponentSpec(ComponentWebServer, topLevel, nil, nil, operator)
 	pt := result.PodTemplate
 	ct := pt.Container
 
@@ -387,7 +387,7 @@ func TestResolveChildSpec_OperatorInjectedMerged(t *testing.T) {
 	}
 }
 
-func TestResolveChildSpec_OperatorVolumesWinOnConflict(t *testing.T) {
+func TestResolveComponentSpec_OperatorVolumesWinOnConflict(t *testing.T) {
 	topLevel := &SharedInput{
 		PodTemplate: pt(
 			&supersetv1alpha1.PodTemplate{
@@ -411,7 +411,7 @@ func TestResolveChildSpec_OperatorVolumesWinOnConflict(t *testing.T) {
 		VolumeMounts: []corev1.VolumeMount{{Name: "superset-config", MountPath: "/app/pythonpath"}},
 	}
 
-	result := ResolveChildSpec(ComponentWebServer, topLevel, nil, nil, operator)
+	result := ResolveComponentSpec(ComponentWebServer, topLevel, nil, nil, operator)
 	pt := result.PodTemplate
 
 	if len(pt.Volumes) != 1 {
@@ -430,7 +430,7 @@ func TestResolveChildSpec_OperatorVolumesWinOnConflict(t *testing.T) {
 	}
 }
 
-func TestResolveChildSpec_DeploymentLevelFields(t *testing.T) {
+func TestResolveComponentSpec_DeploymentLevelFields(t *testing.T) {
 	strategy := &appsv1.DeploymentStrategy{
 		Type: appsv1.RollingUpdateDeploymentStrategyType,
 	}
@@ -441,7 +441,7 @@ func TestResolveChildSpec_DeploymentLevelFields(t *testing.T) {
 		},
 	}
 
-	result := ResolveChildSpec(ComponentWebServer, topLevel, nil, nil, nil)
+	result := ResolveComponentSpec(ComponentWebServer, topLevel, nil, nil, nil)
 
 	if result.DeploymentTemplate.RevisionHistoryLimit == nil || *result.DeploymentTemplate.RevisionHistoryLimit != 5 {
 		t.Error("expected revisionHistoryLimit from topLevel")
@@ -451,14 +451,14 @@ func TestResolveChildSpec_DeploymentLevelFields(t *testing.T) {
 	}
 }
 
-func TestResolveChildSpec_ContainerCommandNotInherited(t *testing.T) {
+func TestResolveComponentSpec_ContainerCommandNotInherited(t *testing.T) {
 	topLevel := &SharedInput{
 		PodTemplate: pt(nil, &supersetv1alpha1.ContainerTemplate{
 			Command: []string{"top-level-cmd"},
 		}),
 	}
 
-	result := ResolveChildSpec(ComponentWebServer, topLevel, nil, nil, nil)
+	result := ResolveComponentSpec(ComponentWebServer, topLevel, nil, nil, nil)
 	ct := result.PodTemplate.Container
 
 	// Command should NOT be inherited from top-level (it's component-only behavior)
@@ -467,7 +467,7 @@ func TestResolveChildSpec_ContainerCommandNotInherited(t *testing.T) {
 	}
 }
 
-func TestResolveChildSpec_ContainerProbesFromComponent(t *testing.T) {
+func TestResolveComponentSpec_ContainerProbesFromComponent(t *testing.T) {
 	probe := &corev1.Probe{
 		ProbeHandler: corev1.ProbeHandler{
 			HTTPGet: &corev1.HTTPGetAction{Path: "/health", Port: intstr.FromInt(8088)},
@@ -485,7 +485,7 @@ func TestResolveChildSpec_ContainerProbesFromComponent(t *testing.T) {
 		},
 	}
 
-	result := ResolveChildSpec(ComponentWebServer, nil, component, nil, nil)
+	result := ResolveComponentSpec(ComponentWebServer, nil, component, nil, nil)
 	ct := result.PodTemplate.Container
 
 	if ct.LivenessProbe != probe {
@@ -505,7 +505,7 @@ func TestResolveChildSpec_ContainerProbesFromComponent(t *testing.T) {
 	}
 }
 
-func TestResolveChildSpec_AllComponentTypes(t *testing.T) {
+func TestResolveComponentSpec_AllComponentTypes(t *testing.T) {
 	types := []ComponentType{
 		ComponentWebServer, ComponentCeleryWorker, ComponentCeleryBeat,
 		ComponentCeleryFlower, ComponentWebsocketServer, ComponentMcpServer,
@@ -513,7 +513,7 @@ func TestResolveChildSpec_AllComponentTypes(t *testing.T) {
 
 	for _, ct := range types {
 		t.Run(string(ct), func(t *testing.T) {
-			result := ResolveChildSpec(ct, nil, nil, nil, nil)
+			result := ResolveComponentSpec(ct, nil, nil, nil, nil)
 			if result == nil {
 				t.Fatal("expected non-nil result")
 			}
@@ -524,7 +524,7 @@ func TestResolveChildSpec_AllComponentTypes(t *testing.T) {
 	}
 }
 
-func TestResolveChildSpec_NewPodFields(t *testing.T) {
+func TestResolveComponentSpec_NewPodFields(t *testing.T) {
 	gracePeriod := int64(120)
 	dnsPolicy := corev1.DNSClusterFirstWithHostNet
 	topLevel := &SharedInput{
@@ -550,7 +550,7 @@ func TestResolveChildSpec_NewPodFields(t *testing.T) {
 		),
 	}
 
-	result := ResolveChildSpec(ComponentWebServer, topLevel, nil, nil, nil)
+	result := ResolveComponentSpec(ComponentWebServer, topLevel, nil, nil, nil)
 	d := result.DeploymentTemplate
 	podTpl := result.PodTemplate
 	ct := podTpl.Container
@@ -581,14 +581,14 @@ func TestResolveChildSpec_NewPodFields(t *testing.T) {
 	}
 }
 
-func TestResolveChildSpec_AutoscalingPDB_Inheritance(t *testing.T) {
+func TestResolveComponentSpec_AutoscalingPDB_Inheritance(t *testing.T) {
 	topLevel := &SharedInput{
 		Autoscaling:         &supersetv1alpha1.AutoscalingSpec{MaxReplicas: 10},
 		PodDisruptionBudget: &supersetv1alpha1.PDBSpec{MinAvailable: &intstr.IntOrString{IntVal: 1}},
 	}
 
 	t.Run("inherited when component is nil", func(t *testing.T) {
-		result := ResolveChildSpec(ComponentWebServer, topLevel, nil, nil, nil)
+		result := ResolveComponentSpec(ComponentWebServer, topLevel, nil, nil, nil)
 		if result.Autoscaling == nil || result.Autoscaling.MaxReplicas != 10 {
 			t.Error("expected top-level autoscaling inherited")
 		}
@@ -604,7 +604,7 @@ func TestResolveChildSpec_AutoscalingPDB_Inheritance(t *testing.T) {
 				PodDisruptionBudget: &supersetv1alpha1.PDBSpec{MaxUnavailable: &intstr.IntOrString{IntVal: 2}},
 			},
 		}
-		result := ResolveChildSpec(ComponentCeleryWorker, topLevel, component, nil, nil)
+		result := ResolveComponentSpec(ComponentCeleryWorker, topLevel, component, nil, nil)
 		if result.Autoscaling.MaxReplicas != 20 {
 			t.Errorf("expected component autoscaling, got maxReplicas=%d", result.Autoscaling.MaxReplicas)
 		}
@@ -617,7 +617,7 @@ func TestResolveChildSpec_AutoscalingPDB_Inheritance(t *testing.T) {
 	})
 
 	t.Run("nil when neither set", func(t *testing.T) {
-		result := ResolveChildSpec(ComponentWebServer, &SharedInput{}, nil, nil, nil)
+		result := ResolveComponentSpec(ComponentWebServer, &SharedInput{}, nil, nil, nil)
 		if result.Autoscaling != nil {
 			t.Error("expected nil autoscaling when neither set")
 		}

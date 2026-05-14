@@ -76,24 +76,22 @@ func TestAnyComponentEnabled(t *testing.T) {
 	}
 }
 
-func TestIsReadyString(t *testing.T) {
+func TestIsComponentReady(t *testing.T) {
 	tests := []struct {
-		input string
-		want  bool
+		name   string
+		status *supersetv1alpha1.ComponentRefStatus
+		want   bool
 	}{
-		{"", false},
-		{"0/0", false},
-		{"0/1", false},
-		{"1/1", true},
-		{"2/2", true},
-		{"1/2", false},
-		{"invalid", false},
+		{"ready", &supersetv1alpha1.ComponentRefStatus{Phase: "Ready", Ready: "1/1"}, true},
+		{"progressing", &supersetv1alpha1.ComponentRefStatus{Phase: "Progressing", Ready: "1/2"}, false},
+		{"unavailable", &supersetv1alpha1.ComponentRefStatus{Phase: "Unavailable", Ready: "0/1"}, false},
+		{"pending", &supersetv1alpha1.ComponentRefStatus{Phase: "Pending", Ready: "0/1"}, false},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.input, func(t *testing.T) {
-			if got := isReadyString(tt.input); got != tt.want {
-				t.Errorf("isReadyString(%q) = %v, want %v", tt.input, got, tt.want)
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isComponentReady(tt.status); got != tt.want {
+				t.Errorf("isComponentReady() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -290,7 +288,7 @@ func TestBuildOperatorInjected(t *testing.T) {
 	}
 
 	// Empty config: no volumes, no mounts.
-	empty := buildOperatorInjected("", "child", "", nil)
+	empty := buildOperatorInjected("", "component", "", nil)
 	if len(empty.Volumes) != 0 {
 		t.Errorf("expected 0 volumes for empty config, got %d", len(empty.Volumes))
 	}

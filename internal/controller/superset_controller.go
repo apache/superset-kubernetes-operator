@@ -26,15 +26,15 @@ import (
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	policyv1 "k8s.io/api/policy/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -44,7 +44,6 @@ import (
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	naming "github.com/apache/superset-kubernetes-operator/internal/common"
-	"github.com/apache/superset-kubernetes-operator/internal/resolution"
 )
 
 // SupersetReconciler reconciles a Superset object.
@@ -57,24 +56,13 @@ type SupersetReconciler struct {
 
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersets,verbs=get;list;watch
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersets/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetwebservers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetwebservers/status,verbs=get
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetceleryworkers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetceleryworkers/status,verbs=get
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetcelerybeats,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetcelerybeats/status,verbs=get
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetceleryflowers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetceleryflowers/status,verbs=get
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetwebsocketservers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetwebsocketservers/status,verbs=get
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetmcpservers,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetmcpservers/status,verbs=get
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetlifecycletasks,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=superset.apache.org,resources=supersetlifecycletasks/status,verbs=get
 // +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch;update
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=list;watch
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;list;watch;create;update;patch;delete
 
 func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
@@ -131,8 +119,8 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, fmt.Errorf("reconciling ServiceAccount: %w", err)
 	}
 
-	// Phase 2.5: Lifecycle tasks (migrate + init) via SupersetLifecycleTask child CRs.
-	// Gates component deployment on lifecycle completion.
+	// Phase 2.5: Lifecycle tasks (clone + migrate + rotate + init) via
+	// parent-owned bare Pods. Gates component deployment on lifecycle completion.
 	topLevel := convertTopLevelSpec(&superset.Spec)
 	saName := resolveServiceAccountName(superset)
 
@@ -230,38 +218,6 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	return ctrl.Result{}, nil
 }
 
-// applyChildCR creates or updates a child CR with the resolved flat spec.
-func (r *SupersetReconciler) applyChildCR(
-	ctx context.Context,
-	superset *supersetv1alpha1.Superset,
-	childName string,
-	componentType naming.ComponentType,
-	flat *resolution.FlatSpec,
-	configChecksum, saName string,
-	imageOverride *supersetv1alpha1.ImageOverrideSpec,
-	newObj func() client.Object,
-	applySpec func(client.Object, supersetv1alpha1.FlatComponentSpec, string),
-) error {
-	obj := newObj()
-	obj.SetName(childName)
-	obj.SetNamespace(superset.Namespace)
-
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, obj, func() error {
-		if err := controllerutil.SetControllerReference(superset, obj, r.Scheme); err != nil {
-			return err
-		}
-		obj.SetLabels(mergeLabels(obj.GetLabels(), map[string]string{
-			naming.LabelKeyName:      naming.LabelValueApp,
-			naming.LabelKeyComponent: string(componentType),
-			naming.LabelKeyParent:    superset.Name,
-		}))
-		flatSpec := flatSpecFromResolution(flat, &superset.Spec.Image, imageOverride, saName)
-		applySpec(obj, flatSpec, configChecksum)
-		return nil
-	})
-	return err
-}
-
 // --- Conversion helpers: CRD types -> resolution engine types ---
 
 // --- Shared resource reconciliation ---
@@ -322,83 +278,6 @@ func isOwnedBy(obj, owner client.Object) bool {
 	return false
 }
 
-// --- Status aggregation ---
-
-func (r *SupersetReconciler) updateStatus(ctx context.Context, superset *supersetv1alpha1.Superset, origSuperset *supersetv1alpha1.Superset) error {
-	superset.Status.ObservedGeneration = superset.Generation
-	superset.Status.Version = superset.Spec.Image.Tag
-
-	if superset.Status.Components == nil {
-		superset.Status.Components = &supersetv1alpha1.ComponentStatusMap{}
-	}
-
-	allReady := true
-
-	// Table-driven status aggregation.
-	for _, desc := range componentDescriptors {
-		isEnabled := desc.extract(&superset.Spec) != nil
-		if isEnabled {
-			childName := desc.childName(&superset.Spec, superset.Name)
-			status := r.getChildStatus(ctx, superset.Namespace, childName, desc.kind)
-			desc.setStatus(superset.Status.Components, status)
-			if status != nil && !isReadyString(status.Ready) {
-				allReady = false
-			}
-		} else {
-			desc.setStatus(superset.Status.Components, nil)
-		}
-	}
-
-	if !anyComponentEnabled(superset) {
-		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeAvailable,
-			metav1.ConditionTrue, "NoComponentsEnabled", "No components are enabled", superset.Generation)
-		superset.Status.Phase = phaseRunning
-	} else if allReady {
-		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeAvailable,
-			metav1.ConditionTrue, "AllComponentsReady", "All components are ready", superset.Generation)
-		superset.Status.Phase = phaseRunning
-	} else {
-		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeAvailable,
-			metav1.ConditionFalse, "ComponentsNotReady", "One or more components are not ready", superset.Generation)
-		superset.Status.Phase = phaseDegraded
-	}
-
-	return patchStatusIfChanged(ctx, r.Client, superset, origSuperset, origSuperset.Status, superset.Status)
-}
-
-// getChildStatus reads a child CR's status using unstructured API.
-func (r *SupersetReconciler) getChildStatus(ctx context.Context, namespace, childName, kind string) *supersetv1alpha1.ComponentRefStatus {
-	obj := &unstructured.Unstructured{}
-	obj.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   "superset.apache.org",
-		Version: "v1alpha1",
-		Kind:    kind,
-	})
-
-	err := r.Get(ctx, types.NamespacedName{Name: childName, Namespace: namespace}, obj)
-	if err != nil {
-		log := logf.FromContext(ctx)
-		log.Info("child CR not found for status", "kind", kind, "name", childName, "error", err)
-		return &supersetv1alpha1.ComponentRefStatus{
-			Ready: "0/0",
-			Ref:   kind + "/" + childName,
-		}
-	}
-
-	// Read the status.ready field from the unstructured object.
-	ready, _, _ := unstructured.NestedString(obj.Object, "status", "ready")
-	// Config checksum is stamped on child spec by the parent and drives
-	// rolling restarts. Surfacing it on parent status lets users confirm
-	// that a change has propagated to each child.
-	configChecksum, _, _ := unstructured.NestedString(obj.Object, "spec", "configChecksum")
-
-	return &supersetv1alpha1.ComponentRefStatus{
-		Ready:          ready,
-		Ref:            kind + "/" + childName,
-		ConfigChecksum: configChecksum,
-	}
-}
-
 // --- Utility functions ---
 
 func resolveServiceAccountName(superset *supersetv1alpha1.Superset) string {
@@ -415,15 +294,6 @@ func resolveServiceAccountName(superset *supersetv1alpha1.Superset) string {
 		return superset.Spec.ServiceAccount.Name
 	}
 	return superset.Name
-}
-
-func anyComponentEnabled(superset *supersetv1alpha1.Superset) bool {
-	return superset.Spec.WebServer != nil ||
-		superset.Spec.CeleryWorker != nil ||
-		superset.Spec.CeleryBeat != nil ||
-		superset.Spec.CeleryFlower != nil ||
-		superset.Spec.WebsocketServer != nil ||
-		superset.Spec.McpServer != nil
 }
 
 func computeChecksum(obj any) string {
@@ -448,18 +318,6 @@ func celerySpecFrom(cw *supersetv1alpha1.CeleryWorkerComponentSpec) *supersetv1a
 		return nil
 	}
 	return cw.Celery
-}
-
-func isReadyString(ready string) bool {
-	if ready == "" || ready == "0/0" {
-		return false
-	}
-	// Parse "X/Y" and check X == Y and X > 0.
-	var readyCount, desiredCount int
-	if _, err := fmt.Sscanf(ready, "%d/%d", &readyCount, &desiredCount); err != nil {
-		return false
-	}
-	return readyCount > 0 && readyCount == desiredCount
 }
 
 // pruneOrphans lists all resources matching the parent+component labels and deletes
@@ -512,17 +370,13 @@ func saCreateEnabled(sa *supersetv1alpha1.ServiceAccountSpec) bool {
 func (r *SupersetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	b := ctrl.NewControllerManagedBy(mgr).
 		For(&supersetv1alpha1.Superset{}).
-		Owns(&supersetv1alpha1.SupersetLifecycleTask{}).
-		Owns(&supersetv1alpha1.SupersetWebServer{}).
-		Owns(&supersetv1alpha1.SupersetCeleryWorker{}).
-		Owns(&supersetv1alpha1.SupersetCeleryBeat{}).
-		Owns(&supersetv1alpha1.SupersetCeleryFlower{}).
-		Owns(&supersetv1alpha1.SupersetWebsocketServer{}).
-		Owns(&supersetv1alpha1.SupersetMcpServer{}).
 		Owns(&corev1.ServiceAccount{}).
 		Owns(&corev1.Service{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.Pod{}).
+		Owns(&autoscalingv2.HorizontalPodAutoscaler{}).
+		Owns(&policyv1.PodDisruptionBudget{}).
 		Owns(&networkingv1.Ingress{}).
 		Owns(&networkingv1.NetworkPolicy{}).
 		Named("superset")
@@ -540,7 +394,7 @@ func (r *SupersetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // reconcileParentOwnedConfigMap creates or updates a ConfigMap owned by the
 // parent Superset CR. The ConfigMap contains superset_config.py and is mounted
-// by child component pods via a conventional name.
+// by component pods via a conventional name.
 func reconcileParentOwnedConfigMap(
 	ctx context.Context,
 	c client.Client,
