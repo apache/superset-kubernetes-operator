@@ -36,6 +36,7 @@ The operator manages the full Superset lifecycle: database migrations, configura
 - **Lifecycle automation** — database cloning, schema migrations, secret key rotation, and application init run as sequenced tasks with automatic change detection and checksum-based re-execution
 - **Networking** — Gateway API (HTTPRoute) and Ingress support with per-component routing
 - **Production hardening** — HPA with custom metrics, PodDisruptionBudgets, NetworkPolicies, Prometheus ServiceMonitor
+- **Flexible install scope** — cluster-scoped (default) or namespace-scoped; the namespace-scoped Helm install renders no manager `ClusterRole` at all, so it works on restricted clusters that forbid cluster-scoped RBAC
 
 ## What it looks like
 

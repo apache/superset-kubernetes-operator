@@ -267,16 +267,49 @@ The operator does **not** request:
 
 ### Install Scope
 
-The operator currently installs cluster-scoped: the manager ServiceAccount is
-bound to a `ClusterRole` and watches `Superset` CRs across every namespace.
-This is the common operator pattern and fits clusters where the operator is
-administered centrally by cluster admins.
+The operator supports two install modes, selectable at deploy time:
 
-A namespace-scoped install mode (single-namespace watch with
-`Role`/`RoleBinding` instead of `ClusterRole`/`ClusterRoleBinding`) is a
-future consideration for single-tenant deployments that want a tighter blast
-radius. CRD installation would still require cluster-admin privileges; only
-the runtime watch scope and RBAC would narrow.
+- **Cluster-scoped (default).** The manager ServiceAccount is bound to a
+  `ClusterRole` via a `ClusterRoleBinding`, and the cache watches every
+  namespace. Appropriate when a cluster admin administers the operator
+  centrally. Helm: `watch.scope: cluster`.
+- **Namespace-scoped.** The manager watches only the namespaces listed in
+  `WATCH_NAMESPACE` (comma-separated). Appropriate for restricted clusters
+  that forbid `ClusterRole` creation, or for single-tenant installs that
+  want a tighter blast radius.
+
+The RBAC shape differs between Helm and Kustomize for namespace-scoped
+installs:
+
+- **Helm (`watch.scope: namespaces`)** renders one `Role` and one
+  `RoleBinding` per watched namespace, and does **not** create a manager
+  `ClusterRole`/`ClusterRoleBinding` at all. With CRDs preinstalled by a
+  cluster admin and `metrics.enabled: false`, this install succeeds on
+  clusters that deny cluster-scoped RBAC to the installer (see the
+  Constraints list below).
+- **Kustomize (`config/components/watch-namespace/`)** retains the
+  controller-gen–generated `ClusterRole` but replaces the
+  `ClusterRoleBinding` with a namespaced `RoleBinding` pointing at that
+  same `ClusterRole`. A `RoleBinding` → `ClusterRole` pairing restricts
+  the granted permissions to the binding's namespace. The Kustomize path
+  therefore still requires cluster-scoped RBAC *at install time* for the
+  `ClusterRole`; its runtime footprint is namespace-scoped.
+
+Constraints common to both paths:
+
+- **CRD installation always needs cluster-admin.** CRDs are cluster-scoped
+  resources; watch-scope does not change that.
+- **Secure metrics auth still needs cluster-scoped RBAC.** The metrics
+  endpoint uses `TokenReview`/`SubjectAccessReview`, which are cluster-level
+  APIs. On clusters that forbid `ClusterRole` entirely, disable metrics
+  (`metrics.enabled: false` in Helm values).
+- **Changing the watched-namespace list requires a manager restart.** The
+  manager cache is built at startup; dynamic reconfiguration is not
+  supported.
+- **Superset CRs in unwatched namespaces are silently ignored.** The
+  operator logs the watched set at startup but does not detect stray CRs
+  elsewhere — confirm by tailing the startup log or listing `Supersets`
+  across namespaces manually if users report missing reconciliation.
 
 ## What Is In Scope
 

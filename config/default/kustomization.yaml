@@ -28,6 +28,15 @@ resources:
 # self-signed built-in cert to a cert-manager Certificate.
 #- ../certmanager
 
+# [NAMESPACED] Switch the operator to namespace-scoped mode: the manager
+# watches only its own deployment namespace (Downward API), the manager
+# ClusterRoleBinding is replaced with a namespaced RoleBinding to the same
+# ClusterRole. CRD installation still requires cluster-admin. For multi-
+# namespace watch, fork the component and add one RoleBinding per target
+# namespace (see comment inside component kustomization.yaml).
+#components:
+#- ../components/watch-namespace
+
 patches:
 # [METRICS] The following patch will enable the metrics endpoint using HTTPS and the port :8443.
 # More info: https://book.kubebuilder.io/reference/metrics

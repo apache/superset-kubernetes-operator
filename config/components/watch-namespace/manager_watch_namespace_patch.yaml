@@ -13,14 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{{- include "superset-operator.validateWatchScope" . -}}
-{{- if eq (default "cluster" .Values.watch.scope) "cluster" }}
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: {{ include "superset-operator.fullname" . }}-manager
-  labels:
-    {{- include "superset-operator.labels" . | nindent 4 }}
-rules:
-  {{- include "superset-operator.managerRules" . | nindent 2 }}
-{{- end }}
+  name: controller-manager
+spec:
+  template:
+    spec:
+      containers:
+        - name: manager
+          env:
+            - name: WATCH_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace

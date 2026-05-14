@@ -23,6 +23,8 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -32,6 +34,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -151,12 +154,20 @@ func main() {
 		})
 	}
 
+	defaultNamespaces := parseWatchNamespaces(os.Getenv("WATCH_NAMESPACE"))
+	if len(defaultNamespaces) > 0 {
+		setupLog.Info("watching namespaces", "namespaces", sortedKeys(defaultNamespaces))
+	} else {
+		setupLog.Info("watching all namespaces (cluster-scoped)")
+	}
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsServerOptions,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "258102fe.apache.org",
+		Cache:                  cache.Options{DefaultNamespaces: defaultNamespaces},
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
 		// when the Manager ends. This requires the binary to immediately end when the
 		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
@@ -223,4 +234,26 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+// parseWatchNamespaces parses a comma-separated namespace list from the
+// WATCH_NAMESPACE env var. Whitespace is trimmed and empty entries are
+// skipped. An empty result yields a cluster-scoped watch.
+func parseWatchNamespaces(raw string) map[string]cache.Config {
+	out := map[string]cache.Config{}
+	for ns := range strings.SplitSeq(raw, ",") {
+		if ns = strings.TrimSpace(ns); ns != "" {
+			out[ns] = cache.Config{}
+		}
+	}
+	return out
+}
+
+func sortedKeys(m map[string]cache.Config) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }

@@ -58,6 +58,54 @@ helm install superset-operator \
 See `charts/superset-operator/values.yaml` for all available Helm values and
 [Downloads](../reference/downloads.md) for published images and tag conventions.
 
+### Namespace-scoped install
+
+By default the operator installs cluster-scoped (watches all namespaces and
+binds a `ClusterRole`). For restricted clusters that forbid cluster-scoped
+RBAC, or for single-tenant hardening, switch to namespace-scoped mode.
+
+With Helm, set `watch.scope: namespaces` and list the namespaces to watch:
+
+```bash
+helm install superset-operator \
+  oci://ghcr.io/apache/superset-kubernetes-operator/charts/superset-operator \
+  --version <version> \
+  --namespace superset-operator-system \
+  --create-namespace \
+  --set watch.scope=namespaces \
+  --set 'watch.namespaces={team-a,team-b}'
+```
+
+Each namespace in `watch.namespaces` must already exist — Helm renders
+`Role` and `RoleBinding` resources into those namespaces during install and
+will fail if they are absent. Create them up front (e.g.,
+`kubectl create namespace team-a`).
+
+An empty `watch.namespaces` list falls back to watching the release
+namespace only. In namespace-scoped mode the chart renders a `Role` +
+`RoleBinding` per watched namespace and does not create a manager
+`ClusterRole`/`ClusterRoleBinding`.
+
+Kustomize users can opt in via the bundled `watch-namespace` component —
+uncomment the `[NAMESPACED]` block in `config/default/kustomization.yaml`.
+The Kustomize path is single-namespace only (the manager watches its own
+deployment namespace via the Downward API); for multi-namespace watch,
+extend the component.
+
+**Constraints in both modes:**
+
+- CRD installation always requires cluster-admin — CRDs are cluster-scoped.
+- Secure metrics auth (`TokenReview`/`SubjectAccessReview`) needs
+  cluster-scoped RBAC. On clusters that forbid `ClusterRole` entirely, set
+  `metrics.enabled: false`.
+- Changing `watch.namespaces` requires a `helm upgrade` — the manager cache
+  is built at startup, so the pod must restart to pick up a new list.
+- Superset CRs created in namespaces outside `watch.namespaces` are not
+  reconciled (no log, no status).
+
+See [Install Scope](../reference/security.md#install-scope) in the security
+reference for the trust-model context.
+
 ## 2. Create secrets
 
 Superset requires a secret key for session signing. In production, mount it

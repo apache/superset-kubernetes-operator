@@ -75,6 +75,11 @@ spec:
           readinessProbe:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- if eq (default "cluster" .Values.watch.scope) "namespaces" }}
+          env:
+            - name: WATCH_NAMESPACE
+              value: {{ include "superset-operator.watchNamespacesCSV" . | quote }}
+          {{- end }}
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}

@@ -84,3 +84,73 @@ Manager image.
 {{- $tag := default .Chart.AppVersion .Values.image.tag }}
 {{- printf "%s:%s" .Values.image.repository $tag }}
 {{- end }}
+
+{{/*
+Validate watch.scope. Must be "cluster" or "namespaces".
+*/}}
+{{- define "superset-operator.validateWatchScope" -}}
+{{- $scope := default "cluster" .Values.watch.scope -}}
+{{- if not (has $scope (list "cluster" "namespaces")) -}}
+{{- fail (printf "watch.scope must be \"cluster\" or \"namespaces\", got %q" $scope) -}}
+{{- end -}}
+{{- end }}
+
+{{/*
+Canonical comma-separated list of watched namespaces. Empty/whitespace
+entries are skipped, duplicates removed. When the resulting list is empty
+the release namespace is used.
+*/}}
+{{- define "superset-operator.watchNamespacesCSV" -}}
+{{- $out := list -}}
+{{- range default (list) .Values.watch.namespaces -}}
+  {{- $t := trim . -}}
+  {{- if $t -}}{{- $out = append $out $t -}}{{- end -}}
+{{- end -}}
+{{- if not $out -}}{{- $out = list .Release.Namespace -}}{{- end -}}
+{{- $out | uniq | join "," -}}
+{{- end }}
+
+{{/*
+Manager RBAC rules. Shared by the cluster-scoped ClusterRole and the
+per-namespace Roles so the two render paths can't drift. Include with
+{{- include "superset-operator.managerRules" . | nindent N }} at the
+desired indentation.
+*/}}
+{{- define "superset-operator.managerRules" -}}
+- apiGroups: [""]
+  resources: [configmaps, serviceaccounts, services]
+  verbs: [create, delete, get, list, patch, update, watch]
+- apiGroups: [""]
+  resources: [pods]
+  verbs: [create, delete, get, list, watch]
+- apiGroups: [apps]
+  resources: [deployments]
+  verbs: [create, delete, get, list, patch, update, watch]
+- apiGroups: [autoscaling]
+  resources: [horizontalpodautoscalers]
+  verbs: [create, delete, get, list, patch, update, watch]
+- apiGroups: [events.k8s.io]
+  resources: [events]
+  verbs: [create, patch, update]
+- apiGroups: [gateway.networking.k8s.io]
+  resources: [httproutes]
+  verbs: [create, delete, get, list, patch, update, watch]
+- apiGroups: [monitoring.coreos.com]
+  resources: [servicemonitors]
+  verbs: [create, delete, get, list, patch, update, watch]
+- apiGroups: [networking.k8s.io]
+  resources: [ingresses, networkpolicies]
+  verbs: [create, delete, get, list, patch, update, watch]
+- apiGroups: [policy]
+  resources: [poddisruptionbudgets]
+  verbs: [create, delete, get, list, patch, update, watch]
+- apiGroups: [superset.apache.org]
+  resources: [supersetcelerybeats, supersetceleryflowers, supersetceleryworkers, supersetlifecycletasks, supersetmcpservers, supersetwebservers, supersetwebsocketservers]
+  verbs: [create, delete, get, list, patch, update, watch]
+- apiGroups: [superset.apache.org]
+  resources: [supersetcelerybeats/status, supersetceleryflowers/status, supersetceleryworkers/status, supersetlifecycletasks/status, supersetmcpservers/status, supersets/status, supersetwebservers/status, supersetwebsocketservers/status]
+  verbs: [get, patch, update]
+- apiGroups: [superset.apache.org]
+  resources: [supersets]
+  verbs: [get, list, watch]
+{{- end }}

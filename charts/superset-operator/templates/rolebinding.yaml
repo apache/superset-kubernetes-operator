@@ -14,13 +14,24 @@
 # limitations under the License.
 
 {{- include "superset-operator.validateWatchScope" . -}}
-{{- if eq (default "cluster" .Values.watch.scope) "cluster" }}
+{{- if eq (default "cluster" .Values.watch.scope) "namespaces" }}
+{{- $root := . -}}
+{{- range $ns := splitList "," (include "superset-operator.watchNamespacesCSV" $root) }}
+---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: RoleBinding
 metadata:
-  name: {{ include "superset-operator.fullname" . }}-manager
+  name: {{ include "superset-operator.fullname" $root }}-manager
+  namespace: {{ $ns }}
   labels:
-    {{- include "superset-operator.labels" . | nindent 4 }}
-rules:
-  {{- include "superset-operator.managerRules" . | nindent 2 }}
+    {{- include "superset-operator.labels" $root | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "superset-operator.fullname" $root }}-manager
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "superset-operator.serviceAccountName" $root }}
+    namespace: {{ $root.Release.Namespace }}
+{{- end }}
 {{- end }}

@@ -13,14 +13,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-{{- include "superset-operator.validateWatchScope" . -}}
-{{- if eq (default "cluster" .Values.watch.scope) "cluster" }}
+# Namespaced RoleBinding that binds the generated manager ClusterRole to the
+# operator ServiceAccount. Because this is a RoleBinding (not a
+# ClusterRoleBinding), the granted permissions apply only to this namespace
+# — which confines the operator's namespaced resource access to wherever
+# this binding is created.
+#
+# The `namespace: system` placeholder on the subject matches the one used by
+# config/rbac/role_binding.yaml; the parent kustomization's top-level
+# namespace: field rewrites it at build time.
+
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: RoleBinding
 metadata:
-  name: {{ include "superset-operator.fullname" . }}-manager
-  labels:
-    {{- include "superset-operator.labels" . | nindent 4 }}
-rules:
-  {{- include "superset-operator.managerRules" . | nindent 2 }}
-{{- end }}
+  name: manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: manager-role
+subjects:
+  - kind: ServiceAccount
+    name: controller-manager
+    namespace: system

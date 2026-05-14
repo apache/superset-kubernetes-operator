@@ -96,3 +96,27 @@ affinity: {}
 
 podAnnotations: {}
 podLabels: {}
+
+# watch controls which namespaces the operator reconciles.
+#
+# scope: cluster (default) — watch all namespaces. Manager RBAC is rendered
+#   as ClusterRole + ClusterRoleBinding. Requires cluster-scoped RBAC on
+#   install.
+# scope: namespaces — watch only the namespaces listed in watch.namespaces
+#   (empty list falls back to the release namespace). Manager RBAC is
+#   rendered as a Role + RoleBinding per watched namespace; no manager
+#   ClusterRole is created. Use this on restricted clusters that forbid
+#   cluster-scoped RBAC, or for single-tenant hardening.
+#
+# Constraints:
+# - CRD installation always requires cluster-admin, regardless of scope.
+# - Secure metrics auth still needs a cluster-scoped RBAC entry because
+#   TokenReview/SubjectAccessReview are cluster-level APIs. On clusters that
+#   forbid ClusterRole entirely, set metrics.enabled=false.
+# - Updating watch.namespaces requires `helm upgrade` and restarts the
+#   manager so the cache picks up the new list.
+# - Superset CRs created in namespaces outside watch.namespaces are not
+#   reconciled (no log, no status).
+watch:
+  scope: cluster
+  namespaces: []
