@@ -122,11 +122,10 @@ func TestGetComponentStatusFromDeployment(t *testing.T) {
 		name          string
 		replicas      int32
 		readyReplicas int32
-		wantReady     string
 	}{
-		{"all ready", 3, 3, "3/3"},
-		{"partially ready", 3, 1, "1/3"},
-		{"not ready", 2, 0, "0/2"},
+		{"all ready", 3, 3},
+		{"partially ready", 3, 1},
+		{"not ready", 2, 0},
 	}
 
 	for _, tt := range tests {
@@ -156,11 +155,12 @@ func TestGetComponentStatusFromDeployment(t *testing.T) {
 
 			status := r.getComponentStatus(context.Background(), superset, webServerDescriptor)
 
-			if status.Ready != tt.wantReady {
-				t.Errorf("expected Ready=%s, got %s", tt.wantReady, status.Ready)
+			if status.Replicas != tt.replicas || status.ReadyReplicas != tt.readyReplicas {
+				t.Errorf("expected replicas=%d ready=%d, got replicas=%d ready=%d",
+					tt.replicas, tt.readyReplicas, status.Replicas, status.ReadyReplicas)
 			}
-			if status.Ref != "Deployment/test-web-server" {
-				t.Errorf("expected deployment ref, got %s", status.Ref)
+			if !hasComponentResource(status.Resources, "Deployment", "test-web-server", "Present") {
+				t.Errorf("expected Deployment/test-web-server resource Present, got %#v", status.Resources)
 			}
 			if status.ConfigChecksum != "sha256:test" {
 				t.Errorf("expected config checksum, got %s", status.ConfigChecksum)
@@ -192,11 +192,11 @@ func TestGetComponentStatusMissingDeployment(t *testing.T) {
 	r := &SupersetReconciler{Client: c, Scheme: scheme}
 
 	status := r.getComponentStatus(context.Background(), superset, webServerDescriptor)
-	if status.Ready != "0/1" {
-		t.Fatalf("expected missing deployment to report 0/1, got %s", status.Ready)
+	if status.Replicas != 1 || status.ReadyReplicas != 0 {
+		t.Fatalf("expected missing deployment to report replicas=1 ready=0, got replicas=%d ready=%d", status.Replicas, status.ReadyReplicas)
 	}
-	if status.Ref != "Deployment/test-web-server" {
-		t.Fatalf("expected missing deployment ref, got %s", status.Ref)
+	if !hasComponentResource(status.Resources, "Deployment", "test-web-server", "Missing") {
+		t.Fatalf("expected Deployment/test-web-server resource Missing, got %#v", status.Resources)
 	}
 
 	deploy := &appsv1.Deployment{}
@@ -219,8 +219,8 @@ func TestDrainedComponentStatusUsesValidResourceStatus(t *testing.T) {
 	if status.Phase != componentPhaseDrained {
 		t.Fatalf("expected drained phase, got %q", status.Phase)
 	}
-	if status.Ready != "0/1" {
-		t.Fatalf("expected drained ready 0/1, got %q", status.Ready)
+	if status.Replicas != 1 {
+		t.Fatalf("expected drained desired replicas 1, got %d", status.Replicas)
 	}
 	if len(status.Resources) != 1 {
 		t.Fatalf("expected deployment resource status, got %d resources", len(status.Resources))
@@ -255,14 +255,12 @@ func TestUpdateLifecycleComponentStatusCountsOnlyWebServerUnavailableDuringMaint
 	if superset.Status.Ready != "1/2" {
 		t.Fatalf("expected aggregate Ready=1/2 during maintenance, got %q", superset.Status.Ready)
 	}
-	if superset.Status.Components.WebServer.Ready != "0/1" {
-		t.Fatalf("expected web-server ready 0/1 during maintenance, got %q", superset.Status.Components.WebServer.Ready)
-	}
 	if superset.Status.Components.WebServer.ReadyReplicas != 0 {
 		t.Fatalf("expected web-server ready replicas to be suppressed during maintenance, got %d", superset.Status.Components.WebServer.ReadyReplicas)
 	}
-	if superset.Status.Components.CeleryWorker.Ready != "1/1" {
-		t.Fatalf("expected celery worker ready 1/1 during maintenance, got %q", superset.Status.Components.CeleryWorker.Ready)
+	if superset.Status.Components.CeleryWorker.ReadyReplicas != 1 || superset.Status.Components.CeleryWorker.Replicas != 1 {
+		t.Fatalf("expected celery worker 1/1 ready replicas during maintenance, got %d/%d",
+			superset.Status.Components.CeleryWorker.ReadyReplicas, superset.Status.Components.CeleryWorker.Replicas)
 	}
 	if !hasConditionReason(superset.Status.Conditions, supersetv1alpha1.ConditionTypeAvailable, "MaintenanceActive") {
 		t.Fatalf("expected Available condition reason MaintenanceActive, got %#v", superset.Status.Conditions)
@@ -400,6 +398,15 @@ func progressingDeployment(name string) *appsv1.Deployment {
 func hasConditionReason(conditions []metav1.Condition, conditionType, reason string) bool {
 	for _, condition := range conditions {
 		if condition.Type == conditionType && condition.Reason == reason {
+			return true
+		}
+	}
+	return false
+}
+
+func hasComponentResource(resources []supersetv1alpha1.ComponentResourceStatus, kind, name, status string) bool {
+	for _, r := range resources {
+		if r.Kind == kind && r.Name == name && r.Status == status {
 			return true
 		}
 	}

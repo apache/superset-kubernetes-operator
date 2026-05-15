@@ -68,9 +68,6 @@ func TestReconcileLifecycleTaskJob_CheckpointsCompletionBeforeRetention(t *testi
 	if taskRef.State != taskStateComplete || taskRef.CompletedChecksum != taskChecksum {
 		t.Fatalf("expected completed status with checksum, got state=%q checksum=%q", taskRef.State, taskRef.CompletedChecksum)
 	}
-	if taskRef.Ref != "Job/test-migrate" || taskRef.JobName != "test-migrate" {
-		t.Fatalf("expected job ref/name, got ref=%q jobName=%q", taskRef.Ref, taskRef.JobName)
-	}
 	if err := c.Get(ctx, types.NamespacedName{Name: job.Name, Namespace: job.Namespace}, &batchv1.Job{}); err != nil {
 		t.Fatalf("completed job should remain until status persistence cleanup: %v", err)
 	}

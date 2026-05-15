@@ -44,7 +44,7 @@ explicitly with `spec.lifecycle.disabled: true`.
 
 - Clone must complete before migrate starts; migrate before rotate; rotate before init
 - Components are not created or updated until all enabled tasks complete
-- When config or image changes require a re-run, the parent deletes the old task Pod and creates a fresh one
+- When config or image changes require a re-run, the parent deletes the old task Job and creates a fresh one
 
 ## Task Triggers
 
@@ -134,7 +134,7 @@ the `trigger` field on a cron schedule. This requires a CronJob resource,
 ServiceAccount, RoleBinding, and a kubectl image, but keeps the scheduling
 logic outside the operator.
 
-When disabled, the task's Pods and ConfigMap are deleted, its projected status
+When disabled, the task's Job and ConfigMap are deleted, its projected status
 is cleared from the parent, and it does not participate in the pipeline.
 Downstream tasks still run but don't receive propagation from the disabled task.
 
@@ -266,14 +266,13 @@ spec:
         repository: my-org/maintenance-server
         tag: v2
       replicas: 2
-      deploymentTemplate:
-        podTemplate:
-          container:
-            command: ["/serve", "--port=8088", "--redirect-all=/"]
-            resources:
-              requests:
-                cpu: 50m
-                memory: 64Mi
+      podTemplate:
+        container:
+          command: ["/serve", "--port=8088", "--redirect-all=/"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
 ```
 
 In custom mode, `title`, `message`, and `body` are passed as environment variables
@@ -356,7 +355,7 @@ spec:
 ```
 
 On failure, the operator retries with exponential backoff (`10s * 2^(attempt-1)`,
-capped at 5m). If a pod exceeds the timeout while Running or Pending, it counts
+capped at 5m). If a Job exceeds the timeout while Running or Pending, it counts
 as a failed attempt.
 
 **Task retention policies:**
@@ -703,29 +702,25 @@ Lifecycle task progress is tracked per-task in the parent status:
 ```yaml
 status:
   lifecycle:
-    phase: Complete        # Idle | Cloning | Draining | Migrating | Rotating | Initializing | Restoring | Complete | Blocked | AwaitingApproval
+    phase: Complete        # Cloning | Draining | Migrating | Rotating | Initializing | Restoring | Complete | Blocked | AwaitingApproval
     clone:
       state: Complete      # Pending | Running | Complete | Failed (only present when clone is enabled)
-      podName: superset-staging-clone-k8x2m
-      duration: "4m32s"
       attempts: 1
     migrate:
       state: Complete      # Pending | Running | Complete | Failed
-      podName: my-superset-migrate-x7k2m
       startedAt: "2026-03-16T10:00:00Z"
       completedAt: "2026-03-16T10:00:12Z"
-      duration: "12s"
       attempts: 1
       image: apache/superset:latest
     init:
       state: Complete
-      podName: my-superset-init-a9b3k
       startedAt: "2026-03-16T10:00:13Z"
       completedAt: "2026-03-16T10:00:22Z"
-      duration: "9s"
       attempts: 1
       image: apache/superset:latest
 ```
+
+Task Job names are deterministic: `{parentName}-{taskType}` (e.g. `my-superset-migrate`). Inspect the Job directly with `kubectl get job my-superset-migrate`.
 
 **Parent phase values related to lifecycle:**
 

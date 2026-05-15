@@ -92,6 +92,16 @@ func setCondition(conditions *[]metav1.Condition, conditionType string, status m
 	})
 }
 
+// removeCondition removes a condition of the given type from the slice, if present.
+func removeCondition(conditions *[]metav1.Condition, conditionType string) {
+	for i, c := range *conditions {
+		if c.Type == conditionType {
+			*conditions = append((*conditions)[:i], (*conditions)[i+1:]...)
+			return
+		}
+	}
+}
+
 func (r *SupersetReconciler) updateStatus(ctx context.Context, superset *supersetv1alpha1.Superset, origSuperset *supersetv1alpha1.Superset) error {
 	superset.Status.ObservedGeneration = superset.Generation
 	superset.Status.Version = superset.Spec.Image.Tag
@@ -235,7 +245,6 @@ func webServerMaintenanceStatus(status *supersetv1alpha1.ComponentRefStatus) *su
 	}
 	copied := status.DeepCopy()
 	copied.Phase = componentPhaseProgressing
-	copied.Ready = fmt.Sprintf("0/%d", copied.Replicas)
 	copied.ReadyReplicas = 0
 	copied.AvailableReplicas = 0
 	copied.Message = "Web-server Service is routing to the maintenance page"
@@ -255,8 +264,6 @@ func drainedComponentStatus(superset *supersetv1alpha1.Superset, desc *component
 	}
 	return &supersetv1alpha1.ComponentRefStatus{
 		Phase:     componentPhaseDrained,
-		Ready:     fmt.Sprintf("0/%d", desired),
-		Ref:       "Deployment/" + resourceBaseName,
 		Resources: resources,
 		Replicas:  desired,
 		Message:   "Component reconciliation is paused while lifecycle tasks run",
@@ -265,7 +272,6 @@ func drainedComponentStatus(superset *supersetv1alpha1.Superset, desc *component
 
 func (r *SupersetReconciler) getComponentStatus(ctx context.Context, superset *supersetv1alpha1.Superset, desc *componentDescriptor) *supersetv1alpha1.ComponentRefStatus {
 	resourceBaseName := desc.resourceBaseName(&superset.Spec, superset.Name)
-	ref := "Deployment/" + resourceBaseName
 	accessor := desc.extract(&superset.Spec)
 	cfg, _ := componentResourceConfig(desc.componentType)
 	desired := desiredReplicasForStatus(superset, desc, accessor)
@@ -279,8 +285,6 @@ func (r *SupersetReconciler) getComponentStatus(ctx context.Context, superset *s
 		resources = append(resources, r.expectedComponentResources(ctx, superset, desc, accessor, cfg, resourceBaseName)...)
 		return &supersetv1alpha1.ComponentRefStatus{
 			Phase:     "Pending",
-			Ready:     fmt.Sprintf("0/%d", desired),
-			Ref:       ref,
 			Resources: resources,
 			Replicas:  desired,
 			Message:   fmt.Sprintf("Deployment %s not found", resourceBaseName),
@@ -299,8 +303,6 @@ func (r *SupersetReconciler) getComponentStatus(ctx context.Context, superset *s
 
 	return &supersetv1alpha1.ComponentRefStatus{
 		Phase:             phase,
-		Ready:             fmt.Sprintf("%d/%d", deploy.Status.ReadyReplicas, desired),
-		Ref:               ref,
 		Resources:         resources,
 		Image:             deploymentMainImage(deploy),
 		Replicas:          desired,

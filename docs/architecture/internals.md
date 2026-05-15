@@ -188,8 +188,10 @@ changed.
 
 | Component | ConfigMap | Workload | Service | HPA | PDB |
 |---|---|---|---|---|---|
-| Migrate (task) | superset_config.py | bare Pod | — | — | — |
-| Init (task) | superset_config.py | bare Pod | — | — | — |
+| Clone (task) | — | Job (database tool) | — | — | — |
+| Migrate (task) | superset_config.py | Job | — | — | — |
+| Rotate (task) | superset_config.py | Job | — | — | — |
+| Init (task) | superset_config.py | Job | — | — | — |
 | WebServer | superset_config.py | Deployment (gunicorn) | port 8088 | if set | if set |
 | CeleryWorker | superset_config.py | Deployment (celery worker) | — | if set | if set |
 | CeleryBeat | superset_config.py | Deployment (celery beat) | — | — | — |

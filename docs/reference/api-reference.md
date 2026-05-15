@@ -87,7 +87,9 @@ _Appears in:_
 
 
 CeleryBeatComponentSpec defines the celery beat component on the parent CRD.
-The controller forces replicas=1 regardless of spec.
+CeleryBeat is a singleton: it always runs with one replica, and the
+inherited `spec.replicas` value (if any) is ignored. The spec exposes no
+replicas field, no autoscaling, and no PodDisruptionBudget by design.
 
 
 
@@ -96,7 +98,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Deployment-level overrides (strategy, revision history). Always enforces replicas=1. |  | Optional: \{\} <br /> |
+| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Deployment-level overrides (strategy, revision history). Replica count<br />is fixed at 1 by the controller and cannot be overridden. |  | Optional: \{\} <br /> |
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for Celery beat pods. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
@@ -245,8 +247,6 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `phase` _string_ | Phase summarizes the component workload state. |  | Enum: [Pending Progressing Ready Unavailable Drained] <br />Optional: \{\} <br /> |
-| `ready` _string_ | "2/2" format showing ready vs desired replicas. |  |  |
-| `ref` _string_ | Reference to the primary workload resource for this component. |  |  |
 | `resources` _[ComponentResourceStatus](#componentresourcestatus) array_ | Resources lists the Kubernetes resources currently expected for this<br />component and whether the operator can observe them. |  | Optional: \{\} <br /> |
 | `image` _string_ | Image currently configured on the component's main container. |  | Optional: \{\} <br /> |
 | `replicas` _integer_ | Desired replica count used for status reporting. |  | Optional: \{\} <br /> |
@@ -612,7 +612,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `phase` _string_ | Phase of the lifecycle: Idle, Cloning, Draining, Migrating, Rotating, Initializing, Restoring, Complete, Blocked, AwaitingApproval. |  | Optional: \{\} <br /> |
+| `phase` _string_ | Phase of the lifecycle: Cloning, Draining, Migrating, Rotating, Initializing, Restoring, Complete, Blocked, AwaitingApproval. |  | Optional: \{\} <br /> |
 | `maintenanceActive` _boolean_ | MaintenanceActive indicates the maintenance page is currently serving traffic<br />via the web-server Service. |  | Optional: \{\} <br /> |
 | `lastCompletedChecksums` _object (keys:string, values:string)_ | LastCompletedChecksums maps task type to its task checksum at last<br />successful completion. Used to detect input drift when task status refs<br />are absent. |  | Optional: \{\} <br /> |
 | `clone` _[TaskRefStatus](#taskrefstatus)_ | Clone task status summary. |  | Optional: \{\} <br /> |
@@ -647,7 +647,7 @@ _Appears in:_
 | `image` _[ImageSpec](#imagespec)_ | Image for the maintenance page container. When set, switches to custom<br />mode: no nginx config is injected, and the user's image is responsible<br />for serving HTTP traffic on the web-server port (default 8088). The port<br />must match the web-server Service's target port since the maintenance page<br />takes over that Service during lifecycle tasks.<br />When unset, defaults to nginx:alpine (managed mode). |  | Optional: \{\} <br /> |
 | `replicas` _integer_ | Number of maintenance page pod replicas. | 1 | Optional: \{\} <br /> |
 | `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Deployment-level overrides for the maintenance page (strategy, revision history).<br />For pod-level settings, use PodTemplate. |  | Optional: \{\} <br /> |
-| `podTemplate` _[PodTemplate](#podtemplate)_ | Pod template for the maintenance page pod (nested within deployment template<br />for user convenience). |  | Optional: \{\} <br /> |
+| `podTemplate` _[PodTemplate](#podtemplate)_ | Pod template for the maintenance page pod. |  | Optional: \{\} <br /> |
 
 
 #### McpServerComponentSpec
@@ -1096,15 +1096,10 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `state` _string_ |  |  | Enum: [Pending Running Complete Failed] <br />Optional: \{\} <br /> |
-| `ref` _string_ | Reference to the current or most recent task Job. |  | Optional: \{\} <br /> |
 | `startedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
 | `completedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
-| `duration` _string_ |  |  | Optional: \{\} <br /> |
 | `attempts` _integer_ |  |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of attempts before the task is considered permanently failed. |  | Optional: \{\} <br /> |
-| `podName` _string_ | PodName is retained for backward-compatible status shape. New lifecycle<br />executions use JobName and Ref instead. |  | Optional: \{\} <br /> |
-| `jobName` _string_ | JobName is the deterministic Kubernetes Job name for the current or most<br />recent task execution. |  | Optional: \{\} <br /> |
-| `configMapRef` _string_ | Reference to the rendered task ConfigMap. |  | Optional: \{\} <br /> |
 | `image` _string_ |  |  | Optional: \{\} <br /> |
 | `message` _string_ |  |  | Optional: \{\} <br /> |
 | `nextAttemptAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ | NextAttemptAt is the earliest time the operator may retry this task after<br />a failure or timeout. |  | Optional: \{\} <br /> |

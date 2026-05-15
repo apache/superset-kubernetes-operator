@@ -82,10 +82,10 @@ func TestIsComponentReady(t *testing.T) {
 		status *supersetv1alpha1.ComponentRefStatus
 		want   bool
 	}{
-		{"ready", &supersetv1alpha1.ComponentRefStatus{Phase: "Ready", Ready: "1/1"}, true},
-		{"progressing", &supersetv1alpha1.ComponentRefStatus{Phase: "Progressing", Ready: "1/2"}, false},
-		{"unavailable", &supersetv1alpha1.ComponentRefStatus{Phase: "Unavailable", Ready: "0/1"}, false},
-		{"pending", &supersetv1alpha1.ComponentRefStatus{Phase: "Pending", Ready: "0/1"}, false},
+		{"ready", &supersetv1alpha1.ComponentRefStatus{Phase: "Ready"}, true},
+		{"progressing", &supersetv1alpha1.ComponentRefStatus{Phase: "Progressing"}, false},
+		{"unavailable", &supersetv1alpha1.ComponentRefStatus{Phase: "Unavailable"}, false},
+		{"pending", &supersetv1alpha1.ComponentRefStatus{Phase: "Pending"}, false},
 	}
 
 	for _, tt := range tests {

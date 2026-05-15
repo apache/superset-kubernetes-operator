@@ -196,9 +196,12 @@ type CeleryWorkerComponentSpec struct {
 }
 
 // CeleryBeatComponentSpec defines the celery beat component on the parent CRD.
-// The controller forces replicas=1 regardless of spec.
+// CeleryBeat is a singleton: it always runs with one replica, and the
+// inherited `spec.replicas` value (if any) is ignored. The spec exposes no
+// replicas field, no autoscaling, and no PodDisruptionBudget by design.
 type CeleryBeatComponentSpec struct {
-	// Deployment-level overrides (strategy, revision history). Always enforces replicas=1.
+	// Deployment-level overrides (strategy, revision history). Replica count
+	// is fixed at 1 by the controller and cannot be overridden.
 	// +optional
 	DeploymentTemplate *DeploymentTemplate `json:"deploymentTemplate,omitempty"`
 	// Pod and container template for Celery beat pods.
@@ -482,8 +485,7 @@ type MaintenancePageSpec struct {
 	// +optional
 	DeploymentTemplate *DeploymentTemplate `json:"deploymentTemplate,omitempty"`
 
-	// Pod template for the maintenance page pod (nested within deployment template
-	// for user convenience).
+	// Pod template for the maintenance page pod.
 	// +optional
 	PodTemplate *PodTemplate `json:"podTemplate,omitempty"`
 }
@@ -711,7 +713,7 @@ type SupersetStatus struct {
 
 // LifecycleStatus tracks the current lifecycle task execution state.
 type LifecycleStatus struct {
-	// Phase of the lifecycle: Idle, Cloning, Draining, Migrating, Rotating, Initializing, Restoring, Complete, Blocked, AwaitingApproval.
+	// Phase of the lifecycle: Cloning, Draining, Migrating, Rotating, Initializing, Restoring, Complete, Blocked, AwaitingApproval.
 	// +optional
 	Phase string `json:"phase,omitempty"`
 	// MaintenanceActive indicates the maintenance page is currently serving traffic
@@ -745,31 +747,15 @@ type TaskRefStatus struct {
 	// +optional
 	// +kubebuilder:validation:Enum=Pending;Running;Complete;Failed
 	State string `json:"state,omitempty"`
-	// Reference to the current or most recent task Job.
-	// +optional
-	Ref string `json:"ref,omitempty"`
 	// +optional
 	StartedAt *metav1.Time `json:"startedAt,omitempty"`
 	// +optional
 	CompletedAt *metav1.Time `json:"completedAt,omitempty"`
 	// +optional
-	Duration string `json:"duration,omitempty"`
-	// +optional
 	Attempts int32 `json:"attempts,omitempty"`
 	// Maximum number of attempts before the task is considered permanently failed.
 	// +optional
 	MaxRetries int32 `json:"maxRetries,omitempty"`
-	// PodName is retained for backward-compatible status shape. New lifecycle
-	// executions use JobName and Ref instead.
-	// +optional
-	PodName string `json:"podName,omitempty"`
-	// JobName is the deterministic Kubernetes Job name for the current or most
-	// recent task execution.
-	// +optional
-	JobName string `json:"jobName,omitempty"`
-	// Reference to the rendered task ConfigMap.
-	// +optional
-	ConfigMapRef string `json:"configMapRef,omitempty"`
 	// +optional
 	Image string `json:"image,omitempty"`
 	// +optional
@@ -831,10 +817,6 @@ type ComponentRefStatus struct {
 	// +optional
 	// +kubebuilder:validation:Enum=Pending;Progressing;Ready;Unavailable;Drained
 	Phase string `json:"phase,omitempty"`
-	// "2/2" format showing ready vs desired replicas.
-	Ready string `json:"ready"`
-	// Reference to the primary workload resource for this component.
-	Ref string `json:"ref"`
 	// Resources lists the Kubernetes resources currently expected for this
 	// component and whether the operator can observe them.
 	// +optional

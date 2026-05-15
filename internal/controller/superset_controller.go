@@ -59,7 +59,7 @@ type SupersetReconciler struct {
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersets/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch;update
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch
 // +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
@@ -158,6 +158,13 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	// loses the checksums and the next reconcile re-enters lifecycle.
 	if statusErr := patchStatusIfChanged(ctx, r.Client, superset, origSuperset, origSuperset.Status, superset.Status); statusErr != nil {
 		return ctrl.Result{}, fmt.Errorf("updating status after lifecycle: %w", statusErr)
+	}
+	// Clear the supervised upgrade approval annotation only after status has
+	// been persisted. Doing this earlier risks stranding the annotation if the
+	// status patch fails — the next reconcile would see imageChanged=true and
+	// re-gate AwaitingApproval despite the user already approving.
+	if err := r.clearUpgradeApprovalAnnotation(ctx, superset); err != nil {
+		return ctrl.Result{}, err
 	}
 	if err := r.cleanupLifecycleTaskJobsByRetention(ctx, superset); err != nil {
 		return ctrl.Result{}, fmt.Errorf("cleaning up lifecycle task jobs after lifecycle: %w", err)

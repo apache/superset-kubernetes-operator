@@ -147,7 +147,7 @@ func TestReconcile_LifecycleCreatesParentOwnedTaskJobAndStatus(t *testing.T) {
 	if updated.Status.Lifecycle.Migrate.DesiredChecksum == "" {
 		t.Fatal("expected migrate desired checksum")
 	}
-	if updated.Status.Lifecycle.Migrate.Ref != "Job/test-migrate" {
-		t.Fatalf("expected migrate job ref, got %q", updated.Status.Lifecycle.Migrate.Ref)
+	if jobs.Items[0].Name != "test-migrate" {
+		t.Fatalf("expected deterministic migrate Job name, got %q", jobs.Items[0].Name)
 	}
 }

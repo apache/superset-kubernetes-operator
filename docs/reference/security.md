@@ -237,7 +237,7 @@ across namespaces. Each permission is justified below:
 | `configmaps` | CRUD | Stores generated `superset_config.py` per component |
 | `services` | CRUD | Exposes web server, Flower, websocket, MCP server |
 | `serviceaccounts` | CRUD | Creates per-instance ServiceAccount for pod identity |
-| `pods` | delete, get, list, watch | Reads Job pods and cleans up legacy lifecycle task Pods |
+| `pods` | get, list, watch | Reads Job pods to verify drain progress and component readiness |
 | `jobs` | CRUD | Manages deterministic lifecycle task Jobs |
 | `events` | create, patch | Records reconciliation events |
 | `deployments` | CRUD | Manages component Deployments |

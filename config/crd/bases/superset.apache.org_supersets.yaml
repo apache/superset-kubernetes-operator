@@ -39199,13 +39199,9 @@ spec:
                         - Unavailable
                         - Drained
                         type: string
-                      ready:
-                        type: string
                       readyReplicas:
                         format: int32
                         type: integer
-                      ref:
-                        type: string
                       replicas:
                         format: int32
                         type: integer
@@ -39234,9 +39230,6 @@ spec:
                       updatedReplicas:
                         format: int32
                         type: integer
-                    required:
-                    - ready
-                    - ref
                     type: object
                   celeryFlower:
                     properties:
@@ -39257,13 +39250,9 @@ spec:
                         - Unavailable
                         - Drained
                         type: string
-                      ready:
-                        type: string
                       readyReplicas:
                         format: int32
                         type: integer
-                      ref:
-                        type: string
                       replicas:
                         format: int32
                         type: integer
@@ -39292,9 +39281,6 @@ spec:
                       updatedReplicas:
                         format: int32
                         type: integer
-                    required:
-                    - ready
-                    - ref
                     type: object
                   celeryWorker:
                     properties:
@@ -39315,13 +39301,9 @@ spec:
                         - Unavailable
                         - Drained
                         type: string
-                      ready:
-                        type: string
                       readyReplicas:
                         format: int32
                         type: integer
-                      ref:
-                        type: string
                       replicas:
                         format: int32
                         type: integer
@@ -39350,9 +39332,6 @@ spec:
                       updatedReplicas:
                         format: int32
                         type: integer
-                    required:
-                    - ready
-                    - ref
                     type: object
                   mcpServer:
                     properties:
@@ -39373,13 +39352,9 @@ spec:
                         - Unavailable
                         - Drained
                         type: string
-                      ready:
-                        type: string
                       readyReplicas:
                         format: int32
                         type: integer
-                      ref:
-                        type: string
                       replicas:
                         format: int32
                         type: integer
@@ -39408,9 +39383,6 @@ spec:
                       updatedReplicas:
                         format: int32
                         type: integer
-                    required:
-                    - ready
-                    - ref
                     type: object
                   webServer:
                     properties:
@@ -39431,13 +39403,9 @@ spec:
                         - Unavailable
                         - Drained
                         type: string
-                      ready:
-                        type: string
                       readyReplicas:
                         format: int32
                         type: integer
-                      ref:
-                        type: string
                       replicas:
                         format: int32
                         type: integer
@@ -39466,9 +39434,6 @@ spec:
                       updatedReplicas:
                         format: int32
                         type: integer
-                    required:
-                    - ready
-                    - ref
                     type: object
                   websocketServer:
                     properties:
@@ -39489,13 +39454,9 @@ spec:
                         - Unavailable
                         - Drained
                         type: string
-                      ready:
-                        type: string
                       readyReplicas:
                         format: int32
                         type: integer
-                      ref:
-                        type: string
                       replicas:
                         format: int32
                         type: integer
@@ -39524,9 +39485,6 @@ spec:
                       updatedReplicas:
                         format: int32
                         type: integer
-                    required:
-                    - ready
-                    - ref
                     type: object
                 type: object
               conditions:
@@ -39617,15 +39575,9 @@ spec:
                           - type
                           type: object
                         type: array
-                      configMapRef:
-                        type: string
                       desiredChecksum:
                         type: string
-                      duration:
-                        type: string
                       image:
-                        type: string
-                      jobName:
                         type: string
                       lastScheduledAt:
                         format: date-time
@@ -39640,10 +39592,6 @@ spec:
                         type: string
                       nextScheduleAt:
                         format: date-time
-                        type: string
-                      podName:
-                        type: string
-                      ref:
                         type: string
                       startedAt:
                         format: date-time
@@ -39702,15 +39650,9 @@ spec:
                           - type
                           type: object
                         type: array
-                      configMapRef:
-                        type: string
                       desiredChecksum:
                         type: string
-                      duration:
-                        type: string
                       image:
-                        type: string
-                      jobName:
                         type: string
                       lastScheduledAt:
                         format: date-time
@@ -39725,10 +39667,6 @@ spec:
                         type: string
                       nextScheduleAt:
                         format: date-time
-                        type: string
-                      podName:
-                        type: string
-                      ref:
                         type: string
                       startedAt:
                         format: date-time
@@ -39793,15 +39731,9 @@ spec:
                           - type
                           type: object
                         type: array
-                      configMapRef:
-                        type: string
                       desiredChecksum:
                         type: string
-                      duration:
-                        type: string
                       image:
-                        type: string
-                      jobName:
                         type: string
                       lastScheduledAt:
                         format: date-time
@@ -39816,10 +39748,6 @@ spec:
                         type: string
                       nextScheduleAt:
                         format: date-time
-                        type: string
-                      podName:
-                        type: string
-                      ref:
                         type: string
                       startedAt:
                         format: date-time
@@ -39880,15 +39808,9 @@ spec:
                           - type
                           type: object
                         type: array
-                      configMapRef:
-                        type: string
                       desiredChecksum:
                         type: string
-                      duration:
-                        type: string
                       image:
-                        type: string
-                      jobName:
                         type: string
                       lastScheduledAt:
                         format: date-time
@@ -39903,10 +39825,6 @@ spec:
                         type: string
                       nextScheduleAt:
                         format: date-time
-                        type: string
-                      podName:
-                        type: string
-                      ref:
                         type: string
                       startedAt:
                         format: date-time

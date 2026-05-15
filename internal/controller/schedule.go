@@ -108,13 +108,19 @@ func (r *SupersetReconciler) projectScheduleStatus(superset *supersetv1alpha1.Su
 }
 
 // validateSchedules checks all active cron expressions for validity and sets
-// a warning condition + event if any are invalid.
+// a warning condition + event if any are invalid. When no schedules are
+// configured, the ScheduleValid condition is removed entirely so users don't
+// see a misleading "valid" signal for absent schedules.
 func (r *SupersetReconciler) validateSchedules(superset *supersetv1alpha1.Superset) {
 	if superset.Spec.Lifecycle == nil {
+		removeCondition(&superset.Status.Conditions, conditionTypeScheduleValid)
 		return
 	}
+	hasSchedule := false
 	if superset.Spec.Lifecycle.Clone != nil && superset.Spec.Lifecycle.Clone.CronSchedule != nil &&
+		*superset.Spec.Lifecycle.Clone.CronSchedule != "" &&
 		!isDisabled(superset.Spec.Lifecycle.Clone.Disabled) {
+		hasSchedule = true
 		expr := *superset.Spec.Lifecycle.Clone.CronSchedule
 		if err := schedule.Validate(expr); err != nil {
 			setCondition(&superset.Status.Conditions, conditionTypeScheduleValid,
@@ -123,6 +129,10 @@ func (r *SupersetReconciler) validateSchedules(superset *supersetv1alpha1.Supers
 				"Clone cron schedule is invalid: %v", err)
 			return
 		}
+	}
+	if !hasSchedule {
+		removeCondition(&superset.Status.Conditions, conditionTypeScheduleValid)
+		return
 	}
 	setCondition(&superset.Status.Conditions, conditionTypeScheduleValid,
 		metav1.ConditionTrue, "SchedulesValid", "All cron schedules are valid", superset.Generation)

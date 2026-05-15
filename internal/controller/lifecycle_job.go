@@ -64,12 +64,8 @@ func ensureTaskStatus(superset *supersetv1alpha1.Superset, taskType string) *sup
 
 func resetTaskStatusForRun(taskRef *supersetv1alpha1.TaskRefStatus, desiredChecksum string, maxRetries int32) {
 	taskRef.State = taskStatePending
-	taskRef.Ref = ""
-	taskRef.PodName = ""
-	taskRef.JobName = ""
 	taskRef.StartedAt = nil
 	taskRef.CompletedAt = nil
-	taskRef.Duration = ""
 	taskRef.Attempts = 0
 	taskRef.MaxRetries = maxRetries
 	taskRef.NextAttemptAt = nil
@@ -122,10 +118,6 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 	}
 
 	if existingJob != nil {
-		taskRef.JobName = existingJob.Name
-		taskRef.PodName = ""
-		taskRef.Ref = "Job/" + existingJob.Name
-
 		if existingJob.DeletionTimestamp != nil {
 			return lifecycleWait(), nil
 		}
@@ -151,9 +143,6 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 			taskRef.CompletedAt = &now
 			if taskRef.StartedAt == nil && existingJob.Status.StartTime != nil {
 				taskRef.StartedAt = existingJob.Status.StartTime
-			}
-			if taskRef.StartedAt != nil {
-				taskRef.Duration = now.Sub(taskRef.StartedAt.Time).Round(time.Second).String()
 			}
 			taskRef.Message = "Completed successfully"
 			taskRef.CompletedChecksum = taskChecksum
@@ -229,12 +218,8 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 
 	now := metav1.Now()
 	taskRef.State = taskStateRunning
-	taskRef.JobName = job.Name
-	taskRef.PodName = ""
-	taskRef.Ref = "Job/" + job.Name
 	taskRef.StartedAt = &now
 	taskRef.CompletedAt = nil
-	taskRef.Duration = ""
 	taskRef.Image = image
 	taskRef.Message = ""
 	setCondition(&taskRef.Conditions, supersetv1alpha1.ConditionTypeTaskComplete,
@@ -330,9 +315,6 @@ func (r *SupersetReconciler) reconcileTaskJobImage(
 		}
 		taskRef.State = taskStatePending
 		taskRef.Image = image
-		taskRef.Ref = ""
-		taskRef.JobName = ""
-		taskRef.PodName = ""
 		taskRef.Message = "Image changed, re-running task"
 		r.Recorder.Eventf(superset, nil, corev1.EventTypeNormal, "TaskImageChanged", "Lifecycle",
 			"%s image changed from %s to %s, re-running task", taskType, existingImage, image)
@@ -375,25 +357,6 @@ func (r *SupersetReconciler) deleteTaskJobs(ctx context.Context, superset *super
 	}
 	if err := r.deleteLifecycleJob(ctx, job); err != nil {
 		return fmt.Errorf("deleting lifecycle task job: %w", err)
-	}
-	if err := r.deleteLegacyTaskPods(ctx, superset, taskName); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (r *SupersetReconciler) deleteLegacyTaskPods(ctx context.Context, superset *supersetv1alpha1.Superset, taskName string) error {
-	podList := &corev1.PodList{}
-	if err := r.List(ctx, podList,
-		client.InNamespace(superset.Namespace),
-		client.MatchingLabels{labelInitInstance: taskName},
-	); err != nil {
-		return fmt.Errorf("listing legacy lifecycle task pods: %w", err)
-	}
-	for i := range podList.Items {
-		if err := client.IgnoreNotFound(r.Delete(ctx, &podList.Items[i])); err != nil {
-			return err
-		}
 	}
 	return nil
 }
@@ -445,37 +408,6 @@ func (r *SupersetReconciler) cleanupTaskJobsByRetention(ctx context.Context, sup
 		if ShouldDeletePod(policy, phase) {
 			if err := r.deleteLifecycleJob(ctx, job); err != nil {
 				return fmt.Errorf("deleting retained lifecycle task job %s: %w", job.Name, err)
-			}
-		}
-	}
-
-	return r.cleanupLegacyTaskPodsByRetention(ctx, superset, taskName, taskType)
-}
-
-func (r *SupersetReconciler) cleanupLegacyTaskPodsByRetention(ctx context.Context, superset *supersetv1alpha1.Superset, taskName, taskType string) error {
-	podList := &corev1.PodList{}
-	if err := r.List(ctx, podList,
-		client.InNamespace(superset.Namespace),
-		client.MatchingLabels{
-			labelInitInstance: taskName,
-			labelInitTask:     strings.ToLower(taskType),
-		},
-	); err != nil {
-		return fmt.Errorf("listing legacy lifecycle task pods for retention: %w", err)
-	}
-
-	policy := r.taskRetentionPolicyValue(superset, taskType)
-	for i := range podList.Items {
-		pod := &podList.Items[i]
-		if pod.DeletionTimestamp != nil {
-			continue
-		}
-		if pod.Status.Phase != corev1.PodSucceeded && pod.Status.Phase != corev1.PodFailed {
-			continue
-		}
-		if ShouldDeletePod(policy, pod.Status.Phase) {
-			if err := r.Delete(ctx, pod); client.IgnoreNotFound(err) != nil {
-				return fmt.Errorf("deleting retained legacy lifecycle task pod %s: %w", pod.Name, err)
 			}
 		}
 	}

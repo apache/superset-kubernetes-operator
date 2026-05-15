@@ -370,7 +370,7 @@ Presets control **poolClass**, **poolSize**, and **maxOverflow**:
 
 CeleryBeat and lifecycle tasks always use NullPool regardless of preset (singleton/short-lived components with minimal DB interaction). CeleryFlower uses standard pool sizing (defaults to 1 for performance/aggressive since it has no worker configuration).
 
-`spec.sqlaEngineOptions` sets the baseline for all Python components. Per-component `sqlaEngineOptions` on `webServer`, `celeryWorker`, `celeryBeat`, `mcpServer`, or `init` replaces the top-level entirely (override semantics, not merge).
+`spec.sqlaEngineOptions` sets the baseline for all Python components. Per-component `sqlaEngineOptions` on `webServer`, `celeryWorker`, `celeryBeat`, `mcpServer`, or `lifecycle` replaces the top-level entirely (override semantics, not merge).
 
 ```yaml
 spec:

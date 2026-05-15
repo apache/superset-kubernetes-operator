@@ -29,7 +29,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
-	naming "github.com/apache/superset-kubernetes-operator/internal/common"
 	"github.com/apache/superset-kubernetes-operator/internal/resolution"
 )
 
@@ -45,9 +44,8 @@ const (
 	suffixRotate  = "-rotate"
 
 	upgradeModeAutomatic  = "Automatic"
-	upgradeModeSupervsied = "Supervised"
+	upgradeModeSupervised = "Supervised"
 
-	lifecyclePhaseIdle             = "Idle"
 	lifecyclePhaseCloning          = "Cloning"
 	lifecyclePhaseDraining         = "Draining"
 	lifecyclePhaseMigrating        = "Migrating"
@@ -108,7 +106,9 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	saName string,
 ) (lifecycleResult, error) {
 
-	// If lifecycle is disabled, prune orphans and mark complete.
+	// If lifecycle is disabled, prune orphans and mark settled. Settling
+	// (advancing LastLifecycleImage) is what stops Supervised mode from
+	// re-gating image changes when no task would actually run.
 	if isLifecycleDisabled(superset) {
 		if err := r.deleteLifecycleTaskResources(ctx, superset, taskTypeClone, suffixClone); err != nil {
 			return lifecycleResult{}, fmt.Errorf("pruning clone task resources: %w", err)
@@ -125,8 +125,8 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		if err := r.cleanupMaintenanceResources(ctx, superset); err != nil {
 			return lifecycleResult{}, fmt.Errorf("cleaning up maintenance resources: %w", err)
 		}
-		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
-			metav1.ConditionTrue, "LifecycleDisabled", "Lifecycle tasks are disabled", superset.Generation)
+		currentImage := resolveLifecycleImage(&superset.Spec.Image, lifecycleImageOverride(superset))
+		r.settleLifecycle(superset, currentImage, "LifecycleDisabled", "Lifecycle tasks are disabled")
 		superset.Status.Lifecycle = nil
 		return lifecycleComplete(), nil
 	}
@@ -165,11 +165,12 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		return lifecycleResult{}, err
 	}
 
-	// If no tasks are enabled, lifecycle is complete.
+	// If no tasks are enabled, the pipeline is already settled. Advancing
+	// LastLifecycleImage here avoids re-gating Supervised image changes when
+	// the user has disabled every task.
 	if !cloneEnabled && !migrateEnabled && !rotateEnabled && !initEnabled {
 		superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
-		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
-			metav1.ConditionTrue, "LifecycleComplete", "Lifecycle tasks completed successfully", superset.Generation)
+		r.settleLifecycle(superset, currentImage, "NoLifecycleTasks", "No lifecycle tasks configured")
 		return lifecycleComplete(), nil
 	}
 
@@ -211,9 +212,7 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	}
 
 	// All tasks complete.
-	if err := r.finalizeLifecycle(ctx, superset, currentImage); err != nil {
-		return lifecycleResult{}, err
-	}
+	r.finalizeLifecycle(superset, currentImage)
 	return lifecycleComplete(), nil
 }
 
@@ -261,35 +260,53 @@ func lifecycleParentPhase(upgradeInProgress bool) string {
 	return phaseInitializing
 }
 
-// finalizeLifecycle updates status and clears approval annotations after all
-// lifecycle tasks complete. Maintenance teardown is handled separately in
-// reconcileMaintenanceReturn(), gated on web-server readiness.
-func (r *SupersetReconciler) finalizeLifecycle(
-	ctx context.Context,
-	superset *supersetv1alpha1.Superset,
-	currentImage string,
-) error {
-	superset.Status.LastLifecycleImage = currentImage
+// finalizeLifecycle updates status after all lifecycle tasks complete.
+// Maintenance teardown is handled separately in reconcileMaintenanceReturn(),
+// gated on web-server readiness. The upgrade approval annotation is cleared by
+// the parent reconciler after status is persisted, so a status patch failure
+// does not leave the annotation cleared (which would re-gate Supervised
+// upgrades on the next reconcile while LastLifecycleImage was stale).
+func (r *SupersetReconciler) finalizeLifecycle(superset *supersetv1alpha1.Superset, currentImage string) {
 	if anyComponentEnabled(superset) {
 		superset.Status.Lifecycle.Phase = lifecyclePhaseRestoring
 	} else {
 		superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
 	}
-	superset.Status.Lifecycle.Upgrade = nil
+	r.settleLifecycle(superset, currentImage, "LifecycleComplete", "Lifecycle tasks completed successfully")
+}
 
-	if annotations := superset.GetAnnotations(); annotations != nil {
-		if _, ok := annotations[annotationApproveUpgrade]; ok {
-			patch := client.MergeFrom(superset.DeepCopy())
-			delete(annotations, annotationApproveUpgrade)
-			superset.SetAnnotations(annotations)
-			if err := r.Patch(ctx, superset, patch); err != nil {
-				return fmt.Errorf("clearing approval annotation: %w", err)
-			}
-		}
+// settleLifecycle records that the lifecycle pipeline has nothing more to do
+// for the current image. Used by all completion paths (lifecycle disabled, no
+// enabled tasks, finalize after a successful run). Advancing
+// LastLifecycleImage is what prevents the upgrade gate from re-triggering on
+// the next reconcile when no task would actually run.
+func (r *SupersetReconciler) settleLifecycle(superset *supersetv1alpha1.Superset, currentImage, reason, message string) {
+	superset.Status.LastLifecycleImage = currentImage
+	if superset.Status.Lifecycle != nil {
+		superset.Status.Lifecycle.Upgrade = nil
 	}
-
 	setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
-		metav1.ConditionTrue, "LifecycleComplete", "Lifecycle tasks completed successfully", superset.Generation)
+		metav1.ConditionTrue, reason, message, superset.Generation)
+}
+
+// clearUpgradeApprovalAnnotation removes the supervised upgrade approval
+// annotation. Called by the parent reconciler after the post-lifecycle status
+// patch succeeds, so a failed status patch never leaves the annotation
+// cleared while LastLifecycleImage is still stale.
+func (r *SupersetReconciler) clearUpgradeApprovalAnnotation(ctx context.Context, superset *supersetv1alpha1.Superset) error {
+	annotations := superset.GetAnnotations()
+	if annotations == nil {
+		return nil
+	}
+	if _, ok := annotations[annotationApproveUpgrade]; !ok {
+		return nil
+	}
+	patch := client.MergeFrom(superset.DeepCopy())
+	delete(annotations, annotationApproveUpgrade)
+	superset.SetAnnotations(annotations)
+	if err := r.Patch(ctx, superset, patch); err != nil {
+		return fmt.Errorf("clearing upgrade approval annotation: %w", err)
+	}
 	return nil
 }
 
@@ -433,7 +450,7 @@ func (r *SupersetReconciler) checkUpgradeGates(
 	}
 
 	// Supervised mode: check for approval annotation.
-	if getUpgradeMode(superset) == upgradeModeSupervsied {
+	if getUpgradeMode(superset) == upgradeModeSupervised {
 		annotations := superset.GetAnnotations()
 		if annotations == nil || annotations[annotationApproveUpgrade] != "true" {
 			log.Info("Upgrade awaiting approval")
@@ -483,10 +500,6 @@ func (r *SupersetReconciler) reconcileLifecycleTask(
 	taskRef := ensureTaskStatus(superset, taskType)
 	taskRef.DesiredChecksum = taskChecksum
 	taskRef.MaxRetries = r.taskMaxRetriesValue(superset, taskType)
-	taskRef.ConfigMapRef = ""
-	if renderedConfig != "" {
-		taskRef.ConfigMapRef = "ConfigMap/" + naming.ConfigMapName(taskName)
-	}
 	r.projectScheduleStatus(superset, taskType, taskRef)
 
 	if taskRef.State == taskStateComplete && taskRef.CompletedChecksum == taskChecksum {
@@ -502,7 +515,7 @@ func (r *SupersetReconciler) reconcileLifecycleTask(
 		return lifecycleTerminal(), nil
 	}
 
-	if taskRef.State == taskStateComplete || taskRef.State == taskStateFailed || taskRef.CompletedChecksum != "" && taskRef.CompletedChecksum != taskChecksum {
+	if taskRef.State == taskStateComplete || taskRef.State == taskStateFailed || (taskRef.CompletedChecksum != "" && taskRef.CompletedChecksum != taskChecksum) {
 		log.Info("Task status is stale, resetting to re-run", "task", taskType,
 			"completedChecksum", taskRef.CompletedChecksum, "expectedChecksum", taskChecksum)
 		if err := r.deleteTaskJobs(ctx, superset, taskName); err != nil {
@@ -663,24 +676,6 @@ func (r *SupersetReconciler) getTaskStatusChecksum(ctx context.Context, superset
 		}
 	}
 	return ""
-}
-
-// computePipelineSeed computes a seed checksum for the lifecycle pipeline.
-// Reserved for future use (custom task hooks may need a shared seed).
-// Currently unused — the pipeline anchor is parentUID directly.
-//
-//nolint:unused
-func (r *SupersetReconciler) computePipelineSeed(superset *supersetv1alpha1.Superset, configChecksum string) string {
-	currentImage := resolveLifecycleImage(&superset.Spec.Image, lifecycleImageOverride(superset))
-	return computeChecksum(struct {
-		ParentUID      string
-		Image          string
-		ConfigChecksum string
-	}{
-		ParentUID:      string(superset.UID),
-		Image:          currentImage,
-		ConfigChecksum: configChecksum,
-	})
 }
 
 // computeStepChecksum computes a task's checksum from the incoming checksum
