@@ -49,7 +49,7 @@ RBAC.
 ### Single Public CRD
 
 The operator exposes one public custom resource, `Superset`. Component
-Deployments, Services, ConfigMaps, HPAs, PDBs, lifecycle task Pods, networking,
+Deployments, Services, ConfigMaps, HPAs, PDBs, lifecycle task Jobs, networking,
 monitoring, and NetworkPolicies are reconciled as parent-owned Kubernetes
 resources. The bundled `superset-editor-role`, `superset-admin-role`, and
 `superset-viewer-role` therefore only need permissions for the `supersets`
@@ -111,13 +111,12 @@ In prod mode, secrets follow this path:
    and never reads, logs, writes, or stores secret values in ConfigMaps, CRD
    status fields, or Events
 
-**Task pod caveat:** When a task pod fails, the operator records a truncated
-version of the container's termination message in the parent Superset status and
-Kubernetes Events for debugging. If the task command writes sensitive data to
-its termination message (e.g., a database connection error that includes
-credentials), a truncated form may appear in status. This is bounded to 256
-characters and only applies to the task container's own output, not to
-operator-managed secret references.
+**Task failure caveat:** When a task Job fails, the operator records a truncated
+failure message (max 256 characters) in the parent Superset status and Kubernetes Events for
+debugging. If the task command writes sensitive data to its failure output
+(e.g., a database connection error that includes credentials), a truncated form
+may appear in status. This only applies to the task container's own output, not
+to operator-managed secret references.
 
 **Scope of this guarantee:** The above applies to operator-managed secret
 references (`secretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`,
@@ -173,9 +172,9 @@ repeat review cycles:
   no-op by design. `LastTransitionTime` is only updated when Status changes
   (per Kubernetes API conventions), not on Reason or generation changes alone.
 - **`FlatComponentSpec` is shared across component Deployments and lifecycle tasks.**
-  Lifecycle tasks use bare Pods (no Deployment), so fields like Autoscaling,
+  Lifecycle tasks use Jobs (no Deployment), so fields like Autoscaling,
   PDB, and Replicas are unused. The parent controller nils these fields before
-  creating task Pods. A dedicated `FlatInitSpec` may be introduced in a future
+  creating task Jobs. A dedicated `FlatInitSpec` may be introduced in a future
   API version, but the shared struct avoids duplicating Image, PodTemplate, and
   ServiceAccountName today.
 - **`computeChecksum` has an unreachable fallback.** The `fmt.Sprintf("%v")`
@@ -238,7 +237,8 @@ across namespaces. Each permission is justified below:
 | `configmaps` | CRUD | Stores generated `superset_config.py` per component |
 | `services` | CRUD | Exposes web server, Flower, websocket, MCP server |
 | `serviceaccounts` | CRUD | Creates per-instance ServiceAccount for pod identity |
-| `pods` | create, delete, get, list, watch | Manages bare lifecycle task pods (not Deployments) |
+| `pods` | delete, get, list, watch | Reads Job pods and cleans up legacy lifecycle task Pods |
+| `jobs` | CRUD | Manages deterministic lifecycle task Jobs |
 | `events` | create, patch | Records reconciliation events |
 | `deployments` | CRUD | Manages component Deployments |
 | `horizontalpodautoscalers` | CRUD | Manages HPA for scalable components |

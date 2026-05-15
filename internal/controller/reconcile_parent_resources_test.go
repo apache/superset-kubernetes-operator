@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -106,7 +107,7 @@ func TestReconcile_DisabledComponentDeletesParentOwnedResources(t *testing.T) {
 	}
 }
 
-func TestReconcile_LifecycleCreatesParentOwnedTaskPodAndStatus(t *testing.T) {
+func TestReconcile_LifecycleCreatesParentOwnedTaskJobAndStatus(t *testing.T) {
 	scheme := testScheme(t)
 
 	spec := minimalSupersetSpec()
@@ -120,17 +121,17 @@ func TestReconcile_LifecycleCreatesParentOwnedTaskPodAndStatus(t *testing.T) {
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r, "test")
 
-	pods := &corev1.PodList{}
-	if err := c.List(context.Background(), pods,
+	jobs := &batchv1.JobList{}
+	if err := c.List(context.Background(), jobs,
 		client.MatchingLabels{labelInitInstance: "test-migrate"},
 	); err != nil {
-		t.Fatalf("list task pods: %v", err)
+		t.Fatalf("list task jobs: %v", err)
 	}
-	if len(pods.Items) != 1 {
-		t.Fatalf("expected one migrate task pod, got %d", len(pods.Items))
+	if len(jobs.Items) != 1 {
+		t.Fatalf("expected one migrate task job, got %d", len(jobs.Items))
 	}
-	if pods.Items[0].Labels[common.LabelKeyParent] != "test" {
-		t.Fatalf("expected task pod parent label, got %q", pods.Items[0].Labels[common.LabelKeyParent])
+	if jobs.Items[0].Labels[common.LabelKeyParent] != "test" {
+		t.Fatalf("expected task job parent label, got %q", jobs.Items[0].Labels[common.LabelKeyParent])
 	}
 
 	updated := &supersetv1alpha1.Superset{}
@@ -145,5 +146,8 @@ func TestReconcile_LifecycleCreatesParentOwnedTaskPodAndStatus(t *testing.T) {
 	}
 	if updated.Status.Lifecycle.Migrate.DesiredChecksum == "" {
 		t.Fatal("expected migrate desired checksum")
+	}
+	if updated.Status.Lifecycle.Migrate.Ref != "Job/test-migrate" {
+		t.Fatalf("expected migrate job ref, got %q", updated.Status.Lifecycle.Migrate.Ref)
 	}
 }

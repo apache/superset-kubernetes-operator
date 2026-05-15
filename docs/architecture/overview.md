@@ -29,7 +29,7 @@ task orchestration (migrations, upgrades, drain strategies), see
 The operator exposes one user-facing CRD: `Superset`. A single `Superset`
 resource defines the complete deployment. The parent controller resolves shared
 top-level configuration and per-component overrides into concrete Kubernetes
-resources: Deployments, Services, ConfigMaps, HPAs, PDBs, lifecycle task Pods,
+resources: Deployments, Services, ConfigMaps, HPAs, PDBs, lifecycle task Jobs,
 networking, monitoring, and NetworkPolicies.
 
 ### Why one CRD?
@@ -51,7 +51,7 @@ A single CRD matches the actual ownership model:
 
 - Users declare one desired state: the `Superset` resource.
 - The controller reconciles Deployments, Services, ConfigMaps, HPAs, PDBs,
-  lifecycle task Pods, networking, monitoring, and NetworkPolicies as
+  lifecycle task Jobs, networking, monitoring, and NetworkPolicies as
   parent-owned secondary resources.
 - The `Superset` status subresource is the canonical visibility surface for
   component readiness, resource references, lifecycle task progress, and
@@ -74,8 +74,8 @@ For each enabled component, the parent controller renders any needed
 runtime spec, reconciles the parent-owned Kubernetes resources, and projects
 workload state back into `status.components`.
 
-Lifecycle tasks follow the same model: the parent resolves the task pod spec,
-creates a parent-owned ConfigMap when needed, runs a parent-owned bare Pod, and
+Lifecycle tasks follow the same model: the parent resolves the task Job Pod spec,
+creates a parent-owned ConfigMap when needed, runs a parent-owned Job, and
 stores durable task state in `status.lifecycle`.
 
 ---
@@ -113,7 +113,7 @@ Components fall into two runtime categories:
 
 | Parent field | Suffix | Creates |
 |---|---|---|
-| `lifecycle` | `-clone`, `-migrate`, `-rotate`, `-init` | bare Pods, ConfigMap for Superset-image tasks |
+| `lifecycle` | `-clone`, `-migrate`, `-rotate`, `-init` | Jobs, ConfigMap for Superset-image tasks |
 | `celeryBeat` | `-celery-beat` | Deployment, ConfigMap |
 
 **Presence = enabled**: Setting `celeryWorker: {}` deploys workers with
@@ -151,7 +151,7 @@ Merge semantics per field type:
 - **Operator-managed labels** (`app.kubernetes.io/*`) — applied last, cannot be overridden
 
 Lifecycle tasks use `podTemplate` only (no `deploymentTemplate`) since they
-create bare Pods. See the [Configuration guide](../user-guide/configuration.md#deployment-template) for
+create Jobs, not Deployments. See the [Configuration guide](../user-guide/configuration.md#deployment-template) for
 the full field reference and examples.
 
 ### Example: How resources resolve for celeryWorker
@@ -317,6 +317,6 @@ table and per-component isolation details.
 
 All resources use Kubernetes owner references for automatic cleanup. The parent
 `Superset` CR owns component Deployments, Services, ConfigMaps, HPAs, PDBs,
-lifecycle task Pods, networking resources (Ingress/HTTPRoute), ServiceMonitor,
+lifecycle task Jobs, networking resources (Ingress/HTTPRoute), ServiceMonitor,
 and NetworkPolicies. Deleting the parent cascades to everything. Removing a
 component from the parent spec deletes the resources for that component.

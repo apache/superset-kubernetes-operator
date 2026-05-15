@@ -162,7 +162,7 @@ spec:
 EOF
 ```
 
-The operator will create parent-owned lifecycle task Pods to perform database
+The operator will create parent-owned lifecycle task Jobs to perform database
 migration and initialization, then create the web server Deployment, Service,
 and ConfigMap. Check task status with `kubectl describe superset my-superset`.
 
@@ -172,8 +172,8 @@ and ConfigMap. Check task status with `kubectl describe superset my-superset`.
 # Watch the parent CR status
 kubectl get superset my-superset -w
 
-# Watch lifecycle task pods
-kubectl get pods -l superset.apache.org/init-task -w
+# Watch lifecycle task jobs
+kubectl get jobs -l superset.apache.org/init-task -w
 
 # Watch all pods
 kubectl get pods -w

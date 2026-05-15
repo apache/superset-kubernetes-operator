@@ -253,7 +253,7 @@ type McpServerComponentSpec struct {
 
 // BaseTaskSpec contains fields shared by all lifecycle task types.
 type BaseTaskSpec struct {
-	// Command override for the task pod.
+	// Command override for the task Job.
 	// +optional
 	// +listType=atomic
 	Command []string `json:"command,omitempty"`
@@ -265,8 +265,10 @@ type BaseTaskSpec struct {
 
 	// RequiresDrain controls whether components must be drained before this
 	// task runs. When true, the operator removes component workloads before
-	// executing the task pod, preventing database connection conflicts.
-	// Defaults vary per task type: true for clone and migrate, false for init.
+	// executing the task Job, preventing database connection conflicts. Drain is
+	// skipped when the task is already complete for the current checksum, or when
+	// no configured component has desired replicas greater than zero.
+	// Defaults vary per task type: true for clone, migrate, and rotate; false for init.
 	// +optional
 	RequiresDrain *bool `json:"requiresDrain,omitempty"`
 
@@ -321,15 +323,15 @@ type LifecycleSpec struct {
 	// +optional
 	Disabled *bool `json:"disabled,omitempty"`
 
-	// Image override for lifecycle task pods.
+	// Image override for lifecycle task Jobs.
 	// +optional
 	Image *ImageOverrideSpec `json:"image,omitempty"`
 
-	// Pod and container template for lifecycle task pods.
+	// Pod and container template for lifecycle task Jobs.
 	// +optional
 	PodTemplate *PodTemplate `json:"podTemplate,omitempty"`
 
-	// Pod retention policy for completed task pods.
+	// Retention policy for completed lifecycle task Jobs and their Pods.
 	// +optional
 	PodRetention *PodRetentionSpec `json:"podRetention,omitempty"`
 
@@ -342,7 +344,8 @@ type LifecycleSpec struct {
 	SQLAlchemyEngineOptions *SQLAlchemyEngineOptionsSpec `json:"sqlaEngineOptions,omitempty"`
 
 	// MaintenancePage configures a lightweight maintenance page served during
-	// lifecycle drain and task execution. Presence enables the feature.
+	// lifecycle drain and task execution. Presence enables the feature when a
+	// drain will actually run and an existing web-server workload is present.
 	// In managed mode (no image override), an nginx:alpine container serves
 	// a default or custom HTML page. In custom mode (image set), the user's
 	// image handles serving, and content fields are passed as env vars.
@@ -350,7 +353,8 @@ type LifecycleSpec struct {
 	MaintenancePage *MaintenancePageSpec `json:"maintenancePage,omitempty"`
 
 	// Clone configures database cloning from an external source before running
-	// migrations. The clone target is always spec.metastore. Only allowed in dev mode.
+	// migrations. The clone target is always spec.metastore. Only allowed in
+	// Development or Staging mode.
 	// +optional
 	Clone *CloneTaskSpec `json:"clone,omitempty"`
 
@@ -422,13 +426,13 @@ type AdminUserSpec struct {
 	Email *string `json:"email,omitempty"`
 }
 
-// PodRetentionSpec defines retention behavior for init pods.
+// PodRetentionSpec defines retention behavior for lifecycle task Jobs and their Pods.
 type PodRetentionSpec struct {
-	// Retention policy: Delete removes pods after completion, Retain keeps all,
-	// RetainOnFailure (the default) keeps only failed pods for debugging and
-	// deletes successful ones to reduce noise. Retained pods are automatically
-	// cleaned up by garbage collection when the task CR is deleted on the
-	// next lifecycle run.
+	// Retention policy: Delete removes Jobs and Pods after completion, Retain keeps all,
+	// RetainOnFailure (the default) keeps only failed Jobs and Pods for debugging and
+	// deletes successful ones to reduce noise. Retained Jobs and Pods are automatically
+	// deleted when the task is reset or disabled, and garbage-collected when the
+	// parent Superset CR is deleted.
 	// +optional
 	// +kubebuilder:validation:Enum=Delete;Retain;RetainOnFailure
 	// +kubebuilder:default=RetainOnFailure
@@ -436,7 +440,9 @@ type PodRetentionSpec struct {
 }
 
 // MaintenancePageSpec configures a lightweight maintenance page served while
-// components are drained for lifecycle tasks. Supports two modes:
+// components are drained for lifecycle tasks. The page is only started when a
+// drain will actually run and an existing web-server workload is present.
+// Supports two modes:
 //   - Managed (default): uses nginx:alpine with operator-generated HTML and nginx config.
 //   - Custom (image set): user provides their own image/command; content fields
 //     are passed as SUPERSET_OPERATOR__MAINTENANCE_* env vars.
@@ -510,16 +516,16 @@ type CloneTaskSpec struct {
 	// +optional
 	PostCloneSQL []string `json:"postCloneSQL,omitempty"`
 
-	// Image for the clone pod. Defaults to postgres:17-alpine (PostgreSQL)
+	// Image for the clone Job. Defaults to postgres:17-alpine (PostgreSQL)
 	// or mysql:8-alpine (MySQL) based on source.type.
 	// +optional
 	Image *ImageSpec `json:"image,omitempty"`
 
-	// Pod and container template for the clone task pod.
+	// Pod and container template for the clone task Job.
 	// +optional
 	PodTemplate *PodTemplate `json:"podTemplate,omitempty"`
 
-	// Pod retention policy for completed clone pods.
+	// Retention policy for completed clone Jobs and their Pods.
 	// +optional
 	PodRetention *PodRetentionSpec `json:"podRetention,omitempty"`
 }
@@ -547,7 +553,8 @@ type CloneSourceSpec struct {
 	// Username for the source database (should have read-only access).
 	Username string `json:"username"`
 
-	// Password for the source database (dev mode only).
+	// Password for the source database (Development mode only). In Staging,
+	// use passwordFrom to reference a Kubernetes Secret.
 	// +optional
 	Password *string `json:"password,omitempty"`
 
@@ -698,21 +705,22 @@ type SupersetStatus struct {
 	ConfigChecksum string `json:"configChecksum,omitempty"`
 	// High-level phase.
 	// +optional
-	// +kubebuilder:validation:Enum=Initializing;Upgrading;Draining;Running;Degraded;Suspended;Blocked;AwaitingApproval
+	// +kubebuilder:validation:Enum=Initializing;Upgrading;Running;Degraded;Suspended;Blocked;AwaitingApproval
 	Phase string `json:"phase,omitempty"`
 }
 
 // LifecycleStatus tracks the current lifecycle task execution state.
 type LifecycleStatus struct {
-	// Phase of the lifecycle: Idle, Cloning, Migrating, Rotating, Initializing, Complete, Blocked, AwaitingApproval.
+	// Phase of the lifecycle: Idle, Cloning, Draining, Migrating, Rotating, Initializing, Restoring, Complete, Blocked, AwaitingApproval.
 	// +optional
 	Phase string `json:"phase,omitempty"`
 	// MaintenanceActive indicates the maintenance page is currently serving traffic
 	// via the web-server Service.
 	// +optional
 	MaintenanceActive bool `json:"maintenanceActive,omitempty"`
-	// LastCompletedChecksums maps task type to its ConfigChecksum at last
-	// successful completion. Used to detect input drift when task CRs are absent.
+	// LastCompletedChecksums maps task type to its task checksum at last
+	// successful completion. Used to detect input drift when task status refs
+	// are absent.
 	// +optional
 	LastCompletedChecksums map[string]string `json:"lastCompletedChecksums,omitempty"`
 	// Clone task status summary.
@@ -737,7 +745,7 @@ type TaskRefStatus struct {
 	// +optional
 	// +kubebuilder:validation:Enum=Pending;Running;Complete;Failed
 	State string `json:"state,omitempty"`
-	// Reference to the current or most recent task pod.
+	// Reference to the current or most recent task Job.
 	// +optional
 	Ref string `json:"ref,omitempty"`
 	// +optional
@@ -751,8 +759,14 @@ type TaskRefStatus struct {
 	// Maximum number of attempts before the task is considered permanently failed.
 	// +optional
 	MaxRetries int32 `json:"maxRetries,omitempty"`
+	// PodName is retained for backward-compatible status shape. New lifecycle
+	// executions use JobName and Ref instead.
 	// +optional
 	PodName string `json:"podName,omitempty"`
+	// JobName is the deterministic Kubernetes Job name for the current or most
+	// recent task execution.
+	// +optional
+	JobName string `json:"jobName,omitempty"`
 	// Reference to the rendered task ConfigMap.
 	// +optional
 	ConfigMapRef string `json:"configMapRef,omitempty"`
@@ -815,7 +829,7 @@ type ComponentStatusMap struct {
 type ComponentRefStatus struct {
 	// Phase summarizes the component workload state.
 	// +optional
-	// +kubebuilder:validation:Enum=Pending;Progressing;Ready;Unavailable
+	// +kubebuilder:validation:Enum=Pending;Progressing;Ready;Unavailable;Drained
 	Phase string `json:"phase,omitempty"`
 	// "2/2" format showing ready vs desired replicas.
 	Ready string `json:"ready"`
@@ -869,6 +883,7 @@ type ComponentResourceStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Version",type=string,JSONPath=`.status.version`
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
+// +kubebuilder:printcolumn:name="Lifecycle",type=string,JSONPath=`.status.lifecycle.phase`
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.ready`
 // +kubebuilder:printcolumn:name="Available",type=string,JSONPath=`.status.conditions[?(@.type=="Available")].status`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`

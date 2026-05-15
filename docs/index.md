@@ -24,7 +24,7 @@ under the License.
 
 A Kubernetes operator for deploying and managing [Apache Superset](https://superset.apache.org/). Built with the Go-based [Operator SDK](https://sdk.operatorframework.io/).
 
-The operator manages the full Superset lifecycle: database migrations, configuration rendering, component deployment, scaling, and networking. Users define a single `Superset` custom resource, and the operator reconciles the Deployments, ConfigMaps, Services, lifecycle task Pods, and supporting resources for that instance.
+The operator manages the full Superset lifecycle: database migrations, configuration rendering, component deployment, scaling, and networking. Users define a single `Superset` custom resource, and the operator reconciles the Deployments, ConfigMaps, Services, lifecycle task Jobs, and supporting resources for that instance.
 
 ## Features
 
@@ -93,7 +93,7 @@ spec:
   mcpServer: {}
 ```
 
-The operator resolves this into parent-owned resources. Lifecycle task Pods run database migrations before components deploy, and their durable state is projected onto the parent status:
+The operator resolves this into parent-owned resources. Lifecycle task Jobs run database migrations before components deploy, and their durable state is projected onto the parent status:
 
 ```
 $ kubectl get supersets

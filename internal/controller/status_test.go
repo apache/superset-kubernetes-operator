@@ -205,3 +205,203 @@ func TestGetComponentStatusMissingDeployment(t *testing.T) {
 		t.Fatal("expected deployment to remain absent")
 	}
 }
+
+func TestDrainedComponentStatusUsesValidResourceStatus(t *testing.T) {
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec: supersetv1alpha1.SupersetSpec{
+			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
+		},
+	}
+
+	status := drainedComponentStatus(superset, webServerDescriptor)
+	if status.Phase != componentPhaseDrained {
+		t.Fatalf("expected drained phase, got %q", status.Phase)
+	}
+	if status.Ready != "0/1" {
+		t.Fatalf("expected drained ready 0/1, got %q", status.Ready)
+	}
+	if len(status.Resources) != 1 {
+		t.Fatalf("expected deployment resource status, got %d resources", len(status.Resources))
+	}
+	if status.Resources[0].Status != "Missing" {
+		t.Fatalf("expected valid resource status Missing, got %q", status.Resources[0].Status)
+	}
+}
+
+func TestUpdateLifecycleComponentStatusCountsOnlyWebServerUnavailableDuringMaintenance(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec: supersetv1alpha1.SupersetSpec{
+			Image:        supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+			WebServer:    &supersetv1alpha1.WebServerComponentSpec{},
+			CeleryWorker: &supersetv1alpha1.CeleryWorkerComponentSpec{},
+		},
+		Status: supersetv1alpha1.SupersetStatus{
+			Lifecycle: &supersetv1alpha1.LifecycleStatus{MaintenanceActive: true},
+		},
+	}
+	webDeploy := readyDeployment("test-web-server")
+	workerDeploy := readyDeployment("test-celery-worker")
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, webDeploy, workerDeploy).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme}
+
+	r.updateLifecycleComponentStatus(ctx, superset, "cfg")
+
+	if superset.Status.Ready != "1/2" {
+		t.Fatalf("expected aggregate Ready=1/2 during maintenance, got %q", superset.Status.Ready)
+	}
+	if superset.Status.Components.WebServer.Ready != "0/1" {
+		t.Fatalf("expected web-server ready 0/1 during maintenance, got %q", superset.Status.Components.WebServer.Ready)
+	}
+	if superset.Status.Components.WebServer.ReadyReplicas != 0 {
+		t.Fatalf("expected web-server ready replicas to be suppressed during maintenance, got %d", superset.Status.Components.WebServer.ReadyReplicas)
+	}
+	if superset.Status.Components.CeleryWorker.Ready != "1/1" {
+		t.Fatalf("expected celery worker ready 1/1 during maintenance, got %q", superset.Status.Components.CeleryWorker.Ready)
+	}
+	if !hasConditionReason(superset.Status.Conditions, supersetv1alpha1.ConditionTypeAvailable, "MaintenanceActive") {
+		t.Fatalf("expected Available condition reason MaintenanceActive, got %#v", superset.Status.Conditions)
+	}
+}
+
+func TestUpdateStatusKeepsRestoringLifecycleUntilComponentsReady(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec: supersetv1alpha1.SupersetSpec{
+			Image:        supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+			WebServer:    &supersetv1alpha1.WebServerComponentSpec{},
+			CeleryWorker: &supersetv1alpha1.CeleryWorkerComponentSpec{},
+		},
+		Status: supersetv1alpha1.SupersetStatus{
+			Phase:     phaseUpgrading,
+			Lifecycle: &supersetv1alpha1.LifecycleStatus{Phase: lifecyclePhaseRestoring},
+		},
+	}
+	webDeploy := readyDeployment("test-web-server")
+	workerDeploy := progressingDeployment("test-celery-worker")
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(superset, webDeploy, workerDeploy).
+		WithStatusSubresource(&supersetv1alpha1.Superset{}).
+		Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme}
+
+	if err := r.updateStatus(ctx, superset, superset.DeepCopy()); err != nil {
+		t.Fatalf("updateStatus: %v", err)
+	}
+
+	if superset.Status.Phase != phaseUpgrading {
+		t.Fatalf("expected parent phase to remain Upgrading, got %q", superset.Status.Phase)
+	}
+	if superset.Status.Lifecycle.Phase != lifecyclePhaseRestoring {
+		t.Fatalf("expected lifecycle phase Restoring, got %q", superset.Status.Lifecycle.Phase)
+	}
+	if superset.Status.Ready != "1/2" {
+		t.Fatalf("expected aggregate Ready=1/2 while restoring, got %q", superset.Status.Ready)
+	}
+	if !hasConditionReason(superset.Status.Conditions, supersetv1alpha1.ConditionTypeAvailable, "ComponentsRestoring") {
+		t.Fatalf("expected Available condition reason ComponentsRestoring, got %#v", superset.Status.Conditions)
+	}
+}
+
+func TestUpdateStatusCompletesRestoringLifecycleWhenComponentsReady(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec: supersetv1alpha1.SupersetSpec{
+			Image:        supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+			WebServer:    &supersetv1alpha1.WebServerComponentSpec{},
+			CeleryWorker: &supersetv1alpha1.CeleryWorkerComponentSpec{},
+		},
+		Status: supersetv1alpha1.SupersetStatus{
+			Phase:     phaseUpgrading,
+			Lifecycle: &supersetv1alpha1.LifecycleStatus{Phase: lifecyclePhaseRestoring},
+		},
+	}
+	webDeploy := readyDeployment("test-web-server")
+	workerDeploy := readyDeployment("test-celery-worker")
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(superset, webDeploy, workerDeploy).
+		WithStatusSubresource(&supersetv1alpha1.Superset{}).
+		Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme}
+
+	if err := r.updateStatus(ctx, superset, superset.DeepCopy()); err != nil {
+		t.Fatalf("updateStatus: %v", err)
+	}
+
+	if superset.Status.Phase != phaseRunning {
+		t.Fatalf("expected parent phase Running, got %q", superset.Status.Phase)
+	}
+	if superset.Status.Lifecycle.Phase != lifecyclePhaseComplete {
+		t.Fatalf("expected lifecycle phase Complete, got %q", superset.Status.Lifecycle.Phase)
+	}
+	if superset.Status.Ready != "2/2" {
+		t.Fatalf("expected aggregate Ready=2/2, got %q", superset.Status.Ready)
+	}
+	if !hasConditionReason(superset.Status.Conditions, supersetv1alpha1.ConditionTypeAvailable, "AllComponentsReady") {
+		t.Fatalf("expected Available condition reason AllComponentsReady, got %#v", superset.Status.Conditions)
+	}
+}
+
+func readyDeployment(name string) *appsv1.Deployment {
+	replicas := int32(1)
+	return &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       name,
+			Namespace:  "default",
+			Generation: 1,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Template: corePodTemplateWithChecksum("sha256:test"),
+		},
+		Status: appsv1.DeploymentStatus{
+			ObservedGeneration: 1,
+			Replicas:           replicas,
+			ReadyReplicas:      replicas,
+			UpdatedReplicas:    replicas,
+			AvailableReplicas:  replicas,
+		},
+	}
+}
+
+func progressingDeployment(name string) *appsv1.Deployment {
+	replicas := int32(1)
+	return &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       name,
+			Namespace:  "default",
+			Generation: 1,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Template: corePodTemplateWithChecksum("sha256:test"),
+		},
+		Status: appsv1.DeploymentStatus{
+			ObservedGeneration: 1,
+			Replicas:           replicas,
+			UpdatedReplicas:    replicas,
+		},
+	}
+}
+
+func hasConditionReason(conditions []metav1.Condition, conditionType, reason string) bool {
+	for _, condition := range conditions {
+		if condition.Type == conditionType && condition.Reason == reason {
+			return true
+		}
+	}
+	return false
+}

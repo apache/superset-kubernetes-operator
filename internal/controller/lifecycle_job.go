@@ -1,0 +1,544 @@
+/*
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package controller
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+
+	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
+	naming "github.com/apache/superset-kubernetes-operator/internal/common"
+)
+
+const jobBackoffLimit int32 = 0
+
+func ensureTaskStatus(superset *supersetv1alpha1.Superset, taskType string) *supersetv1alpha1.TaskRefStatus {
+	if superset.Status.Lifecycle == nil {
+		superset.Status.Lifecycle = &supersetv1alpha1.LifecycleStatus{}
+	}
+	var ref **supersetv1alpha1.TaskRefStatus
+	switch taskType {
+	case taskTypeClone:
+		ref = &superset.Status.Lifecycle.Clone
+	case taskTypeMigrate:
+		ref = &superset.Status.Lifecycle.Migrate
+	case taskTypeRotate:
+		ref = &superset.Status.Lifecycle.Rotate
+	case taskTypeInit:
+		ref = &superset.Status.Lifecycle.Init
+	default:
+		ref = &superset.Status.Lifecycle.Init
+	}
+	if *ref == nil {
+		*ref = &supersetv1alpha1.TaskRefStatus{}
+	}
+	return *ref
+}
+
+func resetTaskStatusForRun(taskRef *supersetv1alpha1.TaskRefStatus, desiredChecksum string, maxRetries int32) {
+	taskRef.State = taskStatePending
+	taskRef.Ref = ""
+	taskRef.PodName = ""
+	taskRef.JobName = ""
+	taskRef.StartedAt = nil
+	taskRef.CompletedAt = nil
+	taskRef.Duration = ""
+	taskRef.Attempts = 0
+	taskRef.MaxRetries = maxRetries
+	taskRef.NextAttemptAt = nil
+	taskRef.DesiredChecksum = desiredChecksum
+	taskRef.CompletedChecksum = ""
+	taskRef.Message = ""
+	taskRef.Conditions = nil
+}
+
+func rememberCompletedTaskChecksum(superset *supersetv1alpha1.Superset, taskType, checksum string) {
+	if superset.Status.Lifecycle == nil {
+		superset.Status.Lifecycle = &supersetv1alpha1.LifecycleStatus{}
+	}
+	if superset.Status.Lifecycle.LastCompletedChecksums == nil {
+		superset.Status.Lifecycle.LastCompletedChecksums = make(map[string]string)
+	}
+	superset.Status.Lifecycle.LastCompletedChecksums[taskType] = checksum
+}
+
+func (r *SupersetReconciler) reconcileLifecycleTaskJob(
+	ctx context.Context,
+	superset *supersetv1alpha1.Superset,
+	taskName, taskType string,
+	flatSpec *supersetv1alpha1.FlatComponentSpec,
+	taskChecksum string,
+	taskRef *supersetv1alpha1.TaskRefStatus,
+) (lifecycleResult, error) {
+	log := logf.FromContext(ctx)
+	maxRetries := taskRef.MaxRetries
+	timeout := r.taskTimeoutValue(superset, taskType)
+	image := fmt.Sprintf("%s:%s", flatSpec.Image.Repository, flatSpec.Image.Tag)
+
+	if taskRef.State == "" {
+		taskRef.State = taskStatePending
+	}
+	if taskRef.Image == "" {
+		taskRef.Image = image
+	}
+
+	if taskRef.NextAttemptAt != nil {
+		if remaining := taskRef.NextAttemptAt.Sub(r.now()); remaining > 0 {
+			return lifecycleResult{RequeueAfter: remaining}, nil
+		}
+		taskRef.NextAttemptAt = nil
+	}
+
+	existingJob, err := r.getLifecycleTaskJob(ctx, superset, taskName)
+	if err != nil {
+		return lifecycleResult{}, err
+	}
+
+	if existingJob != nil {
+		taskRef.JobName = existingJob.Name
+		taskRef.PodName = ""
+		taskRef.Ref = "Job/" + existingJob.Name
+
+		if existingJob.DeletionTimestamp != nil {
+			return lifecycleWait(), nil
+		}
+
+		if !r.taskJobMatchesChecksum(existingJob, taskChecksum) {
+			log.Info("Deleting stale lifecycle task job", "task", taskType, "job", existingJob.Name)
+			if err := r.Delete(ctx, existingJob); client.IgnoreNotFound(err) != nil {
+				return lifecycleResult{}, err
+			}
+			return lifecycleWait(), nil
+		}
+
+		if result, handled, err := r.reconcileTaskJobImage(ctx, superset, existingJob, taskType, image, taskRef); handled || err != nil {
+			return result, err
+		}
+
+		if jobComplete(existingJob) {
+			now := metav1.Now()
+			if completed := jobConditionTransitionTime(existingJob, batchv1.JobComplete); completed != nil {
+				now = *completed
+			}
+			taskRef.State = taskStateComplete
+			taskRef.CompletedAt = &now
+			if taskRef.StartedAt == nil && existingJob.Status.StartTime != nil {
+				taskRef.StartedAt = existingJob.Status.StartTime
+			}
+			if taskRef.StartedAt != nil {
+				taskRef.Duration = now.Sub(taskRef.StartedAt.Time).Round(time.Second).String()
+			}
+			taskRef.Message = "Completed successfully"
+			taskRef.CompletedChecksum = taskChecksum
+			setCondition(&taskRef.Conditions, supersetv1alpha1.ConditionTypeTaskComplete,
+				metav1.ConditionTrue, "TaskComplete", "Task completed successfully", superset.Generation)
+			return lifecycleCheckpoint(), nil
+		}
+
+		if jobFailed(existingJob) {
+			if taskRef.State == taskStatePending && taskRef.Attempts > 0 && taskRef.NextAttemptAt == nil {
+				if err := r.Delete(ctx, existingJob); client.IgnoreNotFound(err) != nil {
+					return lifecycleResult{}, err
+				}
+				return lifecycleWait(), nil
+			}
+
+			taskRef.Attempts++
+			taskRef.Message = jobFailureMessage(existingJob)
+			if taskRef.Attempts >= maxRetries {
+				taskRef.State = taskStateFailed
+				taskRef.CompletedChecksum = taskChecksum
+				if completed := jobConditionTransitionTime(existingJob, batchv1.JobFailed); completed != nil {
+					taskRef.CompletedAt = completed
+				}
+				r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "TaskFailed", "Lifecycle",
+					"%s task failed after %d attempts: %s", taskType, taskRef.Attempts, taskRef.Message)
+				setCondition(&taskRef.Conditions, supersetv1alpha1.ConditionTypeTaskComplete,
+					metav1.ConditionFalse, "TaskFailed", taskRef.Message, superset.Generation)
+				return lifecycleTerminal(), nil
+			}
+
+			backoff := calculateBackoff(taskRef.Attempts)
+			next := metav1.NewTime(r.now().Add(backoff))
+			taskRef.NextAttemptAt = &next
+			taskRef.State = taskStatePending
+
+			r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "TaskRetry", "Lifecycle",
+				"%s task failed (attempt %d/%d), retrying in %s", taskType, taskRef.Attempts, maxRetries, backoff)
+			setCondition(&taskRef.Conditions, supersetv1alpha1.ConditionTypeTaskComplete,
+				metav1.ConditionFalse, "TaskRetrying", fmt.Sprintf("Retrying after attempt %d", taskRef.Attempts), superset.Generation)
+			setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
+				metav1.ConditionFalse, "TaskRetrying", fmt.Sprintf("%s task is retrying", taskType), superset.Generation)
+			return lifecycleCheckpoint(), nil
+		}
+
+		taskRef.State = taskStateRunning
+		if taskRef.StartedAt == nil {
+			if existingJob.Status.StartTime != nil {
+				taskRef.StartedAt = existingJob.Status.StartTime
+			} else {
+				started := existingJob.CreationTimestamp
+				taskRef.StartedAt = &started
+			}
+		}
+		setCondition(&taskRef.Conditions, supersetv1alpha1.ConditionTypeTaskComplete,
+			metav1.ConditionFalse, "TaskInProgress", "Task is in progress", superset.Generation)
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
+			metav1.ConditionFalse, "TaskInProgress", fmt.Sprintf("%s task is in progress", taskType), superset.Generation)
+		return lifecycleWait(), nil
+	}
+
+	log.Info("Creating lifecycle task job", "task", taskType, "attempt", taskRef.Attempts+1)
+	job := r.buildLifecycleTaskJob(superset, taskName, taskType, flatSpec, taskChecksum, timeout)
+	if err := controllerutil.SetControllerReference(superset, job, r.Scheme); err != nil {
+		return lifecycleResult{}, fmt.Errorf("setting controller reference on lifecycle task job: %w", err)
+	}
+	if err := r.Create(ctx, job); err != nil {
+		if apierrors.IsAlreadyExists(err) {
+			return lifecycleWait(), nil
+		}
+		return lifecycleResult{}, fmt.Errorf("creating lifecycle task job: %w", err)
+	}
+
+	now := metav1.Now()
+	taskRef.State = taskStateRunning
+	taskRef.JobName = job.Name
+	taskRef.PodName = ""
+	taskRef.Ref = "Job/" + job.Name
+	taskRef.StartedAt = &now
+	taskRef.CompletedAt = nil
+	taskRef.Duration = ""
+	taskRef.Image = image
+	taskRef.Message = ""
+	setCondition(&taskRef.Conditions, supersetv1alpha1.ConditionTypeTaskComplete,
+		metav1.ConditionFalse, "TaskInProgress", "Task is in progress", superset.Generation)
+	setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
+		metav1.ConditionFalse, "TaskInProgress", fmt.Sprintf("%s task is in progress", taskType), superset.Generation)
+	r.Recorder.Eventf(superset, nil, corev1.EventTypeNormal, "TaskStarted", "Lifecycle",
+		"Started %s task job: %s", taskType, job.Name)
+	return lifecycleWait(), nil
+}
+
+func (r *SupersetReconciler) getLifecycleTaskJob(ctx context.Context, superset *supersetv1alpha1.Superset, taskName string) (*batchv1.Job, error) {
+	job := &batchv1.Job{}
+	if err := r.Get(ctx, types.NamespacedName{Name: taskName, Namespace: superset.Namespace}, job); err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("getting lifecycle task job: %w", err)
+	}
+	return job, nil
+}
+
+func (r *SupersetReconciler) buildLifecycleTaskJob(
+	superset *supersetv1alpha1.Superset,
+	taskName, taskType string,
+	flatSpec *supersetv1alpha1.FlatComponentSpec,
+	taskChecksum string,
+	timeout time.Duration,
+) *batchv1.Job {
+	podSpec := buildInitPod(flatSpec)
+	pt := safePodTemplatePtr(flatSpec.PodTemplate)
+	labels := mergeLabels(pt.Labels, r.lifecycleTaskLabels(superset, taskName, taskType))
+	annotations := mergeAnnotations(pt.Annotations, map[string]string{
+		naming.AnnotationConfigChecksum: taskChecksum,
+	})
+	var activeDeadlineSeconds *int64
+	if timeout > 0 {
+		seconds := int64(timeout.Seconds())
+		if seconds < 1 {
+			seconds = 1
+		}
+		activeDeadlineSeconds = &seconds
+	}
+
+	return &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        taskName,
+			Namespace:   superset.Namespace,
+			Labels:      labels,
+			Annotations: annotations,
+		},
+		Spec: batchv1.JobSpec{
+			BackoffLimit:          ptrInt32(jobBackoffLimit),
+			Completions:           ptrInt32(1),
+			Parallelism:           ptrInt32(1),
+			ActiveDeadlineSeconds: activeDeadlineSeconds,
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels:      labels,
+					Annotations: annotations,
+				},
+				Spec: podSpec,
+			},
+		},
+	}
+}
+
+func ptrInt32(v int32) *int32 {
+	return &v
+}
+
+func (r *SupersetReconciler) taskJobMatchesChecksum(job *batchv1.Job, taskChecksum string) bool {
+	if job.Annotations == nil || job.Annotations[naming.AnnotationConfigChecksum] == "" {
+		return !jobComplete(job) && !jobFailed(job)
+	}
+	return job.Annotations[naming.AnnotationConfigChecksum] == taskChecksum
+}
+
+func (r *SupersetReconciler) reconcileTaskJobImage(
+	ctx context.Context,
+	superset *supersetv1alpha1.Superset,
+	existingJob *batchv1.Job,
+	taskType string,
+	image string,
+	taskRef *supersetv1alpha1.TaskRefStatus,
+) (lifecycleResult, bool, error) {
+	existingImage := lifecycleJobMainImage(existingJob)
+	if existingImage != "" && existingImage != image {
+		log := logf.FromContext(ctx)
+		log.Info("Lifecycle task job image changed, deleting stale job", "task", taskType, "old", existingImage, "new", image)
+		if err := r.Delete(ctx, existingJob); client.IgnoreNotFound(err) != nil {
+			return lifecycleResult{}, false, err
+		}
+		taskRef.State = taskStatePending
+		taskRef.Image = image
+		taskRef.Ref = ""
+		taskRef.JobName = ""
+		taskRef.PodName = ""
+		taskRef.Message = "Image changed, re-running task"
+		r.Recorder.Eventf(superset, nil, corev1.EventTypeNormal, "TaskImageChanged", "Lifecycle",
+			"%s image changed from %s to %s, re-running task", taskType, existingImage, image)
+		return lifecycleCheckpoint(), true, nil
+	}
+	if taskRef.Image != image {
+		taskRef.Image = image
+	}
+	return lifecycleResult{}, false, nil
+}
+
+func lifecycleJobMainImage(job *batchv1.Job) string {
+	if job == nil {
+		return ""
+	}
+	for _, container := range job.Spec.Template.Spec.Containers {
+		if container.Name == naming.Container {
+			return container.Image
+		}
+	}
+	if len(job.Spec.Template.Spec.Containers) == 0 {
+		return ""
+	}
+	return job.Spec.Template.Spec.Containers[0].Image
+}
+
+func (r *SupersetReconciler) lifecycleTaskLabels(superset *supersetv1alpha1.Superset, taskName, taskType string) map[string]string {
+	return map[string]string{
+		naming.LabelKeyName:      naming.LabelValueApp,
+		naming.LabelKeyParent:    superset.Name,
+		naming.LabelKeyComponent: string(naming.ComponentInit),
+		labelInitInstance:        taskName,
+		labelInitTask:            strings.ToLower(taskType),
+	}
+}
+
+func (r *SupersetReconciler) deleteTaskJobs(ctx context.Context, superset *supersetv1alpha1.Superset, taskName string) error {
+	job := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{Name: taskName, Namespace: superset.Namespace},
+	}
+	if err := r.deleteLifecycleJob(ctx, job); err != nil {
+		return fmt.Errorf("deleting lifecycle task job: %w", err)
+	}
+	if err := r.deleteLegacyTaskPods(ctx, superset, taskName); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *SupersetReconciler) deleteLegacyTaskPods(ctx context.Context, superset *supersetv1alpha1.Superset, taskName string) error {
+	podList := &corev1.PodList{}
+	if err := r.List(ctx, podList,
+		client.InNamespace(superset.Namespace),
+		client.MatchingLabels{labelInitInstance: taskName},
+	); err != nil {
+		return fmt.Errorf("listing legacy lifecycle task pods: %w", err)
+	}
+	for i := range podList.Items {
+		if err := client.IgnoreNotFound(r.Delete(ctx, &podList.Items[i])); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *SupersetReconciler) deleteLifecycleJob(ctx context.Context, job *batchv1.Job) error {
+	err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground))
+	return client.IgnoreNotFound(err)
+}
+
+func (r *SupersetReconciler) cleanupLifecycleTaskJobsByRetention(ctx context.Context, superset *supersetv1alpha1.Superset) error {
+	for _, task := range []struct {
+		taskType string
+		suffix   string
+	}{
+		{taskTypeClone, suffixClone},
+		{taskTypeMigrate, suffixMigrate},
+		{taskTypeRotate, suffixRotate},
+		{taskTypeInit, suffixInit},
+	} {
+		if err := r.cleanupTaskJobsByRetention(ctx, superset, superset.Name+task.suffix, task.taskType); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *SupersetReconciler) cleanupTaskJobsByRetention(ctx context.Context, superset *supersetv1alpha1.Superset, taskName, taskType string) error {
+	jobList := &batchv1.JobList{}
+	if err := r.List(ctx, jobList,
+		client.InNamespace(superset.Namespace),
+		client.MatchingLabels{
+			labelInitInstance: taskName,
+			labelInitTask:     strings.ToLower(taskType),
+		},
+	); err != nil {
+		return fmt.Errorf("listing lifecycle task jobs for retention: %w", err)
+	}
+
+	policy := r.taskRetentionPolicyValue(superset, taskType)
+	for i := range jobList.Items {
+		job := &jobList.Items[i]
+		if job.DeletionTimestamp != nil {
+			continue
+		}
+		phase, terminal := lifecycleJobPhase(job)
+		if !terminal {
+			continue
+		}
+		if ShouldDeletePod(policy, phase) {
+			if err := r.deleteLifecycleJob(ctx, job); err != nil {
+				return fmt.Errorf("deleting retained lifecycle task job %s: %w", job.Name, err)
+			}
+		}
+	}
+
+	return r.cleanupLegacyTaskPodsByRetention(ctx, superset, taskName, taskType)
+}
+
+func (r *SupersetReconciler) cleanupLegacyTaskPodsByRetention(ctx context.Context, superset *supersetv1alpha1.Superset, taskName, taskType string) error {
+	podList := &corev1.PodList{}
+	if err := r.List(ctx, podList,
+		client.InNamespace(superset.Namespace),
+		client.MatchingLabels{
+			labelInitInstance: taskName,
+			labelInitTask:     strings.ToLower(taskType),
+		},
+	); err != nil {
+		return fmt.Errorf("listing legacy lifecycle task pods for retention: %w", err)
+	}
+
+	policy := r.taskRetentionPolicyValue(superset, taskType)
+	for i := range podList.Items {
+		pod := &podList.Items[i]
+		if pod.DeletionTimestamp != nil {
+			continue
+		}
+		if pod.Status.Phase != corev1.PodSucceeded && pod.Status.Phase != corev1.PodFailed {
+			continue
+		}
+		if ShouldDeletePod(policy, pod.Status.Phase) {
+			if err := r.Delete(ctx, pod); client.IgnoreNotFound(err) != nil {
+				return fmt.Errorf("deleting retained legacy lifecycle task pod %s: %w", pod.Name, err)
+			}
+		}
+	}
+	return nil
+}
+
+func lifecycleJobPhase(job *batchv1.Job) (corev1.PodPhase, bool) {
+	if jobComplete(job) {
+		return corev1.PodSucceeded, true
+	}
+	if jobFailed(job) {
+		return corev1.PodFailed, true
+	}
+	return "", false
+}
+
+func jobComplete(job *batchv1.Job) bool {
+	if job.Status.Succeeded > 0 {
+		return true
+	}
+	for _, condition := range job.Status.Conditions {
+		if condition.Type == batchv1.JobComplete && condition.Status == corev1.ConditionTrue {
+			return true
+		}
+	}
+	return false
+}
+
+func jobFailed(job *batchv1.Job) bool {
+	for _, condition := range job.Status.Conditions {
+		if condition.Type == batchv1.JobFailed && condition.Status == corev1.ConditionTrue {
+			return true
+		}
+	}
+	return false
+}
+
+func jobConditionTransitionTime(job *batchv1.Job, conditionType batchv1.JobConditionType) *metav1.Time {
+	for _, condition := range job.Status.Conditions {
+		if condition.Type == conditionType && condition.Status == corev1.ConditionTrue {
+			return &condition.LastTransitionTime
+		}
+	}
+	return nil
+}
+
+func jobFailureMessage(job *batchv1.Job) string {
+	for _, condition := range job.Status.Conditions {
+		if condition.Type == batchv1.JobFailed && condition.Status == corev1.ConditionTrue {
+			if condition.Message != "" {
+				return truncateFailureMessage(condition.Message)
+			}
+			if condition.Reason != "" {
+				return truncateFailureMessage(condition.Reason)
+			}
+		}
+	}
+	return "Job failed"
+}
+
+func truncateFailureMessage(msg string) string {
+	if len(msg) > maxTerminationMessageLen {
+		return msg[:maxTerminationMessageLen] + "..."
+	}
+	return msg
+}

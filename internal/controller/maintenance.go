@@ -28,6 +28,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -54,6 +55,54 @@ func isMaintenancePageEnabled(superset *supersetv1alpha1.Superset) bool {
 	return superset.Spec.Lifecycle != nil &&
 		superset.Spec.Lifecycle.MaintenancePage != nil &&
 		superset.Spec.WebServer != nil
+}
+
+func webServerDesiredReplicas(superset *supersetv1alpha1.Superset) int32 {
+	accessor := webServerDescriptor.extract(&superset.Spec)
+	if accessor == nil {
+		return 0
+	}
+	return desiredReplicasForStatus(superset, webServerDescriptor, accessor)
+}
+
+func (r *SupersetReconciler) hasExistingWebServerWorkload(ctx context.Context, superset *supersetv1alpha1.Superset) (bool, error) {
+	deployName := naming.ResourceBaseName(superset.Name, naming.ComponentWebServer)
+	deploy := &appsv1.Deployment{}
+	if err := r.Get(ctx, client.ObjectKey{Namespace: superset.Namespace, Name: deployName}, deploy); err != nil {
+		if !errors.IsNotFound(err) {
+			return false, fmt.Errorf("getting web-server Deployment: %w", err)
+		}
+	} else if deploy.DeletionTimestamp == nil && deploymentHasReplicas(deploy) {
+		return true, nil
+	}
+
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods,
+		client.InNamespace(superset.Namespace),
+		client.MatchingLabels{
+			naming.LabelKeyParent:    superset.Name,
+			naming.LabelKeyComponent: string(naming.ComponentWebServer),
+		},
+	); err != nil {
+		return false, fmt.Errorf("listing web-server pods: %w", err)
+	}
+	for i := range pods.Items {
+		if pods.Items[i].DeletionTimestamp == nil {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func deploymentHasReplicas(deploy *appsv1.Deployment) bool {
+	if deploy.Status.Replicas > 0 ||
+		deploy.Status.ReadyReplicas > 0 ||
+		deploy.Status.AvailableReplicas > 0 ||
+		deploy.Status.UpdatedReplicas > 0 ||
+		deploy.Status.UnavailableReplicas > 0 {
+		return true
+	}
+	return deploy.Spec.Replicas == nil || *deploy.Spec.Replicas > 0
 }
 
 func isCustomMode(spec *supersetv1alpha1.MaintenancePageSpec) bool {
@@ -106,6 +155,10 @@ func (r *SupersetReconciler) reconcileMaintenancePageUp(
 		return false, nil
 	}
 
+	if !superset.Status.Lifecycle.MaintenanceActive {
+		r.Recorder.Eventf(superset, nil, corev1.EventTypeNormal, "MaintenanceStarted", "Lifecycle",
+			"Maintenance page is ready; routing web-server Service to maintenance")
+	}
 	superset.Status.Lifecycle.MaintenanceActive = true
 	return true, nil
 }
@@ -131,8 +184,17 @@ func (r *SupersetReconciler) reconcileMaintenanceReturn(
 	// If webServer was removed while maintenance is active, clear immediately
 	// rather than waiting forever for a Deployment that won't come.
 	if superset.Spec.WebServer == nil {
+		r.Recorder.Eventf(superset, nil, corev1.EventTypeNormal, "MaintenanceEnded", "Lifecycle",
+			"Maintenance page disabled because webServer was removed")
 		superset.Status.Lifecycle.MaintenanceActive = false
 		log.Info("WebServer removed while maintenance active, clearing maintenance")
+		return true, nil
+	}
+	if webServerDesiredReplicas(superset) == 0 {
+		r.Recorder.Eventf(superset, nil, corev1.EventTypeNormal, "MaintenanceEnded", "Lifecycle",
+			"Maintenance page disabled because webServer has zero desired replicas")
+		superset.Status.Lifecycle.MaintenanceActive = false
+		log.Info("WebServer scaled to zero while maintenance active, clearing maintenance")
 		return true, nil
 	}
 
@@ -154,6 +216,8 @@ func (r *SupersetReconciler) reconcileMaintenanceReturn(
 	// Web-server is ready — mark maintenance as inactive. The caller will
 	// reconcile the Service (switching selector) and then clean up resources.
 	superset.Status.Lifecycle.MaintenanceActive = false
+	r.Recorder.Eventf(superset, nil, corev1.EventTypeNormal, "MaintenanceEnded", "Lifecycle",
+		"Web-server is ready; routing web-server Service back to Superset")
 	log.Info("Web-server ready, clearing maintenance page")
 	return true, nil
 }
@@ -199,12 +263,6 @@ func (r *SupersetReconciler) reconcileMaintenanceDeployment(
 	port int32,
 ) error {
 	deployName := maintenanceDeploymentName(superset.Name)
-	deploy := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      deployName,
-			Namespace: superset.Namespace,
-		},
-	}
 
 	flat := buildMaintenanceFlatSpec(superset.Name, spec)
 	checksum := computeMaintenanceChecksum(spec)
@@ -218,15 +276,23 @@ func (r *SupersetReconciler) reconcileMaintenanceDeployment(
 		{Name: naming.PortNameHTTP, ContainerPort: port, Protocol: corev1.ProtocolTCP},
 	}
 
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, deploy, func() error {
-		if err := controllerutil.SetControllerReference(superset, deploy, r.Scheme); err != nil {
-			return err
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		deploy := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      deployName,
+				Namespace: superset.Namespace,
+			},
 		}
-		deploy.Spec = buildDeploymentSpec(&flat, cfg, podAnnotations, selectorLabels)
-		deploy.Labels = mergeLabels(nil, componentLabels(string(naming.ComponentMaintenancePage), superset.Name))
-		return nil
+		_, err := controllerutil.CreateOrUpdate(ctx, r.Client, deploy, func() error {
+			if err := controllerutil.SetControllerReference(superset, deploy, r.Scheme); err != nil {
+				return err
+			}
+			deploy.Spec = buildDeploymentSpec(&flat, cfg, podAnnotations, selectorLabels)
+			deploy.Labels = mergeLabels(nil, componentLabels(string(naming.ComponentMaintenancePage), superset.Name))
+			return nil
+		})
+		return err
 	})
-	return err
 }
 
 // reconcileMaintenanceConfigMap creates or updates the ConfigMap containing
@@ -238,24 +304,26 @@ func (r *SupersetReconciler) reconcileMaintenanceConfigMap(
 	port int32,
 ) error {
 	cmName := maintenanceConfigMapName(superset.Name)
-	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cmName,
-			Namespace: superset.Namespace,
-		},
-	}
 
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, cm, func() error {
-		if err := controllerutil.SetControllerReference(superset, cm, r.Scheme); err != nil {
-			return err
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		cm := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      cmName,
+				Namespace: superset.Namespace,
+			},
 		}
-		cm.Data = map[string]string{
-			"default.conf": renderNginxConf(port),
-			"index.html":   renderMaintenanceHTML(spec),
-		}
-		return nil
+		_, err := controllerutil.CreateOrUpdate(ctx, r.Client, cm, func() error {
+			if err := controllerutil.SetControllerReference(superset, cm, r.Scheme); err != nil {
+				return err
+			}
+			cm.Data = map[string]string{
+				"default.conf": renderNginxConf(port),
+				"index.html":   renderMaintenanceHTML(spec),
+			}
+			return nil
+		})
+		return err
 	})
-	return err
 }
 
 // buildMaintenanceFlatSpec constructs the FlatComponentSpec for the maintenance page.

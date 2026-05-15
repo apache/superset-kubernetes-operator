@@ -24,6 +24,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	policyv1 "k8s.io/api/policy/v1"
@@ -54,6 +55,9 @@ func testScheme(t *testing.T) *runtime.Scheme {
 	}
 	if err := autoscalingv2.AddToScheme(s); err != nil {
 		t.Fatalf("AddToScheme(autoscalingv2): %v", err)
+	}
+	if err := batchv1.AddToScheme(s); err != nil {
+		t.Fatalf("AddToScheme(batchv1): %v", err)
 	}
 	if err := policyv1.AddToScheme(s); err != nil {
 		t.Fatalf("AddToScheme(policyv1): %v", err)

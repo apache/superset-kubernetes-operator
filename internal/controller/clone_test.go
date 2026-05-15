@@ -951,6 +951,28 @@ func TestCloneInputs_ScheduleAndTrigger_BothContribute(t *testing.T) {
 	}
 }
 
+func TestCloneInputs_TargetImageChangesChecksum(t *testing.T) {
+	r := &SupersetReconciler{}
+	source := supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"}
+
+	superset := &supersetv1alpha1.Superset{}
+	superset.Spec.Image = supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "6.1.0rc3-dev"}
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		Clone: &supersetv1alpha1.CloneTaskSpec{
+			Source: source,
+		},
+	}
+
+	checksum1 := r.computeStepChecksum("uid", taskTypeClone, []string{"cmd"}, r.cloneInputs(superset))
+
+	superset.Spec.Image.Tag = "6.1.0-dev"
+	checksum2 := r.computeStepChecksum("uid", taskTypeClone, []string{"cmd"}, r.cloneInputs(superset))
+
+	if checksum1 == checksum2 {
+		t.Error("clone checksum should change when the target Superset image changes")
+	}
+}
+
 func TestCloneInputs_NoSchedule_StableChecksum(t *testing.T) {
 	now := time.Date(2026, 5, 11, 14, 0, 0, 0, time.UTC)
 	r := &SupersetReconciler{Now: func() time.Time { return now }}

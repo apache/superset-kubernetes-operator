@@ -27,6 +27,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	policyv1 "k8s.io/api/policy/v1"
@@ -58,7 +59,8 @@ type SupersetReconciler struct {
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersets/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch;update
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;create;delete
+// +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch;delete
+// +kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=autoscaling,resources=horizontalpodautoscalers,verbs=get;list;watch;create;update;patch;delete
@@ -120,19 +122,20 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	// Phase 2.5: Lifecycle tasks (clone + migrate + rotate + init) via
-	// parent-owned bare Pods. Gates component deployment on lifecycle completion.
+	// parent-owned Jobs. Gates component deployment on lifecycle completion.
 	topLevel := convertTopLevelSpec(&superset.Spec)
 	saName := resolveServiceAccountName(superset)
 
 	lifecycleRes, err := r.reconcileLifecycle(ctx, superset, configChecksum, topLevel, saName)
 	if err != nil {
-		r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile Init: %v", err)
-		return ctrl.Result{}, fmt.Errorf("reconciling Init: %w", err)
+		r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile lifecycle: %v", err)
+		return ctrl.Result{}, fmt.Errorf("reconciling lifecycle: %w", err)
 	}
 	if !lifecycleRes.Complete {
 		// Update status before returning.
+		r.updateLifecycleComponentStatus(ctx, superset, configChecksum)
 		if statusErr := patchStatusIfChanged(ctx, r.Client, superset, origSuperset, origSuperset.Status, superset.Status); statusErr != nil {
-			return ctrl.Result{}, fmt.Errorf("updating status during init: %w", statusErr)
+			return ctrl.Result{}, fmt.Errorf("updating status during lifecycle: %w", statusErr)
 		}
 		if lifecycleRes.TerminalFailure {
 			// Even on terminal failure, wake up for the next scheduled run
@@ -155,6 +158,9 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	// loses the checksums and the next reconcile re-enters lifecycle.
 	if statusErr := patchStatusIfChanged(ctx, r.Client, superset, origSuperset, origSuperset.Status, superset.Status); statusErr != nil {
 		return ctrl.Result{}, fmt.Errorf("updating status after lifecycle: %w", statusErr)
+	}
+	if err := r.cleanupLifecycleTaskJobsByRetention(ctx, superset); err != nil {
+		return ctrl.Result{}, fmt.Errorf("cleaning up lifecycle task jobs after lifecycle: %w", err)
 	}
 
 	// Phase 3: Resolve and reconcile each component (table-driven).
@@ -182,6 +188,7 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		_ = r.deleteMaintenanceResources(ctx, superset)
 	}
 	if !maintenanceCleared {
+		r.updateLifecycleComponentStatus(ctx, superset, configChecksum)
 		if statusErr := patchStatusIfChanged(ctx, r.Client, superset, origSuperset, origSuperset.Status, superset.Status); statusErr != nil {
 			return ctrl.Result{}, fmt.Errorf("updating status during maintenance return: %w", statusErr)
 		}
@@ -374,6 +381,7 @@ func (r *SupersetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.Service{}).
 		Owns(&appsv1.Deployment{}).
 		Owns(&corev1.ConfigMap{}).
+		Owns(&batchv1.Job{}).
 		Owns(&corev1.Pod{}).
 		Owns(&autoscalingv2.HorizontalPodAutoscaler{}).
 		Owns(&policyv1.PodDisruptionBudget{}).

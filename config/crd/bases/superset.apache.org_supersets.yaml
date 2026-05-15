@@ -21,6 +21,9 @@ spec:
     - jsonPath: .status.phase
       name: Phase
       type: string
+    - jsonPath: .status.lifecycle.phase
+      name: Lifecycle
+      type: string
     - jsonPath: .status.ready
       name: Ready
       type: string
@@ -39194,6 +39197,7 @@ spec:
                         - Progressing
                         - Ready
                         - Unavailable
+                        - Drained
                         type: string
                       ready:
                         type: string
@@ -39251,6 +39255,7 @@ spec:
                         - Progressing
                         - Ready
                         - Unavailable
+                        - Drained
                         type: string
                       ready:
                         type: string
@@ -39308,6 +39313,7 @@ spec:
                         - Progressing
                         - Ready
                         - Unavailable
+                        - Drained
                         type: string
                       ready:
                         type: string
@@ -39365,6 +39371,7 @@ spec:
                         - Progressing
                         - Ready
                         - Unavailable
+                        - Drained
                         type: string
                       ready:
                         type: string
@@ -39422,6 +39429,7 @@ spec:
                         - Progressing
                         - Ready
                         - Unavailable
+                        - Drained
                         type: string
                       ready:
                         type: string
@@ -39479,6 +39487,7 @@ spec:
                         - Progressing
                         - Ready
                         - Unavailable
+                        - Drained
                         type: string
                       ready:
                         type: string
@@ -39616,6 +39625,8 @@ spec:
                         type: string
                       image:
                         type: string
+                      jobName:
+                        type: string
                       lastScheduledAt:
                         format: date-time
                         type: string
@@ -39698,6 +39709,8 @@ spec:
                       duration:
                         type: string
                       image:
+                        type: string
+                      jobName:
                         type: string
                       lastScheduledAt:
                         format: date-time
@@ -39788,6 +39801,8 @@ spec:
                         type: string
                       image:
                         type: string
+                      jobName:
+                        type: string
                       lastScheduledAt:
                         format: date-time
                         type: string
@@ -39873,6 +39888,8 @@ spec:
                         type: string
                       image:
                         type: string
+                      jobName:
+                        type: string
                       lastScheduledAt:
                         format: date-time
                         type: string
@@ -39926,7 +39943,6 @@ spec:
                 enum:
                 - Initializing
                 - Upgrading
-                - Draining
                 - Running
                 - Degraded
                 - Suspended

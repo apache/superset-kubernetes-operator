@@ -54,6 +54,7 @@ const (
 	lifecyclePhaseRotating         = "Rotating"
 	lifecyclePhaseInitializing     = "Initializing"
 	lifecyclePhaseComplete         = "Complete"
+	lifecyclePhaseRestoring        = "Restoring"
 	lifecyclePhaseBlocked          = "Blocked"
 	lifecyclePhaseAwaitingApproval = "AwaitingApproval"
 
@@ -65,7 +66,6 @@ const (
 	defaultImageTag = "latest"
 
 	phaseUpgrading        = "Upgrading"
-	phaseDraining         = "Draining"
 	phaseBlocked          = "Blocked"
 	phaseAwaitingApproval = "AwaitingApproval"
 )
@@ -88,14 +88,18 @@ type lifecycleResult struct {
 func lifecycleComplete() lifecycleResult { return lifecycleResult{Complete: true} }
 
 // lifecycleWait returns a "not done, requeue after taskRequeueInterval" result.
-// All lifecycle steps that poll the task CR use the same interval.
+// All lifecycle steps that poll task Jobs use the same interval.
 func lifecycleWait() lifecycleResult { return lifecycleResult{RequeueAfter: taskRequeueInterval} }
+
+// lifecycleCheckpoint returns a "status changed, persist before more side
+// effects" result. The next reconcile may continue from the durable state.
+func lifecycleCheckpoint() lifecycleResult { return lifecycleResult{RequeueAfter: time.Second} }
 
 // lifecycleTerminal is a "permanent failure, don't requeue on own" result.
 func lifecycleTerminal() lifecycleResult { return lifecycleResult{TerminalFailure: true} }
 
-// reconcileLifecycle orchestrates the lifecycle tasks (clone + migrate + init) and gates
-// component deployment.
+// reconcileLifecycle orchestrates lifecycle tasks (clone + migrate + rotate + init)
+// as parent-owned Jobs and gates component deployment.
 func (r *SupersetReconciler) reconcileLifecycle(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
@@ -143,6 +147,8 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	currentImage := resolveLifecycleImage(&superset.Spec.Image, imageOverride)
 	lastImage := superset.Status.LastLifecycleImage
 	imageChanged := lastImage == "" || currentImage != lastImage
+	upgradeInProgress := lastImage != "" && currentImage != lastImage
+	parentLifecyclePhase := lifecycleParentPhase(upgradeInProgress)
 
 	// Check upgrade gates (version comparison, downgrade blocking, supervised approval).
 	if gateResult, gated := r.checkUpgradeGates(ctx, superset, imageChanged, lastImage, currentImage); gated {
@@ -171,21 +177,23 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	// skip drain and pipeline entirely. This prevents unnecessary component
 	// disruption on steady-state reconciles.
 	if r.allTasksStillComplete(superset, cloneEnabled, migrateEnabled, rotateEnabled, initEnabled, configChecksum) {
-		superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
+		if superset.Status.Lifecycle.Phase != lifecyclePhaseRestoring {
+			superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
+		}
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 			metav1.ConditionTrue, "LifecycleComplete", "Lifecycle tasks completed successfully", superset.Generation)
 		return lifecycleComplete(), nil
 	}
 
 	// Spin up the maintenance page before drain (if configured).
-	if result, err := r.prepareMaintenancePage(ctx, superset, cloneEnabled, migrateEnabled, rotateEnabled, initEnabled); err != nil {
+	if result, err := r.prepareMaintenancePage(ctx, superset, cloneEnabled, migrateEnabled, rotateEnabled, initEnabled, configChecksum, parentLifecyclePhase); err != nil {
 		return lifecycleResult{}, err
 	} else if !result.Complete {
 		return result, nil
 	}
 
-	// Drain components if any enabled task requires it.
-	drainResult, err := r.drainIfNeeded(ctx, superset, cloneEnabled, migrateEnabled, rotateEnabled, initEnabled)
+	// Drain components if any task that will run requires it.
+	drainResult, err := r.drainIfNeeded(ctx, superset, cloneEnabled, migrateEnabled, rotateEnabled, initEnabled, configChecksum, parentLifecyclePhase)
 	if err != nil {
 		return lifecycleResult{}, err
 	}
@@ -194,7 +202,7 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	}
 
 	// Orchestrate lifecycle pipeline: clone → migrate → rotate → init.
-	pipelineResult, err := r.runLifecyclePipeline(ctx, superset, cloneEnabled, migrateEnabled, rotateEnabled, initEnabled, imageChanged, configChecksum, topLevel, saName)
+	pipelineResult, err := r.runLifecyclePipeline(ctx, superset, cloneEnabled, migrateEnabled, rotateEnabled, initEnabled, upgradeInProgress, configChecksum, topLevel, saName)
 	if err != nil {
 		return lifecycleResult{}, err
 	}
@@ -216,12 +224,19 @@ func (r *SupersetReconciler) prepareMaintenancePage(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
 	cloneEnabled, migrateEnabled, rotateEnabled, initEnabled bool,
+	configChecksum string,
+	parentPhase string,
 ) (lifecycleResult, error) {
-	needsDrain := (cloneEnabled && r.taskRequiresDrain(superset, taskTypeClone)) ||
-		(migrateEnabled && r.taskRequiresDrain(superset, taskTypeMigrate)) ||
-		(rotateEnabled && r.taskRequiresDrain(superset, taskTypeRotate)) ||
-		(initEnabled && r.taskRequiresDrain(superset, taskTypeInit))
-	if !isMaintenancePageEnabled(superset) || !needsDrain {
+	if !isMaintenancePageEnabled(superset) ||
+		webServerDesiredReplicas(superset) == 0 ||
+		!r.lifecycleNeedsDrain(superset, cloneEnabled, migrateEnabled, rotateEnabled, initEnabled, configChecksum) {
+		return lifecycleComplete(), nil
+	}
+	hasWebWorkload, err := r.hasExistingWebServerWorkload(ctx, superset)
+	if err != nil {
+		return lifecycleResult{}, err
+	}
+	if !hasWebWorkload {
 		return lifecycleComplete(), nil
 	}
 	ready, err := r.reconcileMaintenancePageUp(ctx, superset)
@@ -230,12 +245,20 @@ func (r *SupersetReconciler) prepareMaintenancePage(
 	}
 	if !ready {
 		superset.Status.Lifecycle.Phase = lifecyclePhaseDraining
+		superset.Status.Phase = parentPhase
 		return lifecycleWait(), nil
 	}
 	if err := r.reconcileWebServerService(ctx, superset); err != nil {
 		return lifecycleResult{}, fmt.Errorf("switching web-server Service to maintenance: %w", err)
 	}
 	return lifecycleComplete(), nil
+}
+
+func lifecycleParentPhase(upgradeInProgress bool) string {
+	if upgradeInProgress {
+		return phaseUpgrading
+	}
+	return phaseInitializing
 }
 
 // finalizeLifecycle updates status and clears approval annotations after all
@@ -247,7 +270,11 @@ func (r *SupersetReconciler) finalizeLifecycle(
 	currentImage string,
 ) error {
 	superset.Status.LastLifecycleImage = currentImage
-	superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
+	if anyComponentEnabled(superset) {
+		superset.Status.Lifecycle.Phase = lifecyclePhaseRestoring
+	} else {
+		superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
+	}
 	superset.Status.Lifecycle.Upgrade = nil
 
 	if annotations := superset.GetAnnotations(); annotations != nil {
@@ -266,13 +293,13 @@ func (r *SupersetReconciler) finalizeLifecycle(
 	return nil
 }
 
-// runLifecyclePipeline executes the sequential task pipeline (clone → migrate → init).
+// runLifecyclePipeline executes the sequential task pipeline (clone → migrate → rotate → init).
 // Each task receives an incoming checksum from the previous task, creating a chain
 // that automatically invalidates downstream tasks when upstream re-executes.
 func (r *SupersetReconciler) runLifecyclePipeline(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
-	cloneEnabled, migrateEnabled, rotateEnabled, initEnabled, imageChanged bool,
+	cloneEnabled, migrateEnabled, rotateEnabled, initEnabled, upgradeInProgress bool,
 	configChecksum string,
 	topLevel *resolution.SharedInput,
 	saName string,
@@ -281,6 +308,11 @@ func (r *SupersetReconciler) runLifecyclePipeline(
 
 	if cloneEnabled {
 		superset.Status.Lifecycle.Phase = lifecyclePhaseCloning
+		if upgradeInProgress {
+			superset.Status.Phase = phaseUpgrading
+		} else {
+			superset.Status.Phase = phaseInitializing
+		}
 
 		cloneCmd := r.buildCloneCommand(superset)
 		taskChecksum := r.computeStepChecksum(incomingChecksum, taskTypeClone, cloneCmd, r.cloneInputs(superset))
@@ -296,7 +328,7 @@ func (r *SupersetReconciler) runLifecyclePipeline(
 
 	if migrateEnabled {
 		superset.Status.Lifecycle.Phase = lifecyclePhaseMigrating
-		if imageChanged {
+		if upgradeInProgress {
 			superset.Status.Phase = phaseUpgrading
 		} else {
 			superset.Status.Phase = phaseInitializing
@@ -316,6 +348,11 @@ func (r *SupersetReconciler) runLifecyclePipeline(
 
 	if rotateEnabled {
 		superset.Status.Lifecycle.Phase = lifecyclePhaseRotating
+		if upgradeInProgress {
+			superset.Status.Phase = phaseUpgrading
+		} else {
+			superset.Status.Phase = phaseInitializing
+		}
 
 		rotateCmd := defaultRotateCommand(superset)
 		taskChecksum := r.computeStepChecksum(incomingChecksum, taskTypeRotate, rotateCmd, r.rotateInputs(superset))
@@ -417,7 +454,7 @@ func (r *SupersetReconciler) checkUpgradeGates(
 }
 
 // reconcileLifecycleTask creates or manages a single parent-owned lifecycle task
-// Pod and stores durable execution state on the parent Superset status.
+// Job and stores durable execution state on the parent Superset status.
 // The checksum is pre-computed by the caller (strategy-aware + upstream propagation).
 func (r *SupersetReconciler) reconcileLifecycleTask(
 	ctx context.Context,
@@ -462,21 +499,20 @@ func (r *SupersetReconciler) reconcileLifecycleTask(
 		log.Info("Task permanently failed", "task", taskType)
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 			metav1.ConditionFalse, "TaskFailed", fmt.Sprintf("%s: %s", taskType, taskRef.Message), superset.Generation)
-		superset.Status.Phase = phaseInitializing
 		return lifecycleTerminal(), nil
 	}
 
 	if taskRef.State == taskStateComplete || taskRef.State == taskStateFailed || taskRef.CompletedChecksum != "" && taskRef.CompletedChecksum != taskChecksum {
 		log.Info("Task status is stale, resetting to re-run", "task", taskType,
 			"completedChecksum", taskRef.CompletedChecksum, "expectedChecksum", taskChecksum)
-		if err := r.deleteTaskPods(ctx, superset, taskName); err != nil {
-			return lifecycleResult{}, fmt.Errorf("deleting stale task pods for %s: %w", taskName, err)
+		if err := r.deleteTaskJobs(ctx, superset, taskName); err != nil {
+			return lifecycleResult{}, fmt.Errorf("deleting stale task jobs for %s: %w", taskName, err)
 		}
 		resetTaskStatusForRun(taskRef, taskChecksum, taskRef.MaxRetries)
 		return lifecycleWait(), nil
 	}
 
-	result, err := r.reconcileLifecycleTaskPod(ctx, superset, taskName, taskType, &flatSpec, taskChecksum, taskRef)
+	result, err := r.reconcileLifecycleTaskJob(ctx, superset, taskName, taskType, &flatSpec, taskChecksum, taskRef)
 	if err != nil {
 		return lifecycleResult{}, err
 	}
@@ -487,10 +523,10 @@ func (r *SupersetReconciler) reconcileLifecycleTask(
 	return result, nil
 }
 
-// buildTaskFlatSpec constructs the fully-resolved FlatComponentSpec for a task pod.
+// buildTaskFlatSpec constructs the fully-resolved FlatComponentSpec for a task Job.
 // Clone tasks use a database-tool image; migrate/init use the Superset image.
 // Returns (flatSpec, renderedConfig) — renderedConfig is empty for clone.
-// taskPodRetention returns the pod retention spec for a task type.
+// taskPodRetention returns the retention spec for a task type.
 func (r *SupersetReconciler) taskPodRetention(superset *supersetv1alpha1.Superset, taskType string) *supersetv1alpha1.PodRetentionSpec {
 	if superset.Spec.Lifecycle == nil {
 		return nil
@@ -539,7 +575,7 @@ func (r *SupersetReconciler) isTaskEnabled(superset *supersetv1alpha1.Superset, 
 	return false
 }
 
-// pruneDisabledTasks deletes task pods/config for disabled tasks and clears
+// pruneDisabledTasks deletes task Jobs/config for disabled tasks and clears
 // their projected status.
 func (r *SupersetReconciler) pruneDisabledTasks(ctx context.Context, superset *supersetv1alpha1.Superset, cloneEnabled, migrateEnabled, rotateEnabled, initEnabled bool) error {
 	if !cloneEnabled {
@@ -567,7 +603,7 @@ func (r *SupersetReconciler) pruneDisabledTasks(ctx context.Context, superset *s
 
 func (r *SupersetReconciler) deleteLifecycleTaskResources(ctx context.Context, superset *supersetv1alpha1.Superset, taskType, suffix string) error {
 	taskName := superset.Name + suffix
-	if err := r.deleteTaskPods(ctx, superset, taskName); err != nil {
+	if err := r.deleteTaskJobs(ctx, superset, taskName); err != nil {
 		return err
 	}
 	if taskType != taskTypeClone {
@@ -683,14 +719,17 @@ func (r *SupersetReconciler) migrateInputs(superset *supersetv1alpha1.Superset) 
 
 // initInputs returns the init-specific inputs: config checksum (config changes).
 func (r *SupersetReconciler) initInputs(superset *supersetv1alpha1.Superset, configChecksum string) any {
+	currentImage := resolveLifecycleImage(&superset.Spec.Image, lifecycleImageOverride(superset))
 	trigger := ""
 	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Init != nil {
 		trigger = derefOrDefault(superset.Spec.Lifecycle.Init.Trigger, "")
 	}
 	return struct {
+		Image          string
 		ConfigChecksum string
 		Trigger        string
 	}{
+		Image:          currentImage,
 		ConfigChecksum: configChecksum,
 		Trigger:        trigger,
 	}
@@ -698,17 +737,20 @@ func (r *SupersetReconciler) initInputs(superset *supersetv1alpha1.Superset, con
 
 // rotateInputs returns the rotate-specific inputs: secret key references and trigger.
 func (r *SupersetReconciler) rotateInputs(superset *supersetv1alpha1.Superset) any {
+	currentImage := resolveLifecycleImage(&superset.Spec.Image, lifecycleImageOverride(superset))
 	trigger := ""
 	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Rotate != nil {
 		trigger = derefOrDefault(superset.Spec.Lifecycle.Rotate.Trigger, "")
 	}
 	return struct {
+		Image                 string
 		Trigger               string
 		SecretKey             string
 		SecretKeyFrom         *corev1.SecretKeySelector
 		PreviousSecretKey     string
 		PreviousSecretKeyFrom *corev1.SecretKeySelector
 	}{
+		Image:                 currentImage,
 		Trigger:               trigger,
 		SecretKey:             derefOrDefault(superset.Spec.SecretKey, ""),
 		SecretKeyFrom:         superset.Spec.SecretKeyFrom,

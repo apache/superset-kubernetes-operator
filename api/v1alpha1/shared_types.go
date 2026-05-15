@@ -628,7 +628,7 @@ type PDBSpec struct {
 // --- Flat component spec base (used by resolved runtime resources) ---
 
 // FlatComponentSpec defines the common fields for fully-resolved component
-// Deployments and lifecycle task Pods.
+// Deployments and lifecycle task Jobs.
 type FlatComponentSpec struct {
 	// Container image configuration.
 	Image ImageSpec `json:"image"`
