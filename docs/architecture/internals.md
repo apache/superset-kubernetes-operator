@@ -35,7 +35,7 @@ five sequential phases:
 
 1. **Preflight** — Fetch the Superset CR, check the suspend flag
 2. **Shared Resources** — ServiceAccount
-3. **Lifecycle Tasks** — Run parent-owned task Pods and update `status.lifecycle`
+3. **Lifecycle Tasks** — Run parent-owned task Jobs and update `status.lifecycle`
 4. **Component Reconciliation** — Resolve shared spec (top-level + per-component) into flat runtime specs, create/update/delete parent-owned Kubernetes resources, reconcile networking/monitoring/network policies
 5. **Status Aggregation** — Read workload state, update `status.components`, set conditions and phase
 
@@ -46,7 +46,7 @@ reconciler returns gracefully — Kubernetes garbage collection handles cleanup
 via owner references.
 
 If `spec.suspend` is `true`, the controller sets the `Suspended` condition to
-`True`, updates status, and returns immediately. No task pods run, no component
+`True`, updates status, and returns immediately. No task Jobs run, no component
 resources are created or updated, and no resources are deleted. This allows
 users to pause reconciliation without removing the CR.
 
@@ -58,22 +58,24 @@ parent CR name. Owned by the parent CR and garbage-collected on parent deletion.
 
 ### Phase 3: Lifecycle Tasks
 
-The parent controller runs lifecycle task Pods directly:
-`{parentName}-clone-*`, `{parentName}-migrate-*`, `{parentName}-rotate-*`, and
-`{parentName}-init-*`. Durable task state lives on the parent
+The parent controller runs deterministic lifecycle task Jobs:
+`{parentName}-clone`, `{parentName}-migrate`, `{parentName}-rotate`, and
+`{parentName}-init`. Durable task state lives on the parent
 `status.lifecycle` field, so a completed task is still visible after successful
-pods are removed by retention policy.
+Jobs and Pods are removed by retention policy.
 
 Tasks run sequentially: clone → migrate → rotate → init. Each task can be independently
 disabled via `disabled: true`. Clone also supports periodic re-execution via
 `cronSchedule`. Checksums cascade downstream: a re-clone forces re-migrate,
 which forces re-rotate, which forces re-init.
 
-When a task requires drain (`requiresDrain: true`, the default for clone,
-migrate, and rotate), the operator deletes component Deployments, HPAs, PDBs,
-and routable Services before running that task. The parent verifies all
-component pods have terminated before proceeding to task execution. This ensures
-no application pods access the metastore during schema changes. If
+When a pending task requires drain (`requiresDrain: true`, the default for
+clone, migrate, and rotate), the operator deletes component Deployments, HPAs,
+PDBs, and routable Services before running that task, but only when at least one
+configured component has desired replicas greater than zero. Tasks whose current
+checksum is already complete do not contribute to the drain decision. The parent
+verifies all component pods have terminated before proceeding to task execution.
+This ensures no application pods access the metastore during schema changes. If
 `maintenancePage` is configured, the parent brings up a maintenance Deployment
 and switches the web-server Service selector before draining. After tasks
 complete, Phase 4 recreates all components fresh.
@@ -117,6 +119,12 @@ expected supporting resources, and aggregates the result into the parent status.
 Each component reports a phase, ready count, replica details, image, config
 checksum, and observed resource list.
 
+During lifecycle and maintenance return, status still reflects observed
+component workloads. If the maintenance page is active, only the web-server
+component is treated as not ready because the web-server Service is still routed
+to maintenance; non-web components such as Celery workers report their actual
+Deployment readiness.
+
 | All components ready | Phase | Available condition |
 |---|---|---|
 | Yes | `Running` | `True` |
@@ -136,7 +144,7 @@ embed `ScalableComponentSpec`, which has `DeploymentTemplate`, `PodTemplate`,
 and scaling fields.
 
 **Singleton components** (lifecycle tasks and CeleryBeat) run exactly one instance.
-Lifecycle tasks are bare Pods with retry logic (uses `PodTemplate` only).
+Lifecycle tasks are Jobs with operator-managed retry logic (uses `PodTemplate` only).
 CeleryBeat uses a Deployment but forces `replicas: 1` (has both
 `DeploymentTemplate` and `PodTemplate` but no scaling fields).
 
@@ -144,7 +152,7 @@ All deployment components follow the same pattern: reconcile ConfigMap (if
 applicable), reconcile Deployment, reconcile Service (if the component exposes
 a port), reconcile scaling (HPA + PDB for scalable components), and project
 status onto the parent. Lifecycle task reconciliation creates a ConfigMap when
-needed and manages bare Pods directly.
+needed and manages deterministic Jobs directly.
 
 ### Why ConfigMaps
 
@@ -290,7 +298,7 @@ plaintext) because changes to these values must trigger a rollout.
 
 The operator uses Kubernetes owner references for automatic cleanup. The parent
 `Superset` CR owns component Deployments, Services, ConfigMaps, HPAs, PDBs,
-lifecycle task Pods, the web-server Service, networking resources,
+lifecycle task Jobs, the web-server Service, networking resources,
 ServiceMonitor, and NetworkPolicies. Deleting the parent cascades to all owned
 resources. Removing a component from the parent spec (e.g. deleting
 `spec.celeryWorker`) deletes that component's resources.
@@ -300,8 +308,11 @@ resources. Removing a component from the parent spec (e.g. deleting
 ## Maintenance Page (Parent-Owned Service Selector Switch)
 
 When `spec.lifecycle.maintenancePage` is set, the operator serves a maintenance
-page during drain and lifecycle tasks. This section documents the design decision
-behind the traffic switchover mechanism.
+page during drain and lifecycle tasks. The page is only started when a task
+that will run requires drain, at least one configured component has desired
+replicas greater than zero, and an existing web-server workload is present.
+This section documents the design decision behind the traffic switchover
+mechanism.
 
 ### Problem
 
@@ -397,7 +408,7 @@ status:
     phase: Complete
     migrate:
       state: Complete
-      ref: Pod/example-migrate-abcde
+      ref: Job/example-migrate
       desiredChecksum: sha256:...
       completedChecksum: sha256:...
   conditions:
@@ -419,12 +430,18 @@ The top-level `status.phase` reflects the overall instance state:
 |---|---|
 | `Initializing` | First deployment — lifecycle tasks running for the first time |
 | `Upgrading` | Image change detected — lifecycle tasks running against new version |
-| `Draining` | Drain strategy active — components being removed before running tasks |
 | `Running` | All enabled components are ready and lifecycle is complete |
 | `Degraded` | One or more components are not fully ready |
 | `Suspended` | `spec.suspend: true` — all reconciliation paused |
 | `Blocked` | Downgrade detected — lifecycle tasks will not run (manual intervention required) |
 | `AwaitingApproval` | Supervised upgrade mode — waiting for approval annotation before proceeding |
+
+Drain progress is reported on `status.lifecycle.phase=Draining`; it does not
+replace the top-level parent phase.
+
+After lifecycle tasks complete, `status.lifecycle.phase=Restoring` covers the
+component rollout and maintenance switchback window. The lifecycle phase becomes
+`Complete` only after enabled components report ready.
 
 ### Component Status
 
@@ -451,6 +468,7 @@ status:
 | `Progressing` | Deployment exists and some rollout progress is visible |
 | `Ready` | Desired replicas are ready, updated, and available |
 | `Unavailable` | Deployment exists but no ready replicas are available or rollout has exceeded progress deadline |
+| `Drained` | Component reconciliation is paused while lifecycle tasks run and the workload has been removed |
 
 ---
 

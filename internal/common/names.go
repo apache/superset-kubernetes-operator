@@ -50,7 +50,7 @@ const (
 // Container name (uniform across all components — pods never collide).
 const Container = "superset"
 
-// Label keys for init pods.
+// Label keys for lifecycle task Jobs and their Pods.
 const (
 	LabelKeyInitTask     = "superset.apache.org/init-task"
 	LabelKeyInitInstance = "superset.apache.org/instance"

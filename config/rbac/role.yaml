@@ -23,7 +23,6 @@ rules:
   resources:
   - pods
   verbs:
-  - create
   - delete
   - get
   - list
@@ -44,6 +43,18 @@ rules:
   - autoscaling
   resources:
   - horizontalpodautoscalers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - batch
+  resources:
+  - jobs
   verbs:
   - create
   - delete

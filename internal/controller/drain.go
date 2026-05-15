@@ -39,34 +39,178 @@ func isLifecycleDisabled(superset *supersetv1alpha1.Superset) bool {
 	return superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Disabled != nil && *superset.Spec.Lifecycle.Disabled
 }
 
-// drainIfNeeded checks whether any enabled task requires drain and executes it.
+// drainIfNeeded checks whether any pending task requires drain and executes it.
 // Complete=true means drain isn't needed or completed successfully; otherwise
 // RequeueAfter indicates how long to wait before re-checking.
 func (r *SupersetReconciler) drainIfNeeded(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
 	cloneEnabled, migrateEnabled, rotateEnabled, initEnabled bool,
+	configChecksum string,
+	parentPhase string,
 ) (lifecycleResult, error) {
-	needsDrain := (cloneEnabled && r.taskRequiresDrain(superset, taskTypeClone)) ||
-		(migrateEnabled && r.taskRequiresDrain(superset, taskTypeMigrate)) ||
-		(rotateEnabled && r.taskRequiresDrain(superset, taskTypeRotate)) ||
-		(initEnabled && r.taskRequiresDrain(superset, taskTypeInit))
-	if !needsDrain {
+	if !r.lifecycleNeedsDrain(superset, cloneEnabled, migrateEnabled, rotateEnabled, initEnabled, configChecksum) {
 		return lifecycleComplete(), nil
 	}
 
-	superset.Status.Lifecycle.Phase = lifecyclePhaseDraining
-	superset.Status.Phase = phaseDraining
+	wasDraining := hasLifecycleConditionReason(superset, "Draining")
 	drained, err := r.drainComponents(ctx, superset)
 	if err != nil {
 		return lifecycleResult{}, fmt.Errorf("draining components: %w", err)
 	}
 	if !drained {
+		if !wasDraining {
+			r.Recorder.Eventf(superset, nil, corev1.EventTypeNormal, "DrainingStarted", "Lifecycle",
+				"Draining component workloads before lifecycle tasks")
+		}
+		superset.Status.Lifecycle.Phase = lifecyclePhaseDraining
+		superset.Status.Phase = parentPhase
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 			metav1.ConditionFalse, "Draining", "Scaling components to zero before lifecycle tasks", superset.Generation)
 		return lifecycleWait(), nil
 	}
+	if wasDraining {
+		r.Recorder.Eventf(superset, nil, corev1.EventTypeNormal, "DrainingCompleted", "Lifecycle",
+			"All component workloads drained; lifecycle tasks can proceed")
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
+			metav1.ConditionFalse, "ComponentsDrained", "Component workloads drained; lifecycle tasks can proceed", superset.Generation)
+	}
 	return lifecycleComplete(), nil
+}
+
+func (r *SupersetReconciler) lifecycleNeedsDrain(
+	superset *supersetv1alpha1.Superset,
+	cloneEnabled, migrateEnabled, rotateEnabled, initEnabled bool,
+	configChecksum string,
+) bool {
+	if !hasDrainableComponents(superset) {
+		return false
+	}
+	for _, task := range r.pendingLifecycleTasks(superset, cloneEnabled, migrateEnabled, rotateEnabled, initEnabled, configChecksum) {
+		if r.taskRequiresDrain(superset, task) {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *SupersetReconciler) pendingLifecycleTasks(
+	superset *supersetv1alpha1.Superset,
+	cloneEnabled, migrateEnabled, rotateEnabled, initEnabled bool,
+	configChecksum string,
+) []string {
+	var pending []string
+	incomingChecksum := string(superset.UID)
+
+	if cloneEnabled {
+		cloneCmd := r.buildCloneCommand(superset)
+		taskChecksum := r.computeStepChecksum(incomingChecksum, taskTypeClone, cloneCmd, r.cloneInputs(superset))
+		if r.taskNeedsRun(superset, taskTypeClone, taskChecksum) {
+			pending = append(pending, taskTypeClone)
+		}
+		if r.taskTerminalFailedForChecksum(superset, taskTypeClone, taskChecksum) {
+			return pending
+		}
+		incomingChecksum = taskChecksum
+	}
+	if migrateEnabled {
+		migrateCmd := defaultMigrateCommand(superset)
+		taskChecksum := r.computeStepChecksum(incomingChecksum, taskTypeMigrate, migrateCmd, r.migrateInputs(superset))
+		if r.taskNeedsRun(superset, taskTypeMigrate, taskChecksum) {
+			pending = append(pending, taskTypeMigrate)
+		}
+		if r.taskTerminalFailedForChecksum(superset, taskTypeMigrate, taskChecksum) {
+			return pending
+		}
+		incomingChecksum = taskChecksum
+	}
+	if rotateEnabled {
+		rotateCmd := defaultRotateCommand(superset)
+		taskChecksum := r.computeStepChecksum(incomingChecksum, taskTypeRotate, rotateCmd, r.rotateInputs(superset))
+		if r.taskNeedsRun(superset, taskTypeRotate, taskChecksum) {
+			pending = append(pending, taskTypeRotate)
+		}
+		if r.taskTerminalFailedForChecksum(superset, taskTypeRotate, taskChecksum) {
+			return pending
+		}
+		incomingChecksum = taskChecksum
+	}
+	if initEnabled {
+		initCmd := defaultInitCommand(superset)
+		taskChecksum := r.computeStepChecksum(incomingChecksum, taskTypeInit, initCmd, r.initInputs(superset, configChecksum))
+		if r.taskNeedsRun(superset, taskTypeInit, taskChecksum) {
+			pending = append(pending, taskTypeInit)
+		}
+	}
+
+	return pending
+}
+
+func (r *SupersetReconciler) taskNeedsRun(
+	superset *supersetv1alpha1.Superset,
+	taskType string,
+	taskChecksum string,
+) bool {
+	taskRef := taskStatusForType(superset, taskType)
+	if taskRef != nil {
+		if taskRef.State == taskStateComplete && taskRef.CompletedChecksum == taskChecksum {
+			return false
+		}
+		if r.taskTerminalFailedForChecksum(superset, taskType, taskChecksum) {
+			return false
+		}
+	}
+	if superset.Status.Lifecycle != nil && superset.Status.Lifecycle.LastCompletedChecksums != nil {
+		return superset.Status.Lifecycle.LastCompletedChecksums[taskType] != taskChecksum
+	}
+	return true
+}
+
+func (r *SupersetReconciler) taskTerminalFailedForChecksum(
+	superset *supersetv1alpha1.Superset,
+	taskType string,
+	taskChecksum string,
+) bool {
+	taskRef := taskStatusForType(superset, taskType)
+	if taskRef == nil || taskRef.State != taskStateFailed || taskRef.CompletedChecksum != taskChecksum {
+		return false
+	}
+	maxRetries := taskRef.MaxRetries
+	if maxRetries == 0 {
+		maxRetries = r.taskMaxRetriesValue(superset, taskType)
+	}
+	return taskRef.Attempts >= maxRetries
+}
+
+func taskStatusForType(superset *supersetv1alpha1.Superset, taskType string) *supersetv1alpha1.TaskRefStatus {
+	if superset.Status.Lifecycle == nil {
+		return nil
+	}
+	switch taskType {
+	case taskTypeClone:
+		return superset.Status.Lifecycle.Clone
+	case taskTypeMigrate:
+		return superset.Status.Lifecycle.Migrate
+	case taskTypeRotate:
+		return superset.Status.Lifecycle.Rotate
+	case taskTypeInit:
+		return superset.Status.Lifecycle.Init
+	default:
+		return nil
+	}
+}
+
+func hasDrainableComponents(superset *supersetv1alpha1.Superset) bool {
+	for _, desc := range componentDescriptors {
+		accessor := desc.extract(&superset.Spec)
+		if accessor == nil {
+			continue
+		}
+		if desiredReplicasForStatus(superset, desc, accessor) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // drainComponents deletes component workloads and traffic resources directly.
@@ -113,7 +257,8 @@ func (r *SupersetReconciler) drainComponents(ctx context.Context, superset *supe
 
 	componentPods := 0
 	for i := range podList.Items {
-		if podList.Items[i].Labels[naming.LabelKeyComponent] != string(naming.ComponentInit) {
+		component := podList.Items[i].Labels[naming.LabelKeyComponent]
+		if component != string(naming.ComponentInit) && component != string(naming.ComponentMaintenancePage) {
 			componentPods++
 		}
 	}
@@ -124,6 +269,15 @@ func (r *SupersetReconciler) drainComponents(ctx context.Context, superset *supe
 
 	log.Info("All components drained")
 	return true, nil
+}
+
+func hasLifecycleConditionReason(superset *supersetv1alpha1.Superset, reason string) bool {
+	for _, condition := range superset.Status.Conditions {
+		if condition.Type == supersetv1alpha1.ConditionTypeLifecycleComplete && condition.Reason == reason {
+			return true
+		}
+	}
+	return false
 }
 
 func resolveLifecycleImage(parentImage *supersetv1alpha1.ImageSpec, override *supersetv1alpha1.ImageOverrideSpec) string {

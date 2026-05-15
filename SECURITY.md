@@ -28,18 +28,18 @@ logs, or stores secret values in ConfigMaps or CRD status fields. The operator
 runs as a non-root, distroless container with read-only root filesystem, dropped
 capabilities, and least-privilege RBAC.
 
-**Init pod caveat:** When an init pod fails, a truncated termination message
-(max 256 characters) may appear in the parent Superset status and Events. If the
-init command's error output includes credentials, a fragment could be exposed.
-This only applies to the init container's own output, not to operator-managed
-secret references.
+**Lifecycle task caveat:** When a lifecycle task Job fails, a truncated failure
+message (max 256 characters) may appear in the parent Superset status and Events. If the task
+command's error output includes credentials, a fragment could be exposed. This
+only applies to the task container's own output, not to operator-managed secret
+references.
 
 Users who can create or modify `Superset` custom resources are trusted — they can
 deploy arbitrary containers and Python configuration. Restrict access to Superset
 CRs using Kubernetes RBAC.
 
 For a detailed description of trust boundaries, security assumptions, and
-scope, see the [Security](docs/security.md) documentation. If you are unsure
+scope, see the [Security](docs/reference/security.md) documentation. If you are unsure
 whether something crosses the operator's trust boundary, please report it
 privately and the maintainers will help triage it.
 

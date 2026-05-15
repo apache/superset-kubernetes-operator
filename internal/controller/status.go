@@ -39,6 +39,10 @@ const (
 	componentPhaseReady       = "Ready"
 	componentPhaseProgressing = "Progressing"
 	componentPhaseUnavailable = "Unavailable"
+	componentPhaseDrained     = "Drained"
+
+	componentResourceStatusPresent = "Present"
+	componentResourceStatusMissing = "Missing"
 )
 
 // patchStatusIfChanged issues a status MergeFrom patch iff the two status
@@ -96,37 +100,21 @@ func (r *SupersetReconciler) updateStatus(ctx context.Context, superset *superse
 		superset.Status.Components = &supersetv1alpha1.ComponentStatusMap{}
 	}
 
-	allReady := true
-	totalReady := int32(0)
-	totalDesired := int32(0)
-
-	for _, desc := range componentDescriptors {
-		isEnabled := desc.extract(&superset.Spec) != nil
-		statusSlot := desc.statusAccessor(superset.Status.Components)
-		if isEnabled {
-			status := r.getComponentStatus(ctx, superset, desc)
-			*statusSlot = status
-			if status != nil {
-				totalReady += status.ReadyReplicas
-				totalDesired += status.Replicas
-			}
-			if status != nil && !isComponentReady(status) {
-				allReady = false
-			}
-		} else {
-			*statusSlot = nil
-		}
-	}
-	superset.Status.Ready = fmt.Sprintf("%d/%d", totalReady, totalDesired)
+	summary := r.refreshComponentStatuses(ctx, superset, componentStatusOptions{})
+	superset.Status.Ready = fmt.Sprintf("%d/%d", summary.ready, summary.desired)
 
 	if !anyComponentEnabled(superset) {
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeAvailable,
 			metav1.ConditionTrue, "NoComponentsEnabled", "No components are enabled", superset.Generation)
 		superset.Status.Phase = phaseRunning
-	} else if allReady {
+	} else if summary.allReady {
+		completeRestoringLifecycle(superset)
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeAvailable,
 			metav1.ConditionTrue, "AllComponentsReady", "All components are ready", superset.Generation)
 		superset.Status.Phase = phaseRunning
+	} else if isRestoringLifecycle(superset) {
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeAvailable,
+			metav1.ConditionFalse, "ComponentsRestoring", "Components are being restored after lifecycle tasks", superset.Generation)
 	} else {
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeAvailable,
 			metav1.ConditionFalse, "ComponentsNotReady", "One or more components are not ready", superset.Generation)
@@ -134,6 +122,145 @@ func (r *SupersetReconciler) updateStatus(ctx context.Context, superset *superse
 	}
 
 	return patchStatusIfChanged(ctx, r.Client, superset, origSuperset, origSuperset.Status, superset.Status)
+}
+
+func (r *SupersetReconciler) updateLifecycleComponentStatus(ctx context.Context, superset *supersetv1alpha1.Superset, configChecksum string) {
+	_ = ctx
+	superset.Status.ObservedGeneration = superset.Generation
+	superset.Status.Version = superset.Spec.Image.Tag
+	superset.Status.ConfigChecksum = configChecksum
+
+	if superset.Status.Components == nil {
+		superset.Status.Components = &supersetv1alpha1.ComponentStatusMap{}
+	}
+
+	maintenanceActive := superset.Status.Lifecycle != nil && superset.Status.Lifecycle.MaintenanceActive
+	summary := r.refreshComponentStatuses(ctx, superset, componentStatusOptions{
+		lifecycleView:     true,
+		maintenanceActive: maintenanceActive,
+	})
+	superset.Status.Ready = fmt.Sprintf("%d/%d", summary.ready, summary.desired)
+
+	if anyComponentEnabled(superset) {
+		reason := "LifecycleInProgress"
+		message := "Lifecycle tasks are running; component status reflects observed workloads"
+		if maintenanceActive {
+			reason = "MaintenanceActive"
+			message = "Web-server Service is routing to the maintenance page"
+		}
+		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeAvailable,
+			metav1.ConditionFalse, reason, message, superset.Generation)
+	}
+}
+
+func isRestoringLifecycle(superset *supersetv1alpha1.Superset) bool {
+	return superset.Status.Lifecycle != nil &&
+		superset.Status.Lifecycle.Phase == lifecyclePhaseRestoring
+}
+
+func completeRestoringLifecycle(superset *supersetv1alpha1.Superset) {
+	if isRestoringLifecycle(superset) {
+		superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
+	}
+}
+
+type componentStatusOptions struct {
+	lifecycleView     bool
+	maintenanceActive bool
+}
+
+type componentStatusSummary struct {
+	ready    int32
+	desired  int32
+	allReady bool
+}
+
+func (r *SupersetReconciler) refreshComponentStatuses(
+	ctx context.Context,
+	superset *supersetv1alpha1.Superset,
+	opts componentStatusOptions,
+) componentStatusSummary {
+	summary := componentStatusSummary{allReady: true}
+
+	for _, desc := range componentDescriptors {
+		isEnabled := desc.extract(&superset.Spec) != nil
+		statusSlot := desc.statusAccessor(superset.Status.Components)
+		if !isEnabled {
+			*statusSlot = nil
+			continue
+		}
+
+		status := r.getComponentStatus(ctx, superset, desc)
+		if opts.lifecycleView && componentDeploymentMissing(status) && lifecycleStatusIndicatesDrain(superset) {
+			status = drainedComponentStatus(superset, desc)
+		}
+		if opts.maintenanceActive && desc.componentType == naming.ComponentWebServer {
+			status = webServerMaintenanceStatus(status)
+		}
+
+		*statusSlot = status
+		if status != nil {
+			summary.ready += status.ReadyReplicas
+			summary.desired += status.Replicas
+			if !isComponentReady(status) {
+				summary.allReady = false
+			}
+		}
+	}
+
+	return summary
+}
+
+func componentDeploymentMissing(status *supersetv1alpha1.ComponentRefStatus) bool {
+	if status == nil {
+		return false
+	}
+	for _, resource := range status.Resources {
+		if resource.Kind == "Deployment" && resource.Status == componentResourceStatusMissing {
+			return true
+		}
+	}
+	return false
+}
+
+func lifecycleStatusIndicatesDrain(superset *supersetv1alpha1.Superset) bool {
+	return hasLifecycleConditionReason(superset, "Draining") ||
+		hasLifecycleConditionReason(superset, "ComponentsDrained") ||
+		superset.Status.Lifecycle != nil && superset.Status.Lifecycle.MaintenanceActive
+}
+
+func webServerMaintenanceStatus(status *supersetv1alpha1.ComponentRefStatus) *supersetv1alpha1.ComponentRefStatus {
+	if status == nil || status.Replicas == 0 {
+		return status
+	}
+	copied := status.DeepCopy()
+	copied.Phase = componentPhaseProgressing
+	copied.Ready = fmt.Sprintf("0/%d", copied.Replicas)
+	copied.ReadyReplicas = 0
+	copied.AvailableReplicas = 0
+	copied.Message = "Web-server Service is routing to the maintenance page"
+	return copied
+}
+
+func drainedComponentStatus(superset *supersetv1alpha1.Superset, desc *componentDescriptor) *supersetv1alpha1.ComponentRefStatus {
+	resourceBaseName := desc.resourceBaseName(&superset.Spec, superset.Name)
+	accessor := desc.extract(&superset.Spec)
+	desired := desiredReplicasForStatus(superset, desc, accessor)
+	resources := []supersetv1alpha1.ComponentResourceStatus{
+		{
+			Kind:   "Deployment",
+			Name:   resourceBaseName,
+			Status: componentResourceStatusMissing,
+		},
+	}
+	return &supersetv1alpha1.ComponentRefStatus{
+		Phase:     componentPhaseDrained,
+		Ready:     fmt.Sprintf("0/%d", desired),
+		Ref:       "Deployment/" + resourceBaseName,
+		Resources: resources,
+		Replicas:  desired,
+		Message:   "Component reconciliation is paused while lifecycle tasks run",
+	}
 }
 
 func (r *SupersetReconciler) getComponentStatus(ctx context.Context, superset *supersetv1alpha1.Superset, desc *componentDescriptor) *supersetv1alpha1.ComponentRefStatus {
@@ -219,9 +346,9 @@ func (r *SupersetReconciler) observedResourceStatus(ctx context.Context, namespa
 }
 
 func componentResourceStatus(kind, name string, present bool) supersetv1alpha1.ComponentResourceStatus {
-	status := "Missing"
+	status := componentResourceStatusMissing
 	if present {
-		status = "Present"
+		status = componentResourceStatusPresent
 	}
 	return supersetv1alpha1.ComponentResourceStatus{
 		Kind:   kind,

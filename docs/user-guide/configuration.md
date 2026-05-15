@@ -559,8 +559,8 @@ Component resources are named `{parentName}-{componentType}`. For example, a
 parent named `my-superset` creates resources such as
 `my-superset-web-server`, `my-superset-celery-worker`, and
 `my-superset-mcp-server`. ConfigMaps add the `-config` suffix, for example
-`my-superset-web-server-config`. Lifecycle task Pods use generated names based
-on `{parentName}-{taskName}-`, such as `my-superset-migrate-abcde`.
+`my-superset-web-server-config`. Lifecycle task Jobs use deterministic names
+based on `{parentName}-{taskName}`, such as `my-superset-migrate`.
 
 The parent name must be a valid DNS label: lowercase alphanumeric and hyphens
 only (`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`), at most 63 characters. Since
@@ -782,8 +782,8 @@ spec:
   suspend: true
 ```
 
-When suspended, the operator stops all reconciliation — no init pods run, no
-component resources are created or updated, and no resources are deleted. Set
+When suspended, the operator stops all reconciliation — no lifecycle task Jobs
+run, no component resources are created or updated, and no resources are deleted. Set
 `suspend: false` (or remove the field) to resume.
 
 ## Connecting PostgreSQL and Valkey

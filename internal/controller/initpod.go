@@ -74,27 +74,7 @@ func calculateBackoff(attempt int32) time.Duration {
 
 const maxTerminationMessageLen = 256
 
-func podFailureMessage(pod *corev1.Pod) string {
-	for _, cs := range pod.Status.ContainerStatuses {
-		if cs.State.Terminated != nil {
-			msg := fmt.Sprintf("Exit code %d", cs.State.Terminated.ExitCode)
-			if cs.State.Terminated.Reason != "" {
-				msg += ": " + cs.State.Terminated.Reason
-			}
-			if cs.State.Terminated.Message != "" {
-				detail := cs.State.Terminated.Message
-				if len(detail) > maxTerminationMessageLen {
-					detail = detail[:maxTerminationMessageLen] + "..."
-				}
-				msg += ": " + detail
-			}
-			return msg
-		}
-	}
-	return "Pod failed"
-}
-
-// buildInitPod builds a PodSpec from the flat component spec for a lifecycle task pod.
+// buildInitPod builds the PodSpec used by a lifecycle task Job.
 func buildInitPod(spec *supersetv1alpha1.FlatComponentSpec) corev1.PodSpec {
 	pt := safePodTemplatePtr(spec.PodTemplate)
 	ct := safeContainerTemplatePtr(pt.Container)

@@ -44,7 +44,6 @@ AutoscalingSpec configures a HorizontalPodAutoscaler.
 _Appears in:_
 - [CeleryFlowerComponentSpec](#celeryflowercomponentspec)
 - [CeleryWorkerComponentSpec](#celeryworkercomponentspec)
-- [FlatComponentSpec](#flatcomponentspec)
 - [McpServerComponentSpec](#mcpservercomponentspec)
 - [ScalableComponentSpec](#scalablecomponentspec)
 - [SupersetSpec](#supersetspec)
@@ -75,9 +74,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `command` _string array_ | Command override for the task pod. |  | Optional: \{\} <br /> |
+| `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task Job, preventing database connection conflicts. Drain is<br />skipped when the task is already complete for the current checksum, or when<br />no configured component has desired replicas greater than zero.<br />Defaults vary per task type: true for clone, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -195,7 +194,7 @@ _Appears in:_
 | `port` _integer_ | Source database port. Defaults to 5432 (postgresql) or 3306 (mysql). |  | Optional: \{\} <br /> |
 | `database` _string_ | Database name on the source server. |  |  |
 | `username` _string_ | Username for the source database (should have read-only access). |  |  |
-| `password` _string_ | Password for the source database (dev mode only). |  | Optional: \{\} <br /> |
+| `password` _string_ | Password for the source database (Development mode only). In Staging,<br />use passwordFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
 | `passwordFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | PasswordFrom references a Secret containing the source database password. |  | Optional: \{\} <br /> |
 
 
@@ -216,9 +215,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `command` _string array_ | Command override for the task pod. |  | Optional: \{\} <br /> |
+| `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task Job, preventing database connection conflicts. Drain is<br />skipped when the task is already complete for the current checksum, or when<br />no configured component has desired replicas greater than zero.<br />Defaults vary per task type: true for clone, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -227,9 +226,9 @@ _Appears in:_
 | `excludeTables` _string array_ | Tables to exclude entirely from the dump (schema and data). |  | Optional: \{\} <br /> |
 | `excludeTableData` _string array_ | Tables where schema is dumped but data is not. Useful for large tables<br />needed by migrations but not for testing (e.g., "logs", "query"). |  | Optional: \{\} <br /> |
 | `postCloneSQL` _string array_ | SQL statements to execute against the target database after cloning.<br />Useful for sanitizing cloned data (e.g., disabling alerts, deleting<br />OAuth tokens, masking PII). |  | Optional: \{\} <br /> |
-| `image` _[ImageSpec](#imagespec)_ | Image for the clone pod. Defaults to postgres:17-alpine (PostgreSQL)<br />or mysql:8-alpine (MySQL) based on source.type. |  | Optional: \{\} <br /> |
-| `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for the clone task pod. |  | Optional: \{\} <br /> |
-| `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Pod retention policy for completed clone pods. |  | Optional: \{\} <br /> |
+| `image` _[ImageSpec](#imagespec)_ | Image for the clone Job. Defaults to postgres:17-alpine (PostgreSQL)<br />or mysql:8-alpine (MySQL) based on source.type. |  | Optional: \{\} <br /> |
+| `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for the clone task Job. |  | Optional: \{\} <br /> |
+| `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Retention policy for completed clone Jobs and their Pods. |  | Optional: \{\} <br /> |
 
 
 #### ComponentRefStatus
@@ -245,7 +244,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `phase` _string_ | Phase summarizes the component workload state. |  | Enum: [Pending Progressing Ready Unavailable] <br />Optional: \{\} <br /> |
+| `phase` _string_ | Phase summarizes the component workload state. |  | Enum: [Pending Progressing Ready Unavailable Drained] <br />Optional: \{\} <br /> |
 | `ready` _string_ | "2/2" format showing ready vs desired replicas. |  |  |
 | `ref` _string_ | Reference to the primary workload resource for this component. |  |  |
 | `resources` _[ComponentResourceStatus](#componentresourcestatus) array_ | Resources lists the Kubernetes resources currently expected for this<br />component and whether the operator can observe them. |  | Optional: \{\} <br /> |
@@ -385,7 +384,6 @@ _Appears in:_
 - [CeleryBeatComponentSpec](#celerybeatcomponentspec)
 - [CeleryFlowerComponentSpec](#celeryflowercomponentspec)
 - [CeleryWorkerComponentSpec](#celeryworkercomponentspec)
-- [FlatComponentSpec](#flatcomponentspec)
 - [MaintenancePageSpec](#maintenancepagespec)
 - [McpServerComponentSpec](#mcpservercomponentspec)
 - [ScalableComponentSpec](#scalablecomponentspec)
@@ -399,8 +397,6 @@ _Appears in:_
 | `minReadySeconds` _integer_ | Minimum seconds a pod must be ready before considered available. |  | Optional: \{\} <br /> |
 | `progressDeadlineSeconds` _integer_ | Maximum seconds for a deployment to make progress before considered failed. |  | Optional: \{\} <br /> |
 | `strategy` _[DeploymentStrategy](https://pkg.go.dev/k8s.io/api/apps/v1#DeploymentStrategy)_ | Deployment update strategy. |  | Optional: \{\} <br /> |
-
-
 
 
 #### GatewaySpec
@@ -485,7 +481,6 @@ ImageSpec defines the container image configuration.
 
 _Appears in:_
 - [CloneTaskSpec](#clonetaskspec)
-- [FlatComponentSpec](#flatcomponentspec)
 - [MaintenancePageSpec](#maintenancepagespec)
 - [SupersetSpec](#supersetspec)
 
@@ -566,9 +561,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `command` _string array_ | Command override for the task pod. |  | Optional: \{\} <br /> |
+| `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task Job, preventing database connection conflicts. Drain is<br />skipped when the task is already complete for the current checksum, or when<br />no configured component has desired replicas greater than zero.<br />Defaults vary per task type: true for clone, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -592,13 +587,13 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `upgradeMode` _string_ | UpgradeMode controls whether upgrades require manual approval.<br />Automatic runs immediately on image change; Supervised waits for an<br />approval annotation before proceeding. | Automatic | Enum: [Automatic Supervised] <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Set to true to skip all lifecycle tasks entirely. |  | Optional: \{\} <br /> |
-| `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image override for lifecycle task pods. |  | Optional: \{\} <br /> |
-| `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for lifecycle task pods. |  | Optional: \{\} <br /> |
-| `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Pod retention policy for completed task pods. |  | Optional: \{\} <br /> |
+| `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image override for lifecycle task Jobs. |  | Optional: \{\} <br /> |
+| `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for lifecycle task Jobs. |  | Optional: \{\} <br /> |
+| `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Retention policy for completed lifecycle task Jobs and their Pods. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-lifecycle raw Python appended after top-level config. |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-lifecycle SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
-| `maintenancePage` _[MaintenancePageSpec](#maintenancepagespec)_ | MaintenancePage configures a lightweight maintenance page served during<br />lifecycle drain and task execution. Presence enables the feature.<br />In managed mode (no image override), an nginx:alpine container serves<br />a default or custom HTML page. In custom mode (image set), the user's<br />image handles serving, and content fields are passed as env vars. |  | Optional: \{\} <br /> |
-| `clone` _[CloneTaskSpec](#clonetaskspec)_ | Clone configures database cloning from an external source before running<br />migrations. The clone target is always spec.metastore. Only allowed in dev mode. |  | Optional: \{\} <br /> |
+| `maintenancePage` _[MaintenancePageSpec](#maintenancepagespec)_ | MaintenancePage configures a lightweight maintenance page served during<br />lifecycle drain and task execution. Presence enables the feature when a<br />drain will actually run and an existing web-server workload is present.<br />In managed mode (no image override), an nginx:alpine container serves<br />a default or custom HTML page. In custom mode (image set), the user's<br />image handles serving, and content fields are passed as env vars. |  | Optional: \{\} <br /> |
+| `clone` _[CloneTaskSpec](#clonetaskspec)_ | Clone configures database cloning from an external source before running<br />migrations. The clone target is always spec.metastore. Only allowed in<br />Development or Staging mode. |  | Optional: \{\} <br /> |
 | `migrate` _[MigrateTaskSpec](#migratetaskspec)_ | Database migration task configuration. |  | Optional: \{\} <br /> |
 | `rotate` _[RotateTaskSpec](#rotatetaskspec)_ | Secret key rotation task configuration. Runs after migrate and before init.<br />Presence enables the task; absence disables it. |  | Optional: \{\} <br /> |
 | `init` _[InitTaskSpec](#inittaskspec)_ | Application initialization task configuration. |  | Optional: \{\} <br /> |
@@ -617,9 +612,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `phase` _string_ | Phase of the lifecycle: Idle, Cloning, Migrating, Rotating, Initializing, Complete, Blocked, AwaitingApproval. |  | Optional: \{\} <br /> |
+| `phase` _string_ | Phase of the lifecycle: Idle, Cloning, Draining, Migrating, Rotating, Initializing, Restoring, Complete, Blocked, AwaitingApproval. |  | Optional: \{\} <br /> |
 | `maintenanceActive` _boolean_ | MaintenanceActive indicates the maintenance page is currently serving traffic<br />via the web-server Service. |  | Optional: \{\} <br /> |
-| `lastCompletedChecksums` _object (keys:string, values:string)_ | LastCompletedChecksums maps task type to its ConfigChecksum at last<br />successful completion. Used to detect input drift when task CRs are absent. |  | Optional: \{\} <br /> |
+| `lastCompletedChecksums` _object (keys:string, values:string)_ | LastCompletedChecksums maps task type to its task checksum at last<br />successful completion. Used to detect input drift when task status refs<br />are absent. |  | Optional: \{\} <br /> |
 | `clone` _[TaskRefStatus](#taskrefstatus)_ | Clone task status summary. |  | Optional: \{\} <br /> |
 | `migrate` _[TaskRefStatus](#taskrefstatus)_ | Migrate task status summary. |  | Optional: \{\} <br /> |
 | `rotate` _[TaskRefStatus](#taskrefstatus)_ | Rotate task status summary. |  | Optional: \{\} <br /> |
@@ -632,7 +627,9 @@ _Appears in:_
 
 
 MaintenancePageSpec configures a lightweight maintenance page served while
-components are drained for lifecycle tasks. Supports two modes:
+components are drained for lifecycle tasks. The page is only started when a
+drain will actually run and an existing web-server workload is present.
+Supports two modes:
   - Managed (default): uses nginx:alpine with operator-generated HTML and nginx config.
   - Custom (image set): user provides their own image/command; content fields
     are passed as SUPERSET_OPERATOR__MAINTENANCE_* env vars.
@@ -717,9 +714,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `command` _string array_ | Command override for the task pod. |  | Optional: \{\} <br /> |
+| `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task Job, preventing database connection conflicts. Drain is<br />skipped when the task is already complete for the current checksum, or when<br />no configured component has desired replicas greater than zero.<br />Defaults vary per task type: true for clone, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -786,7 +783,6 @@ PDBSpec configures a PodDisruptionBudget.
 _Appears in:_
 - [CeleryFlowerComponentSpec](#celeryflowercomponentspec)
 - [CeleryWorkerComponentSpec](#celeryworkercomponentspec)
-- [FlatComponentSpec](#flatcomponentspec)
 - [McpServerComponentSpec](#mcpservercomponentspec)
 - [ScalableComponentSpec](#scalablecomponentspec)
 - [SupersetSpec](#supersetspec)
@@ -803,7 +799,7 @@ _Appears in:_
 
 
 
-PodRetentionSpec defines retention behavior for init pods.
+PodRetentionSpec defines retention behavior for lifecycle task Jobs and their Pods.
 
 
 
@@ -813,7 +809,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `policy` _string_ | Retention policy: Delete removes pods after completion, Retain keeps all,<br />RetainOnFailure (the default) keeps only failed pods for debugging and<br />deletes successful ones to reduce noise. Retained pods are automatically<br />cleaned up by garbage collection when the task CR is deleted on the<br />next lifecycle run. | RetainOnFailure | Enum: [Delete Retain RetainOnFailure] <br />Optional: \{\} <br /> |
+| `policy` _string_ | Retention policy: Delete removes Jobs and Pods after completion, Retain keeps all,<br />RetainOnFailure (the default) keeps only failed Jobs and Pods for debugging and<br />deletes successful ones to reduce noise. Retained Jobs and Pods are automatically<br />deleted when the task is reset or disabled, and garbage-collected when the<br />parent Superset CR is deleted. | RetainOnFailure | Enum: [Delete Retain RetainOnFailure] <br />Optional: \{\} <br /> |
 
 
 #### PodTemplate
@@ -829,7 +825,6 @@ _Appears in:_
 - [CeleryFlowerComponentSpec](#celeryflowercomponentspec)
 - [CeleryWorkerComponentSpec](#celeryworkercomponentspec)
 - [CloneTaskSpec](#clonetaskspec)
-- [FlatComponentSpec](#flatcomponentspec)
 - [LifecycleSpec](#lifecyclespec)
 - [MaintenancePageSpec](#maintenancepagespec)
 - [McpServerComponentSpec](#mcpservercomponentspec)
@@ -878,9 +873,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `command` _string array_ | Command override for the task pod. |  | Optional: \{\} <br /> |
+| `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task Job, preventing database connection conflicts. Drain is<br />skipped when the task is already complete for the current checksum, or when<br />no configured component has desired replicas greater than zero.<br />Defaults vary per task type: true for clone, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -956,9 +951,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `command` _string array_ | Command override for the task pod. |  | Optional: \{\} <br /> |
+| `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task pod, preventing database connection conflicts.<br />Defaults vary per task type: true for clone and migrate, false for init. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task Job, preventing database connection conflicts. Drain is<br />skipped when the task is already complete for the current checksum, or when<br />no configured component has desired replicas greater than zero.<br />Defaults vary per task type: true for clone, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -1084,7 +1079,7 @@ _Appears in:_
 | `lastLifecycleImage` _string_ | Last image (repository:tag) that successfully completed the lifecycle.<br />Used to detect image changes on subsequent reconciles. |  | Optional: \{\} <br /> |
 | `version` _string_ |  |  | Optional: \{\} <br /> |
 | `configChecksum` _string_ |  |  | Optional: \{\} <br /> |
-| `phase` _string_ | High-level phase. |  | Enum: [Initializing Upgrading Draining Running Degraded Suspended Blocked AwaitingApproval] <br />Optional: \{\} <br /> |
+| `phase` _string_ | High-level phase. |  | Enum: [Initializing Upgrading Running Degraded Suspended Blocked AwaitingApproval] <br />Optional: \{\} <br /> |
 
 
 #### TaskRefStatus
@@ -1101,13 +1096,14 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `state` _string_ |  |  | Enum: [Pending Running Complete Failed] <br />Optional: \{\} <br /> |
-| `ref` _string_ | Reference to the current or most recent task pod. |  | Optional: \{\} <br /> |
+| `ref` _string_ | Reference to the current or most recent task Job. |  | Optional: \{\} <br /> |
 | `startedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
 | `completedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
 | `duration` _string_ |  |  | Optional: \{\} <br /> |
 | `attempts` _integer_ |  |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of attempts before the task is considered permanently failed. |  | Optional: \{\} <br /> |
-| `podName` _string_ |  |  | Optional: \{\} <br /> |
+| `podName` _string_ | PodName is retained for backward-compatible status shape. New lifecycle<br />executions use JobName and Ref instead. |  | Optional: \{\} <br /> |
+| `jobName` _string_ | JobName is the deterministic Kubernetes Job name for the current or most<br />recent task execution. |  | Optional: \{\} <br /> |
 | `configMapRef` _string_ | Reference to the rendered task ConfigMap. |  | Optional: \{\} <br /> |
 | `image` _string_ |  |  | Optional: \{\} <br /> |
 | `message` _string_ |  |  | Optional: \{\} <br /> |

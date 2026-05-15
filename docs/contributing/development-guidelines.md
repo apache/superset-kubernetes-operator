@@ -31,7 +31,7 @@ hierarchy, configuration model, config rendering) and
 lifecycle, parent-owned resource reconciliation, status reporting). Key points:
 
 - **Single public CRD**: `Superset` resolves shared spec (top-level + per-component) into parent-owned Kubernetes resources
-- **6 deployment components + lifecycle tasks**: web server, Celery worker, Celery beat, Flower, websocket, MCP, and task Pods for clone/migrate/rotate/init
+- **6 deployment components + lifecycle tasks**: web server, Celery worker, Celery beat, Flower, websocket, MCP, and task Jobs for clone/migrate/rotate/init
 - **3 pure Go packages**: `internal/resolution/` (spec flattening), `internal/config/` (Python rendering), `internal/common/` (shared types)
 - **Parent resolves and executes**: All layering, lifecycle orchestration, resource reconciliation, and status projection live in the parent controller
 
@@ -44,7 +44,7 @@ lifecycle, parent-owned resource reconciliation, status reporting). Key points:
 For a Kubernetes operator, the "user" is the person writing a CR and
 `kubectl apply`-ing it. **Integration and e2e tests** should mirror this
 directly: apply a CR and assert on what the user observes — Deployments,
-Services, ConfigMaps, lifecycle task Pods, and parent status conditions.
+Services, ConfigMaps, lifecycle task Jobs, and parent status conditions.
 
 **Unit tests** serve a different purpose: they provide rich permutation
 coverage of business logic (merge semantics, config rendering, preset
@@ -102,7 +102,7 @@ validation, CRD defaulting, multi-controller interaction).
 - Parent controller: reconciliation logic, parent-owned resource creation/deletion,
   config env var injection, image overrides, status aggregation, suspend
 - Component resource helpers: ConfigMap, Deployment, Service reconciliation
-- Task pods: pod spec building, retention policy, backoff calculation
+- Lifecycle task Jobs: PodSpec building, retention policy, backoff calculation
 
 **Integration tests** (Ginkgo + envtest):
 - CRD schema validation works (kubebuilder markers produce correct OpenAPI)
@@ -126,7 +126,7 @@ The Kind node image is pinned in the Makefile (`KIND_NODE_IMAGE`) and matches th
 
 ### Writing a new unit test
 
-Use the standard pattern from `reconcile_test.go`:
+Use the standard pattern from `superset_controller_test.go`:
 
 ```go
 func TestReconcile_MyScenario(t *testing.T) {
@@ -307,7 +307,7 @@ internal/
 ├── common/           # Shared types (ComponentType, Ptr helper)
 └── controller/       # controller-runtime — reconcilers
                       # Parent controller, component resources,
-                      # task pod lifecycle, status, scaling, networking
+                      # task job lifecycle, status, scaling, networking
 ```
 
 ---
@@ -326,7 +326,7 @@ internal/
 | `internal/controller/component_descriptors.go` | Parent-side component descriptors for resource reconciliation and status |
 | `internal/controller/superset_controller.go` | Parent reconciler (orchestrates everything) |
 | `internal/controller/deployment_builder.go` | Deployment construction from flat spec |
-| `internal/controller/initpod.go` | Task pod spec building, retention, backoff |
+| `internal/controller/initpod.go` | Lifecycle task Job PodSpec building, retention, backoff |
 | `internal/controller/reconcile_parent_resources_test.go` | Parent controller resource tests (fake client) |
 
 ---

@@ -32,8 +32,8 @@ The `spec.lifecycle` section controls up to four sequential tasks:
 3. **rotate** — `superset re-encrypt-secrets` (secret key rotation)
 4. **init** — `superset init` (application initialization: roles, permissions)
 
-Tasks run as parent-owned bare Pods (`restartPolicy: Never`). The parent
-Superset controller orchestrates sequencing, gating, re-runs, pod lifecycle,
+Tasks run as parent-owned Jobs. The parent
+Superset controller orchestrates sequencing, gating, re-runs, Job lifecycle,
 retries, and timeouts, and stores durable task state in
 `status.lifecycle`.
 
@@ -134,9 +134,9 @@ the `trigger` field on a cron schedule. This requires a CronJob resource,
 ServiceAccount, RoleBinding, and a kubectl image, but keeps the scheduling
 logic outside the operator.
 
-When disabled, the task's CR is deleted and it does not participate in the
-pipeline. Downstream tasks still run but don't receive propagation from the
-disabled task.
+When disabled, the task's Pods and ConfigMap are deleted, its projected status
+is cleared from the parent, and it does not participate in the pipeline.
+Downstream tasks still run but don't receive propagation from the disabled task.
 
 ## Upgrade Mode
 
@@ -173,8 +173,10 @@ to prevent accidental database corruption. A blocked downgrade sets
 ## Drain Behavior
 
 Each task declares whether it requires components to be drained (scaled to zero)
-before execution. The operator drains once before the first task that requires it,
-and recreates components after the pipeline completes.
+before execution. The operator drains once before the first pending task that
+requires it when at least one configured component has desired replicas greater
+than zero, and recreates components after the pipeline completes. A config-only
+change that only re-runs the default init task does not drain components.
 
 | Task | Default `requiresDrain` | Rationale |
 |------|------------------------|-----------|
@@ -211,9 +213,17 @@ spec:
 
 When enabled, the operator spins up a lightweight maintenance page **before**
 draining components and redirects all traffic from the web-server Service to it.
-The Service name and ClusterIP are preserved, so Ingress, HTTPRoute, and direct
+The maintenance page is only started when a drain will actually run and the
+web-server component already has an existing workload. Initial installs skip the
+maintenance page because there is no existing web traffic to preserve. The
+Service name and ClusterIP are preserved, so Ingress, HTTPRoute, and direct
 Service consumers continue working without interruption. After lifecycle tasks
 complete, traffic is returned to the web-server pods automatically.
+
+Parent Superset events report operator-level lifecycle milestones such as
+maintenance routing, drain start/completion, task starts, retries, and failures.
+Kubernetes-native Deployment, ReplicaSet, Job, and Pod events remain the source
+for lower-level workload creation and scaling details.
 
 All paths return a 302 redirect to `/`, which serves the maintenance HTML page
 with a 30-second auto-refresh.
@@ -289,25 +299,25 @@ flowchart TD
     E -->|No| G
     MP -->|Yes| MP1[Deploy maintenance page, switch Service selector]
     MP -->|No| F
-    MP1 --> F[Drain: delete component CRs, wait for pod termination]
+    MP1 --> F[Drain: delete component resources, wait for pod termination]
     F --> G[Clone task]
     G -->|checksum match| H[Skip]
-    G -->|checksum mismatch| G1[Execute clone pod]
+    G -->|checksum mismatch| G1[Execute clone job]
     G1 --> H
     H --> I[Migrate task]
     I -->|checksum match| J[Skip]
-    I -->|checksum mismatch| I1[Execute migrate pod]
+    I -->|checksum mismatch| I1[Execute migrate job]
     I1 --> J
     J --> R[Rotate task]
     R -->|checksum match| S[Skip]
-    R -->|checksum mismatch| R1[Execute rotate pod]
+    R -->|checksum mismatch| R1[Execute rotate job]
     R1 --> S
     S --> K[Init task]
     K -->|checksum match| L[Skip]
-    K -->|checksum mismatch| K1[Execute init pod]
+    K -->|checksum mismatch| K1[Execute init job]
     K1 --> L
     L --> M[Pipeline complete]
-    M --> N[Recreate component CRs]
+    M --> N[Recreate component resources]
     N --> Z
 ```
 
@@ -349,22 +359,22 @@ On failure, the operator retries with exponential backoff (`10s * 2^(attempt-1)`
 capped at 5m). If a pod exceeds the timeout while Running or Pending, it counts
 as a failed attempt.
 
-**Pod retention policies:**
+**Task retention policies:**
 
 | Policy | On Success | On Failure |
 |---|---|---|
-| `Delete` | Pod deleted | Pod deleted |
-| `Retain` | Pod kept | Pod kept |
-| `RetainOnFailure` (default) | Pod deleted | Pod kept for debugging |
+| `Delete` | Job and Pods deleted | Job and Pods deleted |
+| `Retain` | Job and Pods kept | Job and Pods kept |
+| `RetainOnFailure` (default) | Job and Pods deleted | Job and Pods kept for debugging |
 
-The default keeps only failed task pods so you can inspect logs without
-cluttering the namespace with completed-success pods. Override to `Retain`
+The default keeps only failed task Jobs and Pods so you can inspect logs without
+cluttering the namespace with completed-success Jobs. Override to `Retain`
 if you want the full history, or `Delete` to garbage-collect everything.
 
-To inspect logs of a retained failed pod:
+To inspect logs of a retained failed Job:
 
 ```bash
-kubectl logs <pod-name> -c superset
+kubectl logs job/<job-name> -c superset
 ```
 
 ## Admin User (Development Mode Only)
@@ -411,7 +421,7 @@ examples require an admin user with username `admin` — if you customize
 The `spec.lifecycle` section supports `podTemplate` with the same Pod and
 container fields as other components (tolerations, nodeSelector, volumes, etc.
 on `podTemplate`; env, resources, securityContext, etc. on
-`podTemplate.container`), so task pods inherit top-level scheduling and security
+`podTemplate.container`), so task Job Pods inherit top-level scheduling and security
 settings and can be customized independently:
 
 ```yaml
@@ -452,7 +462,7 @@ spec:
 ```
 
 The operator injects both `SECRET_KEY` and `PREVIOUS_SECRET_KEY` into all Python
-components. The rotate task pod uses both to decrypt stored secrets with the old
+components. The rotate task Job uses both to decrypt stored secrets with the old
 key and re-encrypt with the new one. After rotation completes, components restart
 with the new key and can use `PREVIOUS_SECRET_KEY` for fallback decryption during
 the transition.
@@ -621,23 +631,23 @@ Override with `clone.image` if you need additional tools.
 The lifecycle uses a **checksum chain** to determine which tasks execute and
 which skip. Each task receives an incoming checksum from the previous stage,
 adds its own unique inputs, and produces a task checksum. On completion, that
-checksum is stored in the task CR's status and becomes the incoming checksum for
-the next task.
+checksum is stored in the parent `status.lifecycle` field and becomes the
+incoming checksum for the next task.
 
 ```
                      parentUID (stable anchor)
                          ↓
 clone.checksum   = hash(parentUID, "Clone", command, trigger, source, excludes)
-                         ↓ (stored in clone CR status on completion)
+                         ↓ (stored in parent status on completion)
 migrate.checksum = hash(clone.status.checksum, "Migrate", command, trigger, image)
-                         ↓ (stored in migrate CR status on completion)
+                         ↓ (stored in parent status on completion)
 rotate.checksum  = hash(migrate.status.checksum, "Rotate", command, trigger, secretKeyFrom, previousSecretKeyFrom)
-                         ↓ (stored in rotate CR status on completion)
+                         ↓ (stored in parent status on completion)
 init.checksum    = hash(rotate.status.checksum, "Init", command, trigger, configChecksum)
 ```
 
 **The universal rule:** a task executes when its computed checksum differs from
-the checksum stored on its completed task CR. If they match, the task skips.
+the completed checksum stored in parent status. If they match, the task skips.
 
 **Upstream propagation is automatic:** when clone re-runs (e.g., trigger
 changed), its status checksum changes. That new value flows into migrate's
@@ -649,34 +659,33 @@ Image changes affect only migrate (and downstream via propagation). Config
 changes affect only init. Clone source changes affect only clone (and
 downstream via propagation).
 
-### Why Bare Pods
+### Why Jobs
 
-- **Controlled retries** — The operator decides when and how to retry, with
-  configurable max attempts and exponential backoff
-- **Clean audit trail** — Each attempt creates a new Pod with a unique
-  `generateName` suffix, making it easy to inspect history
-- **Sidecar handling** — The operator manages pod lifecycle directly, avoiding
-  the Job controller's sidecar termination issues
+- **Idempotent creation** — Each task uses a deterministic Job name, so repeated
+  reconciles cannot create duplicate clone/migrate/init executions.
+- **Controlled retries** — Jobs use `backoffLimit: 0`; the operator decides when
+  and how to retry with configurable max attempts and exponential backoff.
+- **Durable checkpoints** — Task completion is stored on the parent status
+  before the operator advances to the next task or deletes completed Jobs.
 
-### Pod State Machine
+### Job State Machine
 
-Task pods transition through these states:
+Task Jobs transition through these states:
 
-- **Pending** — No pod exists yet. The operator creates one.
-- **Running** — Pod is executing. If it exceeds the timeout, it counts as a failed attempt.
+- **Pending** — No Job exists yet. The operator creates one.
+- **Running** — Job is executing. If it exceeds the timeout, Kubernetes marks the Job failed through `activeDeadlineSeconds`.
 - **Succeeded** → **Complete** — Task is done; the next task (or components) can proceed.
-- **Failed** — If `attempts < maxRetries`, the operator deletes the pod and requeues with exponential backoff. If `attempts >= maxRetries`, the task is permanently failed.
+- **Failed** — If `attempts < maxRetries`, the operator waits for exponential backoff, deletes the failed Job, and creates a replacement. If `attempts >= maxRetries`, the task is permanently failed.
 
-### Pod Naming and Discovery
+### Job Naming and Discovery
 
-Pods use `generateName` (`{parent}-{task}-{random}`, e.g. `my-superset-migrate-x7k2m`)
-for unique names per attempt. The operator discovers pods by label
-(`superset.apache.org/instance` and `superset.apache.org/task`) and uses
-the most recently created one when multiple exist.
+Jobs use deterministic names (`{parent}-{task}`, e.g. `my-superset-migrate`).
+The operator reads Jobs by name and also labels them with
+`superset.apache.org/instance` and `superset.apache.org/init-task` for querying.
 
-### Task Pod Spec
+### Task Job Pod Spec
 
-Task pods inherit scheduling, security, volumes, and env from the top-level
+Task Job Pods inherit scheduling, security, volumes, and env from the top-level
 `podTemplate`, just like other components. Key fields:
 
 - **Image**: From `spec.image`
@@ -694,7 +703,7 @@ Lifecycle task progress is tracked per-task in the parent status:
 ```yaml
 status:
   lifecycle:
-    phase: Complete        # Idle | Cloning | Draining | Migrating | Rotating | Initializing | Complete | Blocked | AwaitingApproval
+    phase: Complete        # Idle | Cloning | Draining | Migrating | Rotating | Initializing | Restoring | Complete | Blocked | AwaitingApproval
     clone:
       state: Complete      # Pending | Running | Complete | Failed (only present when clone is enabled)
       podName: superset-staging-clone-k8x2m
@@ -724,6 +733,13 @@ status:
 |---|---|
 | `Initializing` | First deployment — lifecycle tasks running for the first time |
 | `Upgrading` | Image change detected — lifecycle tasks running against new version |
-| `Draining` | Drain strategy active — components being removed before running tasks |
 | `Blocked` | Downgrade detected — lifecycle tasks will not run (manual intervention required) |
 | `AwaitingApproval` | Supervised upgrade mode — waiting for approval annotation before proceeding |
+
+Drain progress appears in the `Lifecycle` column and
+`status.lifecycle.phase=Draining`, while the top-level phase remains
+`Initializing` or `Upgrading`.
+
+After lifecycle tasks finish, `status.lifecycle.phase=Restoring` while the
+operator recreates component workloads and waits for them to become ready. It
+switches to `Complete` once the enabled components are available.

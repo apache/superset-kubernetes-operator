@@ -107,8 +107,8 @@ kubectl logs -n superset-operator-system deployment/superset-operator-controller
 kubectl apply -f config/samples/superset_v1alpha1_superset.yaml
 ```
 
-The sample manifest deploys a web server in dev mode with init disabled,
-pointing at the Postgres instance created above.
+The sample manifest deploys a web server in dev mode, runs the init task, and
+points at the Postgres instance created above.
 
 ## 6. Access Superset
 

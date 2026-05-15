@@ -16,6 +16,7 @@
 processor:
   ignoreTypes:
     - "List$"
+    - "FlatComponentSpec"
   ignoreFields:
     - "TypeMeta$"
 

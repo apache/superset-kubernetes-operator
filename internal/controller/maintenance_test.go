@@ -19,11 +19,13 @@ limitations under the License.
 package controller
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/events"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
@@ -213,4 +215,35 @@ func TestMaintenanceDeployConfig_UsesCustomPort(t *testing.T) {
 	if cfg.DefaultPorts[0].ContainerPort != port {
 		t.Errorf("expected container port %d, got %d", port, cfg.DefaultPorts[0].ContainerPort)
 	}
+}
+
+func TestReconcileMaintenanceReturnClearsWhenWebServerDesiredReplicasZero(t *testing.T) {
+	recorder := events.NewFakeRecorder(10)
+	zero := int32(0)
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec: supersetv1alpha1.SupersetSpec{
+			WebServer: &supersetv1alpha1.WebServerComponentSpec{
+				ScalableComponentSpec: supersetv1alpha1.ScalableComponentSpec{
+					Replicas: &zero,
+				},
+			},
+		},
+		Status: supersetv1alpha1.SupersetStatus{
+			Lifecycle: &supersetv1alpha1.LifecycleStatus{MaintenanceActive: true},
+		},
+	}
+	r := &SupersetReconciler{Recorder: recorder}
+
+	cleared, err := r.reconcileMaintenanceReturn(context.Background(), superset)
+	if err != nil {
+		t.Fatalf("reconcileMaintenanceReturn: %v", err)
+	}
+	if !cleared {
+		t.Fatal("expected maintenance return to clear")
+	}
+	if superset.Status.Lifecycle.MaintenanceActive {
+		t.Fatal("expected maintenanceActive=false")
+	}
+	assertNextEventContains(t, recorder, "Normal MaintenanceEnded Maintenance page disabled because webServer has zero desired replicas")
 }

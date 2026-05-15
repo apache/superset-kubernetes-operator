@@ -32,7 +32,10 @@ import (
 // cloneInputs returns the clone-specific inputs that contribute to its step checksum.
 func (r *SupersetReconciler) cloneInputs(superset *supersetv1alpha1.Superset) any {
 	clone := superset.Spec.Lifecycle.Clone
+	targetImage := resolveLifecycleImage(&superset.Spec.Image, lifecycleImageOverride(superset))
 	return struct {
+		Image            supersetv1alpha1.ImageSpec
+		TargetImage      string
 		Trigger          string
 		ScheduleTick     string
 		Source           supersetv1alpha1.CloneSourceSpec
@@ -40,6 +43,8 @@ func (r *SupersetReconciler) cloneInputs(superset *supersetv1alpha1.Superset) an
 		ExcludeTableData []string
 		PostCloneSQL     []string
 	}{
+		Image:            resolveCloneImage(clone),
+		TargetImage:      targetImage,
 		Trigger:          derefOrDefault(clone.Trigger, ""),
 		ScheduleTick:     r.scheduleTick(clone.CronSchedule),
 		Source:           clone.Source,
@@ -110,7 +115,7 @@ mysqldump -h "$SUPERSET_OPERATOR__CLONE_SRC_HOST" -P "$SUPERSET_OPERATOR__CLONE_
 	return b.String()
 }
 
-// collectCloneEnvVars builds env vars for the clone task pod.
+// collectCloneEnvVars builds env vars for the clone task Job.
 // Includes both source (CLONE_SRC_*) and target (DB_*) connection details.
 func collectCloneEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVar {
 	var envs []corev1.EnvVar
@@ -188,7 +193,7 @@ func splitImageRef(ref string) (string, string) {
 	return ref, defaultImageTag
 }
 
-// convertCloneComponent builds a minimal ComponentInput for the clone task pod.
+// convertCloneComponent builds a minimal ComponentInput for the clone task Job.
 func convertCloneComponent(clone *supersetv1alpha1.CloneTaskSpec, command []string) *resolution.ComponentInput {
 	var pt *supersetv1alpha1.PodTemplate
 	if clone.PodTemplate != nil {
