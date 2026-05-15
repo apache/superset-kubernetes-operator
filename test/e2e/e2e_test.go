@@ -303,10 +303,11 @@ spec:
 			By("verifying parent status reports the web-server component")
 			Eventually(func(g Gomega) {
 				cmd := exec.Command("kubectl", "get", "superset",
-					crName, "-n", namespace, "-o", "jsonpath={.status.components.webServer.ref}")
+					crName, "-n", namespace,
+					"-o", "jsonpath={.status.components.webServer.resources[?(@.kind==\"Deployment\")].name}")
 				output, err := utils.Run(cmd)
 				g.Expect(err).NotTo(HaveOccurred())
-				g.Expect(output).To(Equal("Deployment/" + crName + "-web-server"))
+				g.Expect(output).To(Equal(crName + "-web-server"))
 			}, 30*time.Second, time.Second).Should(Succeed())
 
 			By("verifying the ConfigMap contains operator-generated content")
