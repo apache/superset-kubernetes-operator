@@ -32,7 +32,7 @@ The operator manages the full Superset lifecycle: database migrations, configura
 - **Automatic config rendering** — structured fields for metastore, Valkey, Gunicorn, and Celery generate correct `superset_config.py` per component; config changes trigger rolling restarts
 - **Full control** — every default is overridable, from high-level presets down to individual container fields, with a raw Python escape hatch for anything not covered
 - **Component toggle** — enable CeleryWorker, CeleryBeat, CeleryFlower, WebsocketServer, or McpServer by setting their spec; omit to disable
-- **Maintenance-backed upgrades** — when database migrations need to run, the operator drains components, serves a maintenance page, runs the lifecycle tasks, and restores traffic only after the new version is healthy
+- **Maintenance-backed upgrades** — when database migrations need to run, the operator drains components, runs the lifecycle tasks, and restores traffic only after the new version is healthy; an optional maintenance page can serve users during the window when configured
 - **Lifecycle automation** — database cloning, schema migrations, secret key rotation, and application init run as sequenced tasks with automatic change detection and checksum-based re-execution
 - **Networking** — Gateway API (HTTPRoute) and Ingress support with per-component routing
 - **Production hardening** — HPA with custom metrics, PodDisruptionBudgets, NetworkPolicies, Prometheus ServiceMonitor

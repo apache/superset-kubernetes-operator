@@ -140,17 +140,10 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	// (advancing LastLifecycleImage) is what stops Supervised mode from
 	// re-gating image changes when no task would actually run.
 	if isLifecycleDisabled(superset) {
-		if err := r.deleteLifecycleTaskResources(ctx, superset, taskTypeClone, suffixClone); err != nil {
-			return lifecycleResult{}, fmt.Errorf("pruning clone task resources: %w", err)
-		}
-		if err := r.deleteLifecycleTaskResources(ctx, superset, taskTypeMigrate, suffixMigrate); err != nil {
-			return lifecycleResult{}, fmt.Errorf("pruning migrate task resources: %w", err)
-		}
-		if err := r.deleteLifecycleTaskResources(ctx, superset, taskTypeRotate, suffixRotate); err != nil {
-			return lifecycleResult{}, fmt.Errorf("pruning rotate task resources: %w", err)
-		}
-		if err := r.deleteLifecycleTaskResources(ctx, superset, taskTypeInit, suffixInit); err != nil {
-			return lifecycleResult{}, fmt.Errorf("pruning init task resources: %w", err)
+		for _, desc := range lifecycleTaskDescriptors {
+			if err := r.deleteLifecycleTaskResources(ctx, superset, desc.TaskType, desc.Suffix); err != nil {
+				return lifecycleResult{}, fmt.Errorf("pruning %s task resources: %w", desc.TaskType, err)
+			}
 		}
 		if err := r.cleanupMaintenanceResources(ctx, superset); err != nil {
 			return lifecycleResult{}, fmt.Errorf("cleaning up maintenance resources: %w", err)
@@ -168,6 +161,15 @@ func (r *SupersetReconciler) reconcileLifecycle(
 
 	// Validate cron schedules early so invalid expressions are surfaced immediately.
 	r.validateSchedules(superset)
+
+	// Block the pipeline when the user configured clone with a malformed cron
+	// schedule. Without this gate, IsEnabled would treat clone as disabled and
+	// downstream tasks would silently run without the cloned database, which
+	// is almost never what the user wants — typo in cron should not yield a
+	// migrate/init against the wrong data set.
+	if blockResult, blocked := r.gateOnInvalidCloneSchedule(superset); blocked {
+		return blockResult, nil
+	}
 
 	// Resolve the current lifecycle image.
 	var imageOverride *supersetv1alpha1.ImageOverrideSpec
@@ -296,6 +298,38 @@ func lifecycleParentPhase(upgradeInProgress bool) string {
 		return phaseUpgrading
 	}
 	return phaseInitializing
+}
+
+// gateOnInvalidCloneSchedule returns a terminal result when the user
+// configured clone with a malformed cron schedule. CRD pattern validation only
+// covers the structural shape (5 whitespace-separated fields of allowed
+// characters); out-of-range values like "99 99 99 99 99" still pass admission
+// and only fail at runtime when robfig/cron parses them. Without this gate,
+// IsEnabled would treat clone as disabled and downstream tasks would run
+// against the wrong data set.
+func (r *SupersetReconciler) gateOnInvalidCloneSchedule(superset *supersetv1alpha1.Superset) (lifecycleResult, bool) {
+	if superset.Spec.Lifecycle == nil || superset.Spec.Lifecycle.Clone == nil {
+		return lifecycleResult{}, false
+	}
+	clone := superset.Spec.Lifecycle.Clone
+	if isDisabled(clone.Disabled) {
+		return lifecycleResult{}, false
+	}
+	if cloneScheduleIsValid(clone.CronSchedule) {
+		return lifecycleResult{}, false
+	}
+	expr := ""
+	if clone.CronSchedule != nil {
+		expr = *clone.CronSchedule
+	}
+	message := fmt.Sprintf("clone cronSchedule %q is invalid; downstream lifecycle tasks blocked until corrected", expr)
+	superset.Status.Lifecycle.Phase = lifecyclePhaseBlocked
+	superset.Status.Phase = phaseBlocked
+	setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
+		metav1.ConditionFalse, "InvalidCronSchedule", message, superset.Generation)
+	r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "InvalidCronSchedule", "Lifecycle",
+		"Lifecycle blocked: clone cronSchedule %q is invalid", expr)
+	return lifecycleTerminal(), true
 }
 
 // finalizeLifecycle updates status after all lifecycle tasks complete.

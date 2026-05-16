@@ -304,8 +304,11 @@ type SchedulableBaseTaskSpec struct {
 	// Uses standard cron syntax. Examples: "0 2 * * *" (daily 2 AM UTC),
 	// "0 */6 * * *" (every 6 hours), "30 1 * * 1" (Mondays 1:30 AM UTC).
 	// Predefined schedules (e.g. "@daily") are not accepted; use the explicit
-	// 5-field form. Pattern validation rejects malformed expressions at admission;
-	// the controller still parses with robfig/cron at runtime as defense in depth.
+	// 5-field form. Pattern validation rejects only malformed *shape* at
+	// admission (e.g. fewer than five fields, disallowed characters);
+	// out-of-range values like "99 99 99 99 99" still pass admission and are
+	// caught by the runtime parser, which blocks the lifecycle pipeline with
+	// an InvalidCronSchedule condition until the expression is corrected.
 	// +optional
 	// +kubebuilder:validation:MinLength=9
 	// +kubebuilder:validation:MaxLength=256

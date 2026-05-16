@@ -52,7 +52,7 @@ Each task has hardcoded trigger inputs — what it watches for changes:
 
 | Task | Watches | Re-runs when... |
 |------|---------|-----------------|
-| Clone | `trigger` field, `cronSchedule` tick, source config, excludes | Trigger value changes, schedule tick boundary crossed, or source DB config changes |
+| Clone | `trigger` field, `cronSchedule` tick, source config, excludes, target Superset image | Trigger value changes, schedule tick boundary crossed, source DB config changes, or target image changes (so a downgrade triggers a fresh clone before migrate sees the older schema) |
 | Migrate | Image (resolved lifecycle image) | Image tag or repository changes |
 | Rotate | `trigger` field, `secretKeyFrom` ref, `previousSecretKeyFrom` ref | Secret key references change or trigger value changes |
 | Init | Config checksum (rendered Python config) | Any config-affecting field changes |

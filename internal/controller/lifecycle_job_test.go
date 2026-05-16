@@ -184,19 +184,26 @@ func TestReconcileLifecycleTaskJob_ConcurrentCreateProducesOneJob(t *testing.T) 
 
 	const racers = 10
 	start := make(chan struct{})
+	errs := make([]error, racers)
 	var wg sync.WaitGroup
 	wg.Add(racers)
-	for range racers {
+	for i := range racers {
 		racerSuperset := superset.DeepCopy()
 		go func() {
 			defer wg.Done()
 			<-start
 			taskRef := &supersetv1alpha1.TaskRefStatus{MaxRetries: 3}
-			_, _ = r.reconcileLifecycleTaskJob(ctx, racerSuperset, "test-migrate", taskTypeMigrate, flatSpec, taskChecksum, taskRef)
+			_, errs[i] = r.reconcileLifecycleTaskJob(ctx, racerSuperset, "test-migrate", taskTypeMigrate, flatSpec, taskChecksum, taskRef)
 		}()
 	}
 	close(start)
 	wg.Wait()
+
+	for i, err := range errs {
+		if err != nil {
+			t.Fatalf("racer %d returned unexpected error: %v", i, err)
+		}
+	}
 
 	jobs := &batchv1.JobList{}
 	if err := c.List(ctx, jobs); err != nil {

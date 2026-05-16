@@ -750,7 +750,12 @@ func TestPipelineChain_UpstreamChangeInvalidatesDownstream(t *testing.T) {
 	}
 }
 
-func TestPipelineChain_ImageChangeOnlyAffectsMigrate(t *testing.T) {
+// TestPipelineChain_DownstreamInputChangesDoNotRippleUpstream verifies that
+// the cascade only flows in the pipeline direction: changing a migrate-only
+// hashed input does not affect clone's checksum. Production clone inputs
+// include the target Superset image (see cloneInputs); this test exercises
+// the cascade math with synthetic inputs that intentionally omit it.
+func TestPipelineChain_DownstreamInputChangesDoNotRippleUpstream(t *testing.T) {
 	r := &SupersetReconciler{}
 
 	cloneCmd := []string{"/bin/sh", "-c", "pg_dump | psql"}
@@ -758,7 +763,8 @@ func TestPipelineChain_ImageChangeOnlyAffectsMigrate(t *testing.T) {
 
 	parentUID := "test-uid"
 
-	// Clone with same trigger.
+	// Synthetic clone inputs (Trigger only) — in production cloneInputs also
+	// includes target image, but here we want to isolate cascade direction.
 	cloneChecksum := r.computeStepChecksum(parentUID, taskTypeClone, cloneCmd, struct{ Trigger string }{"v1"})
 
 	// Migrate with different image versions.
@@ -766,13 +772,14 @@ func TestPipelineChain_ImageChangeOnlyAffectsMigrate(t *testing.T) {
 	migrate2 := r.computeStepChecksum(cloneChecksum, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:5.0"})
 
 	if migrate1 == migrate2 {
-		t.Error("migrate checksum should change when image changes")
+		t.Error("migrate checksum should change when its hashed Image input changes")
 	}
 
-	// Clone checksum should NOT change due to image change.
+	// Re-computing clone with identical synthetic inputs yields the same
+	// checksum: cascade does not ripple upstream from migrate.
 	clone2 := r.computeStepChecksum(parentUID, taskTypeClone, cloneCmd, struct{ Trigger string }{"v1"})
 	if cloneChecksum != clone2 {
-		t.Error("clone checksum should NOT change when image changes (clone doesn't watch image)")
+		t.Error("clone checksum should not change when only migrate's hashed input changed (cascade is downstream-only)")
 	}
 }
 

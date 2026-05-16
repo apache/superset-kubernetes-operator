@@ -22,6 +22,8 @@ import (
 	"context"
 	"testing"
 
+	batchv1 "k8s.io/api/batch/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
@@ -193,4 +195,88 @@ func hasConditionMessage(conditions []metav1.Condition, conditionType, message s
 		}
 	}
 	return false
+}
+
+// TestReconcileLifecycle_BlocksOnInvalidCloneSchedule pins the gate that
+// prevents downstream tasks from running when clone is configured with a cron
+// schedule that passes structural CRD validation but fails runtime parsing
+// (e.g. out-of-range values). Without the gate, IsEnabled would treat clone
+// as disabled and migrate/init would silently run against the wrong dataset.
+func TestReconcileLifecycle_BlocksOnInvalidCloneSchedule(t *testing.T) {
+	scheme := testScheme(t)
+	devMode := "Development"
+	invalidSchedule := "99 99 99 99 99"
+	metastoreHost := "postgres.default.svc"
+	metastoreDB := "superset"
+	metastoreUser := "superset"
+
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Spec: supersetv1alpha1.SupersetSpec{
+			Environment: &devMode,
+			Image:       supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "6.0.1"},
+			SecretKeyFrom: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: "app-secret"},
+				Key:                  "secret-key",
+			},
+			Metastore: &supersetv1alpha1.MetastoreSpec{
+				Host:     &metastoreHost,
+				Database: &metastoreDB,
+				Username: &metastoreUser,
+				PasswordFrom: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "db-secret"},
+					Key:                  "password",
+				},
+			},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{
+				Clone: &supersetv1alpha1.CloneTaskSpec{
+					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
+						CronSchedule: &invalidSchedule,
+					},
+					Source: supersetv1alpha1.CloneSourceSpec{
+						Host:     "pg-prod.svc",
+						Database: "superset_prod",
+						Username: "reader",
+						PasswordFrom: &corev1.SecretKeySelector{
+							LocalObjectReference: corev1.LocalObjectReference{Name: "src-secret"},
+							Key:                  "password",
+						},
+					},
+				},
+			},
+		},
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	res, err := r.reconcileLifecycle(context.Background(), superset, "checksum", nil, "sa")
+	if err != nil {
+		t.Fatalf("reconcileLifecycle: %v", err)
+	}
+	if !res.TerminalFailure {
+		t.Fatalf("expected terminal failure for invalid clone schedule, got %#v", res)
+	}
+	if res.Complete {
+		t.Fatal("expected lifecycle blocked, not complete")
+	}
+	if !hasConditionReason(superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete, "InvalidCronSchedule") {
+		t.Fatalf("expected LifecycleComplete=False reason InvalidCronSchedule, got %#v", superset.Status.Conditions)
+	}
+	if superset.Status.Lifecycle.Phase != lifecyclePhaseBlocked {
+		t.Fatalf("expected lifecycle phase Blocked, got %q", superset.Status.Lifecycle.Phase)
+	}
+	if superset.Status.Phase != phaseBlocked {
+		t.Fatalf("expected parent phase Blocked, got %q", superset.Status.Phase)
+	}
+	jobs := &batchv1.JobList{}
+	if err := c.List(context.Background(), jobs); err != nil {
+		t.Fatalf("listing jobs: %v", err)
+	}
+	if len(jobs.Items) != 0 {
+		names := make([]string, 0, len(jobs.Items))
+		for _, j := range jobs.Items {
+			names = append(names, j.Name)
+		}
+		t.Fatalf("expected no task Jobs to be created when clone schedule is invalid, got %v", names)
+	}
 }
