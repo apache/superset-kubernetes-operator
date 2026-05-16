@@ -45,11 +45,10 @@ func isLifecycleDisabled(superset *supersetv1alpha1.Superset) bool {
 func (r *SupersetReconciler) drainIfNeeded(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
-	cloneEnabled, migrateEnabled, rotateEnabled, initEnabled bool,
 	configChecksum string,
 	parentPhase string,
 ) (lifecycleResult, error) {
-	if !r.lifecycleNeedsDrain(superset, cloneEnabled, migrateEnabled, rotateEnabled, initEnabled, configChecksum) {
+	if !r.lifecycleNeedsDrain(superset, configChecksum) {
 		return lifecycleComplete(), nil
 	}
 
@@ -80,70 +79,17 @@ func (r *SupersetReconciler) drainIfNeeded(
 
 func (r *SupersetReconciler) lifecycleNeedsDrain(
 	superset *supersetv1alpha1.Superset,
-	cloneEnabled, migrateEnabled, rotateEnabled, initEnabled bool,
 	configChecksum string,
 ) bool {
 	if !hasDrainableComponents(superset) {
 		return false
 	}
-	for _, task := range r.pendingLifecycleTasks(superset, cloneEnabled, migrateEnabled, rotateEnabled, initEnabled, configChecksum) {
+	for _, task := range r.pendingLifecycleTasks(superset, configChecksum) {
 		if r.taskRequiresDrain(superset, task) {
 			return true
 		}
 	}
 	return false
-}
-
-func (r *SupersetReconciler) pendingLifecycleTasks(
-	superset *supersetv1alpha1.Superset,
-	cloneEnabled, migrateEnabled, rotateEnabled, initEnabled bool,
-	configChecksum string,
-) []string {
-	var pending []string
-	incomingChecksum := string(superset.UID)
-
-	if cloneEnabled {
-		cloneCmd := r.buildCloneCommand(superset)
-		taskChecksum := r.computeStepChecksum(incomingChecksum, taskTypeClone, cloneCmd, r.cloneInputs(superset))
-		if r.taskNeedsRun(superset, taskTypeClone, taskChecksum) {
-			pending = append(pending, taskTypeClone)
-		}
-		if r.taskTerminalFailedForChecksum(superset, taskTypeClone, taskChecksum) {
-			return pending
-		}
-		incomingChecksum = taskChecksum
-	}
-	if migrateEnabled {
-		migrateCmd := defaultMigrateCommand(superset)
-		taskChecksum := r.computeStepChecksum(incomingChecksum, taskTypeMigrate, migrateCmd, r.migrateInputs(superset))
-		if r.taskNeedsRun(superset, taskTypeMigrate, taskChecksum) {
-			pending = append(pending, taskTypeMigrate)
-		}
-		if r.taskTerminalFailedForChecksum(superset, taskTypeMigrate, taskChecksum) {
-			return pending
-		}
-		incomingChecksum = taskChecksum
-	}
-	if rotateEnabled {
-		rotateCmd := defaultRotateCommand(superset)
-		taskChecksum := r.computeStepChecksum(incomingChecksum, taskTypeRotate, rotateCmd, r.rotateInputs(superset))
-		if r.taskNeedsRun(superset, taskTypeRotate, taskChecksum) {
-			pending = append(pending, taskTypeRotate)
-		}
-		if r.taskTerminalFailedForChecksum(superset, taskTypeRotate, taskChecksum) {
-			return pending
-		}
-		incomingChecksum = taskChecksum
-	}
-	if initEnabled {
-		initCmd := defaultInitCommand(superset)
-		taskChecksum := r.computeStepChecksum(incomingChecksum, taskTypeInit, initCmd, r.initInputs(superset, configChecksum))
-		if r.taskNeedsRun(superset, taskTypeInit, taskChecksum) {
-			pending = append(pending, taskTypeInit)
-		}
-	}
-
-	return pending
 }
 
 func (r *SupersetReconciler) taskNeedsRun(
@@ -186,18 +132,11 @@ func taskStatusForType(superset *supersetv1alpha1.Superset, taskType string) *su
 	if superset.Status.Lifecycle == nil {
 		return nil
 	}
-	switch taskType {
-	case taskTypeClone:
-		return superset.Status.Lifecycle.Clone
-	case taskTypeMigrate:
-		return superset.Status.Lifecycle.Migrate
-	case taskTypeRotate:
-		return superset.Status.Lifecycle.Rotate
-	case taskTypeInit:
-		return superset.Status.Lifecycle.Init
-	default:
+	desc := lifecycleTaskDescriptorByType(taskType)
+	if desc == nil {
 		return nil
 	}
+	return *desc.TaskRef(superset.Status.Lifecycle)
 }
 
 func hasDrainableComponents(superset *supersetv1alpha1.Superset) bool {

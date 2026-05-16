@@ -20,6 +20,7 @@ package controller
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -153,6 +154,59 @@ func TestReconcileLifecycleTaskJob_DeterministicNameAvoidsDuplicateCreate(t *tes
 	}
 	if jobs.Items[0].Spec.Parallelism == nil || *jobs.Items[0].Spec.Parallelism != 1 {
 		t.Fatalf("expected explicit parallelism=1, got %#v", jobs.Items[0].Spec.Parallelism)
+	}
+}
+
+// TestReconcileLifecycleTaskJob_ConcurrentCreateProducesOneJob locks in the
+// invariant that two reconciles racing to create the same task Job converge to
+// a single Kubernetes object — the deterministic name + IsAlreadyExists handler
+// in reconcileLifecycleTaskJob (and the taskJobMatchesChecksum guard in
+// lifecycle_job.go) make duplicate creation safe at the API layer. Each racer
+// gets its own in-memory Superset copy because controller-runtime serializes
+// reconciles per object key; the only shared state at risk is the apiserver,
+// which the fake client models.
+func TestReconcileLifecycleTaskJob_ConcurrentCreateProducesOneJob(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+	taskChecksum := "sha256:test"
+
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+	}
+	flatSpec := &supersetv1alpha1.FlatComponentSpec{
+		Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+	}
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(superset).
+		Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(50)}
+
+	const racers = 10
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(racers)
+	for range racers {
+		racerSuperset := superset.DeepCopy()
+		go func() {
+			defer wg.Done()
+			<-start
+			taskRef := &supersetv1alpha1.TaskRefStatus{MaxRetries: 3}
+			_, _ = r.reconcileLifecycleTaskJob(ctx, racerSuperset, "test-migrate", taskTypeMigrate, flatSpec, taskChecksum, taskRef)
+		}()
+	}
+	close(start)
+	wg.Wait()
+
+	jobs := &batchv1.JobList{}
+	if err := c.List(ctx, jobs); err != nil {
+		t.Fatalf("list jobs: %v", err)
+	}
+	if len(jobs.Items) != 1 {
+		t.Fatalf("expected exactly one Job under concurrent creation, got %d", len(jobs.Items))
+	}
+	if jobs.Items[0].Annotations[common.AnnotationConfigChecksum] != taskChecksum {
+		t.Fatalf("expected job checksum annotation %q, got %q", taskChecksum, jobs.Items[0].Annotations[common.AnnotationConfigChecksum])
 	}
 }
 

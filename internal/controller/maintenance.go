@@ -333,11 +333,13 @@ func buildMaintenanceFlatSpec(parentName string, spec *supersetv1alpha1.Maintena
 		replicas = *spec.Replicas
 	}
 
+	// DeepCopy template pointers so the volume/mount/env injection below cannot
+	// mutate the user-provided spec stored in the informer cache.
 	flat := supersetv1alpha1.FlatComponentSpec{
 		Image:              resolveMaintenanceImage(spec),
 		Replicas:           &replicas,
-		DeploymentTemplate: spec.DeploymentTemplate,
-		PodTemplate:        spec.PodTemplate,
+		DeploymentTemplate: spec.DeploymentTemplate.DeepCopy(),
+		PodTemplate:        spec.PodTemplate.DeepCopy(),
 	}
 
 	// Build env vars from content fields.

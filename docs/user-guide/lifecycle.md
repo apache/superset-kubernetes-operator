@@ -636,13 +636,13 @@ incoming checksum for the next task.
 ```
                      parentUID (stable anchor)
                          ↓
-clone.checksum   = hash(parentUID, "Clone", command, trigger, source, excludes)
+clone.checksum   = hash(parentUID, "Clone", command, trigger, scheduleTick, source, excludes, postCloneSQL, cloneImage, targetImage)
                          ↓ (stored in parent status on completion)
 migrate.checksum = hash(clone.status.checksum, "Migrate", command, trigger, image)
                          ↓ (stored in parent status on completion)
-rotate.checksum  = hash(migrate.status.checksum, "Rotate", command, trigger, secretKeyFrom, previousSecretKeyFrom)
+rotate.checksum  = hash(migrate.status.checksum, "Rotate", command, trigger, image, secretKey, secretKeyFrom, previousSecretKey, previousSecretKeyFrom)
                          ↓ (stored in parent status on completion)
-init.checksum    = hash(rotate.status.checksum, "Init", command, trigger, configChecksum)
+init.checksum    = hash(rotate.status.checksum, "Init", command, trigger, image, configChecksum)
 ```
 
 **The universal rule:** a task executes when its computed checksum differs from
@@ -654,9 +654,19 @@ checksum computation, making it differ from its stored value — so migrate
 re-runs too. The chain continues transitively through rotate to init.
 
 **Isolation by design:** each task watches only its own relevant inputs.
-Image changes affect only migrate (and downstream via propagation). Config
-changes affect only init. Clone source changes affect only clone (and
-downstream via propagation).
+Migrate is image/schema-version driven and intentionally ignores feature/config
+changes — a config tweak does not re-run migrations. Init is the
+config-sensitive task: rendered `superset_config.py` changes propagate here.
+Clone tracks both the source connection identity and the *target* Superset
+image, so a staging image change (including a downgrade) triggers a fresh clone
+before migrations re-run. Rotate fires on secret-key transitions.
+
+**What checksums do NOT cover:** checksums hash *task-semantic* inputs only.
+Pod-level fields like resource requests/limits, node selectors, tolerations,
+affinity, and other `podTemplate` knobs are not part of the task checksum and
+do not by themselves trigger a re-run. Such changes apply on the next execution
+that *is* triggered by a semantic input change. This is intentional: a pure
+scheduling tweak should not, for example, re-run a destructive `clone`.
 
 ### Why Jobs
 

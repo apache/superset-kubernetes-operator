@@ -125,18 +125,10 @@ func (r *SupersetReconciler) buildStandardTaskFlatSpec(
 }
 
 func suffixForTaskType(taskType string) string {
-	switch taskType {
-	case taskTypeClone:
-		return suffixClone
-	case taskTypeMigrate:
-		return suffixMigrate
-	case taskTypeRotate:
-		return suffixRotate
-	case taskTypeInit:
-		return suffixInit
-	default:
-		return "-" + strings.ToLower(taskType)
+	if desc := lifecycleTaskDescriptorByType(taskType); desc != nil {
+		return desc.Suffix
 	}
+	return "-" + strings.ToLower(taskType)
 }
 
 func lifecycleImageOverride(superset *supersetv1alpha1.Superset) *supersetv1alpha1.ImageOverrideSpec {
@@ -144,31 +136,6 @@ func lifecycleImageOverride(superset *supersetv1alpha1.Superset) *supersetv1alph
 		return superset.Spec.Lifecycle.Image
 	}
 	return nil
-}
-
-func defaultMigrateCommand(superset *supersetv1alpha1.Superset) []string {
-	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Migrate != nil && len(superset.Spec.Lifecycle.Migrate.Command) > 0 {
-		return superset.Spec.Lifecycle.Migrate.Command
-	}
-	return []string{"/bin/sh", "-c", "superset db upgrade"}
-}
-
-func defaultInitCommand(superset *supersetv1alpha1.Superset) []string {
-	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Init != nil && len(superset.Spec.Lifecycle.Init.Command) > 0 {
-		return superset.Spec.Lifecycle.Init.Command
-	}
-	var initSpec *supersetv1alpha1.InitTaskSpec
-	if superset.Spec.Lifecycle != nil {
-		initSpec = superset.Spec.Lifecycle.Init
-	}
-	return buildInitCommand(initSpec)
-}
-
-func defaultRotateCommand(superset *supersetv1alpha1.Superset) []string {
-	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Rotate != nil && len(superset.Spec.Lifecycle.Rotate.Command) > 0 {
-		return superset.Spec.Lifecycle.Rotate.Command
-	}
-	return []string{"/bin/sh", "-c", "superset re-encrypt-secrets"}
 }
 
 // flatPodTemplate extracts the PodTemplate from a resolved FlatSpec.

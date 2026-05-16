@@ -1166,13 +1166,13 @@ func TestAllTasksStillComplete_SkipsDrainWhenNothingChanged(t *testing.T) {
 	}
 
 	t.Run("returns true when nothing changed", func(t *testing.T) {
-		if !r.allTasksStillComplete(superset, false, true, false, true, configChecksum) {
+		if !r.allTasksStillComplete(superset, configChecksum) {
 			t.Error("expected allTasksStillComplete=true when checksums match")
 		}
 	})
 
 	t.Run("returns false when config changes", func(t *testing.T) {
-		if r.allTasksStillComplete(superset, false, true, false, true, "config-changed") {
+		if r.allTasksStillComplete(superset, "config-changed") {
 			t.Error("expected allTasksStillComplete=false when config checksum changed")
 		}
 	})
@@ -1180,7 +1180,7 @@ func TestAllTasksStillComplete_SkipsDrainWhenNothingChanged(t *testing.T) {
 	t.Run("returns false when image changes", func(t *testing.T) {
 		modified := superset.DeepCopy()
 		modified.Spec.Image.Tag = "5.0.0"
-		if r.allTasksStillComplete(modified, false, true, false, true, configChecksum) {
+		if r.allTasksStillComplete(modified, configChecksum) {
 			t.Error("expected allTasksStillComplete=false when image changed")
 		}
 	})
@@ -1188,7 +1188,7 @@ func TestAllTasksStillComplete_SkipsDrainWhenNothingChanged(t *testing.T) {
 	t.Run("returns false with no stored checksums", func(t *testing.T) {
 		modified := superset.DeepCopy()
 		modified.Status.Lifecycle.LastCompletedChecksums = nil
-		if r.allTasksStillComplete(modified, false, true, false, true, configChecksum) {
+		if r.allTasksStillComplete(modified, configChecksum) {
 			t.Error("expected allTasksStillComplete=false with nil checksums")
 		}
 	})
@@ -1198,7 +1198,7 @@ func TestAllTasksStillComplete_SkipsDrainWhenNothingChanged(t *testing.T) {
 		modified.Spec.Lifecycle.Migrate = &supersetv1alpha1.MigrateTaskSpec{
 			BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Trigger: common.Ptr("force-v1")},
 		}
-		if r.allTasksStillComplete(modified, false, true, false, true, configChecksum) {
+		if r.allTasksStillComplete(modified, configChecksum) {
 			t.Error("expected allTasksStillComplete=false when trigger changed")
 		}
 	})
@@ -1243,7 +1243,7 @@ func TestAllTasksStillComplete_WithCloneSchedule(t *testing.T) {
 	}
 
 	t.Run("stable within cron window", func(t *testing.T) {
-		if !r.allTasksStillComplete(superset, true, true, false, true, configChecksum) {
+		if !r.allTasksStillComplete(superset, configChecksum) {
 			t.Error("expected allTasksStillComplete=true within same cron window")
 		}
 	})
@@ -1251,7 +1251,7 @@ func TestAllTasksStillComplete_WithCloneSchedule(t *testing.T) {
 	t.Run("returns false when cron tick crosses boundary", func(t *testing.T) {
 		nextHour := time.Date(2026, 5, 11, 15, 1, 0, 0, time.UTC)
 		r2 := &SupersetReconciler{Now: func() time.Time { return nextHour }}
-		if r2.allTasksStillComplete(superset, true, true, false, true, configChecksum) {
+		if r2.allTasksStillComplete(superset, configChecksum) {
 			t.Error("expected allTasksStillComplete=false after cron boundary crossing")
 		}
 	})
@@ -1447,7 +1447,7 @@ func TestAllTasksStillComplete_WithRotate(t *testing.T) {
 	}
 
 	t.Run("returns true when nothing changed", func(t *testing.T) {
-		if !r.allTasksStillComplete(superset, false, true, true, true, configChecksum) {
+		if !r.allTasksStillComplete(superset, configChecksum) {
 			t.Error("expected allTasksStillComplete=true when checksums match")
 		}
 	})
@@ -1458,7 +1458,7 @@ func TestAllTasksStillComplete_WithRotate(t *testing.T) {
 			LocalObjectReference: corev1.LocalObjectReference{Name: "rotated"},
 			Key:                  "key",
 		}
-		if r.allTasksStillComplete(modified, false, true, true, true, configChecksum) {
+		if r.allTasksStillComplete(modified, configChecksum) {
 			t.Error("expected allTasksStillComplete=false when previousSecretKeyFrom changes")
 		}
 	})
@@ -1466,7 +1466,7 @@ func TestAllTasksStillComplete_WithRotate(t *testing.T) {
 	t.Run("rotate cascades to init", func(t *testing.T) {
 		modified := superset.DeepCopy()
 		modified.Spec.Lifecycle.Rotate.Trigger = common.Ptr("force")
-		if r.allTasksStillComplete(modified, false, true, true, true, configChecksum) {
+		if r.allTasksStillComplete(modified, configChecksum) {
 			t.Error("expected allTasksStillComplete=false when rotate trigger changes (cascades to init)")
 		}
 	})

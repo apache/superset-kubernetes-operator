@@ -64,7 +64,7 @@ func TestDrainIfNeededEmitsStartedWhenPodsRemain(t *testing.T) {
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: recorder}
 
-	result, err := r.drainIfNeeded(ctx, superset, false, true, false, false, "cfg", phaseUpgrading)
+	result, err := r.drainIfNeeded(ctx, superset, "cfg", phaseUpgrading)
 	if err != nil {
 		t.Fatalf("drainIfNeeded: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestDrainIfNeededEmitsCompletedAfterWaitingForPods(t *testing.T) {
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: recorder}
 
-	result, err := r.drainIfNeeded(ctx, superset, false, true, false, false, "cfg", phaseInitializing)
+	result, err := r.drainIfNeeded(ctx, superset, "cfg", phaseInitializing)
 	if err != nil {
 		t.Fatalf("drainIfNeeded: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestDrainIfNeededSkipsWhenNoComponentHasDesiredReplicas(t *testing.T) {
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: recorder}
 
-	result, err := r.drainIfNeeded(ctx, superset, false, true, false, false, "cfg", phaseInitializing)
+	result, err := r.drainIfNeeded(ctx, superset, "cfg", phaseInitializing)
 	if err != nil {
 		t.Fatalf("drainIfNeeded: %v", err)
 	}
@@ -193,7 +193,7 @@ func TestPrepareMaintenancePageSkipsWhenNoComponentHasDesiredReplicas(t *testing
 	}
 	r := &SupersetReconciler{}
 
-	result, err := r.prepareMaintenancePage(ctx, superset, false, true, false, false, "cfg", phaseInitializing)
+	result, err := r.prepareMaintenancePage(ctx, superset, "cfg", phaseInitializing)
 	if err != nil {
 		t.Fatalf("prepareMaintenancePage: %v", err)
 	}
@@ -224,7 +224,7 @@ func TestPrepareMaintenancePageSkipsWhenWebServerHasNoDesiredReplicas(t *testing
 	}
 	r := &SupersetReconciler{}
 
-	result, err := r.prepareMaintenancePage(ctx, superset, false, true, false, false, "cfg", phaseInitializing)
+	result, err := r.prepareMaintenancePage(ctx, superset, "cfg", phaseInitializing)
 	if err != nil {
 		t.Fatalf("prepareMaintenancePage: %v", err)
 	}
@@ -256,7 +256,7 @@ func TestPrepareMaintenancePageSkipsInitialInstallWithoutWebServerWorkload(t *te
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: recorder}
 
-	result, err := r.prepareMaintenancePage(ctx, superset, false, true, false, false, "cfg", phaseInitializing)
+	result, err := r.prepareMaintenancePage(ctx, superset, "cfg", phaseInitializing)
 	if err != nil {
 		t.Fatalf("prepareMaintenancePage: %v", err)
 	}
@@ -303,7 +303,7 @@ func TestPrepareMaintenancePageStartsWhenWebServerDeploymentExists(t *testing.T)
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: recorder}
 
-	result, err := r.prepareMaintenancePage(ctx, superset, false, true, false, false, "cfg", phaseInitializing)
+	result, err := r.prepareMaintenancePage(ctx, superset, "cfg", phaseInitializing)
 	if err != nil {
 		t.Fatalf("prepareMaintenancePage: %v", err)
 	}
@@ -356,7 +356,7 @@ func TestDrainIfNeededSkipsWhenOnlyNonDrainInitWillRun(t *testing.T) {
 	r.Client = c
 	r.Scheme = scheme
 
-	result, err := r.drainIfNeeded(ctx, superset, true, true, false, true, "new-config", phaseInitializing)
+	result, err := r.drainIfNeeded(ctx, superset, "new-config", phaseInitializing)
 	if err != nil {
 		t.Fatalf("drainIfNeeded: %v", err)
 	}

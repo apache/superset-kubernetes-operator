@@ -43,19 +43,13 @@ func ensureTaskStatus(superset *supersetv1alpha1.Superset, taskType string) *sup
 	if superset.Status.Lifecycle == nil {
 		superset.Status.Lifecycle = &supersetv1alpha1.LifecycleStatus{}
 	}
-	var ref **supersetv1alpha1.TaskRefStatus
-	switch taskType {
-	case taskTypeClone:
-		ref = &superset.Status.Lifecycle.Clone
-	case taskTypeMigrate:
-		ref = &superset.Status.Lifecycle.Migrate
-	case taskTypeRotate:
-		ref = &superset.Status.Lifecycle.Rotate
-	case taskTypeInit:
-		ref = &superset.Status.Lifecycle.Init
-	default:
-		ref = &superset.Status.Lifecycle.Init
+	desc := lifecycleTaskDescriptorByType(taskType)
+	if desc == nil {
+		// Defensive default: unknown task types fall back to the init slot to
+		// preserve the prior behavior of ensureTaskStatus, which never returned nil.
+		desc = lifecycleTaskDescriptorByType(taskTypeInit)
 	}
+	ref := desc.TaskRef(superset.Status.Lifecycle)
 	if *ref == nil {
 		*ref = &supersetv1alpha1.TaskRefStatus{}
 	}
@@ -367,16 +361,8 @@ func (r *SupersetReconciler) deleteLifecycleJob(ctx context.Context, job *batchv
 }
 
 func (r *SupersetReconciler) cleanupLifecycleTaskJobsByRetention(ctx context.Context, superset *supersetv1alpha1.Superset) error {
-	for _, task := range []struct {
-		taskType string
-		suffix   string
-	}{
-		{taskTypeClone, suffixClone},
-		{taskTypeMigrate, suffixMigrate},
-		{taskTypeRotate, suffixRotate},
-		{taskTypeInit, suffixInit},
-	} {
-		if err := r.cleanupTaskJobsByRetention(ctx, superset, superset.Name+task.suffix, task.taskType); err != nil {
+	for _, desc := range lifecycleTaskDescriptors {
+		if err := r.cleanupTaskJobsByRetention(ctx, superset, superset.Name+desc.Suffix, desc.TaskType); err != nil {
 			return err
 		}
 	}

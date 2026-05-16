@@ -247,3 +247,35 @@ func TestReconcileMaintenanceReturnClearsWhenWebServerDesiredReplicasZero(t *tes
 	}
 	assertNextEventContains(t, recorder, "Normal MaintenanceEnded Maintenance page disabled because webServer has zero desired replicas")
 }
+
+func TestBuildMaintenanceFlatSpec_DoesNotMutateInputSpec(t *testing.T) {
+	userVolume := corev1.Volume{Name: "user-volume", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}}
+	userMount := corev1.VolumeMount{Name: "user-volume", MountPath: "/data"}
+	userEnv := corev1.EnvVar{Name: "USER_VAR", Value: "v"}
+	title := "down for maintenance"
+
+	spec := &supersetv1alpha1.MaintenancePageSpec{
+		Title: &title,
+		PodTemplate: &supersetv1alpha1.PodTemplate{
+			Volumes: []corev1.Volume{userVolume},
+			Container: &supersetv1alpha1.ContainerTemplate{
+				VolumeMounts: []corev1.VolumeMount{userMount},
+				Env:          []corev1.EnvVar{userEnv},
+			},
+		},
+	}
+
+	for range 3 {
+		_ = buildMaintenanceFlatSpec("parent", spec)
+	}
+
+	if got := len(spec.PodTemplate.Volumes); got != 1 {
+		t.Fatalf("input spec PodTemplate.Volumes mutated: got %d volumes, want 1", got)
+	}
+	if got := len(spec.PodTemplate.Container.VolumeMounts); got != 1 {
+		t.Fatalf("input spec PodTemplate.Container.VolumeMounts mutated: got %d mounts, want 1", got)
+	}
+	if got := len(spec.PodTemplate.Container.Env); got != 1 {
+		t.Fatalf("input spec PodTemplate.Container.Env mutated: got %d env vars, want 1", got)
+	}
+}
