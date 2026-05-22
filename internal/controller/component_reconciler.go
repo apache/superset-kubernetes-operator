@@ -117,6 +117,7 @@ func reconcileComponentDeployment(
 		if err := controllerutil.SetControllerReference(owner, deploy, scheme); err != nil {
 			return err
 		}
+		deploy.Labels = mergeLabels(deploy.Labels, labels)
 		deploy.Spec = buildDeploymentSpec(spec, cfg, checksumAnnotations, labels)
 		return nil
 	})

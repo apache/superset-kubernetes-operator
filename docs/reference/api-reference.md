@@ -247,7 +247,7 @@ _Appears in:_
 | `excludeTables` _string array_ | Tables to exclude entirely from the dump (schema and data). |  | Optional: \{\} <br /> |
 | `excludeTableData` _string array_ | Tables where schema is dumped but data is not. Useful for large tables<br />needed by migrations but not for testing (e.g., "logs", "query"). |  | Optional: \{\} <br /> |
 | `postCloneSQL` _string array_ | SQL statements to execute against the target database after cloning.<br />Useful for sanitizing cloned data (e.g., disabling alerts, deleting<br />OAuth tokens, masking PII). |  | Optional: \{\} <br /> |
-| `image` _[ImageSpec](#imagespec)_ | Image for the clone Job. Defaults to postgres:17-alpine (PostgreSQL)<br />or mysql:8-alpine (MySQL) based on source.type. |  | Optional: \{\} <br /> |
+| `image` _[ContainerImageSpec](#containerimagespec)_ | Image for the clone Job. Defaults to postgres:17-alpine (PostgreSQL)<br />or mysql:8-alpine (MySQL) based on source.type. Partial specs (e.g.,<br />only `tag` set) inherit the type-appropriate default for omitted fields. |  | Optional: \{\} <br /> |
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for the clone task Job. |  | Optional: \{\} <br /> |
 | `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Retention policy for completed clone Jobs and their Pods. |  | Optional: \{\} <br /> |
 
@@ -360,6 +360,30 @@ _Appears in:_
 | `celeryFlower` _[ComponentRefStatus](#componentrefstatus)_ |  |  | Optional: \{\} <br /> |
 | `websocketServer` _[ComponentRefStatus](#componentrefstatus)_ |  |  | Optional: \{\} <br /> |
 | `mcpServer` _[ComponentRefStatus](#componentrefstatus)_ |  |  | Optional: \{\} <br /> |
+
+
+#### ContainerImageSpec
+
+
+
+ContainerImageSpec defines a generic container image. Unlike ImageSpec, it
+has no Superset-specific repository default — the operator selects a
+context-appropriate default at reconcile time when fields are omitted (e.g.,
+`nginx:alpine` for the maintenance page, `postgres:17-alpine` /
+`mysql:8-alpine` for the clone Job). Use this type for non-Superset images.
+
+
+
+_Appears in:_
+- [CloneTaskSpec](#clonetaskspec)
+- [MaintenancePageSpec](#maintenancepagespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `repository` _string_ | Container image repository. |  | Optional: \{\} <br /> |
+| `tag` _string_ | Image tag. |  | Optional: \{\} <br /> |
+| `pullPolicy` _[PullPolicy](https://pkg.go.dev/k8s.io/api/core/v1#PullPolicy)_ | Image pull policy (IfNotPresent, Always, Never). | IfNotPresent | Optional: \{\} <br /> |
+| `pullSecrets` _[LocalObjectReference](https://pkg.go.dev/k8s.io/api/core/v1#LocalObjectReference) array_ | References to Secrets for pulling images from private registries. |  | Optional: \{\} <br /> |
 
 
 #### ContainerTemplate
@@ -499,8 +523,6 @@ ImageSpec defines the container image configuration.
 
 
 _Appears in:_
-- [CloneTaskSpec](#clonetaskspec)
-- [MaintenancePageSpec](#maintenancepagespec)
 - [SupersetSpec](#supersetspec)
 
 | Field | Description | Default | Validation |
@@ -663,7 +685,7 @@ _Appears in:_
 | `title` _string_ | Title displayed on the maintenance page heading (managed mode).<br />In custom mode, passed as env var SUPERSET_OPERATOR__MAINTENANCE_TITLE. |  | Optional: \{\} <br /> |
 | `message` _string_ | Message displayed below the title (managed mode).<br />In custom mode, passed as env var SUPERSET_OPERATOR__MAINTENANCE_MESSAGE. |  | Optional: \{\} <br /> |
 | `body` _string_ | Full HTML page content. When set in managed mode, title and message are<br />ignored and this value is served as the complete page.<br />In custom mode, passed as env var SUPERSET_OPERATOR__MAINTENANCE_BODY. |  | Optional: \{\} <br /> |
-| `image` _[ImageSpec](#imagespec)_ | Image for the maintenance page container. When set, switches to custom<br />mode: no nginx config is injected, and the user's image is responsible<br />for serving HTTP traffic on the web-server port (default 8088). The port<br />must match the web-server Service's target port since the maintenance page<br />takes over that Service during lifecycle tasks.<br />When unset, defaults to nginx:alpine (managed mode). |  | Optional: \{\} <br /> |
+| `image` _[ContainerImageSpec](#containerimagespec)_ | Image for the maintenance page container. When set, switches to custom<br />mode: no nginx config is injected, and the user's image is responsible<br />for serving HTTP traffic on the web-server port (default 8088). The port<br />must match the web-server Service's target port since the maintenance page<br />takes over that Service during lifecycle tasks.<br />When unset, defaults to nginx:alpine (managed mode). Partial specs (e.g.,<br />only `tag` set) inherit the nginx default for the omitted fields. |  | Optional: \{\} <br /> |
 | `replicas` _integer_ | Number of maintenance page pod replicas. | 1 | Optional: \{\} <br /> |
 | `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Deployment-level overrides for the maintenance page (strategy, revision history).<br />For pod-level settings, use PodTemplate. |  | Optional: \{\} <br /> |
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod template for the maintenance page pod. |  | Optional: \{\} <br /> |

@@ -847,6 +847,7 @@ top-level for shared entries and component-level for component-specific ones.
 | `env` | Environment variables (merged by name) |
 | `envFrom` | ConfigMap/Secret env sources (appended) |
 | `volumeMounts` | Volume mounts (merged by name) |
+| `ports` | Container ports (replaces operator defaults when set; the first resolved port is used as the Service `targetPort` and as the ingress port for the operator-managed NetworkPolicy) |
 | `securityContext` | Container-level security context |
 | `command` | Container entrypoint (no inheritance) |
 | `args` | Container arguments (no inheritance) |

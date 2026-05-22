@@ -94,10 +94,10 @@ func reconcileOnce(t *testing.T, scheme *runtime.Scheme, superset *supersetv1alp
 		WithStatusSubresource(&supersetv1alpha1.Superset{})
 }
 
-func doReconcile(t *testing.T, r *SupersetReconciler, name string) {
+func doReconcile(t *testing.T, r *SupersetReconciler) {
 	t.Helper()
 	_, err := r.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: types.NamespacedName{Name: name, Namespace: "default"},
+		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
 	})
 	if err != nil {
 		t.Fatalf("reconcile failed: %v", err)

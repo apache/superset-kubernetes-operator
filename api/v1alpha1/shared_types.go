@@ -70,6 +70,30 @@ type ImageOverrideSpec struct {
 	Repository *string `json:"repository,omitempty"`
 }
 
+// ContainerImageSpec defines a generic container image. Unlike ImageSpec, it
+// has no Superset-specific repository default — the operator selects a
+// context-appropriate default at reconcile time when fields are omitted (e.g.,
+// `nginx:alpine` for the maintenance page, `postgres:17-alpine` /
+// `mysql:8-alpine` for the clone Job). Use this type for non-Superset images.
+type ContainerImageSpec struct {
+	// Container image repository.
+	// +optional
+	Repository string `json:"repository,omitempty"`
+
+	// Image tag.
+	// +optional
+	Tag string `json:"tag,omitempty"`
+
+	// Image pull policy (IfNotPresent, Always, Never).
+	// +optional
+	// +kubebuilder:default=IfNotPresent
+	PullPolicy corev1.PullPolicy `json:"pullPolicy,omitempty"`
+
+	// References to Secrets for pulling images from private registries.
+	// +optional
+	PullSecrets []corev1.LocalObjectReference `json:"pullSecrets,omitempty"`
+}
+
 // --- Metastore types ---
 
 // MetastoreSpec defines the database connection for Superset's metastore.

@@ -409,7 +409,8 @@ func (r *SupersetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 // reconcileParentOwnedConfigMap creates or updates a ConfigMap owned by the
 // parent Superset CR. The ConfigMap contains superset_config.py and is mounted
-// by component pods via a conventional name.
+// by component pods via a conventional name. Pass labels matching the workload
+// pods so the ConfigMap is discoverable via the same label selector.
 func reconcileParentOwnedConfigMap(
 	ctx context.Context,
 	c client.Client,
@@ -417,6 +418,7 @@ func reconcileParentOwnedConfigMap(
 	parent *supersetv1alpha1.Superset,
 	config string,
 	resourceBaseName string,
+	labels map[string]string,
 ) error {
 	cmName := naming.ConfigMapName(resourceBaseName)
 
@@ -438,6 +440,7 @@ func reconcileParentOwnedConfigMap(
 		if err := controllerutil.SetControllerReference(parent, cm, scheme); err != nil {
 			return err
 		}
+		cm.Labels = mergeLabels(cm.Labels, labels)
 		cm.Data = map[string]string{
 			"superset_config.py": config,
 		}

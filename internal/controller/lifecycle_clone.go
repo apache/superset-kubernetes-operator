@@ -169,21 +169,44 @@ func collectCloneEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVar {
 	return envs
 }
 
-// resolveCloneImage determines the image for the clone pod.
+// resolveCloneImage determines the image for the clone pod. Defaults are
+// type-aware: postgres:17-alpine for PostgreSQL sources, mysql:8-alpine for
+// MySQL. Partial user specs inherit the default repository or tag for omitted
+// fields rather than the Superset image (which would be incorrect for a
+// database tooling container).
 func resolveCloneImage(clone *supersetv1alpha1.CloneTaskSpec) supersetv1alpha1.ImageSpec {
-	if clone.Image != nil {
-		return *clone.Image
-	}
 	srcType := dbTypePostgresql
 	if clone.Source.Type != nil {
 		srcType = *clone.Source.Type
 	}
+	defaultRef := naming.CloneImagePostgres
 	if srcType == dbTypeMySQL {
-		repo, tag := splitImageRef(naming.CloneImageMySQL)
-		return supersetv1alpha1.ImageSpec{Repository: repo, Tag: tag}
+		defaultRef = naming.CloneImageMySQL
 	}
-	repo, tag := splitImageRef(naming.CloneImagePostgres)
-	return supersetv1alpha1.ImageSpec{Repository: repo, Tag: tag}
+	defRepo, defTag := splitImageRef(defaultRef)
+	return resolveContainerImage(clone.Image, defRepo, defTag)
+}
+
+// resolveContainerImage merges a user-provided ContainerImageSpec with
+// context-specific defaults. Fields the user set win; omitted fields fall back
+// to the supplied defaults.
+func resolveContainerImage(spec *supersetv1alpha1.ContainerImageSpec, defaultRepo, defaultTag string) supersetv1alpha1.ImageSpec {
+	if spec == nil {
+		return supersetv1alpha1.ImageSpec{Repository: defaultRepo, Tag: defaultTag}
+	}
+	img := supersetv1alpha1.ImageSpec{
+		Repository:  spec.Repository,
+		Tag:         spec.Tag,
+		PullPolicy:  spec.PullPolicy,
+		PullSecrets: spec.PullSecrets,
+	}
+	if img.Repository == "" {
+		img.Repository = defaultRepo
+	}
+	if img.Tag == "" {
+		img.Tag = defaultTag
+	}
+	return img
 }
 
 func splitImageRef(ref string) (string, string) {

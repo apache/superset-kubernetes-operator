@@ -200,7 +200,7 @@ func (r *SupersetReconciler) reconcileComponent(
 		operatorInjected = buildOperatorInjected(renderedConfig, resourceBaseName, superset.Spec.ForceReload, secretEnvVars)
 
 		// Create/update the component ConfigMap.
-		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, renderedConfig, resourceBaseName); err != nil {
+		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, renderedConfig, resourceBaseName, componentLabels(string(desc.componentType), superset.Name)); err != nil {
 			return fmt.Errorf("reconciling ConfigMap for %s: %w", desc.componentType, err)
 		}
 
@@ -286,7 +286,7 @@ func (r *SupersetReconciler) deleteComponentResources(ctx context.Context, super
 	}
 
 	if desc.hasPythonConfig {
-		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, "", resourceBaseName); err != nil {
+		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, "", resourceBaseName, nil); err != nil {
 			return fmt.Errorf("deleting ConfigMap for disabled %s: %w", desc.componentType, err)
 		}
 	}

@@ -151,8 +151,8 @@ var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 		BuildCommand: func(_ *SupersetReconciler, s *supersetv1alpha1.Superset) []string {
 			return defaultInitCommand(s)
 		},
-		BuildInputs: func(r *SupersetReconciler, s *supersetv1alpha1.Superset, configChecksum string) any {
-			return r.initInputs(s, configChecksum)
+		BuildInputs: func(r *SupersetReconciler, s *supersetv1alpha1.Superset, _ string) any {
+			return r.initInputs(s)
 		},
 		IsEnabled: func(s *supersetv1alpha1.Superset) bool {
 			if s.Spec.Lifecycle == nil {

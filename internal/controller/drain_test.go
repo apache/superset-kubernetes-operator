@@ -337,7 +337,7 @@ func TestDrainIfNeededSkipsWhenOnlyNonDrainInitWillRun(t *testing.T) {
 		},
 	}
 	superset.Status.Lifecycle = &supersetv1alpha1.LifecycleStatus{
-		LastCompletedChecksums: completedLifecycleChecksums(r, superset, "old-config"),
+		LastCompletedChecksums: completedLifecycleChecksums(r, superset),
 	}
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -369,7 +369,7 @@ func TestDrainIfNeededSkipsWhenOnlyNonDrainInitWillRun(t *testing.T) {
 	assertNoEvents(t, recorder)
 }
 
-func completedLifecycleChecksums(r *SupersetReconciler, superset *supersetv1alpha1.Superset, configChecksum string) map[string]string {
+func completedLifecycleChecksums(r *SupersetReconciler, superset *supersetv1alpha1.Superset) map[string]string {
 	checksums := make(map[string]string)
 	incomingChecksum := string(superset.UID)
 
@@ -382,7 +382,7 @@ func completedLifecycleChecksums(r *SupersetReconciler, superset *supersetv1alph
 	incomingChecksum = checksums[taskTypeMigrate]
 
 	initCmd := defaultInitCommand(superset)
-	checksums[taskTypeInit] = r.computeStepChecksum(incomingChecksum, taskTypeInit, initCmd, r.initInputs(superset, configChecksum))
+	checksums[taskTypeInit] = r.computeStepChecksum(incomingChecksum, taskTypeInit, initCmd, r.initInputs(superset))
 
 	return checksums
 }

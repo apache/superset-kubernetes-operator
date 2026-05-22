@@ -51,7 +51,7 @@ func TestReconcile_CreatesParentOwnedComponentResources(t *testing.T) {
 
 	c := reconcileOnce(t, scheme, superset).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
-	doReconcile(t, r, "test")
+	doReconcile(t, r)
 
 	for _, name := range []string{
 		"test-web-server",
@@ -97,7 +97,7 @@ func TestReconcile_DisabledComponentDeletesParentOwnedResources(t *testing.T) {
 
 	c := reconcileOnce(t, scheme, superset).WithObjects(workerDeploy, workerConfig).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
-	doReconcile(t, r, "test")
+	doReconcile(t, r)
 
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-celery-worker", Namespace: "default"}, &appsv1.Deployment{}); err == nil {
 		t.Fatal("expected disabled celery worker Deployment to be deleted")
@@ -105,6 +105,57 @@ func TestReconcile_DisabledComponentDeletesParentOwnedResources(t *testing.T) {
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-celery-worker-config", Namespace: "default"}, &corev1.ConfigMap{}); err == nil {
 		t.Fatal("expected disabled celery worker ConfigMap to be deleted")
 	}
+}
+
+// TestReconcile_ComponentResourcesCarryLabels asserts that every parent-owned
+// component resource (Deployment, ConfigMap, Service, HPA, PDB) carries the
+// operator-managed labels on its ObjectMeta. The internals doc promises label
+// discoverability via `kubectl … -l app.kubernetes.io/instance=<parent>`, so
+// missing labels on any of these would silently break that contract.
+func TestReconcile_ComponentResourcesCarryLabels(t *testing.T) {
+	scheme := testScheme(t)
+
+	spec := minimalSupersetSpec()
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Spec:       spec,
+	}
+
+	c := reconcileOnce(t, scheme, superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r)
+
+	expected := map[string]string{
+		"app.kubernetes.io/name":      "superset",
+		"app.kubernetes.io/component": "web-server",
+		"app.kubernetes.io/instance":  "test",
+	}
+	assertLabels := func(t *testing.T, kind string, labels map[string]string) {
+		t.Helper()
+		for k, want := range expected {
+			if got := labels[k]; got != want {
+				t.Errorf("%s missing label %s=%s (got %q)", kind, k, want, got)
+			}
+		}
+	}
+
+	deploy := &appsv1.Deployment{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, deploy); err != nil {
+		t.Fatalf("get Deployment: %v", err)
+	}
+	assertLabels(t, "Deployment", deploy.Labels)
+
+	cm := &corev1.ConfigMap{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server-config", Namespace: "default"}, cm); err != nil {
+		t.Fatalf("get ConfigMap: %v", err)
+	}
+	assertLabels(t, "ConfigMap", cm.Labels)
+
+	svc := &corev1.Service{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, svc); err != nil {
+		t.Fatalf("get Service: %v", err)
+	}
+	assertLabels(t, "Service", svc.Labels)
 }
 
 func TestReconcile_LifecycleCreatesParentOwnedTaskJobAndStatus(t *testing.T) {
@@ -119,7 +170,7 @@ func TestReconcile_LifecycleCreatesParentOwnedTaskJobAndStatus(t *testing.T) {
 
 	c := reconcileOnce(t, scheme, superset).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
-	doReconcile(t, r, "test")
+	doReconcile(t, r)
 
 	jobs := &batchv1.JobList{}
 	if err := c.List(context.Background(), jobs,

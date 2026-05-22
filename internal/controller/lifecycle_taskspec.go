@@ -86,21 +86,8 @@ func (r *SupersetReconciler) buildStandardTaskFlatSpec(
 	instanceName := superset.Name + suffixForTaskType(taskType)
 	resourceBaseName := instanceName
 
-	compConfigInput := buildConfigInput(&superset.Spec)
-	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Config != nil {
-		compConfigInput.ComponentConfig = *superset.Spec.Lifecycle.Config
-	}
-
-	var lifecycleSQLASpec *supersetv1alpha1.SQLAlchemyEngineOptionsSpec
-	if superset.Spec.Lifecycle != nil {
-		lifecycleSQLASpec = superset.Spec.Lifecycle.SQLAlchemyEngineOptions
-	}
-	compConfigInput.EngineOptions = supersetconfig.ComputeEngineOptions(
-		naming.ComponentInit, superset.Spec.SQLAlchemyEngineOptions, lifecycleSQLASpec, 0, 0,
-	)
-
+	renderedConfig := renderLifecycleTaskConfig(superset)
 	comp := convertTaskComponent(superset.Spec.Lifecycle, command)
-	renderedConfig := supersetconfig.RenderConfig(supersetconfig.ComponentInit, compConfigInput)
 
 	secretEnvVars := collectSecretEnvVars(&superset.Spec, superset.Name)
 	var initEnvVars []corev1.EnvVar
@@ -122,6 +109,25 @@ func (r *SupersetReconciler) buildStandardTaskFlatSpec(
 	flatSpec.Autoscaling = nil
 	flatSpec.PodDisruptionBudget = nil
 	return flatSpec, renderedConfig
+}
+
+// renderLifecycleTaskConfig renders the superset_config.py mounted on
+// migrate/rotate/init task Pods. Sharing this with the init checksum input
+// ensures the checksum reflects exactly what gets mounted — adding a new
+// config-rendering field can never silently skip an init re-run.
+func renderLifecycleTaskConfig(superset *supersetv1alpha1.Superset) string {
+	compConfigInput := buildConfigInput(&superset.Spec)
+	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Config != nil {
+		compConfigInput.ComponentConfig = *superset.Spec.Lifecycle.Config
+	}
+	var lifecycleSQLASpec *supersetv1alpha1.SQLAlchemyEngineOptionsSpec
+	if superset.Spec.Lifecycle != nil {
+		lifecycleSQLASpec = superset.Spec.Lifecycle.SQLAlchemyEngineOptions
+	}
+	compConfigInput.EngineOptions = supersetconfig.ComputeEngineOptions(
+		naming.ComponentInit, superset.Spec.SQLAlchemyEngineOptions, lifecycleSQLASpec, 0, 0,
+	)
+	return supersetconfig.RenderConfig(supersetconfig.ComponentInit, compConfigInput)
 }
 
 func suffixForTaskType(taskType string) string {

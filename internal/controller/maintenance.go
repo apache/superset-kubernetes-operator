@@ -397,13 +397,7 @@ func buildMaintenanceFlatSpec(parentName string, spec *supersetv1alpha1.Maintena
 }
 
 func resolveMaintenanceImage(spec *supersetv1alpha1.MaintenancePageSpec) supersetv1alpha1.ImageSpec {
-	if spec.Image != nil {
-		return *spec.Image
-	}
-	return supersetv1alpha1.ImageSpec{
-		Repository: maintenanceDefaultImage,
-		Tag:        maintenanceDefaultTag,
-	}
+	return resolveContainerImage(spec.Image, maintenanceDefaultImage, maintenanceDefaultTag)
 }
 
 func computeMaintenanceChecksum(spec *supersetv1alpha1.MaintenancePageSpec) string {

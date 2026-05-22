@@ -36,12 +36,12 @@ import (
 // +kubebuilder:validation:XValidation:rule="!has(self.networking) || !has(self.networking.ingress) || has(self.webServer)",message="spec.networking.ingress requires spec.webServer to be set (all Ingress rules target the web server service)"
 // +kubebuilder:validation:XValidation:rule="!has(self.networking) || !has(self.networking.gateway) || has(self.webServer) || has(self.websocketServer) || has(self.mcpServer) || has(self.celeryFlower)",message="spec.networking.gateway requires at least one component with a routable service (webServer, websocketServer, mcpServer, or celeryFlower)"
 // +kubebuilder:validation:XValidation:rule="!has(self.monitoring) || !has(self.monitoring.serviceMonitor) || has(self.webServer)",message="spec.monitoring.serviceMonitor requires spec.webServer to be set (scrapes the web server service)"
-// +kubebuilder:validation:XValidation:rule="(has(self.environment) && (self.environment == 'Development' || self.environment == 'Staging')) || !has(self.lifecycle) || !has(self.lifecycle.clone)",message="lifecycle.clone is only allowed when environment is Development or Staging; cloning performs a destructive DROP DATABASE on the target metastore"
+// +kubebuilder:validation:XValidation:rule="(has(self.environment) && (self.environment == 'Development' || self.environment == 'Staging')) || !has(self.lifecycle) || !has(self.lifecycle.clone) || (has(self.lifecycle.clone.disabled) && self.lifecycle.clone.disabled)",message="lifecycle.clone is only allowed when environment is Development or Staging; cloning performs a destructive DROP DATABASE on the target metastore"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.lifecycle) || !has(self.lifecycle.clone) || !has(self.lifecycle.clone.source) || !has(self.lifecycle.clone.source.password)",message="lifecycle.clone.source.password is only allowed when environment is Development; use lifecycle.clone.source.passwordFrom in Staging"
-// +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.clone) || (has(self.metastore) && has(self.metastore.host))",message="lifecycle.clone requires structured metastore configuration (host must be set)"
+// +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.clone) || (has(self.lifecycle.clone.disabled) && self.lifecycle.clone.disabled) || (has(self.metastore) && has(self.metastore.host))",message="lifecycle.clone requires structured metastore configuration (host must be set)"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.previousSecretKey)",message="previousSecretKey is only allowed when environment is Development; use previousSecretKeyFrom in Production"
 // +kubebuilder:validation:XValidation:rule="!has(self.previousSecretKey) || !has(self.previousSecretKeyFrom)",message="previousSecretKey and previousSecretKeyFrom are mutually exclusive"
-// +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.rotate) || has(self.previousSecretKey) || has(self.previousSecretKeyFrom)",message="lifecycle.rotate requires previousSecretKey (dev) or previousSecretKeyFrom to be set"
+// +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.rotate) || (has(self.lifecycle.rotate.disabled) && self.lifecycle.rotate.disabled) || has(self.previousSecretKey) || has(self.previousSecretKeyFrom)",message="lifecycle.rotate requires previousSecretKey (dev) or previousSecretKeyFrom to be set"
 type SupersetSpec struct {
 	// Image configuration inherited by all components.
 	Image ImageSpec `json:"image"`
@@ -488,9 +488,10 @@ type MaintenancePageSpec struct {
 	// for serving HTTP traffic on the web-server port (default 8088). The port
 	// must match the web-server Service's target port since the maintenance page
 	// takes over that Service during lifecycle tasks.
-	// When unset, defaults to nginx:alpine (managed mode).
+	// When unset, defaults to nginx:alpine (managed mode). Partial specs (e.g.,
+	// only `tag` set) inherit the nginx default for the omitted fields.
 	// +optional
-	Image *ImageSpec `json:"image,omitempty"`
+	Image *ContainerImageSpec `json:"image,omitempty"`
 
 	// Number of maintenance page pod replicas.
 	// +optional
@@ -536,9 +537,10 @@ type CloneTaskSpec struct {
 	PostCloneSQL []string `json:"postCloneSQL,omitempty"`
 
 	// Image for the clone Job. Defaults to postgres:17-alpine (PostgreSQL)
-	// or mysql:8-alpine (MySQL) based on source.type.
+	// or mysql:8-alpine (MySQL) based on source.type. Partial specs (e.g.,
+	// only `tag` set) inherit the type-appropriate default for omitted fields.
 	// +optional
-	Image *ImageSpec `json:"image,omitempty"`
+	Image *ContainerImageSpec `json:"image,omitempty"`
 
 	// Pod and container template for the clone task Job.
 	// +optional

@@ -59,6 +59,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
+	naming "github.com/apache/superset-kubernetes-operator/internal/common"
 	"github.com/apache/superset-kubernetes-operator/internal/resolution"
 )
 
@@ -498,7 +499,7 @@ func (r *SupersetReconciler) reconcileLifecycleTask(
 
 	// Create the ConfigMap before the task Pod (only for tasks that need Python config).
 	if renderedConfig != "" {
-		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, renderedConfig, taskName); err != nil {
+		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, renderedConfig, taskName, componentLabels(string(naming.ComponentInit), taskName)); err != nil {
 			return lifecycleResult{}, fmt.Errorf("reconciling ConfigMap for lifecycle task %s: %w", taskName, err)
 		}
 	}
@@ -581,7 +582,7 @@ func (r *SupersetReconciler) deleteLifecycleTaskResources(ctx context.Context, s
 		return err
 	}
 	if taskType != taskTypeClone {
-		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, "", taskName); err != nil {
+		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, "", taskName, nil); err != nil {
 			return err
 		}
 	}

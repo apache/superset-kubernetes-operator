@@ -439,7 +439,7 @@ func TestResolveCloneImage_CustomOverride(t *testing.T) {
 			Database: "superset_prod",
 			Username: "reader",
 		},
-		Image: &supersetv1alpha1.ImageSpec{
+		Image: &supersetv1alpha1.ContainerImageSpec{
 			Repository: "my-registry/custom-tools",
 			Tag:        "v2",
 		},
@@ -449,6 +449,61 @@ func TestResolveCloneImage_CustomOverride(t *testing.T) {
 
 	if img.Repository != "my-registry/custom-tools" || img.Tag != "v2" {
 		t.Errorf("expected my-registry/custom-tools:v2, got: %s:%s", img.Repository, img.Tag)
+	}
+}
+
+// TestResolveCloneImage_PartialOverride asserts that an image spec with only a
+// tag set inherits the type-appropriate database tooling repository, not the
+// Superset image repository — which is the bug ContainerImageSpec was
+// introduced to prevent.
+func TestResolveCloneImage_PartialOverride(t *testing.T) {
+	tests := []struct {
+		name         string
+		srcType      string
+		image        *supersetv1alpha1.ContainerImageSpec
+		expectedRepo string
+		expectedTag  string
+	}{
+		{
+			name:         "tag-only override on PostgreSQL inherits postgres repo",
+			srcType:      dbTypePostgresql,
+			image:        &supersetv1alpha1.ContainerImageSpec{Tag: "16-alpine"},
+			expectedRepo: "postgres",
+			expectedTag:  "16-alpine",
+		},
+		{
+			name:         "tag-only override on MySQL inherits mysql repo",
+			srcType:      dbTypeMySQL,
+			image:        &supersetv1alpha1.ContainerImageSpec{Tag: "9-alpine"},
+			expectedRepo: "mysql",
+			expectedTag:  "9-alpine",
+		},
+		{
+			name:         "repository-only override on PostgreSQL inherits default tag",
+			srcType:      dbTypePostgresql,
+			image:        &supersetv1alpha1.ContainerImageSpec{Repository: "my-registry/postgres"},
+			expectedRepo: "my-registry/postgres",
+			expectedTag:  "17-alpine",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srcType := tt.srcType
+			clone := &supersetv1alpha1.CloneTaskSpec{
+				Source: supersetv1alpha1.CloneSourceSpec{
+					Host:     "src.svc",
+					Database: "src",
+					Username: "reader",
+					Type:     &srcType,
+				},
+				Image: tt.image,
+			}
+			img := resolveCloneImage(clone)
+			if img.Repository != tt.expectedRepo || img.Tag != tt.expectedTag {
+				t.Errorf("expected %s:%s, got %s:%s", tt.expectedRepo, tt.expectedTag, img.Repository, img.Tag)
+			}
+		})
 	}
 }
 
@@ -1163,7 +1218,7 @@ func TestAllTasksStillComplete_SkipsDrainWhenNothingChanged(t *testing.T) {
 	migrateCmd := defaultMigrateCommand(superset)
 	migrateChecksum := r.computeStepChecksum(incomingChecksum, taskTypeMigrate, migrateCmd, r.migrateInputs(superset))
 	initCmd := defaultInitCommand(superset)
-	initChecksum := r.computeStepChecksum(migrateChecksum, taskTypeInit, initCmd, r.initInputs(superset, configChecksum))
+	initChecksum := r.computeStepChecksum(migrateChecksum, taskTypeInit, initCmd, r.initInputs(superset))
 
 	superset.Status.Lifecycle = &supersetv1alpha1.LifecycleStatus{
 		LastCompletedChecksums: map[string]string{
@@ -1179,8 +1234,10 @@ func TestAllTasksStillComplete_SkipsDrainWhenNothingChanged(t *testing.T) {
 	})
 
 	t.Run("returns false when config changes", func(t *testing.T) {
-		if r.allTasksStillComplete(superset, "config-changed") {
-			t.Error("expected allTasksStillComplete=false when config checksum changed")
+		modified := superset.DeepCopy()
+		modified.Spec.FeatureFlags = map[string]bool{"ALERT_REPORTS": true}
+		if r.allTasksStillComplete(modified, configChecksum) {
+			t.Error("expected allTasksStillComplete=false when featureFlags change the rendered config")
 		}
 	})
 
@@ -1239,7 +1296,7 @@ func TestAllTasksStillComplete_WithCloneSchedule(t *testing.T) {
 	migrateCmd := defaultMigrateCommand(superset)
 	migrateChecksum := r.computeStepChecksum(cloneChecksum, taskTypeMigrate, migrateCmd, r.migrateInputs(superset))
 	initCmd := defaultInitCommand(superset)
-	initChecksum := r.computeStepChecksum(migrateChecksum, taskTypeInit, initCmd, r.initInputs(superset, configChecksum))
+	initChecksum := r.computeStepChecksum(migrateChecksum, taskTypeInit, initCmd, r.initInputs(superset))
 
 	superset.Status.Lifecycle = &supersetv1alpha1.LifecycleStatus{
 		LastCompletedChecksums: map[string]string{
@@ -1443,7 +1500,7 @@ func TestAllTasksStillComplete_WithRotate(t *testing.T) {
 	rotateCmd := defaultRotateCommand(superset)
 	rotateChecksum := r.computeStepChecksum(migrateChecksum, taskTypeRotate, rotateCmd, r.rotateInputs(superset))
 	initCmd := defaultInitCommand(superset)
-	initChecksum := r.computeStepChecksum(rotateChecksum, taskTypeInit, initCmd, r.initInputs(superset, configChecksum))
+	initChecksum := r.computeStepChecksum(rotateChecksum, taskTypeInit, initCmd, r.initInputs(superset))
 
 	superset.Status.Lifecycle = &supersetv1alpha1.LifecycleStatus{
 		LastCompletedChecksums: map[string]string{

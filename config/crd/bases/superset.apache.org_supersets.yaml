@@ -12020,13 +12020,9 @@ spec:
                               x-kubernetes-map-type: atomic
                             type: array
                           repository:
-                            default: apachesuperset.docker.scarf.sh/apache/superset
                             type: string
                           tag:
-                            minLength: 1
                             type: string
-                        required:
-                        - tag
                         type: object
                       maxRetries:
                         default: 3
@@ -15767,13 +15763,9 @@ spec:
                               x-kubernetes-map-type: atomic
                             type: array
                           repository:
-                            default: apachesuperset.docker.scarf.sh/apache/superset
                             type: string
                           tag:
-                            minLength: 1
                             type: string
-                        required:
-                        - tag
                         type: object
                       message:
                         type: string
@@ -39182,6 +39174,7 @@ spec:
                 metastore
               rule: (has(self.environment) && (self.environment == 'Development' ||
                 self.environment == 'Staging')) || !has(self.lifecycle) || !has(self.lifecycle.clone)
+                || (has(self.lifecycle.clone.disabled) && self.lifecycle.clone.disabled)
             - message: lifecycle.clone.source.password is only allowed when environment
                 is Development; use lifecycle.clone.source.passwordFrom in Staging
               rule: (has(self.environment) && self.environment == 'Development') ||
@@ -39189,8 +39182,8 @@ spec:
                 || !has(self.lifecycle.clone.source.password)
             - message: lifecycle.clone requires structured metastore configuration
                 (host must be set)
-              rule: '!has(self.lifecycle) || !has(self.lifecycle.clone) || (has(self.metastore)
-                && has(self.metastore.host))'
+              rule: '!has(self.lifecycle) || !has(self.lifecycle.clone) || (has(self.lifecycle.clone.disabled)
+                && self.lifecycle.clone.disabled) || (has(self.metastore) && has(self.metastore.host))'
             - message: previousSecretKey is only allowed when environment is Development;
                 use previousSecretKeyFrom in Production
               rule: (has(self.environment) && self.environment == 'Development') ||
@@ -39199,7 +39192,8 @@ spec:
               rule: '!has(self.previousSecretKey) || !has(self.previousSecretKeyFrom)'
             - message: lifecycle.rotate requires previousSecretKey (dev) or previousSecretKeyFrom
                 to be set
-              rule: '!has(self.lifecycle) || !has(self.lifecycle.rotate) || has(self.previousSecretKey)
+              rule: '!has(self.lifecycle) || !has(self.lifecycle.rotate) || (has(self.lifecycle.rotate.disabled)
+                && self.lifecycle.rotate.disabled) || has(self.previousSecretKey)
                 || has(self.previousSecretKeyFrom)'
           status:
             properties:

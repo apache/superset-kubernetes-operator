@@ -279,3 +279,49 @@ func TestBuildMaintenanceFlatSpec_DoesNotMutateInputSpec(t *testing.T) {
 		t.Fatalf("input spec PodTemplate.Container.Env mutated: got %d env vars, want 1", got)
 	}
 }
+
+// TestResolveMaintenanceImage_PartialOverride asserts that a maintenance image
+// spec with only `tag` set inherits the nginx repository — not the Superset
+// image — which is the bug ContainerImageSpec was introduced to prevent.
+func TestResolveMaintenanceImage_PartialOverride(t *testing.T) {
+	tests := []struct {
+		name         string
+		image        *supersetv1alpha1.ContainerImageSpec
+		expectedRepo string
+		expectedTag  string
+	}{
+		{
+			name:         "nil image uses managed defaults",
+			image:        nil,
+			expectedRepo: maintenanceDefaultImage,
+			expectedTag:  maintenanceDefaultTag,
+		},
+		{
+			name:         "tag-only override inherits nginx repo",
+			image:        &supersetv1alpha1.ContainerImageSpec{Tag: "1.27"},
+			expectedRepo: maintenanceDefaultImage,
+			expectedTag:  "1.27",
+		},
+		{
+			name:         "repository-only override inherits default tag",
+			image:        &supersetv1alpha1.ContainerImageSpec{Repository: "my-registry/maintenance"},
+			expectedRepo: "my-registry/maintenance",
+			expectedTag:  maintenanceDefaultTag,
+		},
+		{
+			name:         "full override is used as-is",
+			image:        &supersetv1alpha1.ContainerImageSpec{Repository: "my-registry/maintenance", Tag: "v3"},
+			expectedRepo: "my-registry/maintenance",
+			expectedTag:  "v3",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			img := resolveMaintenanceImage(&supersetv1alpha1.MaintenancePageSpec{Image: tt.image})
+			if img.Repository != tt.expectedRepo || img.Tag != tt.expectedTag {
+				t.Errorf("expected %s:%s, got %s:%s", tt.expectedRepo, tt.expectedTag, img.Repository, img.Tag)
+			}
+		})
+	}
+}

@@ -262,10 +262,15 @@ parent `Superset` name, for selector matching.
 
 ### Orphan Cleanup
 
-When a component is disabled, the operator uses label-based discovery to find
-and delete parent-owned resources for that component. On each reconcile, it
-lists matching Deployments, Services, ConfigMaps, HPAs, and PDBs by parent and
-component labels, then deletes resources that are no longer desired.
+When a component is removed from the parent spec, the parent reconciler invokes
+the component descriptor's cleanup path, which deletes the component's
+parent-owned resources (Deployment, Service, ConfigMap, HPA, PDB) by their
+deterministic `{parent}-{component}` names. The parent CR's owner references
+also cascade-delete the same resources if the CR itself is deleted.
+
+Operator-managed labels remain available on parent-owned resources for human
+discovery — e.g. `kubectl get deploy,svc,cm,hpa,pdb -l
+app.kubernetes.io/instance=<parent>` lists every parent-owned workload.
 
 ---
 
