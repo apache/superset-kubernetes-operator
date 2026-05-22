@@ -126,6 +126,31 @@ spec:
 
 `password` and `passwordFrom` are mutually exclusive.
 
+### Auto-creating the database
+
+Setting `metastore.createDatabase: true` instructs the operator to attach a one-shot init container to the migrate Job that issues `CREATE DATABASE` against the server before `superset db upgrade` runs. The step is idempotent — existing databases are detected and the init container exits cleanly, so re-applying or re-running migrations is safe.
+
+```yaml
+spec:
+  metastore:
+    type: PostgreSQL
+    host: db.example.com
+    database: superset
+    username: superset
+    passwordFrom:
+      name: db-credentials
+      key: password
+    createDatabase: true
+```
+
+Requirements and caveats:
+
+- **Structured metastore only.** Rejected by CRD validation when `uri` or `uriFrom` is set — the operator needs the individual host/database/username fields to issue admin-level statements.
+- **Privileges.** The configured metastore user must have `CREATEDB` (PostgreSQL) or `CREATE` (MySQL) privilege on the server. The init container connects to the `postgres` admin database (PostgreSQL) or runs `CREATE DATABASE IF NOT EXISTS` (MySQL).
+- **Init container image.** The operator uses `postgres:17-alpine` or `mysql:8-alpine` (matching the clone task) — the Superset image is not assumed to ship database client tools.
+- **Resources and securityContext are inherited from `spec.lifecycle.podTemplate.container`.** Whatever you set on `spec.lifecycle.podTemplate.container.resources` and `spec.lifecycle.podTemplate.container.securityContext` is applied to the create-database init container. This lets you satisfy strict admission policies (Pod Security Standards `restricted`, Kyverno, OPA) without a dedicated knob.
+- **Redundant with `lifecycle.clone`.** Clone already drops and re-creates its target database every time it runs, so toggling `createDatabase` on alongside clone is harmless but does no extra work in practice — the init container detects the existing database (created by clone) and no-ops.
+
 ## Valkey
 
 The `valkey` field configures Valkey (or Redis) as the cache backend, Celery message broker, and SQL Lab results backend. Setting `valkey.host` auto-generates all cache, Celery, and results backend configuration with sensible defaults:

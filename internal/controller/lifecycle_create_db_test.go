@@ -1,0 +1,572 @@
+/*
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package controller
+
+import (
+	"reflect"
+	"strings"
+	"testing"
+
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+
+	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
+	"github.com/apache/superset-kubernetes-operator/internal/common"
+	"github.com/apache/superset-kubernetes-operator/internal/resolution"
+)
+
+func TestBuildCreateDatabaseInitContainer_DisabledByDefault(t *testing.T) {
+	cases := map[string]*supersetv1alpha1.Superset{
+		"nil metastore":       {},
+		"flag unset":          {Spec: supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Host: common.Ptr("pg")}}},
+		"flag explicit false": {Spec: supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Host: common.Ptr("pg"), CreateDatabase: common.Ptr(false)}}},
+	}
+	for name, ss := range cases {
+		t.Run(name, func(t *testing.T) {
+			if got := buildCreateDatabaseInitContainer(ss, nil); got != nil {
+				t.Errorf("expected nil init container, got %+v", got)
+			}
+		})
+	}
+}
+
+func TestBuildCreateDatabaseInitContainer_Postgres(t *testing.T) {
+	pw := "p@$$"
+	superset := &supersetv1alpha1.Superset{
+		Spec: supersetv1alpha1.SupersetSpec{
+			Metastore: &supersetv1alpha1.MetastoreSpec{
+				Host:           common.Ptr("pg.svc"),
+				Database:       common.Ptr("superset"),
+				Username:       common.Ptr("superset"),
+				Password:       &pw,
+				CreateDatabase: common.Ptr(true),
+			},
+		},
+	}
+
+	ctr := buildCreateDatabaseInitContainer(superset, nil)
+	if ctr == nil {
+		t.Fatal("expected init container, got nil")
+	}
+	if ctr.Name != createDatabaseContainerName {
+		t.Errorf("expected name %q, got %q", createDatabaseContainerName, ctr.Name)
+	}
+	if want := common.CloneImagePostgres; ctr.Image != want {
+		t.Errorf("expected image %q, got %q", want, ctr.Image)
+	}
+	if len(ctr.Command) != 3 || ctr.Command[0] != "/bin/sh" || ctr.Command[1] != "-c" {
+		t.Fatalf("expected /bin/sh -c <script>, got %v", ctr.Command)
+	}
+	script := ctr.Command[2]
+	for _, want := range []string{
+		"createdb",
+		"pg_database",
+		":'name'",
+		`-- "$SUPERSET_OPERATOR__DB_NAME"`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Errorf("script missing %q\n--- script ---\n%s", want, script)
+		}
+	}
+	envMap := envSliceToMap(ctr.Env)
+	if envMap[common.EnvDBHost] != "pg.svc" {
+		t.Errorf("expected DB_HOST=pg.svc, got %q", envMap[common.EnvDBHost])
+	}
+	if envMap[common.EnvDBPort] != "5432" {
+		t.Errorf("expected default DB_PORT=5432, got %q", envMap[common.EnvDBPort])
+	}
+	if envMap[common.EnvDBName] != "superset" {
+		t.Errorf("expected DB_NAME=superset, got %q", envMap[common.EnvDBName])
+	}
+	if envMap[common.EnvDBUser] != "superset" {
+		t.Errorf("expected DB_USER=superset, got %q", envMap[common.EnvDBUser])
+	}
+	if envMap[common.EnvDBPass] != pw {
+		t.Errorf("expected DB_PASS=%q, got %q", pw, envMap[common.EnvDBPass])
+	}
+}
+
+func TestBuildCreateDatabaseInitContainer_MySQL(t *testing.T) {
+	mysqlType := "MySQL"
+	superset := &supersetv1alpha1.Superset{
+		Spec: supersetv1alpha1.SupersetSpec{
+			Metastore: &supersetv1alpha1.MetastoreSpec{
+				Type:     &mysqlType,
+				Host:     common.Ptr("mysql.svc"),
+				Database: common.Ptr("superset"),
+				Username: common.Ptr("superset"),
+				PasswordFrom: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "metastore-secret"},
+					Key:                  "password",
+				},
+				CreateDatabase: common.Ptr(true),
+			},
+		},
+	}
+
+	ctr := buildCreateDatabaseInitContainer(superset, nil)
+	if ctr == nil {
+		t.Fatal("expected init container, got nil")
+	}
+	if want := common.CloneImageMySQL; ctr.Image != want {
+		t.Errorf("expected image %q, got %q", want, ctr.Image)
+	}
+	script := ctr.Command[2]
+	for _, want := range []string{
+		"CREATE DATABASE IF NOT EXISTS",
+		"sed 's/`/``/g'",
+		`mysql -h "$SUPERSET_OPERATOR__DB_HOST"`,
+		`export MYSQL_PWD="$SUPERSET_OPERATOR__DB_PASS"`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Errorf("script missing %q\n--- script ---\n%s", want, script)
+		}
+	}
+	envMap := envSliceToMap(ctr.Env)
+	if envMap[common.EnvDBPort] != "3306" {
+		t.Errorf("expected default mysql DB_PORT=3306, got %q", envMap[common.EnvDBPort])
+	}
+	// PasswordFrom must produce a ValueFrom-backed env var, not a Value.
+	for _, e := range ctr.Env {
+		if e.Name != common.EnvDBPass {
+			continue
+		}
+		if e.Value != "" {
+			t.Errorf("expected PasswordFrom to use ValueFrom, got plaintext Value=%q", e.Value)
+		}
+		if e.ValueFrom == nil || e.ValueFrom.SecretKeyRef == nil || e.ValueFrom.SecretKeyRef.Name != "metastore-secret" {
+			t.Errorf("expected secretKeyRef from metastore-secret, got %+v", e.ValueFrom)
+		}
+	}
+}
+
+func TestBuildCreateDatabaseInitContainer_CustomPort(t *testing.T) {
+	port := int32(15432)
+	superset := &supersetv1alpha1.Superset{
+		Spec: supersetv1alpha1.SupersetSpec{
+			Metastore: &supersetv1alpha1.MetastoreSpec{
+				Host:           common.Ptr("pg.svc"),
+				Port:           &port,
+				Database:       common.Ptr("superset"),
+				Username:       common.Ptr("superset"),
+				CreateDatabase: common.Ptr(true),
+			},
+		},
+	}
+	ctr := buildCreateDatabaseInitContainer(superset, nil)
+	if ctr == nil {
+		t.Fatal("expected init container, got nil")
+	}
+	if got := envSliceToMap(ctr.Env)[common.EnvDBPort]; got != "15432" {
+		t.Errorf("expected custom DB_PORT=15432, got %q", got)
+	}
+}
+
+func TestBuildCreateDatabaseInitContainer_FunkyCredentials(t *testing.T) {
+	// Bash variable expansion is single-pass — the contents of an expanded
+	// $VAR are not re-parsed. So as long as the script wraps $VAR in "...",
+	// arbitrary password/username/db-name characters survive verbatim. This
+	// test pins that property at the env-var boundary: the operator must
+	// pass the literal value through to the container env without any
+	// transformation that would corrupt it.
+	funky := `p@$$"w'or` + "`d`"
+	weirdName := `it's"weird` + "`db`"
+	superset := &supersetv1alpha1.Superset{
+		Spec: supersetv1alpha1.SupersetSpec{
+			Metastore: &supersetv1alpha1.MetastoreSpec{
+				Host:           common.Ptr("pg.svc"),
+				Database:       &weirdName,
+				Username:       common.Ptr(funky),
+				Password:       &funky,
+				CreateDatabase: common.Ptr(true),
+			},
+		},
+	}
+
+	ctr := buildCreateDatabaseInitContainer(superset, nil)
+	if ctr == nil {
+		t.Fatal("expected init container, got nil")
+	}
+	envMap := envSliceToMap(ctr.Env)
+	if envMap[common.EnvDBPass] != funky {
+		t.Errorf("password mangled: got %q, want %q", envMap[common.EnvDBPass], funky)
+	}
+	if envMap[common.EnvDBUser] != funky {
+		t.Errorf("username mangled: got %q, want %q", envMap[common.EnvDBUser], funky)
+	}
+	if envMap[common.EnvDBName] != weirdName {
+		t.Errorf("database name mangled: got %q, want %q", envMap[common.EnvDBName], weirdName)
+	}
+}
+
+func TestBuildCreateDatabaseInitContainer_Passwordless(t *testing.T) {
+	// Trust/peer auth and IAM-issued credentials are valid metastore configs;
+	// the renderer already supports passwordless via os.environ.get(...). The
+	// init container scripts must do the same — they reference DB_PASS via
+	// ${VAR:-} so set -u doesn't trip when neither password nor passwordFrom
+	// is configured.
+	cases := map[string]string{
+		"postgres": "PGPASSWORD=\"${SUPERSET_OPERATOR__DB_PASS:-}\"",
+		"mysql":    `export MYSQL_PWD="$SUPERSET_OPERATOR__DB_PASS"`,
+	}
+	for kind, wantSnippet := range cases {
+		t.Run(kind, func(t *testing.T) {
+			meta := &supersetv1alpha1.MetastoreSpec{
+				Host:           common.Ptr("db.svc"),
+				Database:       common.Ptr("superset"),
+				Username:       common.Ptr("superset"),
+				CreateDatabase: common.Ptr(true),
+			}
+			if kind == "mysql" {
+				meta.Type = common.Ptr("MySQL")
+			}
+			ctr := buildCreateDatabaseInitContainer(&supersetv1alpha1.Superset{
+				Spec: supersetv1alpha1.SupersetSpec{Metastore: meta},
+			}, nil)
+			if ctr == nil {
+				t.Fatal("expected init container, got nil")
+			}
+			for _, e := range ctr.Env {
+				if e.Name == common.EnvDBPass {
+					t.Errorf("expected no DB_PASS env var when password is unset, got %+v", e)
+				}
+			}
+			if !strings.Contains(ctr.Command[2], wantSnippet) {
+				t.Errorf("script missing %q\n--- script ---\n%s", wantSnippet, ctr.Command[2])
+			}
+		})
+	}
+}
+
+func TestBuildCreateDatabaseInitContainer_DefensiveOnMissingFields(t *testing.T) {
+	// CEL should make this unreachable, but if a malformed CR slips through
+	// (older CRD versions, direct etcd writes, missing CEL feature gate on
+	// the apiserver), the controller must not panic dereferencing nil host/
+	// database/username. It returns nil instead, so migrate runs without the
+	// init container — the migrate command itself will then fail with a
+	// clear connection/identifier error rather than crashing the operator.
+	cases := map[string]*supersetv1alpha1.MetastoreSpec{
+		"missing host":     {Database: common.Ptr("d"), Username: common.Ptr("u"), CreateDatabase: common.Ptr(true)},
+		"missing database": {Host: common.Ptr("h"), Username: common.Ptr("u"), CreateDatabase: common.Ptr(true)},
+		"missing username": {Host: common.Ptr("h"), Database: common.Ptr("d"), CreateDatabase: common.Ptr(true)},
+	}
+	for name, m := range cases {
+		t.Run(name, func(t *testing.T) {
+			got := buildCreateDatabaseInitContainer(&supersetv1alpha1.Superset{
+				Spec: supersetv1alpha1.SupersetSpec{Metastore: m},
+			}, nil)
+			if got != nil {
+				t.Errorf("expected nil (defensive bailout), got container %+v", got)
+			}
+		})
+	}
+}
+
+func TestBuildCreateDatabaseInitContainer_InheritsFromMigrateContainerTemplate(t *testing.T) {
+	// Strict admission policies (PSS restricted, Kyverno, OPA) require every
+	// container — including init containers — to declare resources and
+	// securityContext. Rather than adding dedicated knobs, the operator
+	// inherits these from the resolved lifecycle container template, which
+	// the user already configures via spec.lifecycle.podTemplate.container.
+	wantResources := corev1.ResourceRequirements{
+		Limits: corev1.ResourceList{
+			corev1.ResourceCPU:    resource.MustParse("100m"),
+			corev1.ResourceMemory: resource.MustParse("128Mi"),
+		},
+	}
+	wantSecCtx := &corev1.SecurityContext{
+		RunAsNonRoot:             common.Ptr(true),
+		AllowPrivilegeEscalation: common.Ptr(false),
+		ReadOnlyRootFilesystem:   common.Ptr(true),
+	}
+	migratePod := &supersetv1alpha1.PodTemplate{
+		Container: &supersetv1alpha1.ContainerTemplate{
+			Resources:       &wantResources,
+			SecurityContext: wantSecCtx,
+		},
+	}
+	superset := &supersetv1alpha1.Superset{
+		Spec: supersetv1alpha1.SupersetSpec{
+			Metastore: &supersetv1alpha1.MetastoreSpec{
+				Host:           common.Ptr("pg.svc"),
+				Database:       common.Ptr("superset"),
+				Username:       common.Ptr("superset"),
+				CreateDatabase: common.Ptr(true),
+			},
+		},
+	}
+
+	ctr := buildCreateDatabaseInitContainer(superset, migratePod)
+	if ctr == nil {
+		t.Fatal("expected init container, got nil")
+	}
+	if !reflect.DeepEqual(ctr.Resources, wantResources) {
+		t.Errorf("resources not inherited:\n got: %+v\nwant: %+v", ctr.Resources, wantResources)
+	}
+	if !reflect.DeepEqual(ctr.SecurityContext, wantSecCtx) {
+		t.Errorf("securityContext not inherited:\n got: %+v\nwant: %+v", ctr.SecurityContext, wantSecCtx)
+	}
+}
+
+func TestBuildStandardTaskFlatSpec_InheritsContainerHardeningOnMigrate(t *testing.T) {
+	// End-to-end check: when the user sets spec.lifecycle.podTemplate.container
+	// hardening, it propagates through resolution into the create-database
+	// init container on the migrate Job.
+	superset := &supersetv1alpha1.Superset{}
+	superset.Name = "demo"
+	superset.Spec.SecretKeyFrom = &corev1.SecretKeySelector{
+		LocalObjectReference: corev1.LocalObjectReference{Name: "secret"},
+		Key:                  "key",
+	}
+	superset.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+		Host:           common.Ptr("pg.svc"),
+		Database:       common.Ptr("superset"),
+		Username:       common.Ptr("superset"),
+		PasswordFrom:   &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "metastore-secret"}, Key: "password"},
+		CreateDatabase: common.Ptr(true),
+	}
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		PodTemplate: &supersetv1alpha1.PodTemplate{
+			Container: &supersetv1alpha1.ContainerTemplate{
+				SecurityContext: &corev1.SecurityContext{
+					RunAsNonRoot:             common.Ptr(true),
+					AllowPrivilegeEscalation: common.Ptr(false),
+				},
+			},
+		},
+	}
+
+	r := &SupersetReconciler{}
+	flatSpec, _ := r.buildStandardTaskFlatSpec(superset, taskTypeMigrate, []string{"/bin/sh", "-c", "true"}, &resolution.SharedInput{}, "default")
+	pod := buildInitPod(&flatSpec)
+
+	var initCtr *corev1.Container
+	for i := range pod.InitContainers {
+		if pod.InitContainers[i].Name == createDatabaseContainerName {
+			initCtr = &pod.InitContainers[i]
+			break
+		}
+	}
+	if initCtr == nil {
+		t.Fatal("expected create-database init container on migrate Job")
+	}
+	if initCtr.SecurityContext == nil || initCtr.SecurityContext.RunAsNonRoot == nil || !*initCtr.SecurityContext.RunAsNonRoot {
+		t.Errorf("expected RunAsNonRoot=true to propagate to init container, got %+v", initCtr.SecurityContext)
+	}
+	if initCtr.SecurityContext == nil || initCtr.SecurityContext.AllowPrivilegeEscalation == nil || *initCtr.SecurityContext.AllowPrivilegeEscalation {
+		t.Errorf("expected AllowPrivilegeEscalation=false to propagate to init container, got %+v", initCtr.SecurityContext)
+	}
+}
+
+func TestBuildStandardTaskFlatSpec_DropsUserInitContainerWithReservedName(t *testing.T) {
+	// `create-database` is a reserved init container name. If the user
+	// happens to define their own init container with that name in
+	// spec.lifecycle.podTemplate.initContainers, K8s would otherwise reject
+	// the resulting Pod for duplicate container names. The operator drops
+	// the user's container so its own version wins deterministically; other
+	// user-supplied init containers are preserved.
+	superset := &supersetv1alpha1.Superset{}
+	superset.Name = "demo"
+	superset.Spec.SecretKeyFrom = &corev1.SecretKeySelector{
+		LocalObjectReference: corev1.LocalObjectReference{Name: "secret"},
+		Key:                  "key",
+	}
+	superset.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+		Host:           common.Ptr("pg.svc"),
+		Database:       common.Ptr("superset"),
+		Username:       common.Ptr("superset"),
+		PasswordFrom:   &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "metastore-secret"}, Key: "password"},
+		CreateDatabase: common.Ptr(true),
+	}
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		PodTemplate: &supersetv1alpha1.PodTemplate{
+			InitContainers: []corev1.Container{
+				{Name: createDatabaseContainerName, Image: "user-supplied:latest"},
+				{Name: "user-keeper", Image: "keeper:1"},
+			},
+		},
+	}
+
+	r := &SupersetReconciler{}
+	flatSpec, _ := r.buildStandardTaskFlatSpec(superset, taskTypeMigrate, []string{"/bin/sh", "-c", "true"}, &resolution.SharedInput{}, "default")
+	pod := buildInitPod(&flatSpec)
+
+	count := 0
+	var createDB *corev1.Container
+	for i := range pod.InitContainers {
+		if pod.InitContainers[i].Name == createDatabaseContainerName {
+			count++
+			createDB = &pod.InitContainers[i]
+		}
+	}
+	if count != 1 {
+		t.Fatalf("expected exactly 1 init container named %q, got %d", createDatabaseContainerName, count)
+	}
+	if createDB.Image != common.CloneImagePostgres && createDB.Image != common.CloneImageMySQL {
+		t.Errorf("operator's create-database container should win; got image %q", createDB.Image)
+	}
+	if !podHasContainer(pod.InitContainers, "user-keeper") {
+		t.Error("expected unrelated user-keeper init container to be preserved")
+	}
+}
+
+func TestBuildStandardTaskFlatSpec_AttachesCreateDBOnlyToMigrate(t *testing.T) {
+	superset := &supersetv1alpha1.Superset{}
+	superset.Name = "demo"
+	superset.Spec.SecretKeyFrom = &corev1.SecretKeySelector{
+		LocalObjectReference: corev1.LocalObjectReference{Name: "secret"},
+		Key:                  "key",
+	}
+	superset.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+		Host:           common.Ptr("pg.svc"),
+		Database:       common.Ptr("superset"),
+		Username:       common.Ptr("superset"),
+		PasswordFrom:   &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "metastore-secret"}, Key: "password"},
+		CreateDatabase: common.Ptr(true),
+	}
+
+	r := &SupersetReconciler{}
+	for _, taskType := range []string{taskTypeMigrate, taskTypeRotate, taskTypeInit} {
+		t.Run(taskType, func(t *testing.T) {
+			flatSpec, _ := r.buildStandardTaskFlatSpec(superset, taskType, []string{"/bin/sh", "-c", "true"}, &resolution.SharedInput{}, "default")
+			pod := buildInitPod(&flatSpec)
+			has := podHasContainer(pod.InitContainers, createDatabaseContainerName)
+			wantHas := taskType == taskTypeMigrate
+			if has != wantHas {
+				t.Errorf("taskType %s: hasCreateDBInit=%v, want %v", taskType, has, wantHas)
+			}
+		})
+	}
+}
+
+func TestBuildStandardTaskFlatSpec_NoCreateDBInitWhenDisabled(t *testing.T) {
+	superset := &supersetv1alpha1.Superset{}
+	superset.Name = "demo"
+	superset.Spec.SecretKeyFrom = &corev1.SecretKeySelector{
+		LocalObjectReference: corev1.LocalObjectReference{Name: "secret"},
+		Key:                  "key",
+	}
+	superset.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+		Host:         common.Ptr("pg.svc"),
+		Database:     common.Ptr("superset"),
+		Username:     common.Ptr("superset"),
+		PasswordFrom: &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "metastore-secret"}, Key: "password"},
+	}
+
+	r := &SupersetReconciler{}
+	flatSpec, _ := r.buildStandardTaskFlatSpec(superset, taskTypeMigrate, []string{"/bin/sh", "-c", "true"}, &resolution.SharedInput{}, "default")
+	pod := buildInitPod(&flatSpec)
+	if podHasContainer(pod.InitContainers, createDatabaseContainerName) {
+		t.Error("did not expect create-database init container when createDatabase is unset")
+	}
+}
+
+func TestMigrateInputs_CreateDatabaseAffectsChecksum(t *testing.T) {
+	r := &SupersetReconciler{}
+	base := &supersetv1alpha1.Superset{}
+	base.Spec.Image = supersetv1alpha1.ImageSpec{Repository: "superset", Tag: "1.0"}
+
+	off := *base
+	off.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+		Host:           common.Ptr("pg"),
+		Database:       common.Ptr("superset"),
+		Username:       common.Ptr("superset"),
+		CreateDatabase: common.Ptr(false),
+	}
+	on := *base
+	on.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+		Host:           common.Ptr("pg"),
+		Database:       common.Ptr("superset"),
+		Username:       common.Ptr("superset"),
+		CreateDatabase: common.Ptr(true),
+	}
+
+	if r.migrateInputs(&off) == r.migrateInputs(&on) {
+		t.Error("expected migrateInputs to differ when createDatabase toggles, but they were equal")
+	}
+}
+
+func TestMigrateInputs_StructuredTargetAffectsChecksumWhenCreateDatabaseTrue(t *testing.T) {
+	// When createDatabase is true, the migrate Job carries an init container
+	// that reads host/port/database/username/type. Changing any of those must
+	// invalidate the migrate checksum so the init container actually runs
+	// against the new target — otherwise the init container would point at
+	// the previous server forever.
+	r := &SupersetReconciler{}
+	mkSuperset := func(mutate func(*supersetv1alpha1.MetastoreSpec)) *supersetv1alpha1.Superset {
+		s := &supersetv1alpha1.Superset{}
+		s.Spec.Image = supersetv1alpha1.ImageSpec{Repository: "superset", Tag: "1.0"}
+		s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+			Host:           common.Ptr("pg-old"),
+			Port:           common.Ptr(int32(5432)),
+			Database:       common.Ptr("superset"),
+			Username:       common.Ptr("superset"),
+			CreateDatabase: common.Ptr(true),
+		}
+		mutate(s.Spec.Metastore)
+		return s
+	}
+
+	baseline := r.migrateInputs(mkSuperset(func(m *supersetv1alpha1.MetastoreSpec) {}))
+
+	cases := map[string]func(*supersetv1alpha1.MetastoreSpec){
+		"host":     func(m *supersetv1alpha1.MetastoreSpec) { m.Host = common.Ptr("pg-new") },
+		"port":     func(m *supersetv1alpha1.MetastoreSpec) { m.Port = common.Ptr(int32(15432)) },
+		"database": func(m *supersetv1alpha1.MetastoreSpec) { m.Database = common.Ptr("superset_new") },
+		"username": func(m *supersetv1alpha1.MetastoreSpec) { m.Username = common.Ptr("superset_new") },
+		"type":     func(m *supersetv1alpha1.MetastoreSpec) { m.Type = common.Ptr("MySQL") },
+	}
+	for name, mutate := range cases {
+		t.Run(name, func(t *testing.T) {
+			if r.migrateInputs(mkSuperset(mutate)) == baseline {
+				t.Errorf("expected migrateInputs to differ when %s changes, but they were equal", name)
+			}
+		})
+	}
+}
+
+func TestMigrateInputs_StructuredTargetIgnoredWhenCreateDatabaseFalse(t *testing.T) {
+	// Symmetric guarantee: when createDatabase is false, structured-target
+	// changes must NOT churn the migrate checksum — re-running migrate on a
+	// host change is the user's call (they'd bump trigger). This pins that
+	// the new target plumbing is gated on the flag.
+	r := &SupersetReconciler{}
+	mkSuperset := func(host string) *supersetv1alpha1.Superset {
+		s := &supersetv1alpha1.Superset{}
+		s.Spec.Image = supersetv1alpha1.ImageSpec{Repository: "superset", Tag: "1.0"}
+		s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+			Host:     common.Ptr(host),
+			Database: common.Ptr("superset"),
+			Username: common.Ptr("superset"),
+		}
+		return s
+	}
+	if r.migrateInputs(mkSuperset("pg-old")) != r.migrateInputs(mkSuperset("pg-new")) {
+		t.Error("expected migrateInputs to ignore host changes when createDatabase is unset")
+	}
+}
+
+func podHasContainer(containers []corev1.Container, name string) bool {
+	for _, c := range containers {
+		if c.Name == name {
+			return true
+		}
+	}
+	return false
+}

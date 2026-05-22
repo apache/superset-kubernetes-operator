@@ -26978,6 +26978,8 @@ spec:
                 type: object
               metastore:
                 properties:
+                  createDatabase:
+                    type: boolean
                   database:
                     type: string
                   host:
@@ -27044,6 +27046,11 @@ spec:
                 - message: structured metastore requires database and username when
                     host is set
                   rule: '!has(self.host) || (has(self.database) && has(self.username))'
+                - message: createDatabase requires structured metastore (host set;
+                    database/username via the structured-fields rule) and is not supported
+                    with uri or uriFrom
+                  rule: '!(has(self.createDatabase) && self.createDatabase) || (has(self.host)
+                    && !has(self.uri) && !has(self.uriFrom))'
               monitoring:
                 properties:
                   serviceMonitor:

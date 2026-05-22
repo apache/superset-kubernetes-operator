@@ -53,7 +53,7 @@ Each task has hardcoded trigger inputs — what it watches for changes:
 | Task | Watches | Re-runs when... |
 |------|---------|-----------------|
 | Clone | `trigger` field, `cronSchedule` tick, source config, excludes, target Superset image | Trigger value changes, schedule tick boundary crossed, source DB config changes, or target image changes (so a downgrade triggers a fresh clone before migrate sees the older schema) |
-| Migrate | Image (resolved lifecycle image) | Image tag or repository changes |
+| Migrate | Image (resolved lifecycle image), `metastore.createDatabase` flag | Image tag or repository changes, or `createDatabase` is toggled |
 | Rotate | `trigger` field, `secretKeyFrom` ref, `previousSecretKeyFrom` ref | Secret key references change or trigger value changes |
 | Init | Config checksum (rendered Python config) | Any config-affecting field changes |
 
@@ -336,6 +336,10 @@ spec:
 Both `adminUser` and `loadExamples` (see below) are mutually exclusive with a
 custom `lifecycle.init.command` — when using these fields, the operator
 constructs the full init command automatically.
+
+## Auto-Creating the Metastore Database
+
+Setting `metastore.createDatabase: true` attaches an idempotent init container to the migrate Job that runs `CREATE DATABASE` against the server before `superset db upgrade`. This avoids a chicken-and-egg pre-install step on fresh PostgreSQL/MySQL servers. See [Auto-creating the database](configuration.md#auto-creating-the-database) for full details, including the privilege requirement on the metastore user. The flag is redundant alongside `lifecycle.clone` (which already drops and re-creates the target database) but harmless.
 
 ## Timeout, Retries, and Pod Retention
 

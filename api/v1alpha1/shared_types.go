@@ -105,6 +105,7 @@ type ContainerImageSpec struct {
 // +kubebuilder:validation:XValidation:rule="!(has(self.uriFrom) && (has(self.host) || has(self.database) || has(self.username) || has(self.password) || has(self.passwordFrom) || has(self.port)))",message="uriFrom and structured fields are mutually exclusive"
 // +kubebuilder:validation:XValidation:rule="!((has(self.database) || has(self.username) || has(self.password) || has(self.passwordFrom) || has(self.port)) && !has(self.host))",message="structured fields (database, username, password, passwordFrom, port) require host to be set"
 // +kubebuilder:validation:XValidation:rule="!has(self.host) || (has(self.database) && has(self.username))",message="structured metastore requires database and username when host is set"
+// +kubebuilder:validation:XValidation:rule="!(has(self.createDatabase) && self.createDatabase) || (has(self.host) && !has(self.uri) && !has(self.uriFrom))",message="createDatabase requires structured metastore (host set; database/username via the structured-fields rule) and is not supported with uri or uriFrom"
 type MetastoreSpec struct {
 	// Full SQLAlchemy database URI. Mutually exclusive with structured fields and uriFrom.
 	// In prod mode, CRD validation rejects plain text URIs — use uriFrom to reference a Kubernetes Secret.
@@ -146,6 +147,16 @@ type MetastoreSpec struct {
 	// Mutually exclusive with password.
 	// +optional
 	PasswordFrom *corev1.SecretKeySelector `json:"passwordFrom,omitempty"`
+
+	// CreateDatabase, when true, instructs the operator to attach a one-shot
+	// init container to the migrate Job that issues `CREATE DATABASE` against
+	// the server before `superset db upgrade` runs. Existing databases are
+	// detected and the step becomes a no-op. Requires the configured metastore
+	// user to hold CREATEDB (PostgreSQL) or CREATE (MySQL) privilege on the
+	// server. Only valid with structured metastore (host/database/username);
+	// rejected when uri or uriFrom is set.
+	// +optional
+	CreateDatabase *bool `json:"createDatabase,omitempty"`
 }
 
 // --- Valkey cache configuration ---

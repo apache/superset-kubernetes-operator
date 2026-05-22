@@ -739,6 +739,7 @@ _Appears in:_
 | `username` _string_ | Database username. |  | Optional: \{\} <br /> |
 | `password` _string_ | Database password. In prod mode, CRD validation rejects plain text passwords — use passwordFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
 | `passwordFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the database password.<br />Mutually exclusive with password. |  | Optional: \{\} <br /> |
+| `createDatabase` _boolean_ | CreateDatabase, when true, instructs the operator to attach a one-shot<br />init container to the migrate Job that issues `CREATE DATABASE` against<br />the server before `superset db upgrade` runs. Existing databases are<br />detected and the step becomes a no-op. Requires the configured metastore<br />user to hold CREATEDB (PostgreSQL) or CREATE (MySQL) privilege on the<br />server. Only valid with structured metastore (host/database/username);<br />rejected when uri or uriFrom is set. |  | Optional: \{\} <br /> |
 
 
 #### MigrateTaskSpec

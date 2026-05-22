@@ -101,6 +101,29 @@ func (r *SupersetReconciler) buildStandardTaskFlatSpec(
 		podOperatorLabels(string(naming.ComponentInit), instanceName, superset.Name), operatorInjected,
 	)
 
+	// The create-database init container is injected after resolution so it
+	// can inherit resources/securityContext from the resolved lifecycle
+	// container template — this lets users satisfy admission policies (PSS,
+	// Kyverno, OPA) by configuring spec.lifecycle.podTemplate.container once,
+	// without a dedicated knob for the init container. We also drop any
+	// user-supplied init container that happens to use the reserved
+	// `create-database` name so the operator's version wins deterministically
+	// (and the PodSpec doesn't end up with duplicate-named containers, which
+	// the apiserver rejects).
+	if taskType == taskTypeMigrate {
+		if initCtr := buildCreateDatabaseInitContainer(superset, flat.PodTemplate); initCtr != nil {
+			existing := flat.PodTemplate.InitContainers
+			filtered := make([]corev1.Container, 0, len(existing)+1)
+			filtered = append(filtered, *initCtr)
+			for _, c := range existing {
+				if c.Name != createDatabaseContainerName {
+					filtered = append(filtered, c)
+				}
+			}
+			flat.PodTemplate.InitContainers = filtered
+		}
+	}
+
 	var imageOverride *supersetv1alpha1.ImageOverrideSpec
 	if superset.Spec.Lifecycle != nil {
 		imageOverride = superset.Spec.Lifecycle.Image

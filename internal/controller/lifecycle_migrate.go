@@ -24,19 +24,48 @@ import (
 
 // migrateInputs returns the migrate-specific inputs that contribute to its step
 // checksum. Migrate is image/schema-version driven and intentionally ignores
-// feature/config changes — a config tweak alone must not re-run migrations.
+// most config changes — a config tweak alone must not re-run migrations. When
+// createDatabase is true, the migrate Job carries a create-database init
+// container that reads the structured metastore target; changes to that
+// target (host/port/database/username/type) must re-run migrate so the init
+// container actually executes against the new server. The flag itself is also
+// included so toggling it re-runs migrate.
 func (r *SupersetReconciler) migrateInputs(superset *supersetv1alpha1.Superset) any {
 	currentImage := resolveLifecycleImage(&superset.Spec.Image, lifecycleImageOverride(superset))
 	trigger := ""
 	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Migrate != nil {
 		trigger = derefOrDefault(superset.Spec.Lifecycle.Migrate.Trigger, "")
 	}
+	createDatabase := false
+	var target struct {
+		Type     string
+		Host     string
+		Port     int32
+		Database string
+		Username string
+	}
+	if superset.Spec.Metastore != nil && superset.Spec.Metastore.CreateDatabase != nil && *superset.Spec.Metastore.CreateDatabase {
+		createDatabase = true
+		m := superset.Spec.Metastore
+		target.Type = derefOrDefault(m.Type, dbTypePostgresql)
+		target.Host = derefOrDefault(m.Host, "")
+		target.Port = defaultDBPort(m.Type)
+		if m.Port != nil {
+			target.Port = *m.Port
+		}
+		target.Database = derefOrDefault(m.Database, "")
+		target.Username = derefOrDefault(m.Username, "")
+	}
 	return struct {
-		Image   string
-		Trigger string
+		Image          string
+		Trigger        string
+		CreateDatabase bool
+		Target         any
 	}{
-		Image:   currentImage,
-		Trigger: trigger,
+		Image:          currentImage,
+		Trigger:        trigger,
+		CreateDatabase: createDatabase,
+		Target:         target,
 	}
 }
 
