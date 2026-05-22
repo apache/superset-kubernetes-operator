@@ -127,6 +127,9 @@ func buildConfigInput(spec *supersetv1alpha1.SupersetSpec) *supersetconfig.Confi
 		input.Valkey = buildValkeyInput(spec.Valkey)
 	}
 
+	input.Celery = buildCeleryInput(spec.Celery)
+	input.FeatureFlags = spec.FeatureFlags
+
 	if spec.Config != nil {
 		input.Config = *spec.Config
 	}
@@ -136,17 +139,32 @@ func buildConfigInput(spec *supersetv1alpha1.SupersetSpec) *supersetconfig.Confi
 	return input
 }
 
+// buildCeleryInput resolves spec.celery into a CeleryInput with upstream defaults
+// applied. The result is always non-nil so the renderer can emit unconditionally.
+// A nil input slice means "use upstream defaults"; an explicit empty slice from
+// YAML (imports: []) is honored as "no imports".
+func buildCeleryInput(c *supersetv1alpha1.CelerySpec) *supersetconfig.CeleryInput {
+	out := &supersetconfig.CeleryInput{}
+	if c == nil || c.Imports == nil {
+		out.Imports = supersetconfig.DefaultCeleryImports
+	} else {
+		out.Imports = c.Imports
+	}
+	return out
+}
+
 // buildValkeyInput converts the CRD ValkeySpec into a resolved ValkeyInput with defaults applied.
 func buildValkeyInput(v *supersetv1alpha1.ValkeySpec) *supersetconfig.ValkeyInput {
 	vi := &supersetconfig.ValkeyInput{
-		Cache:                resolveValkeyCache(v.Cache, 1, "superset_", 300),
-		DataCache:            resolveValkeyCache(v.DataCache, 2, "superset_data_", 86400),
-		FilterStateCache:     resolveValkeyCache(v.FilterStateCache, 3, "superset_filter_", 3600),
-		ExploreFormDataCache: resolveValkeyCache(v.ExploreFormDataCache, 4, "superset_explore_", 3600),
-		ThumbnailCache:       resolveValkeyCache(v.ThumbnailCache, 5, "superset_thumbnail_", 3600),
-		CeleryBroker:         resolveValkeyCelery(v.CeleryBroker, 0),
-		CeleryResultBackend:  resolveValkeyCelery(v.CeleryResultBackend, 0),
-		ResultsBackend:       resolveValkeyResults(v.ResultsBackend, 6, "superset_results_"),
+		Cache:                   resolveValkeyCache(v.Cache, 1, "superset_", 300),
+		DataCache:               resolveValkeyCache(v.DataCache, 2, "superset_data_", 86400),
+		FilterStateCache:        resolveValkeyCache(v.FilterStateCache, 3, "superset_filter_", 3600),
+		ExploreFormDataCache:    resolveValkeyCache(v.ExploreFormDataCache, 4, "superset_explore_", 3600),
+		ThumbnailCache:          resolveValkeyCache(v.ThumbnailCache, 5, "superset_thumbnail_", 3600),
+		DistributedCoordination: resolveValkeyCache(v.DistributedCoordination, 7, "coordination_", 300),
+		CeleryBroker:            resolveValkeyCelery(v.CeleryBroker, 0),
+		CeleryResultBackend:     resolveValkeyCelery(v.CeleryResultBackend, 0),
+		ResultsBackend:          resolveValkeyResults(v.ResultsBackend, 6, "superset_results_"),
 	}
 
 	if v.SSL != nil {
@@ -228,9 +246,13 @@ func resolveValkeyResults(spec *supersetv1alpha1.ValkeyResultsBackendSpec, defau
 
 // --- Secret env var collection ---
 
-// collectSecretEnvVars gathers env vars for SECRET_KEY and metastore fields.
-func collectSecretEnvVars(spec *supersetv1alpha1.SupersetSpec) []corev1.EnvVar {
-	var envs []corev1.EnvVar
+// collectSecretEnvVars gathers env vars for SECRET_KEY, metastore fields, valkey, and the
+// instance name. The instance name is exposed so admins can compute instance-scoped values
+// (e.g. Celery queue names) from raw Python in spec.config.
+func collectSecretEnvVars(spec *supersetv1alpha1.SupersetSpec, parentName string) []corev1.EnvVar {
+	envs := []corev1.EnvVar{
+		{Name: naming.EnvInstanceName, Value: parentName},
+	}
 	isDev := spec.Environment != nil && *spec.Environment == naming.EnvironmentDev
 
 	// SUPERSET_OPERATOR__SECRET_KEY — rendered into superset_config.py as SECRET_KEY.

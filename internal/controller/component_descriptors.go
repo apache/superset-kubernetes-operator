@@ -196,7 +196,7 @@ func (r *SupersetReconciler) reconcileComponent(
 		)
 
 		renderedConfig = supersetconfig.RenderConfig(desc.componentType, compConfigInput)
-		secretEnvVars = collectSecretEnvVars(&superset.Spec)
+		secretEnvVars = collectSecretEnvVars(&superset.Spec, superset.Name)
 		operatorInjected = buildOperatorInjected(renderedConfig, resourceBaseName, superset.Spec.ForceReload, secretEnvVars)
 
 		// Create/update the component ConfigMap.

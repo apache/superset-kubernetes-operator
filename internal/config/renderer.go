@@ -20,6 +20,7 @@ package config
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -84,14 +85,15 @@ type ValkeyInput struct {
 	SSLCertFile     string
 	SSLCACertFile   string
 
-	Cache                ValkeyCacheInput
-	DataCache            ValkeyCacheInput
-	FilterStateCache     ValkeyCacheInput
-	ExploreFormDataCache ValkeyCacheInput
-	ThumbnailCache       ValkeyCacheInput
-	CeleryBroker         ValkeyCeleryInput
-	CeleryResultBackend  ValkeyCeleryInput
-	ResultsBackend       ValkeyResultsInput
+	Cache                   ValkeyCacheInput
+	DataCache               ValkeyCacheInput
+	FilterStateCache        ValkeyCacheInput
+	ExploreFormDataCache    ValkeyCacheInput
+	ThumbnailCache          ValkeyCacheInput
+	DistributedCoordination ValkeyCacheInput
+	CeleryBroker            ValkeyCeleryInput
+	CeleryResultBackend     ValkeyCeleryInput
+	ResultsBackend          ValkeyResultsInput
 }
 
 // ConfigInput holds the simplified config fields needed to render superset_config.py.
@@ -103,6 +105,14 @@ type ConfigInput struct {
 
 	// Valkey cache configuration. Nil when spec.valkey is not set.
 	Valkey *ValkeyInput
+
+	// Celery holds top-level Celery app config (spec.celery). Nil when spec.celery
+	// is not set; the renderer falls back to upstream defaults (controller fills these
+	// in when constructing the input).
+	Celery *CeleryInput
+
+	// FeatureFlags map rendered as FEATURE_FLAGS = {...}. Empty/nil omits the block.
+	FeatureFlags map[string]bool
 
 	// Engine options for SQLALCHEMY_ENGINE_OPTIONS. Nil = do not render.
 	EngineOptions *EngineOptionsInput
@@ -140,6 +150,9 @@ func RenderConfig(componentType ComponentType, input *ConfigInput) string {
 	}
 	if input.EngineOptions != nil && input.EngineOptions.UseNullPool {
 		b.WriteString("from sqlalchemy.pool import NullPool\n")
+	}
+	if celeryClassWillRender(input.Valkey) {
+		b.WriteString("from celery.schedules import crontab\n")
 	}
 	b.WriteString("\n")
 
@@ -194,9 +207,14 @@ func RenderConfig(componentType ComponentType, input *ConfigInput) string {
 		renderEngineOptions(&b, input.EngineOptions)
 	}
 
+	// [2.75] FEATURE_FLAGS
+	if len(input.FeatureFlags) > 0 {
+		renderFeatureFlags(&b, input.FeatureFlags)
+	}
+
 	// [3] Valkey cache config
 	if input.Valkey != nil {
-		renderValkey(&b, input.Valkey)
+		renderValkey(&b, input.Valkey, input.Celery)
 	}
 
 	// [4] Base config (spec.config)
@@ -223,7 +241,7 @@ func RenderConfig(componentType ComponentType, input *ConfigInput) string {
 }
 
 // renderValkey writes the Valkey cache/broker/results Python configuration.
-func renderValkey(b *strings.Builder, v *ValkeyInput) {
+func renderValkey(b *strings.Builder, v *ValkeyInput, c *CeleryInput) {
 	b.WriteString("# Valkey cache config\n")
 
 	// Connection helpers using operator-injected env vars.
@@ -238,6 +256,10 @@ func renderValkey(b *strings.Builder, v *ValkeyInput) {
 	fmt.Fprintf(b, "_vk_base = f\"{_vk_scheme}://{_vk_auth}{os.environ['%s']}:{os.environ['%s']}\"\n",
 		common.EnvValkeyHost, common.EnvValkeyPort,
 	)
+
+	// Instance-scoped key prefix: prepended to every CACHE_KEY_PREFIX so
+	// multiple Superset deployments sharing a Valkey/Redis don't collide.
+	fmt.Fprintf(b, "_superset_instance = os.environ['%s']\n", common.EnvInstanceName)
 
 	// SSL options dict (used by Flask-Caching CACHE_OPTIONS, CacheLib kwargs, and Celery).
 	hasSSLOpts := v.SSL && (v.SSLKeyFile != "" || v.SSLCertFile != "" || v.SSLCACertFile != "")
@@ -273,6 +295,7 @@ func renderValkey(b *strings.Builder, v *ValkeyInput) {
 		{"FILTER_STATE_CACHE_CONFIG", v.FilterStateCache},
 		{"EXPLORE_FORM_DATA_CACHE_CONFIG", v.ExploreFormDataCache},
 		{"THUMBNAIL_CACHE_CONFIG", v.ThumbnailCache},
+		{"DISTRIBUTED_COORDINATION_CONFIG", v.DistributedCoordination},
 	}
 	for _, s := range sections {
 		if s.input.Disabled {
@@ -281,7 +304,7 @@ func renderValkey(b *strings.Builder, v *ValkeyInput) {
 		fmt.Fprintf(b, "%s = {\n", s.pythonVar)
 		b.WriteString("    \"CACHE_TYPE\": \"RedisCache\",\n")
 		fmt.Fprintf(b, "    \"CACHE_DEFAULT_TIMEOUT\": %d,\n", s.input.DefaultTimeout)
-		fmt.Fprintf(b, "    \"CACHE_KEY_PREFIX\": \"%s\",\n", pyQuote(s.input.KeyPrefix))
+		fmt.Fprintf(b, "    \"CACHE_KEY_PREFIX\": f\"{_superset_instance}_%s\",\n", pyQuote(s.input.KeyPrefix))
 		fmt.Fprintf(b, "    \"CACHE_REDIS_URL\": f\"{_vk_base}/%d\",\n", s.input.Database)
 		if hasSSLOpts {
 			b.WriteString("    \"CACHE_OPTIONS\": _vk_ssl_opts,\n")
@@ -290,26 +313,7 @@ func renderValkey(b *strings.Builder, v *ValkeyInput) {
 	}
 
 	// Celery config.
-	brokerEnabled := !v.CeleryBroker.Disabled
-	resultEnabled := !v.CeleryResultBackend.Disabled
-	if brokerEnabled || resultEnabled {
-		b.WriteString("\nclass CeleryConfig:\n")
-		if brokerEnabled {
-			fmt.Fprintf(b, "    broker_url = f\"{_vk_base}/%d\"\n", v.CeleryBroker.Database)
-		}
-		if resultEnabled {
-			fmt.Fprintf(b, "    result_backend = f\"{_vk_base}/%d\"\n", v.CeleryResultBackend.Database)
-		}
-		if hasSSLOpts {
-			if brokerEnabled {
-				b.WriteString("    broker_use_ssl = _vk_ssl_opts\n")
-			}
-			if resultEnabled {
-				b.WriteString("    redis_backend_use_ssl = _vk_ssl_opts\n")
-			}
-		}
-		b.WriteString("CELERY_CONFIG = CeleryConfig\n")
-	}
+	renderCeleryClass(b, v, c, hasSSLOpts)
 
 	// Results backend (CacheLib RedisCache).
 	if !v.ResultsBackend.Disabled {
@@ -318,7 +322,7 @@ func renderValkey(b *strings.Builder, v *ValkeyInput) {
 		fmt.Fprintf(b, "    port=int(os.environ[\"%s\"]),\n", common.EnvValkeyPort)
 		fmt.Fprintf(b, "    password=os.environ.get(\"%s\", \"\"),\n", common.EnvValkeyPass)
 		fmt.Fprintf(b, "    db=%d,\n", v.ResultsBackend.Database)
-		fmt.Fprintf(b, "    key_prefix=\"%s\",\n", pyQuote(v.ResultsBackend.KeyPrefix))
+		fmt.Fprintf(b, "    key_prefix=f\"{_superset_instance}_%s\",\n", pyQuote(v.ResultsBackend.KeyPrefix))
 		if v.SSL {
 			b.WriteString("    ssl=True,\n")
 		}
@@ -350,6 +354,26 @@ func renderEngineOptions(b *strings.Builder, opts *EngineOptionsInput) {
 		if opts.PoolTimeout > 0 {
 			fmt.Fprintf(b, "    \"pool_timeout\": %d,\n", opts.PoolTimeout)
 		}
+	}
+	b.WriteString("}\n\n")
+}
+
+// renderFeatureFlags writes the FEATURE_FLAGS Python dict. Keys are sorted
+// alphabetically for deterministic output (stable checksums).
+func renderFeatureFlags(b *strings.Builder, flags map[string]bool) {
+	keys := make([]string, 0, len(flags))
+	for k := range flags {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	b.WriteString("FEATURE_FLAGS = {\n")
+	for _, k := range keys {
+		val := "False"
+		if flags[k] {
+			val = "True"
+		}
+		fmt.Fprintf(b, "    \"%s\": %s,\n", pyQuote(k), val)
 	}
 	b.WriteString("}\n\n")
 }

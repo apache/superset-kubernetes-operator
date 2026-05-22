@@ -104,6 +104,16 @@ type SupersetSpec struct {
 	// +optional
 	Config *string `json:"config,omitempty"`
 
+	// Feature flags toggled in superset_config.py via FEATURE_FLAGS = {...}.
+	// Keys conventionally use UPPER_SNAKE_CASE (e.g. ALERT_REPORTS); values are booleans.
+	// +optional
+	FeatureFlags map[string]bool `json:"featureFlags,omitempty"`
+
+	// Top-level Celery app configuration rendered into CELERY_CONFIG. Per-component
+	// worker/beat process tuning lives on celeryWorker / celeryBeat.
+	// +optional
+	Celery *CelerySpec `json:"celery,omitempty"`
+
 	// SQLAlchemy engine options for connection pooling. Inherited by all Python
 	// components; per-component sqlaEngineOptions overrides this entirely.
 	// When unset, the operator computes balanced defaults per component.

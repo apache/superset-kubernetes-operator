@@ -137,7 +137,7 @@ spec:
     host: valkey.default.svc
 ```
 
-This generates a complete `superset_config.py` with `CACHE_CONFIG`, `DATA_CACHE_CONFIG`, `FILTER_STATE_CACHE_CONFIG`, `EXPLORE_FORM_DATA_CACHE_CONFIG`, `THUMBNAIL_CACHE_CONFIG`, `CeleryConfig`, and `RESULTS_BACKEND` — each cache section backed by a separate Valkey database for isolation (Celery broker and result backend share database 0 by default).
+This generates a complete `superset_config.py` with `CACHE_CONFIG`, `DATA_CACHE_CONFIG`, `FILTER_STATE_CACHE_CONFIG`, `EXPLORE_FORM_DATA_CACHE_CONFIG`, `THUMBNAIL_CACHE_CONFIG`, `DISTRIBUTED_COORDINATION_CONFIG`, `CeleryConfig`, and `RESULTS_BACKEND` — each cache section backed by a separate Valkey database for isolation (Celery broker and result backend share database 0 by default).
 
 **Default database assignments:**
 
@@ -148,9 +148,14 @@ This generates a complete `superset_config.py` with `CACHE_CONFIG`, `DATA_CACHE_
 | `filterStateCache` | `FILTER_STATE_CACHE_CONFIG` | 3 | `superset_filter_` | 3600s |
 | `exploreFormDataCache` | `EXPLORE_FORM_DATA_CACHE_CONFIG` | 4 | `superset_explore_` | 3600s |
 | `thumbnailCache` | `THUMBNAIL_CACHE_CONFIG` | 5 | `superset_thumbnail_` | 3600s |
+| `distributedCoordination` | `DISTRIBUTED_COORDINATION_CONFIG` | 7 | `coordination_` | 300s |
 | `celeryBroker` | `CeleryConfig.broker_url` | 0 | — | — |
 | `celeryResultBackend` | `CeleryConfig.result_backend` | 0 | — | — |
 | `resultsBackend` | `RESULTS_BACKEND` | 6 | `superset_results_` | — |
+
+`distributedCoordination` (`DISTRIBUTED_COORDINATION_CONFIG`) backs Superset's real-time pub/sub messaging, atomic distributed locks (Redis `SET NX EX`), and Global Task Framework signaling. It is recommended for production deployments and will eventually replace `GLOBAL_ASYNC_QUERIES_CACHE_BACKEND` as the standard signaling backend.
+
+**Instance-scoped key prefixes.** Every rendered `CACHE_KEY_PREFIX` (and the results backend's `key_prefix`) is automatically prefixed with the parent CR name at runtime — e.g. a `Superset` named `prod` produces `prod_superset_`, `prod_superset_data_`, `prod_coordination_`, etc. This prevents key collisions when multiple Superset deployments share a single Valkey instance. The prefix value you set on a section is appended after the instance name; setting `keyPrefix: "myapp_"` on `cache` yields `prod_myapp_`.
 
 Each section can be individually tuned or disabled:
 
@@ -223,6 +228,7 @@ The operator sets certain env vars automatically based on the CR spec. These are
 
 | Env Var | Tier | Set by | Description |
 |---|---|---|---|
+| `SUPERSET_OPERATOR__INSTANCE_NAME` | Operator-internal | Operator (from parent CR `metadata.name`) | Parent CR name; available for use in raw `spec.config` (e.g. instance-scoped Celery queue names) |
 | `SUPERSET_OPERATOR__SECRET_KEY` | Operator-internal | Operator (from `secretKey` or `secretKeyFrom`) | Superset session signing key |
 | `SUPERSET_OPERATOR__DB_URI` | Operator-internal | Operator (from `metastore.uri` or `metastore.uriFrom`) | Full database connection URI |
 | `SUPERSET_OPERATOR__DB_HOST`, `SUPERSET_OPERATOR__DB_PORT`, `SUPERSET_OPERATOR__DB_NAME` | Operator-internal | Operator (structured metastore) | Database connection fields |
@@ -261,7 +267,9 @@ In both passthrough and structured modes, the operator renders `SQLALCHEMY_DATAB
 
 ## Custom Python Config
 
-The `config` field accepts raw Python that is appended after the operator-generated config. It is available at the top level (base config, shared by all Python components) and per component (component config):
+The `config` field accepts raw Python that is appended after the operator-generated config. It is available at the top level (base config, shared by all Python components) and per component (component config).
+
+The operator exposes a curated set of knobs as typed CRD fields — anything tied to Kubernetes resources, anything sourced from Secrets, and the most common settings that benefit from validation or cross-component wiring (e.g. metastore, Valkey-driven cache and Celery backends, feature presets). Everything else lives in `config` as Python. Over time, settings that prove broadly useful or error-prone may graduate from raw Python to typed fields. See [Configuration Philosophy](../architecture/overview.md#configuration-philosophy-typed-fields-vs-raw-python) for the rationale.
 
 ```yaml
 spec:
@@ -280,9 +288,25 @@ Both fields are **concatenated**, not mutually exclusive. In this example, the c
 
 See [Config Rendering Pipeline](../architecture/overview.md#config-rendering-pipeline) for the full rendering order and an example of the generated output.
 
+## Feature Flags
+
+`spec.featureFlags` is a typed map of Superset feature flags rendered into `superset_config.py` as `FEATURE_FLAGS = {...}`. Keys conventionally use `UPPER_SNAKE_CASE` (e.g. `ALERT_REPORTS`, `THUMBNAILS`); values are booleans.
+
+```yaml
+spec:
+  featureFlags:
+    ALERT_REPORTS: true
+    THUMBNAILS: true
+    DASHBOARD_NATIVE_FILTERS: true
+```
+
+Keys are emitted in alphabetical order so the rendered config is deterministic and config checksums stay stable across reconciles. Setting `featureFlags: {}` (or omitting the field) leaves `FEATURE_FLAGS` unrendered, falling back to upstream Superset defaults.
+
+For feature flags whose values aren't booleans (rare), use raw `spec.config` instead.
+
 ## Celery Configuration
 
-Enable Celery workers for background tasks (caching, scheduled reports, long-running queries) by setting `celeryWorker` and `celeryBeat`. When `spec.valkey` is configured, the Celery broker and result backend are auto-generated. Otherwise, provide Celery config manually via `config`:
+Enable Celery workers for background tasks (caching, scheduled reports, long-running queries) by setting `celeryWorker` and `celeryBeat`. When `spec.valkey` is configured, the operator renders a `CeleryConfig` class with broker and result backend wired up.
 
 ```yaml
 # With valkey (recommended): Celery config auto-generated
@@ -293,17 +317,112 @@ spec:
   celeryBeat: {}
 ```
 
+### What the operator renders
+
+When `spec.valkey` is set, the operator renders a `CeleryConfig` class assigned to `CELERY_CONFIG`. Because this **replaces** Superset's upstream `CeleryConfig` wholesale (Python last-assignment-wins), the operator preserves upstream's stable defaults so they aren't silently lost:
+
+| Field | Source | Notes |
+|---|---|---|
+| `broker_url` | `spec.valkey` | f-string from operator-internal Valkey env vars |
+| `result_backend` | `spec.valkey` | same |
+| `broker_use_ssl` / `redis_backend_use_ssl` | `spec.valkey.ssl` | rendered when SSL is configured |
+| `imports` | `spec.celery.imports` (typed) | defaults to upstream's tuple — see below |
+| `worker_prefetch_multiplier` | hardcoded `1` | matches upstream; runtime value may be overridden by `spec.celeryWorker.celery.prefetchMultiplier` (CLI flag wins) |
+| `task_acks_late` | hardcoded `False` | matches upstream |
+| `task_annotations` | hardcoded | matches upstream: `{"sql_lab.get_sql_results": {"rate_limit": "100/s"}}` |
+| `beat_schedule` | hardcoded | matches upstream: `reports.scheduler` (every minute) and `reports.prune_log` (daily at midnight) |
+
+#### Typed: `spec.celery.imports`
+
+`spec.celery.imports` lists Python modules Celery workers import on startup to discover task definitions. When unset, it defaults to upstream Superset's tuple:
+
+```
+superset.sql_lab
+superset.tasks.scheduler
+superset.tasks.thumbnails
+superset.tasks.cache
+superset.tasks.slack
+```
+
+Setting the field replaces the default list **wholesale**. To extend rather than replace, leave `spec.celery.imports` unset and mutate the rendered class from raw `spec.config`:
+
 ```yaml
-# Without valkey: manual Celery config
+spec:
+  celery:
+    imports:                        # replaces the default list entirely
+      - superset.sql_lab
+      - superset.tasks.scheduler
+      - my_org.superset.custom_tasks
+```
+
+```yaml
+# Or leave imports unset and append to the default in spec.config:
 spec:
   config: |
+    CeleryConfig.imports = CeleryConfig.imports + ("my_org.superset.custom_tasks",)
+```
+
+An explicit `imports: []` is honored as "no imports" (renders as `imports = ()`).
+
+#### Overriding the hardcoded defaults
+
+Only a subset of `CeleryConfig` properties are surfaced as typed CRD fields. To customize any other property, override it from raw `spec.config` by reassigning attributes on the operator-rendered class, as shown below:
+
+```yaml
+spec:
+  config: |
+    CeleryConfig.task_acks_late = True
+    CeleryConfig.task_annotations = {"my.task": {"rate_limit": "50/s"}}
+    CeleryConfig.beat_schedule = {}    # disable upstream's reports.* periodic tasks
+```
+
+#### Without Valkey
+
+When `spec.valkey` is unset, the operator emits no `CeleryConfig` class. Provide it manually via `spec.config`:
+
+```yaml
+spec:
+  config: |
+    from celery.schedules import crontab
     class CeleryConfig:
         broker_url = "redis://valkey:6379/0"
         result_backend = "redis://valkey:6379/1"
+        imports = ("superset.sql_lab",)
     CELERY_CONFIG = CeleryConfig
   celeryWorker: {}
   celeryBeat: {}
 ```
+
+### Extending the rendered `CeleryConfig`
+
+The operator-rendered `CeleryConfig` is a regular Python class — extend it from `spec.config` by mutating attributes, subclassing, or replacing `CELERY_CONFIG` outright. For instance-scoped queue naming (preventing cross-instance queue collisions on a shared broker), the operator exposes the parent CR name as `SUPERSET_OPERATOR__INSTANCE_NAME`:
+
+```yaml
+spec:
+  valkey:
+    host: valkey.default.svc
+  celeryWorker: {}
+  celeryBeat: {}
+  config: |
+    import os
+    from kombu import Queue
+
+    INSTANCE = os.environ["SUPERSET_OPERATOR__INSTANCE_NAME"]
+
+    CeleryConfig.task_queues = (
+        Queue(f"{INSTANCE}-prio1", routing_key=f"{INSTANCE}-prio1.tasks", priority=0),
+        Queue(f"{INSTANCE}-prio2", routing_key=f"{INSTANCE}-prio2.tasks", priority=1),
+        Queue(f"{INSTANCE}-prio3", routing_key=f"{INSTANCE}-prio3.tasks", priority=2),
+    )
+    CeleryConfig.task_default_queue = f"{INSTANCE}-prio1"
+    CeleryConfig.task_routes = {
+        "sql_lab*": {"queue": f"{INSTANCE}-prio2", "routing_key": f"{INSTANCE}-prio2.tasks"},
+        "cache*":   {"queue": f"{INSTANCE}-prio3", "routing_key": f"{INSTANCE}-prio3.tasks"},
+        "reports*": {"queue": f"{INSTANCE}-prio3", "routing_key": f"{INSTANCE}-prio3.tasks"},
+    }
+```
+
+Use `SUPERSET_OPERATOR__INSTANCE_NAME` whenever you need the parent CR name inside your Python config.
 
 ## Gunicorn Configuration
 

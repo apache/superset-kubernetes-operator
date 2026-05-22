@@ -1271,7 +1271,7 @@ func TestCollectSecretEnvVars_PreviousSecretKey(t *testing.T) {
 			SecretKey:         common.Ptr("new-key"),
 			PreviousSecretKey: common.Ptr("old-key"),
 		}
-		envs := collectSecretEnvVars(spec)
+		envs := collectSecretEnvVars(spec, "test")
 		found := false
 		for _, e := range envs {
 			if e.Name == common.EnvPreviousSecretKey {
@@ -1295,7 +1295,7 @@ func TestCollectSecretEnvVars_PreviousSecretKey(t *testing.T) {
 			SecretKeyFrom:         &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "s"}, Key: "k"},
 			PreviousSecretKeyFrom: ref,
 		}
-		envs := collectSecretEnvVars(spec)
+		envs := collectSecretEnvVars(spec, "test")
 		found := false
 		for _, e := range envs {
 			if e.Name == common.EnvPreviousSecretKey {
@@ -1317,7 +1317,7 @@ func TestCollectSecretEnvVars_PreviousSecretKey(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
 			SecretKeyFrom: &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "s"}, Key: "k"},
 		}
-		envs := collectSecretEnvVars(spec)
+		envs := collectSecretEnvVars(spec, "test")
 		for _, e := range envs {
 			if e.Name == common.EnvPreviousSecretKey {
 				t.Error("should not have SUPERSET_OPERATOR__PREVIOUS_SECRET_KEY when not configured")

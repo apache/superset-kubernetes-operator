@@ -19,6 +19,7 @@ limitations under the License.
 package controller
 
 import (
+	"reflect"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -183,6 +184,51 @@ func TestBuildConfigInput(t *testing.T) {
 	}
 }
 
+func TestBuildCeleryInput(t *testing.T) {
+	t.Run("nil spec defaults to upstream imports", func(t *testing.T) {
+		got := buildCeleryInput(nil)
+		if got == nil {
+			t.Fatal("expected non-nil CeleryInput")
+		}
+		if !reflect.DeepEqual(got.Imports, supersetconfig.DefaultCeleryImports) {
+			t.Errorf("Imports = %v, want %v", got.Imports, supersetconfig.DefaultCeleryImports)
+		}
+	})
+
+	t.Run("nil imports field defaults to upstream", func(t *testing.T) {
+		got := buildCeleryInput(&supersetv1alpha1.CelerySpec{})
+		if !reflect.DeepEqual(got.Imports, supersetconfig.DefaultCeleryImports) {
+			t.Errorf("Imports = %v, want %v", got.Imports, supersetconfig.DefaultCeleryImports)
+		}
+	})
+
+	t.Run("explicit empty slice is honored", func(t *testing.T) {
+		got := buildCeleryInput(&supersetv1alpha1.CelerySpec{Imports: []string{}})
+		if got.Imports == nil {
+			t.Fatal("expected non-nil empty slice, got nil")
+		}
+		if len(got.Imports) != 0 {
+			t.Errorf("Imports = %v, want empty slice", got.Imports)
+		}
+	})
+
+	t.Run("user-set imports preserved", func(t *testing.T) {
+		want := []string{"my.module", "other.tasks"}
+		got := buildCeleryInput(&supersetv1alpha1.CelerySpec{Imports: want})
+		if !reflect.DeepEqual(got.Imports, want) {
+			t.Errorf("Imports = %v, want %v", got.Imports, want)
+		}
+	})
+}
+
+func TestCollectSecretEnvVars_InstanceName(t *testing.T) {
+	envs := collectSecretEnvVars(&supersetv1alpha1.SupersetSpec{}, "my-superset")
+	envMap := envSliceToMap(envs)
+	if got := envMap["SUPERSET_OPERATOR__INSTANCE_NAME"]; got != "my-superset" {
+		t.Errorf("SUPERSET_OPERATOR__INSTANCE_NAME = %q, want my-superset", got)
+	}
+}
+
 func TestCollectSecretEnvVars_SecretKey(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -196,7 +242,7 @@ func TestCollectSecretEnvVars_SecretKey(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			envs := collectSecretEnvVars(tt.spec)
+			envs := collectSecretEnvVars(tt.spec, "test")
 			found := false
 			for _, env := range envs {
 				if env.Name == "SUPERSET_OPERATOR__SECRET_KEY" {
@@ -215,8 +261,9 @@ func TestCollectSecretEnvVars_Metastore(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
 			Metastore: &supersetv1alpha1.MetastoreSpec{URI: common.Ptr("postgresql://user:pass@host/db")},
 		}
-		envs := collectSecretEnvVars(spec)
-		if len(envs) != 1 || envs[0].Name != "SUPERSET_OPERATOR__DB_URI" {
+		envs := collectSecretEnvVars(spec, "test")
+		envMap := envSliceToMap(envs)
+		if _, ok := envMap["SUPERSET_OPERATOR__DB_URI"]; !ok {
 			t.Errorf("expected SUPERSET_OPERATOR__DB_URI, got %v", envs)
 		}
 	})
@@ -228,7 +275,7 @@ func TestCollectSecretEnvVars_Metastore(t *testing.T) {
 				Database: common.Ptr("superset"), Username: common.Ptr("admin"), Password: common.Ptr("secret"),
 			},
 		}
-		envMap := envSliceToMap(collectSecretEnvVars(spec))
+		envMap := envSliceToMap(collectSecretEnvVars(spec, "test"))
 
 		if envMap["SUPERSET_OPERATOR__DB_HOST"] != "db.example.com" {
 			t.Errorf("expected host db.example.com, got %s", envMap["SUPERSET_OPERATOR__DB_HOST"])
@@ -251,7 +298,7 @@ func TestCollectSecretEnvVars_Metastore(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
 			Metastore: &supersetv1alpha1.MetastoreSpec{Host: common.Ptr("db.example.com")},
 		}
-		envMap := envSliceToMap(collectSecretEnvVars(spec))
+		envMap := envSliceToMap(collectSecretEnvVars(spec, "test"))
 		if envMap["SUPERSET_OPERATOR__DB_PORT"] != "5432" {
 			t.Errorf("expected default port 5432, got %s", envMap["SUPERSET_OPERATOR__DB_PORT"])
 		}
@@ -261,7 +308,7 @@ func TestCollectSecretEnvVars_Metastore(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
 			Metastore: &supersetv1alpha1.MetastoreSpec{Type: common.Ptr("MySQL"), Host: common.Ptr("db.example.com")},
 		}
-		envMap := envSliceToMap(collectSecretEnvVars(spec))
+		envMap := envSliceToMap(collectSecretEnvVars(spec, "test"))
 		if envMap["SUPERSET_OPERATOR__DB_PORT"] != "3306" {
 			t.Errorf("expected default MySQL port 3306, got %s", envMap["SUPERSET_OPERATOR__DB_PORT"])
 		}
@@ -356,7 +403,7 @@ func TestCollectSecretEnvVars_FromFields(t *testing.T) {
 				PasswordFrom: secretRef("db-secret", "password"),
 			},
 		}
-		envs := collectSecretEnvVars(spec)
+		envs := collectSecretEnvVars(spec, "test")
 		for _, env := range envs {
 			switch env.Name {
 			case "SUPERSET_OPERATOR__SECRET_KEY":
@@ -381,12 +428,19 @@ func TestCollectSecretEnvVars_FromFields(t *testing.T) {
 				URIFrom: secretRef("db-secret", "connection-string"),
 			},
 		}
-		envs := collectSecretEnvVars(spec)
-		if len(envs) != 1 || envs[0].Name != "SUPERSET_OPERATOR__DB_URI" {
-			t.Fatalf("expected single SUPERSET_OPERATOR__DB_URI env, got %v", envs)
+		envs := collectSecretEnvVars(spec, "test")
+		var uri *corev1.EnvVar
+		for i := range envs {
+			if envs[i].Name == "SUPERSET_OPERATOR__DB_URI" {
+				uri = &envs[i]
+				break
+			}
 		}
-		if envs[0].ValueFrom == nil || envs[0].ValueFrom.SecretKeyRef.Key != "connection-string" {
-			t.Errorf("expected secretKeyRef key=connection-string, got %+v", envs[0].ValueFrom)
+		if uri == nil {
+			t.Fatalf("expected SUPERSET_OPERATOR__DB_URI env, got %v", envs)
+		}
+		if uri.ValueFrom == nil || uri.ValueFrom.SecretKeyRef.Key != "connection-string" {
+			t.Errorf("expected secretKeyRef key=connection-string, got %+v", uri.ValueFrom)
 		}
 	})
 }
@@ -504,7 +558,7 @@ func TestCollectSecretEnvVars_Valkey(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
 			Valkey: &supersetv1alpha1.ValkeySpec{Host: "valkey.default.svc"},
 		}
-		envMap := envSliceToMap(collectSecretEnvVars(spec))
+		envMap := envSliceToMap(collectSecretEnvVars(spec, "test"))
 		if envMap["SUPERSET_OPERATOR__VALKEY_HOST"] != "valkey.default.svc" {
 			t.Errorf("expected host, got %q", envMap["SUPERSET_OPERATOR__VALKEY_HOST"])
 		}
@@ -517,7 +571,7 @@ func TestCollectSecretEnvVars_Valkey(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
 			Valkey: &supersetv1alpha1.ValkeySpec{Host: "valkey", Port: common.Ptr(int32(6380))},
 		}
-		envMap := envSliceToMap(collectSecretEnvVars(spec))
+		envMap := envSliceToMap(collectSecretEnvVars(spec, "test"))
 		if envMap["SUPERSET_OPERATOR__VALKEY_PORT"] != "6380" {
 			t.Errorf("expected port 6380, got %q", envMap["SUPERSET_OPERATOR__VALKEY_PORT"])
 		}
@@ -528,7 +582,7 @@ func TestCollectSecretEnvVars_Valkey(t *testing.T) {
 			Environment: common.Ptr("Development"),
 			Valkey:      &supersetv1alpha1.ValkeySpec{Host: "valkey", Password: common.Ptr("secret")},
 		}
-		envMap := envSliceToMap(collectSecretEnvVars(spec))
+		envMap := envSliceToMap(collectSecretEnvVars(spec, "test"))
 		if envMap["SUPERSET_OPERATOR__VALKEY_PASS"] != "secret" {
 			t.Errorf("expected password, got %q", envMap["SUPERSET_OPERATOR__VALKEY_PASS"])
 		}
@@ -539,7 +593,7 @@ func TestCollectSecretEnvVars_Valkey(t *testing.T) {
 			Environment: common.Ptr("Production"),
 			Valkey:      &supersetv1alpha1.ValkeySpec{Host: "valkey", Password: common.Ptr("secret")},
 		}
-		envMap := envSliceToMap(collectSecretEnvVars(spec))
+		envMap := envSliceToMap(collectSecretEnvVars(spec, "test"))
 		if _, ok := envMap["SUPERSET_OPERATOR__VALKEY_PASS"]; ok {
 			t.Error("prod mode should not emit inline password")
 		}
@@ -555,7 +609,7 @@ func TestCollectSecretEnvVars_Valkey(t *testing.T) {
 				},
 			},
 		}
-		envs := collectSecretEnvVars(spec)
+		envs := collectSecretEnvVars(spec, "test")
 		for _, env := range envs {
 			if env.Name == "SUPERSET_OPERATOR__VALKEY_PASS" {
 				if env.ValueFrom == nil || env.ValueFrom.SecretKeyRef.Name != "valkey-secret" {
@@ -569,7 +623,7 @@ func TestCollectSecretEnvVars_Valkey(t *testing.T) {
 
 	t.Run("no valkey", func(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{}
-		envs := collectSecretEnvVars(spec)
+		envs := collectSecretEnvVars(spec, "test")
 		for _, env := range envs {
 			if env.Name == "SUPERSET_OPERATOR__VALKEY_HOST" {
 				t.Error("should not emit valkey env vars when spec.Valkey is nil")

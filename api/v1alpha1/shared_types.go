@@ -172,6 +172,13 @@ type ValkeySpec struct {
 	// +optional
 	ThumbnailCache *ValkeyCacheSpec `json:"thumbnailCache,omitempty"`
 
+	// Distributed coordination backend (DISTRIBUTED_COORDINATION_CONFIG). Backs
+	// real-time pub/sub messaging, atomic distributed locks, and Global Task
+	// Framework signaling. Recommended for production deployments. Default:
+	// db=7, prefix="coordination_", timeout=300s.
+	// +optional
+	DistributedCoordination *ValkeyCacheSpec `json:"distributedCoordination,omitempty"`
+
 	// Celery broker (CeleryConfig.broker_url). Default: db=0.
 	// +optional
 	CeleryBroker *ValkeyCelerySpec `json:"celeryBroker,omitempty"`

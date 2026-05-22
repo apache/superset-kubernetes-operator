@@ -330,6 +330,13 @@ spec:
                 x-kubernetes-validations:
                 - message: maxReplicas must be >= minReplicas
                   rule: '!has(self.minReplicas) || self.maxReplicas >= self.minReplicas'
+              celery:
+                properties:
+                  imports:
+                    items:
+                      type: string
+                    type: array
+                type: object
               celeryBeat:
                 properties:
                   config:
@@ -11945,6 +11952,10 @@ spec:
                 - Staging
                 - Production
                 type: string
+              featureFlags:
+                additionalProperties:
+                  type: boolean
+                type: object
               forceReload:
                 type: string
               image:
@@ -31037,6 +31048,19 @@ spec:
                         type: boolean
                     type: object
                   dataCache:
+                    properties:
+                      database:
+                        format: int32
+                        type: integer
+                      defaultTimeout:
+                        format: int32
+                        type: integer
+                      disabled:
+                        type: boolean
+                      keyPrefix:
+                        type: string
+                    type: object
+                  distributedCoordination:
                     properties:
                       database:
                         format: int32

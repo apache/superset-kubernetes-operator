@@ -156,14 +156,15 @@ func TestRenderConfig_WebsocketServerReturnsEmpty(t *testing.T) {
 func TestRenderConfig_ValkeyMinimal(t *testing.T) {
 	input := &ConfigInput{
 		Valkey: &ValkeyInput{
-			Cache:                ValkeyCacheInput{Database: 1, KeyPrefix: "superset_", DefaultTimeout: 300},
-			DataCache:            ValkeyCacheInput{Database: 2, KeyPrefix: "superset_data_", DefaultTimeout: 86400},
-			FilterStateCache:     ValkeyCacheInput{Database: 3, KeyPrefix: "superset_filter_", DefaultTimeout: 3600},
-			ExploreFormDataCache: ValkeyCacheInput{Database: 4, KeyPrefix: "superset_explore_", DefaultTimeout: 3600},
-			ThumbnailCache:       ValkeyCacheInput{Database: 5, KeyPrefix: "superset_thumbnail_", DefaultTimeout: 3600},
-			CeleryBroker:         ValkeyCeleryInput{Database: 0},
-			CeleryResultBackend:  ValkeyCeleryInput{Database: 0},
-			ResultsBackend:       ValkeyResultsInput{Database: 6, KeyPrefix: "superset_results_"},
+			Cache:                   ValkeyCacheInput{Database: 1, KeyPrefix: "superset_", DefaultTimeout: 300},
+			DataCache:               ValkeyCacheInput{Database: 2, KeyPrefix: "superset_data_", DefaultTimeout: 86400},
+			FilterStateCache:        ValkeyCacheInput{Database: 3, KeyPrefix: "superset_filter_", DefaultTimeout: 3600},
+			ExploreFormDataCache:    ValkeyCacheInput{Database: 4, KeyPrefix: "superset_explore_", DefaultTimeout: 3600},
+			ThumbnailCache:          ValkeyCacheInput{Database: 5, KeyPrefix: "superset_thumbnail_", DefaultTimeout: 3600},
+			DistributedCoordination: ValkeyCacheInput{Database: 7, KeyPrefix: "coordination_", DefaultTimeout: 300},
+			CeleryBroker:            ValkeyCeleryInput{Database: 0},
+			CeleryResultBackend:     ValkeyCeleryInput{Database: 0},
+			ResultsBackend:          ValkeyResultsInput{Database: 6, KeyPrefix: "superset_results_"},
 		},
 	}
 	result := RenderConfig(ComponentWebServer, input)
@@ -184,7 +185,7 @@ func TestRenderConfig_ValkeyMinimal(t *testing.T) {
 	// Flask-Caching sections
 	assertContains(t, result, "CACHE_CONFIG = {")
 	assertContains(t, result, "\"CACHE_DEFAULT_TIMEOUT\": 300")
-	assertContains(t, result, "\"CACHE_KEY_PREFIX\": \"superset_\"")
+	assertContains(t, result, "\"CACHE_KEY_PREFIX\": f\"{_superset_instance}_superset_\"")
 	assertContains(t, result, "\"CACHE_REDIS_URL\": f\"{_vk_base}/1\"")
 
 	assertContains(t, result, "DATA_CACHE_CONFIG = {")
@@ -195,6 +196,11 @@ func TestRenderConfig_ValkeyMinimal(t *testing.T) {
 	assertContains(t, result, "EXPLORE_FORM_DATA_CACHE_CONFIG = {")
 	assertContains(t, result, "THUMBNAIL_CACHE_CONFIG = {")
 
+	// Distributed coordination backend
+	assertContains(t, result, "DISTRIBUTED_COORDINATION_CONFIG = {")
+	assertContains(t, result, "\"CACHE_KEY_PREFIX\": f\"{_superset_instance}_coordination_\"")
+	assertContains(t, result, "\"CACHE_REDIS_URL\": f\"{_vk_base}/7\"")
+
 	// Celery
 	assertContains(t, result, "class CeleryConfig:")
 	assertContains(t, result, "broker_url = f\"{_vk_base}/0\"")
@@ -204,7 +210,7 @@ func TestRenderConfig_ValkeyMinimal(t *testing.T) {
 	// Results backend
 	assertContains(t, result, "RESULTS_BACKEND = _CachelibRedis(")
 	assertContains(t, result, "db=6")
-	assertContains(t, result, "key_prefix=\"superset_results_\"")
+	assertContains(t, result, "key_prefix=f\"{_superset_instance}_superset_results_\"")
 
 	// No SSL
 	assertNotContains(t, result, "rediss")
@@ -276,14 +282,15 @@ func TestRenderConfig_ValkeyWithMTLS(t *testing.T) {
 func TestRenderConfig_ValkeyDisabledSections(t *testing.T) {
 	input := &ConfigInput{
 		Valkey: &ValkeyInput{
-			Cache:                ValkeyCacheInput{Database: 1, KeyPrefix: "s_", DefaultTimeout: 300},
-			DataCache:            ValkeyCacheInput{Disabled: true},
-			FilterStateCache:     ValkeyCacheInput{Disabled: true},
-			ExploreFormDataCache: ValkeyCacheInput{Disabled: true},
-			ThumbnailCache:       ValkeyCacheInput{Disabled: true},
-			CeleryBroker:         ValkeyCeleryInput{Disabled: true},
-			CeleryResultBackend:  ValkeyCeleryInput{Disabled: true},
-			ResultsBackend:       ValkeyResultsInput{Disabled: true},
+			Cache:                   ValkeyCacheInput{Database: 1, KeyPrefix: "s_", DefaultTimeout: 300},
+			DataCache:               ValkeyCacheInput{Disabled: true},
+			FilterStateCache:        ValkeyCacheInput{Disabled: true},
+			ExploreFormDataCache:    ValkeyCacheInput{Disabled: true},
+			ThumbnailCache:          ValkeyCacheInput{Disabled: true},
+			DistributedCoordination: ValkeyCacheInput{Disabled: true},
+			CeleryBroker:            ValkeyCeleryInput{Disabled: true},
+			CeleryResultBackend:     ValkeyCeleryInput{Disabled: true},
+			ResultsBackend:          ValkeyResultsInput{Disabled: true},
 		},
 	}
 	result := RenderConfig(ComponentWebServer, input)
@@ -293,6 +300,7 @@ func TestRenderConfig_ValkeyDisabledSections(t *testing.T) {
 	assertNotContains(t, result, "FILTER_STATE_CACHE_CONFIG")
 	assertNotContains(t, result, "EXPLORE_FORM_DATA_CACHE_CONFIG")
 	assertNotContains(t, result, "THUMBNAIL_CACHE_CONFIG")
+	assertNotContains(t, result, "DISTRIBUTED_COORDINATION_CONFIG")
 	assertNotContains(t, result, "class CeleryConfig:")
 	assertNotContains(t, result, "RESULTS_BACKEND")
 	// No cachelib import when results backend disabled
@@ -316,12 +324,12 @@ func TestRenderConfig_ValkeyCustomDatabases(t *testing.T) {
 
 	assertContains(t, result, "\"CACHE_REDIS_URL\": f\"{_vk_base}/10\"")
 	assertContains(t, result, "\"CACHE_DEFAULT_TIMEOUT\": 600")
-	assertContains(t, result, "\"CACHE_KEY_PREFIX\": \"my_\"")
+	assertContains(t, result, "\"CACHE_KEY_PREFIX\": f\"{_superset_instance}_my_\"")
 	assertContains(t, result, "\"CACHE_REDIS_URL\": f\"{_vk_base}/11\"")
 	assertContains(t, result, "broker_url = f\"{_vk_base}/14\"")
 	assertContains(t, result, "result_backend = f\"{_vk_base}/15\"")
 	assertContains(t, result, "db=13")
-	assertContains(t, result, "key_prefix=\"my_results_\"")
+	assertContains(t, result, "key_prefix=f\"{_superset_instance}_my_results_\"")
 }
 
 func TestRenderConfig_ValkeyWebsocketServerSkipped(t *testing.T) {
@@ -433,8 +441,8 @@ func TestRenderConfig_ValkeyKeyPrefixWithQuotes(t *testing.T) {
 	}
 	result := RenderConfig(ComponentWebServer, input)
 
-	assertContains(t, result, `"CACHE_KEY_PREFIX": "my\"prefix_"`)
-	assertContains(t, result, `key_prefix="res\"ults_"`)
+	assertContains(t, result, `"CACHE_KEY_PREFIX": f"{_superset_instance}_my\"prefix_"`)
+	assertContains(t, result, `key_prefix=f"{_superset_instance}_res\"ults_"`)
 }
 
 func assertContains(t *testing.T, s, substr string) {
@@ -449,6 +457,149 @@ func assertNotContains(t *testing.T, s, substr string) {
 	if strings.Contains(s, substr) {
 		t.Errorf("expected output NOT to contain %q, but it does.\nFull output:\n%s", substr, s)
 	}
+}
+
+func TestRenderConfig_FeatureFlags(t *testing.T) {
+	t.Run("nil map omits the block", func(t *testing.T) {
+		result := RenderConfig(ComponentWebServer, &ConfigInput{MetastoreMode: MetastorePassthrough})
+		assertNotContains(t, result, "FEATURE_FLAGS")
+	})
+
+	t.Run("empty map omits the block", func(t *testing.T) {
+		result := RenderConfig(ComponentWebServer, &ConfigInput{
+			MetastoreMode: MetastorePassthrough,
+			FeatureFlags:  map[string]bool{},
+		})
+		assertNotContains(t, result, "FEATURE_FLAGS")
+	})
+
+	t.Run("renders sorted keys with Python booleans", func(t *testing.T) {
+		result := RenderConfig(ComponentWebServer, &ConfigInput{
+			MetastoreMode: MetastorePassthrough,
+			FeatureFlags: map[string]bool{
+				"THUMBNAILS":    true,
+				"ALERT_REPORTS": true,
+				"DISABLED_FLAG": false,
+			},
+		})
+		assertContains(t, result, "FEATURE_FLAGS = {")
+		assertContains(t, result, "\"ALERT_REPORTS\": True,")
+		assertContains(t, result, "\"DISABLED_FLAG\": False,")
+		assertContains(t, result, "\"THUMBNAILS\": True,")
+
+		// Sorted alphabetically.
+		alertIdx := strings.Index(result, "ALERT_REPORTS")
+		disabledIdx := strings.Index(result, "DISABLED_FLAG")
+		thumbIdx := strings.Index(result, "THUMBNAILS")
+		if alertIdx >= disabledIdx || disabledIdx >= thumbIdx {
+			t.Errorf("FEATURE_FLAGS keys not sorted: ALERT=%d DISABLED=%d THUMB=%d", alertIdx, disabledIdx, thumbIdx)
+		}
+	})
+
+	t.Run("section ordering: between engine options and valkey", func(t *testing.T) {
+		result := RenderConfig(ComponentWebServer, &ConfigInput{
+			MetastoreMode: MetastorePassthrough,
+			EngineOptions: &EngineOptionsInput{PoolSize: 1, MaxOverflow: -1},
+			FeatureFlags:  map[string]bool{"FOO": true},
+			Valkey: &ValkeyInput{
+				Cache: ValkeyCacheInput{Database: 1, KeyPrefix: "p_", DefaultTimeout: 300},
+			},
+		})
+		engineIdx := strings.Index(result, "SQLALCHEMY_ENGINE_OPTIONS")
+		flagsIdx := strings.Index(result, "FEATURE_FLAGS")
+		valkeyIdx := strings.Index(result, "# Valkey cache config")
+		if engineIdx < 0 || flagsIdx < 0 || valkeyIdx < 0 || engineIdx >= flagsIdx || flagsIdx >= valkeyIdx {
+			t.Errorf("section ordering wrong: engine=%d flags=%d valkey=%d", engineIdx, flagsIdx, valkeyIdx)
+		}
+	})
+}
+
+func TestRenderConfig_CeleryClassDefaults(t *testing.T) {
+	baseValkey := &ValkeyInput{
+		Cache:               ValkeyCacheInput{Database: 1, KeyPrefix: "p_", DefaultTimeout: 300},
+		CeleryBroker:        ValkeyCeleryInput{Database: 0},
+		CeleryResultBackend: ValkeyCeleryInput{Database: 0},
+		ResultsBackend:      ValkeyResultsInput{Disabled: true},
+	}
+
+	t.Run("hardcoded upstream defaults always present when class emitted", func(t *testing.T) {
+		result := RenderConfig(ComponentCeleryWorker, &ConfigInput{
+			MetastoreMode: MetastorePassthrough,
+			Valkey:        baseValkey,
+			Celery:        &CeleryInput{Imports: DefaultCeleryImports},
+		})
+		assertContains(t, result, "class CeleryConfig:")
+		assertContains(t, result, "    worker_prefetch_multiplier = 1")
+		assertContains(t, result, "    task_acks_late = False")
+		assertContains(t, result, "    task_annotations = {")
+		assertContains(t, result, "\"sql_lab.get_sql_results\":")
+		assertContains(t, result, "\"rate_limit\": \"100/s\"")
+		assertContains(t, result, "    beat_schedule = {")
+		assertContains(t, result, "\"reports.scheduler\":")
+		assertContains(t, result, "\"reports.prune_log\":")
+		assertContains(t, result, "crontab(minute=\"*\", hour=\"*\")")
+		assertContains(t, result, "crontab(minute=0, hour=0)")
+		assertContains(t, result, "from celery.schedules import crontab")
+	})
+
+	t.Run("default imports tuple", func(t *testing.T) {
+		result := RenderConfig(ComponentCeleryWorker, &ConfigInput{
+			MetastoreMode: MetastorePassthrough,
+			Valkey:        baseValkey,
+			Celery:        &CeleryInput{Imports: DefaultCeleryImports},
+		})
+		assertContains(t, result, "    imports = (")
+		assertContains(t, result, "\"superset.sql_lab\",")
+		assertContains(t, result, "\"superset.tasks.scheduler\",")
+		assertContains(t, result, "\"superset.tasks.thumbnails\",")
+		assertContains(t, result, "\"superset.tasks.cache\",")
+		assertContains(t, result, "\"superset.tasks.slack\",")
+	})
+
+	t.Run("user-set imports replace default", func(t *testing.T) {
+		result := RenderConfig(ComponentCeleryWorker, &ConfigInput{
+			MetastoreMode: MetastorePassthrough,
+			Valkey:        baseValkey,
+			Celery:        &CeleryInput{Imports: []string{"my.module", "other.tasks"}},
+		})
+		assertContains(t, result, "\"my.module\",")
+		assertContains(t, result, "\"other.tasks\",")
+		assertNotContains(t, result, "\"superset.sql_lab\",")
+	})
+
+	t.Run("explicit empty imports renders empty tuple", func(t *testing.T) {
+		result := RenderConfig(ComponentCeleryWorker, &ConfigInput{
+			MetastoreMode: MetastorePassthrough,
+			Valkey:        baseValkey,
+			Celery:        &CeleryInput{Imports: []string{}},
+		})
+		assertContains(t, result, "    imports = ()\n")
+		assertNotContains(t, result, "\"superset.sql_lab\",")
+	})
+
+	t.Run("nil valkey: no class emitted, no crontab import", func(t *testing.T) {
+		result := RenderConfig(ComponentCeleryWorker, &ConfigInput{
+			MetastoreMode: MetastorePassthrough,
+			Celery:        &CeleryInput{Imports: DefaultCeleryImports},
+		})
+		assertNotContains(t, result, "class CeleryConfig:")
+		assertNotContains(t, result, "from celery.schedules import crontab")
+	})
+
+	t.Run("celery disabled (broker + result both disabled): no class", func(t *testing.T) {
+		result := RenderConfig(ComponentCeleryWorker, &ConfigInput{
+			MetastoreMode: MetastorePassthrough,
+			Valkey: &ValkeyInput{
+				Cache:               ValkeyCacheInput{Database: 1, KeyPrefix: "p_", DefaultTimeout: 300},
+				CeleryBroker:        ValkeyCeleryInput{Disabled: true},
+				CeleryResultBackend: ValkeyCeleryInput{Disabled: true},
+				ResultsBackend:      ValkeyResultsInput{Disabled: true},
+			},
+			Celery: &CeleryInput{Imports: DefaultCeleryImports},
+		})
+		assertNotContains(t, result, "class CeleryConfig:")
+		assertNotContains(t, result, "from celery.schedules import crontab")
+	})
 }
 
 func TestRenderConfig_EngineOptionsQueuePool(t *testing.T) {

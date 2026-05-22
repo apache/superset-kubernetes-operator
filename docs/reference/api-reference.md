@@ -128,6 +128,25 @@ _Appears in:_
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration (type, port, annotations). |  | Optional: \{\} <br /> |
 
 
+#### CelerySpec
+
+
+
+CelerySpec configures the operator-rendered CeleryConfig class. Settings here
+flow into the class the operator generates when spec.valkey is set. Admins
+can extend the class further from raw spec.config (mutating attributes,
+subclassing, or replacing CELERY_CONFIG outright).
+
+
+
+_Appears in:_
+- [SupersetSpec](#supersetspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `imports` _string array_ | Imports lists Python modules that Celery workers import on startup to<br />discover task definitions. When unset, defaults to the modules shipped<br />by upstream Superset:<br />superset.sql_lab, superset.tasks.scheduler, superset.tasks.thumbnails,<br />superset.tasks.cache, superset.tasks.slack.<br />Setting this field replaces the default list wholesale; admins who want<br />to extend rather than replace can mutate CeleryConfig.imports from raw<br />spec.config. |  | Optional: \{\} <br /> |
+
+
 #### CeleryWorkerComponentSpec
 
 
@@ -1042,6 +1061,8 @@ _Appears in:_
 | `metastore` _[MetastoreSpec](#metastorespec)_ | Metastore database connection configuration. |  | Optional: \{\} <br /> |
 | `valkey` _[ValkeySpec](#valkeyspec)_ | Valkey cache, broker, and results backend configuration. |  | Optional: \{\} <br /> |
 | `config` _string_ | Raw Python appended after operator-generated superset_config.py. |  | Optional: \{\} <br /> |
+| `featureFlags` _object (keys:string, values:boolean)_ | Feature flags toggled in superset_config.py via FEATURE_FLAGS = \{...\}.<br />Keys conventionally use UPPER_SNAKE_CASE (e.g. ALERT_REPORTS); values are booleans. |  | Optional: \{\} <br /> |
+| `celery` _[CelerySpec](#celeryspec)_ | Top-level Celery app configuration rendered into CELERY_CONFIG. Per-component<br />worker/beat process tuning lives on celeryWorker / celeryBeat. |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | SQLAlchemy engine options for connection pooling. Inherited by all Python<br />components; per-component sqlaEngineOptions overrides this entirely.<br />When unset, the operator computes balanced defaults per component. |  | Optional: \{\} <br /> |
 | `webServer` _[WebServerComponentSpec](#webservercomponentspec)_ | Web server (gunicorn) component. Presence enables it; absence disables. |  | Optional: \{\} <br /> |
 | `celeryWorker` _[CeleryWorkerComponentSpec](#celeryworkercomponentspec)_ | Celery async task worker component. Requires Valkey for broker/backend. |  | Optional: \{\} <br /> |
@@ -1227,6 +1248,7 @@ _Appears in:_
 | `filterStateCache` _[ValkeyCacheSpec](#valkeycachespec)_ | Dashboard filter state cache (FILTER_STATE_CACHE_CONFIG). Default: db=3, prefix="superset_filter_", timeout=3600s. |  | Optional: \{\} <br /> |
 | `exploreFormDataCache` _[ValkeyCacheSpec](#valkeycachespec)_ | Chart builder form state cache (EXPLORE_FORM_DATA_CACHE_CONFIG). Default: db=4, prefix="superset_explore_", timeout=3600s. |  | Optional: \{\} <br /> |
 | `thumbnailCache` _[ValkeyCacheSpec](#valkeycachespec)_ | Thumbnail cache (THUMBNAIL_CACHE_CONFIG). Default: db=5, prefix="superset_thumbnail_", timeout=3600s. |  | Optional: \{\} <br /> |
+| `distributedCoordination` _[ValkeyCacheSpec](#valkeycachespec)_ | Distributed coordination backend (DISTRIBUTED_COORDINATION_CONFIG). Backs<br />real-time pub/sub messaging, atomic distributed locks, and Global Task<br />Framework signaling. Recommended for production deployments. Default:<br />db=7, prefix="coordination_", timeout=300s. |  | Optional: \{\} <br /> |
 | `celeryBroker` _[ValkeyCelerySpec](#valkeyceleryspec)_ | Celery broker (CeleryConfig.broker_url). Default: db=0. |  | Optional: \{\} <br /> |
 | `celeryResultBackend` _[ValkeyCelerySpec](#valkeyceleryspec)_ | Celery result backend (CeleryConfig.result_backend). Default: db=0. |  | Optional: \{\} <br /> |
 | `resultsBackend` _[ValkeyResultsBackendSpec](#valkeyresultsbackendspec)_ | SQL Lab async results backend (RESULTS_BACKEND). Default: db=6, prefix="superset_results_". |  | Optional: \{\} <br /> |

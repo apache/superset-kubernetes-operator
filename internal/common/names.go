@@ -96,6 +96,7 @@ const (
 // Env var names for operator-managed environment variables.
 const (
 	// Operator-internal transport vars (used by rendered superset_config.py).
+	EnvInstanceName      = "SUPERSET_OPERATOR__INSTANCE_NAME"
 	EnvSecretKey         = "SUPERSET_OPERATOR__SECRET_KEY"
 	EnvPreviousSecretKey = "SUPERSET_OPERATOR__PREVIOUS_SECRET_KEY"
 	EnvDatabaseURI       = "SUPERSET_OPERATOR__DB_URI"

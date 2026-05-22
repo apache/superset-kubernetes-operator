@@ -103,6 +103,10 @@ For each of the six deployment components, the parent controller:
       `metastore.passwordFrom` are set, the operator produces env vars with
       `valueFrom.secretKeyRef` pointing at the referenced Secret. In dev mode,
       inline values produce plain `value` env vars instead.
+      Always injects `SUPERSET_OPERATOR__INSTANCE_NAME` (the parent CR name) so
+      raw `spec.config` Python can reference the instance — for example to
+      compute instance-scoped Celery queue names that won't collide across
+      Superset CRs sharing a broker.
     - Resolves the shared spec (top-level + per-component) into a
       flat `FlatComponentSpec` via `ResolveComponentSpec()`
     - Computes a config checksum from shared inputs and rendered config

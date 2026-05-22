@@ -194,6 +194,22 @@ Result on the web server Deployment: both env vars present.
 
 ---
 
+## Configuration Philosophy: Typed Fields vs. Raw Python
+
+Superset is configured through `superset_config.py` — a Python module that exposes hundreds of knobs across Flask, Flask-AppBuilder, Celery, caching, security, and Superset itself. Mirroring every one of those knobs as a typed CRD field would turn the operator into a partial Superset fork, balloon CRD size, and lag behind upstream changes. Hiding everything behind a single Python blob, on the other hand, gives up the validation, discoverability, and operator-side reasoning that a CRD makes possible.
+
+The operator splits the difference:
+
+- **Typed CRD fields** are reserved for settings where the operator adds clear value: anything tied to Kubernetes resources (images, ports, replicas, autoscaling), anything sourced from Secrets (`secretKey`, metastore credentials, Valkey passwords), and any setting that the operator can validate, render uniformly, or wire up across components (metastore URIs, Valkey-driven cache and Celery backends, lifecycle gating). Typed fields earn their place because they can't be expressed as plain Python without re-implementing what the operator already does.
+
+- **Raw Python in `spec.config` and `spec.<component>.config`** is the default home for everything else: feature flags beyond a curated set, custom security managers, OAuth providers, thumbnail executors, custom Celery routes, beat schedules, task annotations, and anything else that is naturally a Python expression or class. Admins are comfortable writing Python in `superset_config.py`; forcing those settings through YAML schemas tends to obfuscate rather than clarify.
+
+To make Python-side configuration ergonomic, the operator exposes a few resolved values as env vars (`SUPERSET_OPERATOR__INSTANCE_NAME`, `SUPERSET_OPERATOR__VALKEY_HOST`, etc.) so admins can reference them from raw Python without templating. Operator-rendered objects like the `CeleryConfig` class are regular Python — admins extend them by mutating attributes, subclassing, or replacing the assignment outright.
+
+This split is intentionally a moving boundary. As specific knobs prove to be widely used, frequently misconfigured, or worth cross-component validation, they migrate from raw Python into typed CRD fields. The starting position favors raw Python; promotions are made deliberately and case by case. The first promotions are `spec.featureFlags` (a `map[string]bool` rendering `FEATURE_FLAGS = {...}`) and `spec.celery.imports` (the Celery worker import tuple, defaulting to upstream Superset's modules).
+
+---
+
 ## Config Rendering Pipeline
 
 The operator generates per-component `superset_config.py` files by
