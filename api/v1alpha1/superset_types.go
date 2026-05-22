@@ -904,7 +904,3 @@ type SupersetList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Superset `json:"items"`
 }
-
-func init() {
-	SchemeBuilder.Register(&Superset{}, &SupersetList{})
-}
