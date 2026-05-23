@@ -100,13 +100,34 @@ func buildMySQLCloneScript(clone *supersetv1alpha1.CloneTaskSpec) string {
 	var b strings.Builder
 	b.WriteString(`set -e
 mysql -h "$SUPERSET_OPERATOR__DB_HOST" -P "$SUPERSET_OPERATOR__DB_PORT" -u "$SUPERSET_OPERATOR__DB_USER" -p"$SUPERSET_OPERATOR__DB_PASS" -e "DROP DATABASE IF EXISTS $SUPERSET_OPERATOR__DB_NAME; CREATE DATABASE $SUPERSET_OPERATOR__DB_NAME;"
-mysqldump -h "$SUPERSET_OPERATOR__CLONE_SRC_HOST" -P "$SUPERSET_OPERATOR__CLONE_SRC_PORT" -u "$SUPERSET_OPERATOR__CLONE_SRC_USER" -p"$SUPERSET_OPERATOR__CLONE_SRC_PASS" --single-transaction --routines --triggers`)
+`)
 
+	// mysqldump has no per-table --no-data flag, so emit two passes joined into
+	// one stream: a schema-only pass for ExcludeTableData tables, then a data
+	// pass that ignores both ExcludeTables and ExcludeTableData. The combined
+	// stdout is piped to the target mysql client. The schema pass is skipped
+	// when ExcludeTableData is empty so the existing single-pass behaviour is
+	// preserved.
+	mysqldumpHead := `mysqldump -h "$SUPERSET_OPERATOR__CLONE_SRC_HOST" -P "$SUPERSET_OPERATOR__CLONE_SRC_PORT" -u "$SUPERSET_OPERATOR__CLONE_SRC_USER" -p"$SUPERSET_OPERATOR__CLONE_SRC_PASS"`
+
+	b.WriteString("(")
+	if len(clone.ExcludeTableData) > 0 {
+		fmt.Fprintf(&b, " %s --single-transaction --no-data --skip-triggers", mysqldumpHead)
+		b.WriteString(` "$SUPERSET_OPERATOR__CLONE_SRC_DB"`)
+		for _, t := range clone.ExcludeTableData {
+			fmt.Fprintf(&b, ` %q`, t)
+		}
+		b.WriteString(" ; ")
+	}
+
+	fmt.Fprintf(&b, "%s --single-transaction --routines --triggers", mysqldumpHead)
 	for _, t := range clone.ExcludeTables {
 		fmt.Fprintf(&b, ` --ignore-table="$SUPERSET_OPERATOR__CLONE_SRC_DB".%q`, t)
 	}
-
-	b.WriteString(` "$SUPERSET_OPERATOR__CLONE_SRC_DB" | mysql -h "$SUPERSET_OPERATOR__DB_HOST" -P "$SUPERSET_OPERATOR__DB_PORT" -u "$SUPERSET_OPERATOR__DB_USER" -p"$SUPERSET_OPERATOR__DB_PASS" "$SUPERSET_OPERATOR__DB_NAME"`)
+	for _, t := range clone.ExcludeTableData {
+		fmt.Fprintf(&b, ` --ignore-table="$SUPERSET_OPERATOR__CLONE_SRC_DB".%q`, t)
+	}
+	b.WriteString(` "$SUPERSET_OPERATOR__CLONE_SRC_DB" ) | mysql -h "$SUPERSET_OPERATOR__DB_HOST" -P "$SUPERSET_OPERATOR__DB_PORT" -u "$SUPERSET_OPERATOR__DB_USER" -p"$SUPERSET_OPERATOR__DB_PASS" "$SUPERSET_OPERATOR__DB_NAME"`)
 
 	for _, sql := range clone.PostCloneSQL {
 		fmt.Fprintf(&b, "\nmysql -h \"$SUPERSET_OPERATOR__DB_HOST\" -P \"$SUPERSET_OPERATOR__DB_PORT\" -u \"$SUPERSET_OPERATOR__DB_USER\" -p\"$SUPERSET_OPERATOR__DB_PASS\" \"$SUPERSET_OPERATOR__DB_NAME\" -e %q", sql)

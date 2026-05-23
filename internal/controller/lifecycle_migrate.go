@@ -29,7 +29,11 @@ import (
 // container that reads the structured metastore target; changes to that
 // target (host/port/database/username/type) must re-run migrate so the init
 // container actually executes against the new server. The flag itself is also
-// included so toggling it re-runs migrate.
+// included so toggling it re-runs migrate. The init container's rendered
+// script body is included too: the script is operator-rendered (not user
+// spec) and changes when the operator binary is upgraded with a fix or
+// hardening, so a checksum bump is what lets a fixed operator retry after a
+// previously failed run.
 func (r *SupersetReconciler) migrateInputs(superset *supersetv1alpha1.Superset) any {
 	currentImage := resolveLifecycleImage(&superset.Spec.Image, lifecycleImageOverride(superset))
 	trigger := ""
@@ -44,6 +48,7 @@ func (r *SupersetReconciler) migrateInputs(superset *supersetv1alpha1.Superset) 
 		Database string
 		Username string
 	}
+	var initContainerScript string
 	if superset.Spec.Metastore != nil && superset.Spec.Metastore.CreateDatabase != nil && *superset.Spec.Metastore.CreateDatabase {
 		createDatabase = true
 		m := superset.Spec.Metastore
@@ -55,17 +60,23 @@ func (r *SupersetReconciler) migrateInputs(superset *supersetv1alpha1.Superset) 
 		}
 		target.Database = derefOrDefault(m.Database, "")
 		target.Username = derefOrDefault(m.Username, "")
+		initContainerScript = createDatabasePostgresScript
+		if target.Type == dbTypeMySQL {
+			initContainerScript = createDatabaseMySQLScript
+		}
 	}
 	return struct {
-		Image          string
-		Trigger        string
-		CreateDatabase bool
-		Target         any
+		Image               string
+		Trigger             string
+		CreateDatabase      bool
+		Target              any
+		InitContainerScript string
 	}{
-		Image:          currentImage,
-		Trigger:        trigger,
-		CreateDatabase: createDatabase,
-		Target:         target,
+		Image:               currentImage,
+		Trigger:             trigger,
+		CreateDatabase:      createDatabase,
+		Target:              target,
+		InitContainerScript: initContainerScript,
 	}
 }
 

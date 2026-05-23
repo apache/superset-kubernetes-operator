@@ -613,6 +613,7 @@ type ComponentSpec struct {
 // --- Component service and scaling types ---
 
 // ComponentServiceSpec defines the Service configuration for a component.
+// +kubebuilder:validation:XValidation:rule="!has(self.nodePort) || self.type == 'NodePort' || self.type == 'LoadBalancer'",message="nodePort is only valid when type is NodePort or LoadBalancer"
 type ComponentServiceSpec struct {
 	// Service type (ClusterIP, NodePort, LoadBalancer).
 	// +optional
@@ -624,6 +625,8 @@ type ComponentServiceSpec struct {
 	Port *int32 `json:"port,omitempty"`
 	// Fixed NodePort number when type=NodePort (30000-32767). If omitted, Kubernetes auto-assigns.
 	// +optional
+	// +kubebuilder:validation:Minimum=30000
+	// +kubebuilder:validation:Maximum=32767
 	NodePort *int32 `json:"nodePort,omitempty"`
 	// Service annotations (e.g., for cloud load balancer configuration).
 	// +optional

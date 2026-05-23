@@ -77,12 +77,20 @@ func TestBuildCreateDatabaseInitContainer_Postgres(t *testing.T) {
 	for _, want := range []string{
 		"createdb",
 		"pg_database",
-		":'name'",
+		`sed "s/'/''/g"`,
+		`datname = '$ESC_NAME'`,
+		"-tA -c",
 		`-- "$SUPERSET_OPERATOR__DB_NAME"`,
 	} {
 		if !strings.Contains(script, want) {
 			t.Errorf("script missing %q\n--- script ---\n%s", want, script)
 		}
+	}
+	if strings.Contains(script, ":'name'") {
+		t.Errorf("script must not use psql :'name' interpolation; psql does not process client-side features when invoked with -c\n--- script ---\n%s", script)
+	}
+	if strings.Index(script, "-v ON_ERROR_STOP=1") > strings.Index(script, "-tA -c") {
+		t.Errorf("psql -v options must appear before -c so they are parsed as options\n--- script ---\n%s", script)
 	}
 	envMap := envSliceToMap(ctr.Env)
 	if envMap[common.EnvDBHost] != "pg.svc" {
@@ -559,6 +567,49 @@ func TestMigrateInputs_StructuredTargetIgnoredWhenCreateDatabaseFalse(t *testing
 	}
 	if r.migrateInputs(mkSuperset("pg-old")) != r.migrateInputs(mkSuperset("pg-new")) {
 		t.Error("expected migrateInputs to ignore host changes when createDatabase is unset")
+	}
+}
+
+func TestMigrateInputs_InitContainerScriptParticipatesInChecksum(t *testing.T) {
+	// The create-database init container's script body is rendered by the
+	// operator binary, not the user's spec. Including its content in the
+	// migrate inputs is what lets a previously failed migrate retry after the
+	// operator is upgraded with a fix to the script — otherwise the migrate
+	// checksum is stable across operator upgrades and Block A in
+	// reconcileLifecycleTask would keep returning terminal even though the
+	// rendered Job would now succeed.
+	r := &SupersetReconciler{}
+	mkSuperset := func(dbType *string) *supersetv1alpha1.Superset {
+		s := &supersetv1alpha1.Superset{}
+		s.Spec.Image = supersetv1alpha1.ImageSpec{Repository: "superset", Tag: "1.0"}
+		s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+			Host:           common.Ptr("pg.svc"),
+			Database:       common.Ptr("superset"),
+			Username:       common.Ptr("superset"),
+			CreateDatabase: common.Ptr(true),
+			Type:           dbType,
+		}
+		return s
+	}
+	pgInputs := r.migrateInputs(mkSuperset(nil))
+	mysqlInputs := r.migrateInputs(mkSuperset(common.Ptr("MySQL")))
+
+	pgStruct, ok := pgInputs.(struct {
+		Image               string
+		Trigger             string
+		CreateDatabase      bool
+		Target              any
+		InitContainerScript string
+	})
+	if !ok {
+		t.Fatalf("migrateInputs returned unexpected type: %T", pgInputs)
+	}
+	if pgStruct.InitContainerScript != createDatabasePostgresScript {
+		t.Errorf("postgres init script not embedded in migrate inputs:\n--- got ---\n%s", pgStruct.InitContainerScript)
+	}
+
+	if pgInputs == mysqlInputs {
+		t.Error("expected migrateInputs to differ between Postgres and MySQL init scripts")
 	}
 }
 

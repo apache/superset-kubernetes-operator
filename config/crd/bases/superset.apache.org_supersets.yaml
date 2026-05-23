@@ -7903,6 +7903,8 @@ spec:
                         type: object
                       nodePort:
                         format: int32
+                        maximum: 32767
+                        minimum: 30000
                         type: integer
                       port:
                         format: int32
@@ -7915,6 +7917,10 @@ spec:
                         - LoadBalancer
                         type: string
                     type: object
+                    x-kubernetes-validations:
+                    - message: nodePort is only valid when type is NodePort or LoadBalancer
+                      rule: '!has(self.nodePort) || self.type == ''NodePort'' || self.type
+                        == ''LoadBalancer'''
                 type: object
               celeryWorker:
                 properties:
@@ -26935,6 +26941,8 @@ spec:
                         type: object
                       nodePort:
                         format: int32
+                        maximum: 32767
+                        minimum: 30000
                         type: integer
                       port:
                         format: int32
@@ -26947,6 +26955,10 @@ spec:
                         - LoadBalancer
                         type: string
                     type: object
+                    x-kubernetes-validations:
+                    - message: nodePort is only valid when type is NodePort or LoadBalancer
+                      rule: '!has(self.nodePort) || self.type == ''NodePort'' || self.type
+                        == ''LoadBalancer'''
                   sqlaEngineOptions:
                     properties:
                       maxOverflow:
@@ -30985,6 +30997,12 @@ spec:
                   name:
                     type: string
                 type: object
+                x-kubernetes-validations:
+                - message: serviceAccount.name is required when serviceAccount.create
+                    is false (otherwise pods would silently use the namespace's default
+                    ServiceAccount)
+                  rule: '!has(self.create) || self.create == true || (has(self.name)
+                    && self.name != ”)'
               sqlaEngineOptions:
                 properties:
                   maxOverflow:
@@ -35154,6 +35172,8 @@ spec:
                         type: object
                       nodePort:
                         format: int32
+                        maximum: 32767
+                        minimum: 30000
                         type: integer
                       port:
                         format: int32
@@ -35166,6 +35186,10 @@ spec:
                         - LoadBalancer
                         type: string
                     type: object
+                    x-kubernetes-validations:
+                    - message: nodePort is only valid when type is NodePort or LoadBalancer
+                      rule: '!has(self.nodePort) || self.type == ''NodePort'' || self.type
+                        == ''LoadBalancer'''
                   sqlaEngineOptions:
                     properties:
                       maxOverflow:
@@ -39121,6 +39145,8 @@ spec:
                         type: object
                       nodePort:
                         format: int32
+                        maximum: 32767
+                        minimum: 30000
                         type: integer
                       port:
                         format: int32
@@ -39133,7 +39159,16 @@ spec:
                         - LoadBalancer
                         type: string
                     type: object
+                    x-kubernetes-validations:
+                    - message: nodePort is only valid when type is NodePort or LoadBalancer
+                      rule: '!has(self.nodePort) || self.type == ''NodePort'' || self.type
+                        == ''LoadBalancer'''
                 type: object
+                x-kubernetes-validations:
+                - message: 'websocketServer.image.repository is required: the default
+                    Superset image does not include websocket_server.js'
+                  rule: has(self.image) && has(self.image.repository) && self.image.repository
+                    != ”
             required:
             - image
             type: object

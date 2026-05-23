@@ -30,22 +30,25 @@ import (
 const createDatabaseContainerName = "create-database"
 
 // Postgres: query pg_database to check existence, then `createdb` if absent.
-// We avoid building a `CREATE DATABASE "..."` SQL string because the metastore
-// database name may contain quotes or other identifier-hostile characters; the
-// existence check uses psql's :'var' substitution (proper SQL-literal quoting),
-// and `createdb -- "$NAME"` passes the name as a CLI arg (handled by libpq).
-// `--` prevents the name being interpreted as a flag if it starts with `-`.
+// The DB name is SQL-escaped client-side by doubling single quotes (the only
+// metacharacter inside a SQL string literal). We avoid psql's :'name'
+// interpolation because psql does not process client-side features like
+// variable substitution when the command is passed via -c — the literal
+// :'name' would reach the server and fail with a syntax error. `createdb --
+// "$NAME"` then passes the name as a CLI arg (handled by libpq), and `--`
+// prevents it being interpreted as a flag if it starts with `-`.
 // Password uses ${VAR:-} to support passwordless connections (trust/peer auth,
 // IAM-issued credentials), matching the rendered config's os.environ.get fallback.
 const createDatabasePostgresScript = `set -eu
+ESC_NAME=$(printf '%s' "$SUPERSET_OPERATOR__DB_NAME" | sed "s/'/''/g")
 EXISTS=$(PGPASSWORD="${SUPERSET_OPERATOR__DB_PASS:-}" psql \
   -h "$SUPERSET_OPERATOR__DB_HOST" \
   -p "$SUPERSET_OPERATOR__DB_PORT" \
   -U "$SUPERSET_OPERATOR__DB_USER" \
-  -d postgres -tAc \
+  -d postgres \
   -v ON_ERROR_STOP=1 \
-  -v "name=$SUPERSET_OPERATOR__DB_NAME" \
-  "SELECT 1 FROM pg_database WHERE datname = :'name'")
+  -tA -c \
+  "SELECT 1 FROM pg_database WHERE datname = '$ESC_NAME'")
 if [ "$EXISTS" = "1" ]; then
   echo "Database $SUPERSET_OPERATOR__DB_NAME already exists"
 else

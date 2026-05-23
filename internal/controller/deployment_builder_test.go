@@ -352,3 +352,110 @@ func TestPreserveServiceAllocatedFields(t *testing.T) {
 		t.Errorf("expected IPFamilyPolicy to be preserved, got %v", desired.IPFamilyPolicy)
 	}
 }
+
+func TestBuildDeploymentSpec_RetargetsDefaultProbesToOverriddenPort(t *testing.T) {
+	spec := &supersetv1alpha1.FlatComponentSpec{
+		Image: supersetv1alpha1.ImageSpec{
+			Repository: "apache/superset",
+			Tag:        "latest",
+			PullPolicy: corev1.PullIfNotPresent,
+		},
+		PodTemplate: &supersetv1alpha1.PodTemplate{
+			Container: &supersetv1alpha1.ContainerTemplate{
+				Ports: []corev1.ContainerPort{
+					{Name: common.PortNameHTTP, ContainerPort: 9999, Protocol: corev1.ProtocolTCP},
+				},
+			},
+		},
+	}
+	labels := map[string]string{"app": "test"}
+	cfg := DeploymentConfig{
+		ContainerName:  common.Container,
+		DefaultCommand: []string{"/usr/bin/run-server.sh"},
+		DefaultPorts: []corev1.ContainerPort{
+			{Name: common.PortNameHTTP, ContainerPort: common.PortWebServer, Protocol: corev1.ProtocolTCP},
+		},
+		DefaultLivenessProbe:  httpProbe("/health", common.PortWebServer, 15),
+		DefaultReadinessProbe: httpProbe("/health", common.PortWebServer, 5),
+		DefaultStartupProbe:   tcpProbe(common.PortWebServer, 15),
+	}
+
+	result := buildDeploymentSpec(spec, cfg, nil, labels)
+	container := result.Template.Spec.Containers[0]
+
+	if got := container.LivenessProbe.HTTPGet.Port; got != intstr.FromInt32(9999) {
+		t.Errorf("liveness probe port: got %v, want 9999", got)
+	}
+	if got := container.ReadinessProbe.HTTPGet.Port; got != intstr.FromInt32(9999) {
+		t.Errorf("readiness probe port: got %v, want 9999", got)
+	}
+	if got := container.StartupProbe.TCPSocket.Port; got != intstr.FromInt32(9999) {
+		t.Errorf("startup probe port: got %v, want 9999", got)
+	}
+
+	// Defaults should not be mutated by retargeting.
+	if cfg.DefaultLivenessProbe.HTTPGet.Port != intstr.FromInt32(common.PortWebServer) {
+		t.Errorf("default liveness probe was mutated: got %v", cfg.DefaultLivenessProbe.HTTPGet.Port)
+	}
+}
+
+func TestBuildDeploymentSpec_KeepsDefaultProbesWhenPortsNotOverridden(t *testing.T) {
+	spec := &supersetv1alpha1.FlatComponentSpec{
+		Image: supersetv1alpha1.ImageSpec{
+			Repository: "apache/superset",
+			Tag:        "latest",
+			PullPolicy: corev1.PullIfNotPresent,
+		},
+	}
+	labels := map[string]string{"app": "test"}
+	cfg := DeploymentConfig{
+		ContainerName:  common.Container,
+		DefaultCommand: []string{"/usr/bin/run-server.sh"},
+		DefaultPorts: []corev1.ContainerPort{
+			{Name: common.PortNameHTTP, ContainerPort: common.PortWebServer, Protocol: corev1.ProtocolTCP},
+		},
+		DefaultLivenessProbe: httpProbe("/health", common.PortWebServer, 15),
+	}
+
+	result := buildDeploymentSpec(spec, cfg, nil, labels)
+	container := result.Template.Spec.Containers[0]
+
+	if got := container.LivenessProbe.HTTPGet.Port; got != intstr.FromInt32(common.PortWebServer) {
+		t.Errorf("liveness probe port: got %v, want %d", got, common.PortWebServer)
+	}
+}
+
+func TestBuildDeploymentSpec_UserProbeWinsOverRetargeting(t *testing.T) {
+	userProbe := httpProbe("/custom", 7777, 1)
+	spec := &supersetv1alpha1.FlatComponentSpec{
+		Image: supersetv1alpha1.ImageSpec{
+			Repository: "apache/superset",
+			Tag:        "latest",
+			PullPolicy: corev1.PullIfNotPresent,
+		},
+		PodTemplate: &supersetv1alpha1.PodTemplate{
+			Container: &supersetv1alpha1.ContainerTemplate{
+				Ports: []corev1.ContainerPort{
+					{Name: common.PortNameHTTP, ContainerPort: 9999, Protocol: corev1.ProtocolTCP},
+				},
+				LivenessProbe: userProbe,
+			},
+		},
+	}
+	labels := map[string]string{"app": "test"}
+	cfg := DeploymentConfig{
+		ContainerName:        common.Container,
+		DefaultCommand:       []string{"/usr/bin/run-server.sh"},
+		DefaultLivenessProbe: httpProbe("/health", common.PortWebServer, 15),
+	}
+
+	result := buildDeploymentSpec(spec, cfg, nil, labels)
+	container := result.Template.Spec.Containers[0]
+
+	if got := container.LivenessProbe.HTTPGet.Port; got != intstr.FromInt32(7777) {
+		t.Errorf("user liveness probe port should be preserved: got %v, want 7777", got)
+	}
+	if container.LivenessProbe.HTTPGet.Path != "/custom" {
+		t.Errorf("user liveness probe path should be preserved: got %q", container.LivenessProbe.HTTPGet.Path)
+	}
+}

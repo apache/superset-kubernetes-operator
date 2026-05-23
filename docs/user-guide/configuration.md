@@ -261,8 +261,9 @@ The operator sets certain env vars automatically based on the CR spec. These are
 | `SUPERSET_OPERATOR__VALKEY_HOST`, `SUPERSET_OPERATOR__VALKEY_PORT` | Operator-internal | Operator (from `valkey`) | Valkey connection fields |
 | `SUPERSET_OPERATOR__VALKEY_PASS` | Operator-internal | Operator (from `valkey.password` or `valkey.passwordFrom`) | Valkey password |
 | `SUPERSET_OPERATOR__FORCE_RELOAD` | Operator-internal | Operator (from `spec.forceReload`) | Triggers rolling restart |
-| `PYTHONPATH` | Standard | Operator | Python module search path |
 | `SUPERSET_WEBSERVER_PORT` | Standard | Rendered in config | Web server port (8088) |
+
+The operator does **not** set `PYTHONPATH` — it relies on the upstream Superset image's default (which already includes `/app/pythonpath`, where the operator mounts the rendered `superset_config.py`). Custom images must preserve this entry on `PYTHONPATH` for the rendered config to be picked up.
 
 **Tier descriptions:**
 
@@ -555,7 +556,9 @@ dashboards via WebSocket connections.
 !!! warning "Requires a dedicated image"
     The websocket server is a separate Node.js application and **does not run
     from the default Superset image**. You must provide an image that contains
-    `websocket_server.js`. A community-maintained image is available at
+    `websocket_server.js` — the CRD enforces this with a CEL rule that rejects
+    `websocketServer` set without an `image.repository` override. A
+    community-maintained image is available at
     [`oneacrefund/superset-websocket`](https://hub.docker.com/r/oneacrefund/superset-websocket)
     (experimental, not officially supported by Apache Superset).
 
@@ -872,7 +875,7 @@ top-level for shared entries and component-level for component-specific ones.
 | `env` | Environment variables (merged by name) |
 | `envFrom` | ConfigMap/Secret env sources (appended) |
 | `volumeMounts` | Volume mounts (merged by name) |
-| `ports` | Container ports (replaces operator defaults when set; the first resolved port is used as the Service `targetPort` and as the ingress port for the operator-managed NetworkPolicy) |
+| `ports` | Container ports (replaces operator defaults when set; the first resolved port is used as the Service `targetPort`, the ingress port for the operator-managed NetworkPolicy, and as the target port for any default probes the user did not override) |
 | `securityContext` | Container-level security context |
 | `command` | Container entrypoint (no inheritance) |
 | `args` | Container arguments (no inheritance) |

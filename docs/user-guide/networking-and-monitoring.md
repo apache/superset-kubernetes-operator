@@ -227,21 +227,21 @@ spec:
 
 Creates per-component NetworkPolicies that:
 
-- Allow ingress from other components of the same Superset instance (matched by `app.kubernetes.io/name: superset` + `superset.apache.org/parent` labels — multiple Superset instances in the same namespace are isolated from each other)
-- Allow ingress on the service port from any source for externally-facing components (web server, Celery Flower, websocket server, MCP server) — this is necessary because ingress controllers and load balancers typically reside outside the namespace and cannot be matched with a pod selector
+- Allow ingress from other pods of the same Superset instance on **any port** (matched by `app.kubernetes.io/name: superset` + `superset.apache.org/parent` labels — multiple Superset instances in the same namespace are isolated from each other). The same-instance rule is intentionally port-unrestricted so internal traffic between components (sidecar metrics scraping, the websocket server fanning out to web pods, etc.) is not silently blocked.
+- Allow ingress on the service port from any source for externally-facing components (web server, Celery Flower, websocket server, MCP server) — this is necessary because ingress controllers and load balancers typically reside outside the namespace and cannot be matched with a pod selector.
 - Allow all egress (for database/cache access)
 - Support custom `extraIngress` and `extraEgress` rules
 
 **Per-component rules:**
 
-| Component | Ingress from Superset pods | Ingress from external | Egress |
+| Component | Ingress from same-instance Superset pods | Ingress from external | Egress |
 |---|---|---|---|
-| WebServer | port 8088 | port 8088 | all |
+| WebServer | any port | port 8088 | all |
 | CeleryWorker | any port | — | all |
 | CeleryBeat | any port | — | all |
-| CeleryFlower | port 5555 | port 5555 | all |
-| WebsocketServer | port 8080 | port 8080 | all |
-| McpServer | port 8088 | port 8088 | all |
+| CeleryFlower | any port | port 5555 | all |
+| WebsocketServer | any port | port 8080 | all |
+| McpServer | any port | port 8088 | all |
 
 If you need to restrict external ingress to specific sources, disable the built-in
 network policy and create your own NetworkPolicy resources with the desired `from`

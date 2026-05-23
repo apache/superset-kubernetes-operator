@@ -123,10 +123,13 @@ type SupersetSpec struct {
 	// Web server (gunicorn) component. Presence enables it; absence disables.
 	// +optional
 	WebServer *WebServerComponentSpec `json:"webServer,omitempty"`
-	// Celery async task worker component. Requires Valkey for broker/backend.
+	// Celery async task worker component. Uses spec.valkey as broker/backend when set;
+	// otherwise the broker must be configured manually via spec.config.
 	// +optional
 	CeleryWorker *CeleryWorkerComponentSpec `json:"celeryWorker,omitempty"`
-	// Celery periodic task scheduler (singleton, always 1 replica). Requires Valkey.
+	// Celery periodic task scheduler (singleton, always 1 replica). Uses spec.valkey
+	// as broker/backend when set; otherwise the broker must be configured manually
+	// via spec.config.
 	// +optional
 	CeleryBeat *CeleryBeatComponentSpec `json:"celeryBeat,omitempty"`
 	// Celery Flower monitoring UI component.
@@ -239,6 +242,9 @@ type CeleryFlowerComponentSpec struct {
 }
 
 // WebsocketServerComponentSpec defines the websocket server component on the parent CRD.
+// The websocket server is a Node.js app — the default Superset image does not contain
+// websocket_server.js, so an image override is required.
+// +kubebuilder:validation:XValidation:rule="has(self.image) && has(self.image.repository) && self.image.repository != ”",message="websocketServer.image.repository is required: the default Superset image does not include websocket_server.js"
 type WebsocketServerComponentSpec struct {
 	ScalableComponentSpec `json:",inline"`
 	ComponentSpec         `json:",inline"`
@@ -687,6 +693,7 @@ type NetworkPolicySpec struct {
 // --- ServiceAccount ---
 
 // ServiceAccountSpec defines ServiceAccount configuration.
+// +kubebuilder:validation:XValidation:rule="!has(self.create) || self.create == true || (has(self.name) && self.name != ”)",message="serviceAccount.name is required when serviceAccount.create is false (otherwise pods would silently use the namespace's default ServiceAccount)"
 type ServiceAccountSpec struct {
 	// When true (default), the operator creates a ServiceAccount. When false, it references an existing one.
 	// +optional

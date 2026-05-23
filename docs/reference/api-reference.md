@@ -313,7 +313,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `type` _[ServiceType](https://pkg.go.dev/k8s.io/api/core/v1#ServiceType)_ | Service type (ClusterIP, NodePort, LoadBalancer). | ClusterIP | Enum: [ClusterIP NodePort LoadBalancer] <br />Optional: \{\} <br /> |
 | `port` _integer_ | Service port exposed to clients. Defaults to the component's standard port (8088 for web server, 5555 for Flower). |  | Optional: \{\} <br /> |
-| `nodePort` _integer_ | Fixed NodePort number when type=NodePort (30000-32767). If omitted, Kubernetes auto-assigns. |  | Optional: \{\} <br /> |
+| `nodePort` _integer_ | Fixed NodePort number when type=NodePort (30000-32767). If omitted, Kubernetes auto-assigns. |  | Maximum: 32767 <br />Minimum: 30000 <br />Optional: \{\} <br /> |
 | `annotations` _object (keys:string, values:string)_ | Service annotations (e.g., for cloud load balancer configuration). |  | Optional: \{\} <br /> |
 | `labels` _object (keys:string, values:string)_ | Service labels; merged with operator-managed labels. |  | Optional: \{\} <br /> |
 | `gatewayPath` _string_ | URL path prefix for this component's HTTPRoute rule.<br />Only used when spec.networking.gateway is set.<br />Defaults: /ws (websocket), /mcp (MCP server), /flower (Celery Flower). |  | Pattern: `^/[a-zA-Z0-9/_.-]+$` <br />Optional: \{\} <br /> |
@@ -1088,8 +1088,8 @@ _Appears in:_
 | `celery` _[CelerySpec](#celeryspec)_ | Top-level Celery app configuration rendered into CELERY_CONFIG. Per-component<br />worker/beat process tuning lives on celeryWorker / celeryBeat. |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | SQLAlchemy engine options for connection pooling. Inherited by all Python<br />components; per-component sqlaEngineOptions overrides this entirely.<br />When unset, the operator computes balanced defaults per component. |  | Optional: \{\} <br /> |
 | `webServer` _[WebServerComponentSpec](#webservercomponentspec)_ | Web server (gunicorn) component. Presence enables it; absence disables. |  | Optional: \{\} <br /> |
-| `celeryWorker` _[CeleryWorkerComponentSpec](#celeryworkercomponentspec)_ | Celery async task worker component. Requires Valkey for broker/backend. |  | Optional: \{\} <br /> |
-| `celeryBeat` _[CeleryBeatComponentSpec](#celerybeatcomponentspec)_ | Celery periodic task scheduler (singleton, always 1 replica). Requires Valkey. |  | Optional: \{\} <br /> |
+| `celeryWorker` _[CeleryWorkerComponentSpec](#celeryworkercomponentspec)_ | Celery async task worker component. Uses spec.valkey as broker/backend when set;<br />otherwise the broker must be configured manually via spec.config. |  | Optional: \{\} <br /> |
+| `celeryBeat` _[CeleryBeatComponentSpec](#celerybeatcomponentspec)_ | Celery periodic task scheduler (singleton, always 1 replica). Uses spec.valkey<br />as broker/backend when set; otherwise the broker must be configured manually<br />via spec.config. |  | Optional: \{\} <br /> |
 | `celeryFlower` _[CeleryFlowerComponentSpec](#celeryflowercomponentspec)_ | Celery Flower monitoring UI component. |  | Optional: \{\} <br /> |
 | `websocketServer` _[WebsocketServerComponentSpec](#websocketservercomponentspec)_ | WebSocket server for real-time updates (Node.js, no Python config). |  | Optional: \{\} <br /> |
 | `mcpServer` _[McpServerComponentSpec](#mcpservercomponentspec)_ | FastMCP server component for AI tooling integration. |  | Optional: \{\} <br /> |
@@ -1307,6 +1307,8 @@ _Appears in:_
 
 
 WebsocketServerComponentSpec defines the websocket server component on the parent CRD.
+The websocket server is a Node.js app — the default Superset image does not contain
+websocket_server.js, so an image override is required.
 
 
 

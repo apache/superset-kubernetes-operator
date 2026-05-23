@@ -101,22 +101,35 @@ func buildDeploymentSpec(
 
 	// Use spec ports if provided, otherwise fall back to component defaults.
 	ports := cfg.DefaultPorts
-	if len(ct.Ports) > 0 {
+	portsOverridden := len(ct.Ports) > 0
+	if portsOverridden {
 		ports = ct.Ports
 	}
 
 	// Resolve probes: user-provided takes precedence over component defaults.
+	// When the user overrides container ports, retarget any default probes to
+	// the first resolved port; otherwise the Service targetPort tracks the new
+	// port while probes remain on the hard-coded default port.
 	livenessProbe := ct.LivenessProbe
 	if livenessProbe == nil {
 		livenessProbe = cfg.DefaultLivenessProbe
+		if portsOverridden && livenessProbe != nil {
+			livenessProbe = retargetProbe(livenessProbe, ports[0].ContainerPort)
+		}
 	}
 	readinessProbe := ct.ReadinessProbe
 	if readinessProbe == nil {
 		readinessProbe = cfg.DefaultReadinessProbe
+		if portsOverridden && readinessProbe != nil {
+			readinessProbe = retargetProbe(readinessProbe, ports[0].ContainerPort)
+		}
 	}
 	startupProbe := ct.StartupProbe
 	if startupProbe == nil {
 		startupProbe = cfg.DefaultStartupProbe
+		if portsOverridden && startupProbe != nil {
+			startupProbe = retargetProbe(startupProbe, ports[0].ContainerPort)
+		}
 	}
 
 	// Build the main container from ContainerTemplate.
@@ -231,6 +244,20 @@ func resolveContainerPort(spec *supersetv1alpha1.FlatComponentSpec, defaultPort 
 		return spec.PodTemplate.Container.Ports[0].ContainerPort
 	}
 	return defaultPort
+}
+
+// retargetProbe returns a copy of probe with HTTPGet/TCPSocket port replaced.
+// Used to keep default probes aligned with user-overridden container ports so
+// the Service targetPort and the probe target stay in sync.
+func retargetProbe(probe *corev1.Probe, port int32) *corev1.Probe {
+	out := probe.DeepCopy()
+	switch {
+	case out.HTTPGet != nil:
+		out.HTTPGet.Port = intstr.FromInt32(port)
+	case out.TCPSocket != nil:
+		out.TCPSocket.Port = intstr.FromInt32(port)
+	}
+	return out
 }
 
 // buildServiceSpec constructs a ServiceSpec from the component's ComponentServiceSpec,

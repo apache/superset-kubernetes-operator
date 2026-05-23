@@ -236,6 +236,76 @@ var _ = Describe("Integration", Ordered, func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("mutually exclusive"))
 		})
+
+		It("should reject serviceAccount.create=false without name", func() {
+			cr := newSuperset("sa-no-name", ns)
+			cr.Spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{}
+			cr.Spec.ServiceAccount = &supersetv1alpha1.ServiceAccountSpec{
+				Create: boolPtr(false),
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("serviceAccount.name is required"))
+		})
+
+		It("should accept serviceAccount.create=false with name", func() {
+			cr := newSuperset("sa-with-name", ns)
+			cr.Spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{}
+			cr.Spec.ServiceAccount = &supersetv1alpha1.ServiceAccountSpec{
+				Create: boolPtr(false),
+				Name:   "preexisting-sa",
+			}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, cr)).To(Succeed())
+		})
+
+		It("should reject service.nodePort below the valid range", func() {
+			cr := newSuperset("np-low", ns)
+			cr.Spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{
+				ScalableComponentSpec: supersetv1alpha1.ScalableComponentSpec{},
+				Service: &supersetv1alpha1.ComponentServiceSpec{
+					Type:     corev1.ServiceTypeNodePort,
+					NodePort: int32Ptr(25000),
+				},
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("nodePort"))
+		})
+
+		It("should reject service.nodePort with type=ClusterIP", func() {
+			cr := newSuperset("np-clusterip", ns)
+			cr.Spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{
+				Service: &supersetv1alpha1.ComponentServiceSpec{
+					Type:     corev1.ServiceTypeClusterIP,
+					NodePort: int32Ptr(30500),
+				},
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("nodePort"))
+		})
+
+		It("should reject websocketServer without an image override", func() {
+			cr := newSuperset("ws-no-image", ns)
+			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("websocketServer.image.repository"))
+		})
+
+		It("should accept websocketServer with an image repository override", func() {
+			cr := newSuperset("ws-with-image", ns)
+			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
+				ComponentSpec: supersetv1alpha1.ComponentSpec{
+					Image: &supersetv1alpha1.ImageOverrideSpec{
+						Repository: strPtr("example.com/superset-websocket"),
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, cr)).To(Succeed())
+		})
 	})
 
 	// --- Reconciliation Lifecycle ---

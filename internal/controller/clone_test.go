@@ -19,6 +19,7 @@ limitations under the License.
 package controller
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -143,6 +144,61 @@ func TestBuildMySQLCloneScript_ExcludeTables(t *testing.T) {
 	}
 	if !strings.Contains(script, `--ignore-table="$SUPERSET_OPERATOR__CLONE_SRC_DB"."tab_state"`) {
 		t.Errorf("expected --ignore-table for tab_state, got: %s", script)
+	}
+}
+
+func TestBuildMySQLCloneScript_ExcludeTableData(t *testing.T) {
+	mysqlType := "MySQL"
+	clone := &supersetv1alpha1.CloneTaskSpec{
+		Source: supersetv1alpha1.CloneSourceSpec{
+			Type:     &mysqlType,
+			Host:     "mysql-prod.svc",
+			Database: "superset_prod",
+			Username: "reader",
+		},
+		ExcludeTables:    []string{"tab_state"},
+		ExcludeTableData: []string{"logs", "query"},
+	}
+
+	script := buildMySQLCloneScript(clone)
+
+	// Schema-only pass for ExcludeTableData tables.
+	if !strings.Contains(script, `--no-data`) {
+		t.Errorf("expected --no-data pass for ExcludeTableData, got: %s", script)
+	}
+	if !strings.Contains(script, `"$SUPERSET_OPERATOR__CLONE_SRC_DB" "logs" "query"`) {
+		t.Errorf("expected schema-only dump to list logs and query tables, got: %s", script)
+	}
+
+	// Data pass should --ignore-table both ExcludeTables and ExcludeTableData.
+	for _, table := range []string{"tab_state", "logs", "query"} {
+		needle := `--ignore-table="$SUPERSET_OPERATOR__CLONE_SRC_DB".` + fmt.Sprintf("%q", table)
+		if !strings.Contains(script, needle) {
+			t.Errorf("expected --ignore-table for %q in data pass, got: %s", table, script)
+		}
+	}
+
+	// Combined output piped to mysql.
+	if !strings.Contains(script, `) | mysql `) {
+		t.Errorf("expected grouped passes piped into mysql, got: %s", script)
+	}
+}
+
+func TestBuildMySQLCloneScript_NoExcludeTableDataKeepsSinglePass(t *testing.T) {
+	mysqlType := "MySQL"
+	clone := &supersetv1alpha1.CloneTaskSpec{
+		Source: supersetv1alpha1.CloneSourceSpec{
+			Type:     &mysqlType,
+			Host:     "mysql-prod.svc",
+			Database: "superset_prod",
+			Username: "reader",
+		},
+	}
+
+	script := buildMySQLCloneScript(clone)
+
+	if strings.Contains(script, "--no-data") {
+		t.Errorf("did not expect --no-data pass when ExcludeTableData is empty, got: %s", script)
 	}
 }
 
