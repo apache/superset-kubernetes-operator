@@ -40,8 +40,8 @@ spec:
   secretKey: thisIsNotSecure_changeInProduction!
   metastore:
     uri: postgresql+psycopg2://superset:superset@postgres:5432/superset
-  config: |
-    FEATURE_FLAGS = {"ENABLE_TEMPLATE_PROCESSING": True}
+  featureFlags:
+    ENABLE_TEMPLATE_PROCESSING: true
   webServer: {}
   lifecycle:
     init:
@@ -64,8 +64,10 @@ spec:
     uriFrom:
       name: db-credentials
       key: connection-string
+  featureFlags:
+    DASHBOARD_RBAC: true
+    ALERT_REPORTS: true
   config: |
-    FEATURE_FLAGS = {"DASHBOARD_RBAC": True, "ALERT_REPORTS": True}
     ROW_LIMIT = 10000
   webServer: {}
 ```
@@ -301,8 +303,8 @@ The operator exposes a curated set of knobs as typed CRD fields — anything tie
 spec:
   # Base config: appended to ALL Python components
   config: |
-    FEATURE_FLAGS = {"ENABLE_TEMPLATE_PROCESSING": True}
     ROW_LIMIT = 10000
+    LOG_LEVEL = "INFO"
 
   # Component config: appended after base config for this component only
   celeryWorker:
@@ -310,7 +312,7 @@ spec:
       CELERY_ANNOTATIONS = {"tasks.add": {"rate_limit": "10/s"}}
 ```
 
-Both fields are **concatenated**, not mutually exclusive. In this example, the celery worker's `superset_config.py` contains the operator-generated configs (`SECRET_KEY`, structured DB URI if applicable), then the base config (FEATURE_FLAGS, ROW_LIMIT), then the component config (CELERY_ANNOTATIONS). The web server receives only the operator-generated configs and the base config, since it has no component-specific `config` field set.
+Both fields are **concatenated**, not mutually exclusive. In this example, the celery worker's `superset_config.py` contains the operator-generated configs (`SECRET_KEY`, structured DB URI if applicable), then the base config (`ROW_LIMIT`, `LOG_LEVEL`), then the component config (`CELERY_ANNOTATIONS`). The web server receives only the operator-generated configs and the base config, since it has no component-specific `config` field set.
 
 See [Config Rendering Pipeline](../architecture/overview.md#config-rendering-pipeline) for the full rendering order and an example of the generated output.
 

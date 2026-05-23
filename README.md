@@ -29,7 +29,7 @@ under the License.
 
 A Kubernetes operator for deploying and managing [Apache Superset](https://superset.apache.org/) on Kubernetes. Read the [documentation](https://apache.github.io/superset-kubernetes-operator/) to get started. Built with the Go-based [Operator SDK](https://sdk.operatorframework.io/).
 
-The operator is designed to make running Superset on Kubernetes as painless as possible. It works well out of the box with production-ready defaults, and every default is overridable when you need more control.
+The operator manages the full Superset lifecycle: database migrations, configuration rendering, component deployment, scaling, and networking. Defaults are tuned for typical deployments; presets, deployment-template fields, and a raw Python escape hatch let you override them where needed.
 
 ## Quick Start
 

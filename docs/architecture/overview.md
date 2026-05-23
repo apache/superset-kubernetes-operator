@@ -255,7 +255,7 @@ spec:
       name: db-credentials
       key: password
   config: |
-    FEATURE_FLAGS = {"DASHBOARD_RBAC": True}
+    ROW_LIMIT = 10000
   celeryWorker:
     config: |
       CELERY_ANNOTATIONS = {"tasks.add": {"rate_limit": "10/s"}}
@@ -268,7 +268,7 @@ The celery worker's `superset_config.py` contains all three sections:
 SQLALCHEMY_DATABASE_URI = f"postgresql+psycopg2://..."  # assembled from env vars
 
 # Base config (spec.config)
-FEATURE_FLAGS = {"DASHBOARD_RBAC": True}
+ROW_LIMIT = 10000
 
 # Component config
 CELERY_ANNOTATIONS = {"tasks.add": {"rate_limit": "10/s"}}

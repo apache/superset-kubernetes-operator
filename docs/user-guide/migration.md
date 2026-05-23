@@ -249,8 +249,8 @@ spec:
   valkey:
     host: valkey
     port: 6379
-  config: |
-    FEATURE_FLAGS = {"ALERT_REPORTS": True}
+  featureFlags:
+    ALERT_REPORTS: true
   webServer:
     replicas: 2
   celeryWorker:
