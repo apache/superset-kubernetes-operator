@@ -151,7 +151,7 @@ The main differences are deliberate:
 | `supersetCeleryBeat.enabled` | `spec.celeryBeat: {}` | Celery Beat is always a singleton. |
 | `supersetCeleryFlower.enabled` | `spec.celeryFlower: {}` | Flower gets its own Deployment and Service. |
 | `supersetCeleryFlower.service.*` | `spec.celeryFlower.service.*` | Supports service type, port, nodePort, labels, and annotations. |
-| `supersetWebsockets.enabled` | `spec.websocketServer: {}` | Use a websocket image such as `oneacrefund/superset-websocket`, or your own image. |
+| `supersetWebsockets.enabled` | `spec.websocketServer.image.{repository,tag}` | An image override is required (CEL-validated): the default Superset image does not include `websocket_server.js`. Use a community image such as `oneacrefund/superset-websocket` or your own. |
 | `supersetWebsockets.config` | Env vars or mounted config file | The operator does not render websocket `config.json`. Mount one with `podTemplate.volumes`, or configure the websocket server through env vars. |
 | `init.enabled` | `spec.lifecycle.disabled` or task-level `disabled` | Lifecycle is enabled by default. Set `lifecycle.disabled: true` to skip all tasks. |
 | `init.command`, `init.initscript` | `spec.lifecycle.migrate.command`, `spec.lifecycle.init.command` | The operator splits database migration and application initialization into separate tasks. |
