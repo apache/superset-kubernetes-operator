@@ -166,6 +166,9 @@ func TestBuildMySQLCloneScript_ExcludeTableData(t *testing.T) {
 	if !strings.Contains(script, `--no-data`) {
 		t.Errorf("expected --no-data pass for ExcludeTableData, got: %s", script)
 	}
+	if strings.Contains(script, "--skip-triggers") {
+		t.Errorf("schema-only pass must preserve triggers (mirrors Postgres --exclude-table-data which keeps schema objects), got: %s", script)
+	}
 	if !strings.Contains(script, `"$SUPERSET_OPERATOR__CLONE_SRC_DB" "logs" "query"`) {
 		t.Errorf("expected schema-only dump to list logs and query tables, got: %s", script)
 	}
