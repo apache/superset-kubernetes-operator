@@ -30999,10 +30999,10 @@ spec:
                 type: object
                 x-kubernetes-validations:
                 - message: serviceAccount.name is required when serviceAccount.create
-                    is false (otherwise pods would silently use the namespace's default
-                    ServiceAccount)
+                    is false (otherwise pods would silently use the default ServiceAccount
+                    of the namespace)
                   rule: '!has(self.create) || self.create == true || (has(self.name)
-                    && self.name != ”)'
+                    && size(self.name) > 0)'
               sqlaEngineOptions:
                 properties:
                   maxOverflow:
@@ -39167,8 +39167,8 @@ spec:
                 x-kubernetes-validations:
                 - message: 'websocketServer.image.repository is required: the default
                     Superset image does not include websocket_server.js'
-                  rule: has(self.image) && has(self.image.repository) && self.image.repository
-                    != ”
+                  rule: has(self.image) && has(self.image.repository) && size(self.image.repository)
+                    > 0
             required:
             - image
             type: object

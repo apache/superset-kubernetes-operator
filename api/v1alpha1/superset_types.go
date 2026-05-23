@@ -244,7 +244,7 @@ type CeleryFlowerComponentSpec struct {
 // WebsocketServerComponentSpec defines the websocket server component on the parent CRD.
 // The websocket server is a Node.js app — the default Superset image does not contain
 // websocket_server.js, so an image override is required.
-// +kubebuilder:validation:XValidation:rule="has(self.image) && has(self.image.repository) && self.image.repository != ”",message="websocketServer.image.repository is required: the default Superset image does not include websocket_server.js"
+// +kubebuilder:validation:XValidation:rule="has(self.image) && has(self.image.repository) && size(self.image.repository) > 0",message="websocketServer.image.repository is required: the default Superset image does not include websocket_server.js"
 type WebsocketServerComponentSpec struct {
 	ScalableComponentSpec `json:",inline"`
 	ComponentSpec         `json:",inline"`
@@ -693,7 +693,7 @@ type NetworkPolicySpec struct {
 // --- ServiceAccount ---
 
 // ServiceAccountSpec defines ServiceAccount configuration.
-// +kubebuilder:validation:XValidation:rule="!has(self.create) || self.create == true || (has(self.name) && self.name != ”)",message="serviceAccount.name is required when serviceAccount.create is false (otherwise pods would silently use the namespace's default ServiceAccount)"
+// +kubebuilder:validation:XValidation:rule="!has(self.create) || self.create == true || (has(self.name) && size(self.name) > 0)",message="serviceAccount.name is required when serviceAccount.create is false (otherwise pods would silently use the default ServiceAccount of the namespace)"
 type ServiceAccountSpec struct {
 	// When true (default), the operator creates a ServiceAccount. When false, it references an existing one.
 	// +optional
