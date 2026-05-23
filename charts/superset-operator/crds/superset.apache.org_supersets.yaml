@@ -31002,7 +31002,7 @@ spec:
                     is false (otherwise pods would silently use the namespace's default
                     ServiceAccount)
                   rule: '!has(self.create) || self.create == true || (has(self.name)
-                    && self.name != '''')'
+                    && self.name != ”)'
               sqlaEngineOptions:
                 properties:
                   maxOverflow:
@@ -39168,7 +39168,7 @@ spec:
                 - message: 'websocketServer.image.repository is required: the default
                     Superset image does not include websocket_server.js'
                   rule: has(self.image) && has(self.image.repository) && self.image.repository
-                    != ''
+                    != ”
             required:
             - image
             type: object
