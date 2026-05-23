@@ -129,7 +129,7 @@ subjects:
     namespace: monitoring
 ```
 
-**TLS — out of the box.** The operator generates a self-signed certificate at
+**TLS by default.** The operator generates a self-signed certificate at
 startup, so scrapers connect over HTTPS with `insecureSkipVerify: true`. This
 is the default in both the Kustomize ServiceMonitor (`config/prometheus/monitor.yaml`)
 and the Helm chart. It's fine for a trusted cluster but not for

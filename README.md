@@ -60,7 +60,7 @@ spec:
   webServer: {}
 ```
 
-> **Note**: The example above uses `environment: Development` for simplicity. In production (the default), use `secretKeyFrom` and `metastore.uriFrom` to reference Kubernetes Secrets. See the [User Guide](https://apache.github.io/superset-kubernetes-operator/user-guide/configuration/) and the [sample manifests](config/samples/) for production-ready examples.
+> **Note**: The example above uses `environment: Development` for simplicity. In production (the default), use `secretKeyFrom` and `metastore.uriFrom` to reference Kubernetes Secrets. See the [User Guide](https://apache.github.io/superset-kubernetes-operator/user-guide/configuration/) and the [sample manifests](config/samples/) for production examples.
 
 ## Development
 

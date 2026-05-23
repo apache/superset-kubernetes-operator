@@ -361,7 +361,7 @@ drain, the parent:
 > tunnel to a specific pod, not through the Service selector. When that pod is
 > deleted during drain, the tunnel breaks with a "lost connection to pod" error.
 > This does not affect Ingress/Gateway users — they route through EndpointSlices
-> and see seamless transitions. Restart port-forward to reconnect to the
+> and are unaffected. Restart port-forward to reconnect to the
 > maintenance pod.
 
 ### Alternatives Considered
