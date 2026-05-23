@@ -73,7 +73,10 @@ The main differences are deliberate:
      celeryWorker: {}
      celeryBeat: {}
      celeryFlower: {}
-     websocketServer: {}
+     websocketServer:
+       image:
+         repository: oneacrefund/superset-websocket   # or your own image
+         tag: latest
    ```
 
 6. Decide how the first operator reconciliation should handle lifecycle tasks.

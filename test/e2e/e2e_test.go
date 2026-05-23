@@ -386,7 +386,10 @@ spec:
       CELERY_ANNOTATIONS = {}
   celeryBeat: {}
   celeryFlower: {}
-  websocketServer: {}
+  websocketServer:
+    image:
+      repository: oneacrefund/superset-websocket
+      tag: latest
   mcpServer: {}
   lifecycle:
     disabled: true
