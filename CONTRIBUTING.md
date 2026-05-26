@@ -20,8 +20,10 @@ under the License.
 # Contributing to the Apache Superset Kubernetes Operator
 
 Thank you for your interest in contributing! Please see the
-[Developer Guide](docs/developer-guide.md) for instructions on setting up
-your development environment, running tests, and submitting changes.
+[Development Setup guide](docs/contributing/development-setup.md) and the
+[Development Guidelines](docs/contributing/development-guidelines.md) for
+instructions on setting up your development environment, running tests, and
+submitting changes.
 
 ## Code of Conduct
 

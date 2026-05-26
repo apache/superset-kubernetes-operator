@@ -132,6 +132,10 @@ docs-api: crd-ref-docs ## Generate API reference documentation from Go types.
 supported-versions: ## Regenerate the supported-Kubernetes-versions table in README.md and docs.
 	./scripts/render-supported-versions.sh
 
+.PHONY: make-commands
+make-commands: ## Regenerate the make-commands tables in README.md and the contributing docs.
+	./scripts/render-make-commands.sh
+
 .PHONY: sync-supported-versions
 sync-supported-versions: ## Sync .github/supported-k8s.json with the pinned kind release's node images.
 	./scripts/sync-supported-versions.sh --write
@@ -167,7 +171,7 @@ helm-lint: helm-sync-crds ## Lint the Helm chart (syncs CRDs first).
 ##@ Development
 
 .PHONY: codegen
-codegen: manifests generate helm-sync-crds docs-api supported-versions ## Regenerate all generated artifacts (CRDs, DeepCopy, Helm CRDs, API docs, supported-versions table).
+codegen: manifests generate helm-sync-crds docs-api supported-versions make-commands ## Regenerate all generated artifacts (CRDs, DeepCopy, Helm CRDs, API docs, supported-versions table, make-commands tables).
 
 .PHONY: clean
 clean: ## Remove build artifacts, downloaded tools, and test cache.
