@@ -132,11 +132,18 @@ docs-api: crd-ref-docs ## Generate API reference documentation from Go types.
 supported-versions: ## Regenerate the supported-Kubernetes-versions table in README.md and docs.
 	./scripts/render-supported-versions.sh
 
+.PHONY: sync-supported-versions
+sync-supported-versions: ## Sync .github/supported-k8s.json with the pinned kind release's node images.
+	./scripts/sync-supported-versions.sh --write
+	$(MAKE) supported-versions
+
 .PHONY: verify-supported-versions
-verify-supported-versions: supported-versions ## Verify the supported-versions table is up to date.
-	@if [ -n "$$(git status --porcelain README.md docs/user-guide/installation.md)" ]; then \
+verify-supported-versions: ## Verify supported-k8s.json matches the pinned kind release and docs are up to date.
+	./scripts/sync-supported-versions.sh --check
+	$(MAKE) supported-versions
+	@if [ -n "$$(git status --porcelain README.md docs/index.md docs/user-guide/installation.md)" ]; then \
 		echo "Supported-versions table is stale. Run 'make supported-versions' and commit."; \
-		git diff README.md docs/user-guide/installation.md; \
+		git diff README.md docs/index.md docs/user-guide/installation.md; \
 		exit 1; \
 	fi
 
