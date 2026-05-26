@@ -47,3 +47,4 @@
 .*rat-results\.txt
 .*Dockerfile\.cross
 .*codecov\.yml
+.*supported-k8s\.json

@@ -60,6 +60,7 @@ github:
           - Build
           - Lint
           - Verify codegen
+          - Verify supported-versions table
           - Docker build
           - Helm lint
           - Unit & Integration

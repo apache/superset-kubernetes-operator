@@ -128,6 +128,18 @@ docs-api: crd-ref-docs ## Generate API reference documentation from Go types.
 	$(CRD_REF_DOCS) --source-path=api/v1alpha1 --config=hack/api-ref-config.yaml --renderer=markdown --max-depth=15 --output-path=docs/reference/api-reference.md
 	sed -f hack/fix-api-ref-links.sed docs/reference/api-reference.md > docs/reference/api-reference.md.tmp && mv docs/reference/api-reference.md.tmp docs/reference/api-reference.md
 
+.PHONY: supported-versions
+supported-versions: ## Regenerate the supported-Kubernetes-versions table in README.md and docs.
+	./scripts/render-supported-versions.sh
+
+.PHONY: verify-supported-versions
+verify-supported-versions: supported-versions ## Verify the supported-versions table is up to date.
+	@if [ -n "$$(git status --porcelain README.md docs/user-guide/installation.md)" ]; then \
+		echo "Supported-versions table is stale. Run 'make supported-versions' and commit."; \
+		git diff README.md docs/user-guide/installation.md; \
+		exit 1; \
+	fi
+
 ##@ Helm
 
 HELM_CHART_DIR ?= charts/superset-operator
@@ -148,7 +160,7 @@ helm-lint: helm-sync-crds ## Lint the Helm chart (syncs CRDs first).
 ##@ Development
 
 .PHONY: codegen
-codegen: manifests generate helm-sync-crds docs-api ## Regenerate all generated artifacts (CRDs, DeepCopy, Helm CRDs, API docs).
+codegen: manifests generate helm-sync-crds docs-api supported-versions ## Regenerate all generated artifacts (CRDs, DeepCopy, Helm CRDs, API docs, supported-versions table).
 
 .PHONY: clean
 clean: ## Remove build artifacts, downloaded tools, and test cache.
@@ -188,7 +200,8 @@ test-integration: manifests generate fmt vet setup-envtest ## Run integration te
 # CertManager is installed by default; skip with:
 # - CERT_MANAGER_INSTALL_SKIP=true
 KIND_CLUSTER ?= superset-kubernetes-operator-test-e2e
-KIND_NODE_IMAGE ?= kindest/node:v1.35.1
+# Keep in sync with the first entry of .github/supported-k8s.json (Renovate manages the digest).
+KIND_NODE_IMAGE ?= kindest/node:v1.35.0@sha256:452d707d4862f52530247495d180205e029056831160e22870e37e3f6c1ac31f
 
 .PHONY: setup-test-e2e
 setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
