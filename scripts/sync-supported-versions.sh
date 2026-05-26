@@ -15,11 +15,13 @@
 # limitations under the License.
 #
 # Sync .github/supported-k8s.json with the kindest/node images published
-# by the currently pinned kind release (read from .github/workflows/test.yaml).
+# by the currently pinned kind release (read from .github/workflows/test.yaml),
+# and compute `next` from upstream Kubernetes releases:
 #
-# Picks the two newest Kubernetes minors that the pinned kind release ships
-# node images for, taking the highest patch per minor, and updates the
-# `supported` array. Auto-nulls `next` if its minor is now covered by kind.
+#   - `supported` = the two newest Kubernetes minors that the pinned kind
+#     release ships node images for (highest patch per minor).
+#   - `next`      = {minor, version} of the newest stable Kubernetes release if
+#                   its minor isn't already in `supported`; otherwise null.
 #
 # Usage:
 #   sync-supported-versions.sh [--check|--write]
@@ -68,13 +70,24 @@ top2="$(printf '%s\n' "${body}" \
 new_supported="$(printf '%s\n' "${top2}" \
   | jq -R -s 'split("\n") | map(select(length>0)) | map(split(" ") | {minor: .[0], node_image: .[1]})')"
 
+# Determine the newest stable Kubernetes release (skip prereleases/RCs).
+k8s_api='https://api.github.com/repos/kubernetes/kubernetes/releases?per_page=30'
+newest_k8s="$(curl -fsSL ${auth[@]+"${auth[@]}"} -H 'Accept: application/vnd.github+json' "${k8s_api}" \
+  | jq -r '[.[] | select(.prerelease == false) | .tag_name | select(test("^v[0-9]+\\.[0-9]+\\.[0-9]+$"))][0] // empty')"
+[ -n "${newest_k8s}" ] || { echo "could not determine newest Kubernetes release" >&2; exit 1; }
+newest_k8s_minor="$(printf '%s' "${newest_k8s}" | sed -E 's|^v([0-9]+\.[0-9]+).*|\1|')"
+
 new_json="$(
-  jq --argjson sup "${new_supported}" '
+  jq --argjson sup "${new_supported}" \
+     --arg     k8sMinor "${newest_k8s_minor}" \
+     --arg     k8sVersion "${newest_k8s}" '
+    def to_v: split(".") | map(tonumber);
     (.supported = $sup)
-    | (.next.minor // null) as $nextMinor
-    | if $nextMinor != null and ([.supported[].minor] | index($nextMinor)) != null
-        then .next = null
-        else .
+    | ([.supported[].minor | to_v] | max) as $topSupported
+    | ($k8sMinor | to_v) as $k8s
+    | if $k8s > $topSupported
+        then .next = {minor: $k8sMinor, version: $k8sVersion}
+        else .next = null
       end
   ' "${SOURCE}"
 )"

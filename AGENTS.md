@@ -137,6 +137,21 @@ All components use the reserved container name `superset` for the main container
 
 Superset CR names are validated via CEL to be valid DNS labels (lowercase alphanumeric and hyphens, `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`, max 63 characters). DNS-label syntax is required because the operator derives Service names from the parent name + component suffix. Per-component CEL rules enforce that the parent name is short enough for each enabled component's suffix to fit within the 63-char Service name limit (e.g., `-websocket-server` = 17 chars limits parent to 46).
 
+## Automation Principle
+
+When committed state must stay in sync with something external (upstream releases, generated docs, tables derived from a source of truth), prefer **building a CI-enforced sync mechanism** over documenting a manual checklist. Manual steps rot; CI failures don't.
+
+Concrete patterns to mirror:
+
+- **One source of truth, generated outputs.** Keep canonical data in a single small file (`.github/supported-k8s.json`, Go type definitions, etc.) and derive everything else — docs tables, CI matrices, defaults — from it.
+- **`make codegen` aggregates all generators.** Anything regenerable goes through it. CI's `Verify codegen` job runs `make codegen` and fails on diff.
+- **Upstream drift checks.** When the source-of-truth file itself must track something external (a pinned dependency's release notes, the latest upstream minor), write a `make sync-<thing>` script that queries the upstream API and rewrites the file, plus a `make verify-<thing>` that runs it in `--check` mode in CI. See `scripts/sync-supported-versions.sh` for the canonical example.
+- **Scheduled auto-sync PRs.** Pair the sync script with a daily scheduled GitHub Actions job that runs it and opens a PR if anything changed. Removes the "every open PR breaks until someone syncs" failure mode when upstream ticks.
+- **Renovate for pinned versions.** Use `customManagers` for non-standard pin sites (regex-matched JSON/YAML fields). Use `prBodyNotes` + `addLabels` to steer the reviewer toward the right follow-up command on PRs that require manual judgment.
+- **Sentinel-bounded generated blocks** in human-edited files (`<!-- BEGIN X -->` / `<!-- END X -->`) so generators can rewrite specific regions without disturbing surrounding hand-written content.
+
+The bar: every new "remember to also update X when Y changes" instruction is a bug in the tooling. Fix the tooling instead.
+
 ## PR Conventions
 
 - **Title format**: `type(scope): description` or `type: description` — enforced by CI (`amannn/action-semantic-pull-request`). Scope is optional but encouraged.

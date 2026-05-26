@@ -18,7 +18,7 @@
       "matchPackageNames": ["kubernetes-sigs/kind"],
       "addLabels": ["review:supported-k8s"],
       "prBodyNotes": [
-        ":warning: After bumping kind, run `make sync-supported-versions && make codegen` and commit the result to update `.github/supported-k8s.json` (and the generated docs) to match the new kind release's node images. The `Verify supported-versions table` CI check will fail until this is done. Review `next` by hand if a newer Kubernetes minor has shipped that this kind release doesn't yet cover."
+        ":warning: After bumping kind, run `make sync-supported-versions && make codegen` and commit the result to update `.github/supported-k8s.json` (and the generated docs). The script recomputes both `supported` (newest two kind-published minors) and `next` (newest Kubernetes release not yet covered by kind). The `Verify supported-versions table` CI check will fail until this is done."
       ]
     }
   ],
