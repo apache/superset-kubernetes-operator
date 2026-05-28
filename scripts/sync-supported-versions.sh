@@ -23,6 +23,11 @@
 #   - `next`      = {minor, version} of the newest stable Kubernetes release if
 #                   its minor isn't already in `supported`; otherwise null.
 #
+# The kind GitHub release notes are the sole source of truth for node-image
+# digests. Docker Hub re-pushes of the `kindest/node:vX.Y.Z` tag are
+# intentionally ignored: a new digest there does not represent a kind release,
+# and tracking it would conflict with this script.
+#
 # Usage:
 #   sync-supported-versions.sh [--check|--write]
 #

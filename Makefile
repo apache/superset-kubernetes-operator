@@ -211,8 +211,9 @@ test-integration: manifests generate fmt vet setup-envtest ## Run integration te
 # CertManager is installed by default; skip with:
 # - CERT_MANAGER_INSTALL_SKIP=true
 KIND_CLUSTER ?= superset-kubernetes-operator-test-e2e
-# Keep in sync with the first entry of .github/supported-k8s.json (Renovate manages the digest).
-KIND_NODE_IMAGE ?= kindest/node:v1.35.0@sha256:452d707d4862f52530247495d180205e029056831160e22870e37e3f6c1ac31f
+# Derived from .github/supported-k8s.json (the canonical kindest/node pin,
+# regenerated from the kind release notes by `make sync-supported-versions`).
+KIND_NODE_IMAGE ?= $(shell jq -r '.supported[0].node_image' .github/supported-k8s.json)
 
 .PHONY: setup-test-e2e
 setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist

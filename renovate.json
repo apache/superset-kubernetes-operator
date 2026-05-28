@@ -25,15 +25,6 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Track kindest/node image digests in .github/supported-k8s.json",
-      "managerFilePatterns": ["/^\\.github/supported-k8s\\.json$/"],
-      "matchStrings": [
-        "\"node_image\":\\s*\"(?<depName>kindest/node):(?<currentValue>[^@\"]+)@(?<currentDigest>sha256:[a-f0-9]+)\""
-      ],
-      "datasourceTemplate": "docker"
-    },
-    {
-      "customType": "regex",
       "description": "Track sigs.k8s.io/kind release pin and matching sha256 in workflows",
       "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/"],
       "matchStrings": [
