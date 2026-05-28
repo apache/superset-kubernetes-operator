@@ -1264,7 +1264,6 @@ _Appears in:_
 | `host` _string_ | Valkey server hostname. |  |  |
 | `port` _integer_ | Valkey server port. | 6379 | Optional: \{\} <br /> |
 | `username` _string_ | Valkey username. Useful for Redis ACL or managed Redis-compatible services. |  | Optional: \{\} <br /> |
-| `usernameFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the Valkey username.<br />Mutually exclusive with username. |  | Optional: \{\} <br /> |
 | `password` _string_ | Plain text password. Only allowed in Development mode — use passwordFrom in Staging or Production. |  | Optional: \{\} <br /> |
 | `passwordFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the Valkey password.<br />Mutually exclusive with password. |  | Optional: \{\} <br /> |
 | `ssl` _[ValkeySSLSpec](#valkeysslspec)_ | SSL/TLS configuration. When set, enables SSL for the Valkey connection. |  | Optional: \{\} <br /> |

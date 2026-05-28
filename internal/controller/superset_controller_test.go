@@ -287,21 +287,6 @@ var _ = Describe("Integration", Ordered, func() {
 			Expect(err.Error()).To(ContainSubstring("nodePort"))
 		})
 
-		It("should reject valkey username and usernameFrom together", func() {
-			cr := newSuperset("vk-user-both", ns)
-			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
-				Host:     "valkey",
-				Username: strPtr("acl-user"),
-				UsernameFrom: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{Name: "valkey-secret"},
-					Key:                  "username",
-				},
-			}
-			err := k8sClient.Create(ctx, cr)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("username and usernameFrom"))
-		})
-
 		It("should reject websocketServer without an image override", func() {
 			cr := newSuperset("ws-no-image", ns)
 			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}

@@ -157,8 +157,8 @@ Key rules:
 - **Staging clone boundary:** `lifecycle.clone` is allowed only in Development
   or Staging because it performs a destructive target database drop
 - **Mutual exclusivity:** `secretKey`/`secretKeyFrom`, metastore URI vs
-  structured fields, Valkey username/password inline vs Secret references,
-  websocket `config`/`configFrom`, gateway vs ingress
+  structured fields, Valkey password inline vs Secret reference, websocket
+  `config`/`configFrom`, gateway vs ingress
 - **Networking requires webServer:** Routes target the web server service
 - **Monitoring requires webServer:** ServiceMonitor scrapes the web server service
 - **Defaulting:** `environment` defaults to `Production`, image repository and pull

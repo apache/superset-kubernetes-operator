@@ -164,7 +164,6 @@ type MetastoreSpec struct {
 // ValkeySpec configures Valkey as the shared cache backend, Celery message
 // broker, and SQL Lab results backend for Superset. When set, all sections
 // are enabled with sensible defaults — only host is required.
-// +kubebuilder:validation:XValidation:rule="!(has(self.username) && has(self.usernameFrom))",message="username and usernameFrom are mutually exclusive"
 // +kubebuilder:validation:XValidation:rule="!(has(self.password) && has(self.passwordFrom))",message="password and passwordFrom are mutually exclusive"
 type ValkeySpec struct {
 	// Valkey server hostname.
@@ -178,11 +177,6 @@ type ValkeySpec struct {
 	// Valkey username. Useful for Redis ACL or managed Redis-compatible services.
 	// +optional
 	Username *string `json:"username,omitempty"`
-
-	// Reference to a Secret key containing the Valkey username.
-	// Mutually exclusive with username.
-	// +optional
-	UsernameFrom *corev1.SecretKeySelector `json:"usernameFrom,omitempty"`
 
 	// Plain text password. Only allowed in Development mode — use passwordFrom in Staging or Production.
 	// +optional

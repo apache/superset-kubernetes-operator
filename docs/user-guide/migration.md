@@ -134,7 +134,7 @@ The main differences are deliberate:
 | Helm chart value | Operator equivalent | Notes |
 |---|---|---|
 | `supersetNode.connections.db_*` | `spec.metastore` | Use `uriFrom` for an exact SQLAlchemy URI, or structured `host`, `database`, `username`, and `passwordFrom`. |
-| `supersetNode.connections.redis_*` | `spec.valkey` | `valkey` works with Redis-compatible services and renders cache, Celery broker/backend, and SQL Lab results backend config. `redis_user` maps to `username` or `usernameFrom`. |
+| `supersetNode.connections.redis_*` | `spec.valkey` | `valkey` works with Redis-compatible services and renders cache, Celery broker/backend, and SQL Lab results backend config. `redis_user` maps to `username`. |
 | `supersetNode.connections.redis_ssl` | `spec.valkey.ssl` | Mount client certs or CA bundles with `podTemplate.volumes` if needed. Helm `CERT_NONE` maps to `certRequired: none`. |
 | `postgresql.*` | Not managed by this operator | Use a managed database, CloudNativePG, another PostgreSQL operator, or keep an existing PostgreSQL instance. |
 | `redis.*` | Not managed by this operator | Use a managed Redis/Valkey service, Redis/Valkey operator, or separate Helm chart. |

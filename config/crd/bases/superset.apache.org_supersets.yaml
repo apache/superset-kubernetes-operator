@@ -31178,25 +31178,10 @@ spec:
                     type: object
                   username:
                     type: string
-                  usernameFrom:
-                    properties:
-                      key:
-                        type: string
-                      name:
-                        default: ""
-                        type: string
-                      optional:
-                        type: boolean
-                    required:
-                    - key
-                    type: object
-                    x-kubernetes-map-type: atomic
                 required:
                 - host
                 type: object
                 x-kubernetes-validations:
-                - message: username and usernameFrom are mutually exclusive
-                  rule: '!(has(self.username) && has(self.usernameFrom))'
                 - message: password and passwordFrom are mutually exclusive
                   rule: '!(has(self.password) && has(self.passwordFrom))'
               webServer:

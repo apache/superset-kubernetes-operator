@@ -2157,11 +2157,6 @@ func (in *ValkeySpec) DeepCopyInto(out *ValkeySpec) {
 		*out = new(string)
 		**out = **in
 	}
-	if in.UsernameFrom != nil {
-		in, out := &in.UsernameFrom, &out.UsernameFrom
-		*out = new(v1.SecretKeySelector)
-		(*in).DeepCopyInto(*out)
-	}
 	if in.Password != nil {
 		in, out := &in.Password, &out.Password
 		*out = new(string)
