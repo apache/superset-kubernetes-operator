@@ -27,7 +27,7 @@ permissions:
 env:
   # kind version + checksum are bumped in lockstep by Renovate (see renovate.json).
   KIND_VERSION: v0.31.0
-  KIND_CHECKSUM: eb244cbafcc157dff60cf68693c14c9a75c4e6e6fedaf9cd71c58117cb93e3fa
+  KIND_CHECKSUM: a323333ff9efd8099f95a8a6b5c86c75a210d00f
 
 jobs:
   unit-integration:
