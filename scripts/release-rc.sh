@@ -37,6 +37,14 @@ die()  { echo -e "${RED}error:${RESET} $*" >&2; exit 1; }
 info() { echo -e "${GREEN}==>${RESET} $*"; }
 warn() { echo -e "${YELLOW}warning:${RESET} $*"; }
 
+# Cross-platform in-place sed. BSD sed (macOS) requires `-i ''`; GNU sed (Linux)
+# rejects an empty string after `-i`. Detect once and dispatch.
+if sed --version >/dev/null 2>&1; then
+  sed_inplace() { sed -i "$@"; }
+else
+  sed_inplace() { sed -i '' "$@"; }
+fi
+
 # --- parse args ---
 VERSION=""
 CHART_VERSION=""
@@ -96,23 +104,35 @@ info "Preparing ${TAG}"
 CURRENT_VERSION=$(grep -E '^VERSION \?=' Makefile | head -1 | awk '{print $3}')
 if [[ "$CURRENT_VERSION" != "$VERSION" ]]; then
   info "Updating Makefile VERSION: ${CURRENT_VERSION} → ${VERSION}"
-  sed -i '' "s/^VERSION ?= .*/VERSION ?= ${VERSION}/" Makefile
+  sed_inplace "s/^VERSION ?= .*/VERSION ?= ${VERSION}/" Makefile
 else
   info "Makefile VERSION already set to ${VERSION}"
 fi
 
-# --- optionally bump chart version ---
-if [[ -n "$CHART_VERSION" ]]; then
-  info "Updating Chart.yaml version: → ${CHART_VERSION}"
-  sed -i '' "s/^version: .*/version: ${CHART_VERSION}/" charts/superset-operator/Chart.yaml
+# --- bump chart version ---
+# Default to the operator version when not explicitly overridden, so the source
+# release archive does not capture a stale "0.0.0-dev" Chart.yaml.
+: "${CHART_VERSION:=${VERSION}}"
+CURRENT_CHART_VERSION=$(grep -E '^version:' charts/superset-operator/Chart.yaml | head -1 | awk '{print $2}')
+if [[ "$CURRENT_CHART_VERSION" != "$CHART_VERSION" ]]; then
+  info "Updating Chart.yaml version: ${CURRENT_CHART_VERSION} → ${CHART_VERSION}"
+  sed_inplace "s/^version: .*/version: ${CHART_VERSION}/" charts/superset-operator/Chart.yaml
+else
+  info "Chart.yaml version already set to ${CHART_VERSION}"
 fi
 
-# --- regenerate manifests ---
-info "Regenerating manifests and code"
-make manifests generate
+# --- regenerate generated artifacts ---
+info "Regenerating generated artifacts (manifests, deepcopy, helm CRDs, API docs, supported-versions, make-commands)"
+make codegen
 
 # --- run checks ---
-info "Running tests"
+info "Verifying Apache license headers"
+make check-license
+
+info "Running golangci-lint"
+make lint
+
+info "Running unit and integration tests"
 make test-unit test-integration
 
 info "Linting Helm chart"

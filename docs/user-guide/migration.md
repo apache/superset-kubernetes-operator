@@ -23,6 +23,12 @@ This guide helps translate a deployment from the official Apache Superset Helm
 chart to a `Superset` custom resource. It focuses on feature parity and on the
 places where the operator intentionally uses a different model.
 
+> **Comparison target:** This guide is written against the upstream
+> [`apache/superset` Helm chart](https://github.com/apache/superset/tree/master/helm/superset)
+> at chart version `0.15.5` / `appVersion: 5.0.0`. Older Helm releases share
+> the same field names, but a few values (notably `featureFlags` and
+> `supersetWebsockets`) only exist in recent chart versions.
+
 The operator covers the chart's core application features: web server, Celery
 workers, Celery Beat, Celery Flower, websocket server, database migration,
 application initialization, Python configuration, env vars, services, ingress,
@@ -40,7 +46,9 @@ The main differences are deliberate:
   Helm hook Job. This gives the operator status, retries, upgrade gating, and
   maintenance-page support.
 - Gateway API is the preferred way to route multiple Superset services. The
-  built-in Ingress reconciler targets the web server service only.
+  built-in Ingress reconciler targets the web server service only — see
+  [Known Parity Gaps](#known-parity-gaps) for the implications when the
+  Helm chart's websocket Ingress path was in use.
 
 ## Migration Workflow
 
@@ -108,11 +116,11 @@ The main differences are deliberate:
 |---|---|---|
 | `nameOverride`, `fullnameOverride` | `metadata.name` | The operator derives workload names from the CR name. Generated names are not independently overridden. |
 | `extraLabels` | Resource-specific labels | Use `podTemplate.labels`, component `service.labels`, `networking.ingress.labels`, or `networking.gateway.labels`. There is no single global label field for every generated object. |
-| `image.repository`, `image.tag`, `image.pullPolicy` | `spec.image.repository`, `spec.image.tag`, `spec.image.pullPolicy` | Per-component image overrides are available under each component's `image` field. |
+| `image.repository`, `image.tag`, `image.pullPolicy` | `spec.image.repository`, `spec.image.tag`, `spec.image.pullPolicy` | Per-component image overrides — including `pullPolicy` — are available under each component's `image` field; unset fields inherit from `spec.image`. |
 | `imagePullSecrets` | `spec.image.pullSecrets` | Applied to all component pods. |
 | `runAsUser` | `spec.podTemplate.podSecurityContext.runAsUser` | Prefer a full pod or container security context for production hardening. |
-| `serviceAccountName`, `serviceAccount.create`, `serviceAccount.annotations` | `spec.serviceAccount.name`, `spec.serviceAccount.create`, `spec.serviceAccount.annotations` | The operator can create or reference a ServiceAccount. |
-| `bootstrapScript` | Custom image, init container, or command override | The operator does not generate a bootstrap script. Build dependencies into the image when possible. |
+| `serviceAccountName`, `serviceAccount.create`, `serviceAccount.annotations` | `spec.serviceAccount.name`, `spec.serviceAccount.create`, `spec.serviceAccount.annotations` | The operator can create or reference a ServiceAccount. With `create: false` you must set `name` to an existing ServiceAccount in the namespace; the operator does not silently fall back to `default`. |
+| `bootstrapScript` | Custom image, `podTemplate.initContainers`, or component `command` override | The operator does not render an arbitrary script into a ConfigMap and execute it. Bake extra Python dependencies into a custom image, or run an init container that prepares a shared volume. |
 | `forceReload` on chart components | `spec.forceReload` | Operator `forceReload` is global. For component-only restarts, change a component pod annotation. |
 
 ### Secrets, Env Vars, and Config Files
@@ -177,6 +185,8 @@ default DB and key prefix. To preserve Helm-like sharing, set the relevant
 | Component `podSecurityContext`, `containerSecurityContext` | Component `podTemplate.podSecurityContext`, `podTemplate.container.securityContext` | Can also be set top-level. |
 | Component `extraContainers` | Component `podTemplate.sidecars` | Sidecars merge by container name. |
 | Component `initContainers` | Component `podTemplate.initContainers` | Init containers merge by container name. |
+| Default `wait-for-postgres` / `wait-for-postgres-redis` initContainers | Component `podTemplate.initContainers` | The chart injects `dockerize` initContainers that wait for the metastore and Redis before each component starts. The operator does not inject these because the metastore lifecycle and `migrate` task gate component startup independently. If you rely on this behavior — for example, on environments where the database may briefly be unavailable — re-add the same `dockerize` init container under `spec.podTemplate.initContainers`. |
+| `automountServiceAccountToken` | Not surfaced on `podTemplate` | The operator inherits the Kubernetes default (`true`). If your policy disables SA token auto-mount, configure it on the referenced ServiceAccount via `spec.serviceAccount.create: false` plus `spec.serviceAccount.name` pointing at a ServiceAccount you manage. |
 
 ### Services and Networking
 
@@ -234,6 +244,43 @@ spec:
 | `supersetWorker.autoscaling.*` | `spec.celeryWorker.autoscaling` | Same HPA model as web server. |
 | Component `podDisruptionBudget.*` | Component `podDisruptionBudget` | Supported for web server, Celery worker, Flower, websocket server, and MCP server. |
 | `supersetCeleryBeat.podDisruptionBudget.*` | No direct equivalent | Celery Beat is a singleton in the operator and currently has no PDB field. |
+
+## Known Parity Gaps
+
+The operator covers the chart's commonly used features. The items below have
+no direct equivalent today; each lists the recommended workaround:
+
+- **Built-in Ingress for the websocket service.** The Helm chart's
+  `supersetWebsockets.ingress` injects a `/ws` rule into the same Ingress as
+  the web server. The operator's `spec.networking.ingress` reconciler targets
+  the web server service only. On clusters with Gateway API, use
+  `spec.networking.gateway` — the operator routes web, websocket, Flower, and
+  MCP backends from a single `HTTPRoute`. On clusters without Gateway API,
+  create a separate Ingress that points at the
+  `<supersetName>-websocket-server` Service. See
+  [Websocket Routing](#websocket-routing) for an example.
+- **Celery Beat PDB.** The chart exposes `supersetCeleryBeat.podDisruptionBudget`.
+  The operator pins Beat to a single replica and does not surface a PDB field;
+  a PDB on a 1-replica workload is advisory only. If Beat downtime during
+  voluntary disruptions is unacceptable, use `priorityClassName` and node
+  affinity to influence scheduling instead.
+- **Deployment-level `labels` and `annotations`.** The chart exposes
+  `deploymentLabels` and `deploymentAnnotations` per component. The operator
+  surfaces pod, service, and route metadata, but not Deployment-object
+  metadata. If you need Deployment annotations (for example, to drive a
+  third-party controller), apply them with a cluster policy mutator
+  (Kyverno/OPA) or `kubectl annotate` until the operator grows a
+  `deploymentTemplate.labels`/`annotations` field.
+- **`automountServiceAccountToken`.** Not surfaced on `podTemplate`; configure
+  on a managed ServiceAccount instead (see the row in
+  [Pod and Deployment Customization](#pod-and-deployment-customization)).
+- **`bootstrapScript`.** No managed equivalent; use a custom image or an init
+  container (see the row in [Global Settings](#global-settings)).
+- **Bundled PostgreSQL and Redis subcharts.** Intentional — the operator does
+  not provision external dependencies. Use a managed database service,
+  CloudNativePG, or a Redis/Valkey operator.
+- **`loadBalancerIP`.** Intentional — the Kubernetes field is deprecated. Use
+  cloud-provider Service annotations to influence load-balancer placement.
 
 ## Example Translation
 

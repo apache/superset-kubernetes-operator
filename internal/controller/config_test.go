@@ -383,6 +383,37 @@ func TestFlatSpecFromResolution_ImageOverride(t *testing.T) {
 			t.Errorf("expected parent repository preserved, got %s", result.Image.Repository)
 		}
 	})
+
+	t.Run("pull policy override", func(t *testing.T) {
+		imageWithPolicy := &supersetv1alpha1.ImageSpec{
+			Repository: "apache/superset",
+			Tag:        "4.0.0",
+			PullPolicy: corev1.PullIfNotPresent,
+		}
+		always := corev1.PullAlways
+		override := &supersetv1alpha1.ImageOverrideSpec{PullPolicy: &always}
+		result := flatSpecFromResolution(flat, imageWithPolicy, override, "")
+		if result.Image.PullPolicy != corev1.PullAlways {
+			t.Errorf("expected component override PullAlways, got %s", result.Image.PullPolicy)
+		}
+		// Repository and Tag should still inherit from parent.
+		if result.Image.Repository != "apache/superset" || result.Image.Tag != "4.0.0" {
+			t.Errorf("expected parent repo/tag preserved, got %s:%s", result.Image.Repository, result.Image.Tag)
+		}
+	})
+
+	t.Run("pull policy inherits when override unset", func(t *testing.T) {
+		imageWithPolicy := &supersetv1alpha1.ImageSpec{
+			Repository: "apache/superset",
+			Tag:        "4.0.0",
+			PullPolicy: corev1.PullIfNotPresent,
+		}
+		override := &supersetv1alpha1.ImageOverrideSpec{Tag: common.Ptr("custom-tag")}
+		result := flatSpecFromResolution(flat, imageWithPolicy, override, "")
+		if result.Image.PullPolicy != corev1.PullIfNotPresent {
+			t.Errorf("expected parent PullIfNotPresent preserved, got %s", result.Image.PullPolicy)
+		}
+	})
 }
 
 func TestCollectSecretEnvVars_FromFields(t *testing.T) {

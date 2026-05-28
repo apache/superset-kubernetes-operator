@@ -102,7 +102,7 @@ spec:
 | Command | Description |
 |---|---|
 | `make helm-sync-crds` | Sync generated CRDs into the Helm chart. |
-| `make helm` | Sync CRDs into Helm chart and package it. |
+| `make helm` | Sync CRDs into Helm chart and package it. The chart `appVersion` is derived from VERSION at package time. |
 | `make helm-lint` | Lint the Helm chart (syncs CRDs first). |
 
 ### Development

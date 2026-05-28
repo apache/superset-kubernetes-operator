@@ -373,6 +373,12 @@ spec:
                     type: object
                   image:
                     properties:
+                      pullPolicy:
+                        enum:
+                        - Always
+                        - IfNotPresent
+                        - Never
+                        type: string
                       repository:
                         type: string
                       tag:
@@ -4296,6 +4302,12 @@ spec:
                     type: object
                   image:
                     properties:
+                      pullPolicy:
+                        enum:
+                        - Always
+                        - IfNotPresent
+                        - Never
+                        type: string
                       repository:
                         type: string
                       tag:
@@ -8298,6 +8310,12 @@ spec:
                     type: object
                   image:
                     properties:
+                      pullPolicy:
+                        enum:
+                        - Always
+                        - IfNotPresent
+                        - Never
+                        type: string
                       repository:
                         type: string
                       tag:
@@ -15674,6 +15692,12 @@ spec:
                     type: boolean
                   image:
                     properties:
+                      pullPolicy:
+                        enum:
+                        - Always
+                        - IfNotPresent
+                        - Never
+                        type: string
                       repository:
                         type: string
                       tag:
@@ -23334,6 +23358,12 @@ spec:
                     type: object
                   image:
                     properties:
+                      pullPolicy:
+                        enum:
+                        - Always
+                        - IfNotPresent
+                        - Never
+                        type: string
                       repository:
                         type: string
                       tag:
@@ -31567,6 +31597,12 @@ spec:
                         || self.workerClass == ''gthread'''
                   image:
                     properties:
+                      pullPolicy:
+                        enum:
+                        - Always
+                        - IfNotPresent
+                        - Never
+                        type: string
                       repository:
                         type: string
                       tag:
@@ -35556,6 +35592,12 @@ spec:
                     type: object
                   image:
                     properties:
+                      pullPolicy:
+                        enum:
+                        - Always
+                        - IfNotPresent
+                        - Never
+                        type: string
                       repository:
                         type: string
                       tag:

@@ -71,18 +71,23 @@ accordingly.
 
 ## Security Model
 
-### Prod vs Dev Mode
+### Production/Staging vs Development Mode
 
-The operator enforces a strict separation between production and development
-modes:
+The operator enforces a strict separation between hardened modes (Production
+and Staging) and Development:
 
-- **Prod mode** (default): Inline `secretKey`, `metastore.uri`,
-  `metastore.password`, and `valkey.password` are rejected by CRD CEL validation
-  rules. Users reference secrets via `secretKeyFrom`, `metastore.uriFrom`,
-  `metastore.passwordFrom`, or `valkey.passwordFrom` (which the operator wires
-  as `valueFrom.secretKeyRef` env vars).
-- **Dev mode** (`environment: Development`): Inline secrets are allowed for local
-  development convenience. Additionally, `lifecycle.init.adminUser` and
+- **Production/Staging** (`environment: Production` is the default; `Staging`
+  keeps the same secret rules but allows the destructive `clone` task):
+  Inline `secretKey`, `previousSecretKey`, `metastore.uri`,
+  `metastore.password`, `valkey.password`, websocket `config`, and
+  `lifecycle.clone.source.password` are rejected by CRD CEL validation rules.
+  Users reference secrets via `secretKeyFrom`, `previousSecretKeyFrom`,
+  `metastore.uriFrom`, `metastore.passwordFrom`, `valkey.passwordFrom`,
+  websocket `configFrom`, and `lifecycle.clone.source.passwordFrom` — the
+  operator wires each of these as `valueFrom.secretKeyRef` env vars (or, for
+  websocket `configFrom`, mounts the referenced Secret key as a file).
+- **Development** (`environment: Development`): Inline secrets are allowed for
+  local development convenience. Additionally, `lifecycle.init.adminUser` and
   `lifecycle.init.loadExamples` are permitted — these create a default admin account and
   load sample data during initialization. Admin credentials from `adminUser`
   are stored as plain-text environment variables on the parent Superset CR and
@@ -90,9 +95,9 @@ modes:
   resources in the namespace). The admin password also appears in the Pod's
   process arguments via shell expansion.
 
-Dev mode is intentionally less secure. It exists for local development with Kind
-or Minikube where secret management infrastructure is not available. This is not
-a vulnerability — it is a documented design decision.
+Development mode is intentionally less secure. It exists for local development
+with Kind or Minikube where secret management infrastructure is not available.
+This is not a vulnerability — it is a documented design decision.
 
 ### Secret Handling
 
@@ -100,11 +105,13 @@ In Staging and Production modes, secrets follow this path:
 
 1. User creates a Kubernetes `Secret` containing the secret key and database
    credentials
-2. User references the Secret via `secretKeyFrom`, `metastore.uriFrom`,
-   `metastore.passwordFrom`, or `valkey.passwordFrom` on the Superset CR. The
-   operator injects the corresponding env vars with `valueFrom.secretKeyRef` —
-   the actual secret value is resolved by the kubelet at pod startup, not by
-   the operator.
+2. User references the Secret via `secretKeyFrom`, `previousSecretKeyFrom`,
+   `metastore.uriFrom`, `metastore.passwordFrom`, `valkey.passwordFrom`,
+   `lifecycle.clone.source.passwordFrom`, or `websocketServer.configFrom` on
+   the Superset CR. For env-var references the operator injects
+   `valueFrom.secretKeyRef`; for `websocketServer.configFrom` the operator
+   mounts the referenced Secret key as a file. In every case the secret value
+   is resolved by the kubelet at pod startup, not by the operator.
 3. The operator generates `superset_config.py` that renders
    `SECRET_KEY = os.environ['SUPERSET_OPERATOR__SECRET_KEY']` — the actual
    secret value is resolved at Python runtime from the env var, so it never
@@ -121,12 +128,13 @@ may appear in status. This only applies to the task container's own output, not
 to operator-managed secret references.
 
 **Scope of this guarantee:** The above applies to operator-managed secret
-references (`secretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`,
-`valkey.passwordFrom`). User-authored fields — raw Python in `spec.config`,
-component-level `config`, and `podTemplate.container.env` — are trusted input
-and may contain arbitrary values including secrets. Users with read access to
-Superset CRs or the generated ConfigMaps will see any values placed in these
-fields. These are out
+references (`secretKeyFrom`, `previousSecretKeyFrom`, `metastore.uriFrom`,
+`metastore.passwordFrom`, `valkey.passwordFrom`,
+`lifecycle.clone.source.passwordFrom`, and `websocketServer.configFrom`).
+User-authored fields — raw Python in `spec.config`, component-level `config`,
+and `podTemplate.container.env` — are trusted input and may contain arbitrary
+values including secrets. Users with read access to Superset CRs or the
+generated ConfigMaps will see any values placed in these fields. These are out
 of scope for the operator's secret handling guarantees
 (see [What Is Generally Out of Scope](#what-is-generally-out-of-scope)).
 
@@ -161,10 +169,22 @@ Key rules:
 - **Mutual exclusivity:** `secretKey`/`secretKeyFrom`, metastore URI vs
   structured fields, Valkey password inline vs Secret reference, websocket
   `config`/`configFrom`, gateway vs ingress
-- **Networking requires webServer:** Routes target the web server service
+- **Ingress requires webServer:** `spec.networking.ingress` rules target the
+  web server service, so a CR cannot enable Ingress without `webServer`
+- **Gateway requires at least one routable component:** `spec.networking.gateway`
+  routes to whichever of `webServer`, `websocketServer`, `mcpServer`, and
+  `celeryFlower` are configured; a CR with only Beat and Worker cannot enable
+  Gateway
 - **Monitoring requires webServer:** ServiceMonitor scrapes the web server service
 - **Defaulting:** `environment` defaults to `Production`, image repository and pull
   policy default via kubebuilder markers
+
+CEL is the operator's built-in validation layer. Cluster operators who want
+defense-in-depth — for example, restricting which `image.repository` values are
+allowed, forbidding `environment: Development` outside specific namespaces, or
+requiring particular labels on every Superset CR — can layer a policy engine
+such as Kyverno, OPA Gatekeeper, or the Validating Admission Policy API on top
+of these CRD-level rules.
 
 ## Design Decisions
 
@@ -269,14 +289,20 @@ The operator does **not** request:
 
 The operator supports two install modes, selectable at deploy time:
 
-- **Cluster-scoped (default).** The manager ServiceAccount is bound to a
-  `ClusterRole` via a `ClusterRoleBinding`, and the cache watches every
-  namespace. Appropriate when a cluster admin administers the operator
-  centrally. Helm: `watch.scope: cluster`.
+- **Cluster-scoped (default).** The manager ServiceAccount is bound to the
+  generated `ClusterRole` (`manager-role`) via a `ClusterRoleBinding`
+  (`manager-rolebinding`), and the cache watches every namespace. Appropriate
+  when a cluster admin administers the operator centrally. Helm:
+  `watch.scope: cluster`.
 - **Namespace-scoped.** The manager watches only the namespaces listed in
   `WATCH_NAMESPACE` (comma-separated). Appropriate for restricted clusters
   that forbid `ClusterRole` creation, or for single-tenant installs that
   want a tighter blast radius.
+
+Leader election is namespace-scoped in both modes: the operator binds the
+namespace-local `Role` `leader-election-role` to the manager ServiceAccount via
+the `RoleBinding` `leader-election-rolebinding` in the operator's own
+namespace, and the lease/lock objects live there too.
 
 The RBAC shape differs between Helm and Kustomize for namespace-scoped
 installs:
@@ -330,6 +356,33 @@ configures via `podTemplate.podSecurityContext` and
 [production sample](https://github.com/apache/superset-kubernetes-operator/blob/main/config/samples/superset_v1alpha1_superset_prod.yaml)
 shows recommended settings. Workload pod security is the user's responsibility
 (see [What Is Generally Out of Scope](#what-is-generally-out-of-scope)).
+
+**Recommendation — Pod Security Admission:** The operator manager Pod is
+configured to satisfy the `restricted` Pod Security Standard (non-root,
+read-only root filesystem, all capabilities dropped, `seccompProfile:
+RuntimeDefault`, `allowPrivilegeEscalation: false`). For defense in depth,
+label the operator's namespace with
+`pod-security.kubernetes.io/enforce: restricted` so the apiserver rejects any
+Pod that drifts from this baseline.
+
+## Supply Chain
+
+The release pipeline produces signed multi-architecture artifacts:
+
+- **Base image:** [`gcr.io/distroless/static:nonroot`](https://github.com/GoogleContainerTools/distroless)
+  — no shell, no package manager, no unnecessary binaries. The Dockerfile
+  pins the digest and Renovate keeps it current.
+- **Architectures:** `linux/amd64` and `linux/arm64` are built and signed
+  identically.
+- **Image signatures:** The release workflow signs the manager image and the
+  packaged Helm chart with [Cosign](https://github.com/sigstore/cosign) using
+  GitHub Actions OIDC (keyless). Verify with
+  `cosign verify ghcr.io/apache/superset-kubernetes-operator@<digest>`.
+- **Dependency policy:** Go modules and GitHub Actions are kept current via
+  [Renovate](https://docs.renovatebot.com/) with a 7-day minimum age and
+  pinned action versions.
+- **Future work:** SBOM and SLSA build provenance generation are tracked as
+  enhancements for later releases.
 
 ## What Is Generally Out of Scope
 

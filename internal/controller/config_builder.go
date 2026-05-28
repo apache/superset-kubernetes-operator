@@ -408,6 +408,9 @@ func flatSpecFromResolution(flat *resolution.FlatSpec, parentImage *supersetv1al
 		if imageOverride.Repository != nil {
 			image.Repository = *imageOverride.Repository
 		}
+		if imageOverride.PullPolicy != nil {
+			image.PullPolicy = *imageOverride.PullPolicy
+		}
 	}
 	return supersetv1alpha1.FlatComponentSpec{
 		Image:               image,

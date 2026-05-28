@@ -435,6 +435,36 @@ alternatives considered, or migration steps.
 
 The PR template (`PULL_REQUEST_TEMPLATE.md`) pre-fills these sections.
 
+### Changelog entry
+
+Add a bullet under `## [Unreleased]` in
+[`CHANGELOG.md`](../../CHANGELOG.md) for noteworthy changes — new features,
+new CRD fields, behavior changes, breaking changes, deprecations, and
+critical bug fixes. Skip the entry for routine work that a user wouldn't
+care about: dependency bumps, CI tweaks, internal refactors, test-only
+changes, and documentation-only updates.
+
+Group entries under `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, or
+`Security` (per [Keep a Changelog](https://keepachangelog.com/en/1.1.0/));
+create the subheading on first use. Lead each bullet with the user-facing
+effect, not the implementation:
+
+```markdown
+## [Unreleased]
+
+### Added
+- New `webServer.gunicorn.keepAlive` field for tuning Gunicorn keepalive timeouts.
+
+### Fixed
+- Lifecycle `migrate` task no longer retries indefinitely when the metastore
+  rejects credentials; the parent surfaces an `AuthenticationFailed` reason.
+```
+
+The release manager does a final review pass over `## [Unreleased]` before
+tagging — see [Releasing](releasing.md#reviewing-the-changelog) — so it's
+fine to err on the side of including an entry; missing or duplicate ones can
+be cleaned up there.
+
 ### Code coverage
 
 CI uploads test coverage to [Codecov](https://codecov.io) on every PR. The

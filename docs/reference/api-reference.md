@@ -512,6 +512,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `tag` _string_ | Override the image tag for this component; inherits from spec.image.tag if omitted. |  | Optional: \{\} <br /> |
 | `repository` _string_ | Override the image repository for this component; inherits from spec.image.repository if omitted. |  | Optional: \{\} <br /> |
+| `pullPolicy` _[PullPolicy](https://pkg.go.dev/k8s.io/api/core/v1#PullPolicy)_ | Override the image pull policy for this component; inherits from spec.image.pullPolicy if omitted. |  | Enum: [Always IfNotPresent Never] <br />Optional: \{\} <br /> |
 
 
 #### ImageSpec

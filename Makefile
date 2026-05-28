@@ -161,8 +161,8 @@ helm-sync-crds: ## Sync generated CRDs into the Helm chart.
 	cp config/crd/bases/*.yaml $(HELM_CHART_DIR)/crds/
 
 .PHONY: helm
-helm: manifests helm-sync-crds ## Sync CRDs into Helm chart and package it.
-	helm package $(HELM_CHART_DIR)
+helm: manifests helm-sync-crds ## Sync CRDs into Helm chart and package it. The chart `appVersion` is derived from VERSION at package time.
+	helm package $(HELM_CHART_DIR) --app-version $(VERSION)
 
 .PHONY: helm-lint
 helm-lint: helm-sync-crds ## Lint the Helm chart (syncs CRDs first).
@@ -206,10 +206,9 @@ test-unit: manifests generate fmt vet ## Run unit tests (no envtest or cluster r
 test-integration: manifests generate fmt vet setup-envtest ## Run integration tests (requires envtest).
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -tags integration -coverprofile cover.out
 
-# TODO(user): To use a different vendor for e2e tests, modify the setup under 'tests/e2e'.
-# The default setup assumes Kind is pre-installed and builds/loads the Manager Docker image locally.
-# CertManager is installed by default; skip with:
-# - CERT_MANAGER_INSTALL_SKIP=true
+# E2E tests live under test/e2e/ and assume Kind is pre-installed; the manager
+# image is built and side-loaded into the cluster. CertManager is installed by
+# default; skip with CERT_MANAGER_INSTALL_SKIP=true.
 KIND_CLUSTER ?= superset-kubernetes-operator-test-e2e
 # Derived from .github/supported-k8s.json (the canonical kindest/node pin,
 # regenerated from the kind release notes by `make sync-supported-versions`).

@@ -68,6 +68,10 @@ type ImageOverrideSpec struct {
 	// Override the image repository for this component; inherits from spec.image.repository if omitted.
 	// +optional
 	Repository *string `json:"repository,omitempty"`
+	// Override the image pull policy for this component; inherits from spec.image.pullPolicy if omitted.
+	// +optional
+	// +kubebuilder:validation:Enum=Always;IfNotPresent;Never
+	PullPolicy *corev1.PullPolicy `json:"pullPolicy,omitempty"`
 }
 
 // ContainerImageSpec defines a generic container image. Unlike ImageSpec, it
