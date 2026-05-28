@@ -25,10 +25,10 @@
   "customManagers": [
     {
       "customType": "regex",
-      "description": "Track sigs.k8s.io/kind release pin and matching sha256 in workflows",
-      "managerFilePatterns": ["/^\\.github/workflows/.+\\.ya?ml$/"],
+      "description": "Track sigs.k8s.io/kind release pin in supported-k8s.json",
+      "managerFilePatterns": ["/^\\.github/supported-k8s\\.json$/"],
       "matchStrings": [
-        "KIND_VERSION:\\s*(?<currentValue>v[0-9.]+)\\s*\\n\\s*KIND_CHECKSUM:\\s*(?<currentDigest>[a-f0-9]+)"
+        "\"kind_version\":\\s*\"(?<currentValue>v[0-9.]+)\""
       ],
       "datasourceTemplate": "github-releases",
       "depNameTemplate": "kubernetes-sigs/kind"

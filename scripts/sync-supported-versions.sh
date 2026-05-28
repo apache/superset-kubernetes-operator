@@ -14,19 +14,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Sync .github/supported-k8s.json with the kindest/node images published
-# by the currently pinned kind release (read from .github/workflows/test.yaml),
-# and compute `next` from upstream Kubernetes releases:
+# Sync .github/supported-k8s.json with the kind release pinned in the same
+# file (`kind_version`), and compute `next` from upstream Kubernetes releases:
 #
-#   - `supported` = the two newest Kubernetes minors that the pinned kind
-#     release ships node images for (highest patch per minor).
-#   - `next`      = {minor, version} of the newest stable Kubernetes release if
-#                   its minor isn't already in `supported`; otherwise null.
+#   - `kind_checksum` = SHA-256 of the `kind-linux-amd64` binary, taken from
+#                       the matching `.sha256sum` asset on the kind release.
+#   - `supported`     = the two newest Kubernetes minors that the pinned kind
+#                       release ships node images for (highest patch per minor).
+#   - `next`          = {minor, version} of the newest stable Kubernetes release
+#                       if its minor isn't already in `supported`; otherwise null.
 #
-# The kind GitHub release notes are the sole source of truth for node-image
-# digests. Docker Hub re-pushes of the `kindest/node:vX.Y.Z` tag are
-# intentionally ignored: a new digest there does not represent a kind release,
-# and tracking it would conflict with this script.
+# The kind GitHub release is the sole source of truth: node-image digests come
+# from the release notes body, and the kind binary checksum comes from the
+# release's `kind-linux-amd64.sha256sum` asset. Docker Hub re-pushes of the
+# `kindest/node:vX.Y.Z` tag are intentionally ignored: a new digest there does
+# not represent a kind release, and tracking it would conflict with this script.
 #
 # Usage:
 #   sync-supported-versions.sh [--check|--write]
@@ -40,7 +42,6 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SOURCE="${REPO_ROOT}/.github/supported-k8s.json"
-WORKFLOW="${REPO_ROOT}/.github/workflows/test.yaml"
 
 mode="${1:---check}"
 case "${mode}" in --check|--write) ;; *) echo "usage: $0 [--check|--write]" >&2; exit 2 ;; esac
@@ -48,14 +49,26 @@ case "${mode}" in --check|--write) ;; *) echo "usage: $0 [--check|--write]" >&2;
 command -v jq >/dev/null   || { echo "jq required" >&2; exit 1; }
 command -v curl >/dev/null || { echo "curl required" >&2; exit 1; }
 
-KIND_VERSION="$(awk '/^[[:space:]]*KIND_VERSION:/ {print $2; exit}' "${WORKFLOW}")"
-[ -n "${KIND_VERSION}" ] || { echo "could not read KIND_VERSION from ${WORKFLOW}" >&2; exit 1; }
+KIND_VERSION="$(jq -r '.kind_version // ""' "${SOURCE}")"
+[ -n "${KIND_VERSION}" ] || { echo "could not read kind_version from ${SOURCE}" >&2; exit 1; }
 
 api="https://api.github.com/repos/kubernetes-sigs/kind/releases/tags/${KIND_VERSION}"
 auth=()
 [ -n "${GITHUB_TOKEN:-}" ] && auth=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
 
-body="$(curl -fsSL ${auth[@]+"${auth[@]}"} -H 'Accept: application/vnd.github+json' "${api}" | jq -r .body)"
+release="$(curl -fsSL ${auth[@]+"${auth[@]}"} -H 'Accept: application/vnd.github+json' "${api}")"
+body="$(printf '%s' "${release}" | jq -r .body)"
+
+# Resolve the kind-linux-amd64.sha256sum asset's download URL via the API
+# (works even when releases are behind authenticated CDNs locally) and parse
+# out the 64-hex digest. The .sha256sum file has the format "<sha>  <name>".
+sha_url="$(printf '%s' "${release}" \
+  | jq -r '.assets[] | select(.name == "kind-linux-amd64.sha256sum") | .browser_download_url')"
+[ -n "${sha_url}" ] || { echo "kind release ${KIND_VERSION} has no kind-linux-amd64.sha256sum asset" >&2; exit 1; }
+
+KIND_CHECKSUM="$(curl -fsSL ${auth[@]+"${auth[@]}"} "${sha_url}" | awk '{print $1; exit}')"
+printf '%s' "${KIND_CHECKSUM}" | grep -Eq '^[a-f0-9]{64}$' \
+  || { echo "unexpected sha256sum content from ${sha_url}: ${KIND_CHECKSUM}" >&2; exit 1; }
 
 # Extract the highest-patch node image per Kubernetes minor, then take the
 # top two minors. Format per row: "MINOR FULL_IMAGE".
@@ -84,10 +97,12 @@ newest_k8s_minor="$(printf '%s' "${newest_k8s}" | sed -E 's|^v([0-9]+\.[0-9]+).*
 
 new_json="$(
   jq --argjson sup "${new_supported}" \
+     --arg     kindChecksum "${KIND_CHECKSUM}" \
      --arg     k8sMinor "${newest_k8s_minor}" \
      --arg     k8sVersion "${newest_k8s}" '
     def to_v: split(".") | map(tonumber);
-    (.supported = $sup)
+    (.kind_checksum = $kindChecksum)
+    | (.supported = $sup)
     | ([.supported[].minor | to_v] | max) as $topSupported
     | ($k8sMinor | to_v) as $k8s
     | if $k8s > $topSupported
