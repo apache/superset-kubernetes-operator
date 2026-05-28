@@ -207,7 +207,9 @@ changed.
 of the spec, and does not create an HPA or PDB.
 
 **WebsocketServer** is Node.js-based and does not get a `superset_config.py`
-ConfigMap.
+ConfigMap. When `websocketServer.config` is set, the controller creates a
+component ConfigMap containing `config.json`; when `configFrom` is set, the
+Deployment mounts the referenced Secret key directly.
 
 ### Deployment Builder
 

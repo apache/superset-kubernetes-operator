@@ -245,6 +245,7 @@ func renderValkey(b *strings.Builder, v *ValkeyInput, c *CeleryInput) {
 	b.WriteString("# Valkey cache config\n")
 
 	// Connection helpers using operator-injected env vars.
+	fmt.Fprintf(b, "_vk_user = os.environ.get(\"%s\", \"\")\n", common.EnvValkeyUser)
 	fmt.Fprintf(b, "_vk_pass = os.environ.get(\"%s\", \"\")\n", common.EnvValkeyPass)
 
 	scheme := "redis"
@@ -252,7 +253,9 @@ func renderValkey(b *strings.Builder, v *ValkeyInput, c *CeleryInput) {
 		scheme = "rediss"
 	}
 	fmt.Fprintf(b, "_vk_scheme = \"%s\"\n", scheme)
-	b.WriteString("_vk_auth = f\":{quote(_vk_pass, safe='')}@\" if _vk_pass else \"\"\n")
+	b.WriteString("_vk_auth = \"\"\n")
+	b.WriteString("if _vk_user or _vk_pass:\n")
+	b.WriteString("    _vk_auth = f\"{quote(_vk_user, safe='')}:{quote(_vk_pass, safe='')}@\" if _vk_pass else f\"{quote(_vk_user, safe='')}@\"\n")
 	fmt.Fprintf(b, "_vk_base = f\"{_vk_scheme}://{_vk_auth}{os.environ['%s']}:{os.environ['%s']}\"\n",
 		common.EnvValkeyHost, common.EnvValkeyPort,
 	)
@@ -320,6 +323,7 @@ func renderValkey(b *strings.Builder, v *ValkeyInput, c *CeleryInput) {
 		b.WriteString("\nRESULTS_BACKEND = _CachelibRedis(\n")
 		fmt.Fprintf(b, "    host=os.environ[\"%s\"],\n", common.EnvValkeyHost)
 		fmt.Fprintf(b, "    port=int(os.environ[\"%s\"]),\n", common.EnvValkeyPort)
+		fmt.Fprintf(b, "    username=os.environ.get(\"%s\") or None,\n", common.EnvValkeyUser)
 		fmt.Fprintf(b, "    password=os.environ.get(\"%s\", \"\"),\n", common.EnvValkeyPass)
 		fmt.Fprintf(b, "    db=%d,\n", v.ResultsBackend.Database)
 		fmt.Fprintf(b, "    key_prefix=f\"{_superset_instance}_%s\",\n", pyQuote(v.ResultsBackend.KeyPrefix))

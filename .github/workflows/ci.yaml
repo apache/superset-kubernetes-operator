@@ -100,7 +100,6 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Install Helm
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+        run: bash scripts/install-helm.sh
       - name: Lint Helm chart
         run: make helm-lint

@@ -28,6 +28,7 @@ import (
 	"k8s.io/api/autoscaling/v2"
 	"k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -2151,6 +2152,16 @@ func (in *ValkeySpec) DeepCopyInto(out *ValkeySpec) {
 		*out = new(int32)
 		**out = **in
 	}
+	if in.Username != nil {
+		in, out := &in.Username, &out.Username
+		*out = new(string)
+		**out = **in
+	}
+	if in.UsernameFrom != nil {
+		in, out := &in.UsernameFrom, &out.UsernameFrom
+		*out = new(v1.SecretKeySelector)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.Password != nil {
 		in, out := &in.Password, &out.Password
 		*out = new(string)
@@ -2265,6 +2276,16 @@ func (in *WebsocketServerComponentSpec) DeepCopyInto(out *WebsocketServerCompone
 	*out = *in
 	in.ScalableComponentSpec.DeepCopyInto(&out.ScalableComponentSpec)
 	in.ComponentSpec.DeepCopyInto(&out.ComponentSpec)
+	if in.Config != nil {
+		in, out := &in.Config, &out.Config
+		*out = new(apiextensionsv1.JSON)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.ConfigFrom != nil {
+		in, out := &in.ConfigFrom, &out.ConfigFrom
+		*out = new(v1.SecretKeySelector)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.Service != nil {
 		in, out := &in.Service, &out.Service
 		*out = new(ComponentServiceSpec)

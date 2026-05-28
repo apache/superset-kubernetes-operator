@@ -19,6 +19,25 @@ under the License.
 
 # Networking & Monitoring
 
+## Services
+
+Routable components expose a Kubernetes Service. The service spec supports
+`type`, `port`, `nodePort`, labels, and annotations:
+
+```yaml
+spec:
+  webServer:
+    service:
+      type: LoadBalancer
+      port: 443
+      annotations:
+        service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+```
+
+The operator does not expose Kubernetes `Service.spec.loadBalancerIP` because
+that field is deprecated. Prefer controller-specific annotations when your
+provider documents them.
+
 ## Gateway API (Recommended)
 
 Requires [Gateway API CRDs](https://gateway-api.sigs.k8s.io/) installed on the cluster. Gateway API is not included in Kubernetes and must be [installed separately](https://gateway-api.sigs.k8s.io/guides/#installing-gateway-api). If the CRDs are absent, the operator logs a message and skips HTTPRoute management.
@@ -75,6 +94,24 @@ spec:
         - secretName: superset-tls
           hosts:
             - superset.example.com
+```
+
+Use `className` for controllers that support `spec.ingressClassName`. For
+legacy controllers, put `kubernetes.io/ingress.class` under `annotations`
+instead:
+
+```yaml
+spec:
+  networking:
+    ingress:
+      annotations:
+        kubernetes.io/ingress.class: alb
+        alb.ingress.kubernetes.io/target-type: ip
+      hosts:
+        - host: superset.example.com
+          paths:
+            - path: /
+              pathType: Prefix
 ```
 
 ### Graceful CRD Handling

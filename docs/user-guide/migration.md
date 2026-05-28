@@ -134,10 +134,15 @@ The main differences are deliberate:
 | Helm chart value | Operator equivalent | Notes |
 |---|---|---|
 | `supersetNode.connections.db_*` | `spec.metastore` | Use `uriFrom` for an exact SQLAlchemy URI, or structured `host`, `database`, `username`, and `passwordFrom`. |
-| `supersetNode.connections.redis_*` | `spec.valkey` | `valkey` works with Redis-compatible services and renders cache, Celery broker/backend, and SQL Lab results backend config. |
-| `supersetNode.connections.redis_ssl` | `spec.valkey.ssl` | Mount client certs or CA bundles with `podTemplate.volumes` if needed. |
+| `supersetNode.connections.redis_*` | `spec.valkey` | `valkey` works with Redis-compatible services and renders cache, Celery broker/backend, and SQL Lab results backend config. `redis_user` maps to `username` or `usernameFrom`. |
+| `supersetNode.connections.redis_ssl` | `spec.valkey.ssl` | Mount client certs or CA bundles with `podTemplate.volumes` if needed. Helm `CERT_NONE` maps to `certRequired: none`. |
 | `postgresql.*` | Not managed by this operator | Use a managed database, CloudNativePG, another PostgreSQL operator, or keep an existing PostgreSQL instance. |
 | `redis.*` | Not managed by this operator | Use a managed Redis/Valkey service, Redis/Valkey operator, or separate Helm chart. |
+
+The Helm chart exposes one cache DB (`redis_cache_db`) and one Celery DB
+(`redis_celery_db`). The operator gives each Superset cache role its own
+default DB and key prefix. To preserve Helm-like sharing, set the relevant
+`spec.valkey.*.database` fields to the same DB numbers you used in Helm.
 
 ### Components
 
@@ -152,7 +157,7 @@ The main differences are deliberate:
 | `supersetCeleryFlower.enabled` | `spec.celeryFlower: {}` | Flower gets its own Deployment and Service. |
 | `supersetCeleryFlower.service.*` | `spec.celeryFlower.service.*` | Supports service type, port, nodePort, labels, and annotations. |
 | `supersetWebsockets.enabled` | `spec.websocketServer.image.{repository,tag}` | An image override is required (CEL-validated): the default Superset image does not include `websocket_server.js`. Use a community image such as `oneacrefund/superset-websocket` or your own. |
-| `supersetWebsockets.config` | Env vars or mounted config file | The operator does not render websocket `config.json`. Mount one with `podTemplate.volumes`, or configure the websocket server through env vars. |
+| `supersetWebsockets.config` | `spec.websocketServer.config` or `configFrom` | Inline `config` is Development-only. In Staging/Production, create a Secret with `config.json` and reference it with `configFrom`. |
 | `init.enabled` | `spec.lifecycle.disabled` or task-level `disabled` | Lifecycle is enabled by default. Set `lifecycle.disabled: true` to skip all tasks. |
 | `init.command`, `init.initscript` | `spec.lifecycle.migrate.command`, `spec.lifecycle.init.command` | The operator splits database migration and application initialization into separate tasks. |
 | `init.createAdmin`, `init.adminUser`, `init.loadExamples` | `spec.lifecycle.init.adminUser`, `spec.lifecycle.init.loadExamples` | These are allowed only in `environment: Development`. In production, create users through your normal identity and admin process or a custom task command using Secret-backed env vars. |
@@ -177,11 +182,49 @@ The main differences are deliberate:
 
 | Helm chart value | Operator equivalent | Notes |
 |---|---|---|
-| `service.type`, `service.port`, `service.nodePort.http`, `service.annotations` | `spec.webServer.service.type`, `port`, `nodePort`, `annotations` | `loadBalancerIP` is not currently modeled; use provider annotations where possible. |
-| `ingress.enabled`, `ingress.ingressClassName`, `ingress.annotations`, `ingress.hosts`, `ingress.tls`, `ingress.path`, `ingress.pathType` | `spec.networking.ingress` | Operator-managed Ingress targets the web server. |
+| `service.type`, `service.port`, `service.nodePort.http`, `service.annotations` | `spec.webServer.service.type`, `port`, `nodePort`, `annotations` | `loadBalancerIP` is not modeled because the Kubernetes field is deprecated; use provider annotations where possible. |
+| `ingress.enabled`, `ingress.ingressClassName`, `ingress.annotations`, `ingress.hosts`, `ingress.tls`, `ingress.path`, `ingress.pathType` | `spec.networking.ingress` | Operator-managed Ingress targets the web server. Use `className` for `ingressClassName`, or keep legacy `kubernetes.io/ingress.class` under `annotations`. Helm's top-level `path` and `pathType` move to `hosts[].paths[]`. |
 | `ingress.extraHostsRaw` | `spec.networking.ingress.hosts` for normal web routes, or a custom Ingress | Use a separate Ingress for non-web backends or unusual raw rules. |
 | `supersetWebsockets.ingress.*` | `spec.networking.gateway` or a custom Ingress | The operator's Gateway API integration routes `/ws` to the websocket service. Built-in Ingress does not route websocket paths. |
 | Flower or MCP external paths | `spec.networking.gateway` | Gateway API can route `/flower` and `/mcp` to their services. |
+
+Helm's web Ingress shape:
+
+```yaml
+ingress:
+  path: /
+  pathType: Prefix
+  hosts:
+    - superset.example.com
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/target-type: ip
+```
+
+becomes:
+
+```yaml
+spec:
+  networking:
+    ingress:
+      annotations:
+        kubernetes.io/ingress.class: alb  # legacy class annotation
+        alb.ingress.kubernetes.io/target-type: ip
+      hosts:
+        - host: superset.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+```
+
+For controllers that support `spec.ingressClassName`, use `className` instead:
+
+```yaml
+spec:
+  networking:
+    ingress:
+      className: alb
+```
 
 ### Scaling and Availability
 
@@ -292,6 +335,56 @@ spec:
             superset import_datasources -p /app/configs/import_datasources.yaml
           fi
 ```
+
+## Websocket Config
+
+In Development, Helm's `supersetWebsockets.config` map can be copied under
+`spec.websocketServer.config`:
+
+```yaml
+spec:
+  environment: Development
+  websocketServer:
+    image:
+      repository: oneacrefund/superset-websocket
+      tag: latest
+    config:
+      port: 8080
+      logLevel: debug
+      jwtSecret: CHANGE-ME
+      jwtCookieName: async-token
+      redis:
+        host: redis.example.com
+        port: 6379
+        db: 0
+```
+
+In Staging and Production, put the JSON in a Secret and reference the key:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: superset-websocket-config
+stringData:
+  config.json: |
+    {"port":8080,"jwtSecret":"...","jwtCookieName":"async-token"}
+---
+apiVersion: superset.apache.org/v1alpha1
+kind: Superset
+spec:
+  websocketServer:
+    image:
+      repository: oneacrefund/superset-websocket
+      tag: latest
+    configFrom:
+      name: superset-websocket-config
+      key: config.json
+```
+
+The operator mounts this at `/home/superset-websocket/config.json`. When the
+referenced Secret content changes, update `spec.forceReload` to roll the
+websocket Deployment.
 
 ## Websocket Routing
 

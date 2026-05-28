@@ -41,7 +41,6 @@ type componentReconcilerConfig struct {
 	componentName string
 	deployConfig  DeploymentConfig
 	defaultPort   int32 // 0 = no service
-	hasConfig     bool
 	hasScaling    bool
 }
 
@@ -64,7 +63,7 @@ func reconcileComponentResources(
 
 	// Deployment.
 	var checksums map[string]string
-	if cfg.hasConfig {
+	if configChecksum != "" {
 		checksums = buildChecksumAnnotations(configChecksum)
 	}
 	if err := reconcileComponentDeployment(ctx, c, scheme, owner, spec, cfg.deployConfig, checksums, cfg.componentName, resourceBaseName); err != nil {

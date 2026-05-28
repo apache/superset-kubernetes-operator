@@ -45,6 +45,9 @@ When downloading binaries in CI (e.g., `kind`, `helm`), always:
 1. Pin to a specific version (never `latest`)
 2. Verify with a SHA256 checksum
 
+Use `scripts/install-helm.sh` for CI Helm installs so the pinned Helm version
+and checksum stay in one place.
+
 ### Workflow permissions
 
 Every workflow must declare `permissions:` at the top level. Default to the
@@ -99,6 +102,17 @@ tags). It can also be triggered manually via `workflow_dispatch`.
 
 See [Downloads](../reference/downloads.md) for full details on published images
 and registries.
+
+Before creating the first RC for a minor release, run or verify:
+
+- `make codegen` leaves no diff
+- `make lint`
+- `make test`
+- `make helm-lint`
+- `make docs-build`
+- `make check-license`
+- `make test-e2e` on a working Kind or equivalent Kubernetes cluster
+- The release workflow is using pinned/checksum-verified tool downloads
 
 ## Creating a Release Candidate
 

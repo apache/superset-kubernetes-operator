@@ -110,6 +110,7 @@ const (
 	// Valkey operator-internal transport vars.
 	EnvValkeyHost = "SUPERSET_OPERATOR__VALKEY_HOST"
 	EnvValkeyPort = "SUPERSET_OPERATOR__VALKEY_PORT"
+	EnvValkeyUser = "SUPERSET_OPERATOR__VALKEY_USER"
 	EnvValkeyPass = "SUPERSET_OPERATOR__VALKEY_PASS"
 
 	// Celery Flower env vars.

@@ -108,7 +108,7 @@ type ContainerImageSpec struct {
 // +kubebuilder:validation:XValidation:rule="!(has(self.createDatabase) && self.createDatabase) || (has(self.host) && !has(self.uri) && !has(self.uriFrom))",message="createDatabase requires structured metastore (host set; database/username via the structured-fields rule) and is not supported with uri or uriFrom"
 type MetastoreSpec struct {
 	// Full SQLAlchemy database URI. Mutually exclusive with structured fields and uriFrom.
-	// In prod mode, CRD validation rejects plain text URIs — use uriFrom to reference a Kubernetes Secret.
+	// In Staging or Production, CRD validation rejects plain text URIs — use uriFrom to reference a Kubernetes Secret.
 	// +optional
 	URI *string `json:"uri,omitempty"`
 
@@ -139,7 +139,7 @@ type MetastoreSpec struct {
 	// +optional
 	Username *string `json:"username,omitempty"`
 
-	// Database password. In prod mode, CRD validation rejects plain text passwords — use passwordFrom to reference a Kubernetes Secret.
+	// Database password. In Staging or Production, CRD validation rejects plain text passwords — use passwordFrom to reference a Kubernetes Secret.
 	// +optional
 	Password *string `json:"password,omitempty"`
 
@@ -164,6 +164,7 @@ type MetastoreSpec struct {
 // ValkeySpec configures Valkey as the shared cache backend, Celery message
 // broker, and SQL Lab results backend for Superset. When set, all sections
 // are enabled with sensible defaults — only host is required.
+// +kubebuilder:validation:XValidation:rule="!(has(self.username) && has(self.usernameFrom))",message="username and usernameFrom are mutually exclusive"
 // +kubebuilder:validation:XValidation:rule="!(has(self.password) && has(self.passwordFrom))",message="password and passwordFrom are mutually exclusive"
 type ValkeySpec struct {
 	// Valkey server hostname.
@@ -174,7 +175,16 @@ type ValkeySpec struct {
 	// +kubebuilder:default=6379
 	Port *int32 `json:"port,omitempty"`
 
-	// Plain text password. Only allowed in dev mode — use passwordFrom in prod.
+	// Valkey username. Useful for Redis ACL or managed Redis-compatible services.
+	// +optional
+	Username *string `json:"username,omitempty"`
+
+	// Reference to a Secret key containing the Valkey username.
+	// Mutually exclusive with username.
+	// +optional
+	UsernameFrom *corev1.SecretKeySelector `json:"usernameFrom,omitempty"`
+
+	// Plain text password. Only allowed in Development mode — use passwordFrom in Staging or Production.
 	// +optional
 	Password *string `json:"password,omitempty"`
 

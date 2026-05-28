@@ -174,9 +174,11 @@ func TestRenderConfig_ValkeyMinimal(t *testing.T) {
 	assertContains(t, result, "from cachelib.redis import RedisCache as _CachelibRedis")
 
 	// Connection helpers
+	assertContains(t, result, "_vk_user = os.environ.get(\"SUPERSET_OPERATOR__VALKEY_USER\"")
 	assertContains(t, result, "_vk_pass = os.environ.get(\"SUPERSET_OPERATOR__VALKEY_PASS\"")
 	assertContains(t, result, "_vk_scheme = \"redis\"")
 	assertContains(t, result, "from urllib.parse import quote")
+	assertContains(t, result, "quote(_vk_user, safe='')")
 	assertContains(t, result, "quote(_vk_pass, safe='')")
 	assertContains(t, result, "_vk_base = f\"{_vk_scheme}://")
 	assertContains(t, result, "SUPERSET_OPERATOR__VALKEY_HOST")
@@ -209,6 +211,7 @@ func TestRenderConfig_ValkeyMinimal(t *testing.T) {
 
 	// Results backend
 	assertContains(t, result, "RESULTS_BACKEND = _CachelibRedis(")
+	assertContains(t, result, "username=os.environ.get(\"SUPERSET_OPERATOR__VALKEY_USER\") or None")
 	assertContains(t, result, "db=6")
 	assertContains(t, result, "key_prefix=f\"{_superset_instance}_superset_results_\"")
 
@@ -423,6 +426,7 @@ func TestRenderConfig_Valkey_URLReservedChars(t *testing.T) {
 	result := RenderConfig(ComponentWebServer, input)
 
 	// Verify Valkey password quoting uses safe="" for the same reason.
+	assertContains(t, result, "quote(_vk_user, safe='')")
 	assertContains(t, result, "quote(_vk_pass, safe='')")
 }
 

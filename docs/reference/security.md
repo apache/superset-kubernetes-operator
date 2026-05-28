@@ -94,7 +94,7 @@ a vulnerability — it is a documented design decision.
 
 ### Secret Handling
 
-In prod mode, secrets follow this path:
+In Staging and Production modes, secrets follow this path:
 
 1. User creates a Kubernetes `Secret` containing the secret key and database
    credentials
@@ -133,7 +133,10 @@ of scope for the operator's secret handling guarantees
 The `spec.config` field accepts arbitrary Python code that is appended to the
 generated `superset_config.py`. This is by design — Superset's configuration
 system is Python-based and requires arbitrary Python for features like custom
-security managers, database drivers, and feature flags.
+security managers, database drivers, and feature flags. The same trust model
+applies to custom lifecycle commands, container env vars, and mounted files:
+operator-managed secret transport avoids ConfigMap leakage, but user-supplied
+raw fields can still expose secrets if CR authors put secrets there directly.
 
 Since CR creators can already deploy arbitrary containers (via `image`,
 `command`, `args`), the ability to inject Python does not expand the attack
@@ -148,13 +151,17 @@ ensures validation is always active regardless of how the operator is deployed.
 
 Key rules:
 
-- **Prod-mode secret rejection:** Inline `secretKey`, `metastore.uri`,
-  `metastore.password`, and `valkey.password` are rejected in prod mode
+- **Production/Staging secret rejection:** Inline `secretKey`,
+  `metastore.uri`, `metastore.password`, `valkey.password`, and websocket
+  `config` are rejected outside Development mode
+- **Staging clone boundary:** `lifecycle.clone` is allowed only in Development
+  or Staging because it performs a destructive target database drop
 - **Mutual exclusivity:** `secretKey`/`secretKeyFrom`, metastore URI vs
-  structured fields, gateway vs ingress
+  structured fields, Valkey username/password inline vs Secret references,
+  websocket `config`/`configFrom`, gateway vs ingress
 - **Networking requires webServer:** Routes target the web server service
 - **Monitoring requires webServer:** ServiceMonitor scrapes the web server service
-- **Defaulting:** `environment` defaults to `prod`, image repository and pull
+- **Defaulting:** `environment` defaults to `Production`, image repository and pull
   policy default via kubebuilder markers
 
 ## Design Decisions
@@ -306,7 +313,7 @@ Constraints common to both paths:
 
 The following are valid security concerns for this project:
 
-- Secrets leaking into ConfigMaps, Events, logs, or CRD status in **prod mode**
+- Secrets leaking into ConfigMaps, Events, logs, or CRD status in **Staging or Production mode**
 - Privilege escalation via the operator's RBAC permissions
 - CRD validation bypass (e.g., crafting a CR that evades CEL rules)
 - The operator container's own security posture (it runs as non-root,
@@ -335,10 +342,10 @@ one of these conditions materially worse:
   Valkey instances; their security is the user's responsibility
 - **Kubernetes control plane vulnerabilities** — report these to the
   [Kubernetes security team](https://kubernetes.io/docs/reference/issues-security/security/)
-- **Dev mode allows inline secrets** — this is intentional and documented for
-  local development; prod mode is the enforced default. `lifecycle.init.adminUser` and
-  `lifecycle.init.loadExamples` are also dev-mode-only features, rejected by CRD
-  validation in prod mode
+- **Development mode allows inline secrets** — this is intentional and documented for
+  local development; Production mode is the enforced default. `lifecycle.init.adminUser` and
+  `lifecycle.init.loadExamples` are also Development-only features, rejected by CRD
+  validation in Staging and Production
 - **CR creators can deploy arbitrary workloads** — creating or updating any
   Superset CRD is equivalent to creating Pods with chosen images, commands,
   env vars, volumes, and ServiceAccounts; this is inherent to the operator

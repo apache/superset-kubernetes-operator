@@ -21,12 +21,14 @@ under the License.
 
 ## Security Model
 
-The operator defaults to production mode. CRD validation rejects inline secrets
-and credentials must be referenced from Kubernetes Secrets via `secretKeyFrom`,
-`metastore.uriFrom`, `metastore.passwordFrom`, or `valkey.passwordFrom`. The operator never reads,
+The operator defaults to `Production` mode. CRD validation rejects inline
+secrets and credentials must be referenced from Kubernetes Secrets via
+`secretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`,
+`valkey.passwordFrom`, or websocket `configFrom`. The operator never reads,
 logs, or stores secret values in ConfigMaps or CRD status fields. The operator
-runs as a non-root, distroless container with read-only root filesystem, dropped
-capabilities, and least-privilege RBAC.
+runs as a non-root, distroless container with read-only root filesystem,
+dropped capabilities, and least-privilege RBAC. `Staging` keeps production
+secret handling while allowing destructive clone workflows for migration tests.
 
 **Lifecycle task caveat:** When a lifecycle task Job fails, a truncated failure
 message (max 256 characters) may appear in the parent Superset status and Events. If the task

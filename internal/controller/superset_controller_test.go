@@ -28,6 +28,7 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -286,6 +287,21 @@ var _ = Describe("Integration", Ordered, func() {
 			Expect(err.Error()).To(ContainSubstring("nodePort"))
 		})
 
+		It("should reject valkey username and usernameFrom together", func() {
+			cr := newSuperset("vk-user-both", ns)
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
+				Host:     "valkey",
+				Username: strPtr("acl-user"),
+				UsernameFrom: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "valkey-secret"},
+					Key:                  "username",
+				},
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("username and usernameFrom"))
+		})
+
 		It("should reject websocketServer without an image override", func() {
 			cr := newSuperset("ws-no-image", ns)
 			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
@@ -301,6 +317,73 @@ var _ = Describe("Integration", Ordered, func() {
 					Image: &supersetv1alpha1.ImageOverrideSpec{
 						Repository: strPtr("example.com/superset-websocket"),
 					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, cr)).To(Succeed())
+		})
+
+		It("should reject websocketServer config and configFrom together", func() {
+			cr := newSuperset("ws-config-both", ns)
+			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
+				ComponentSpec: supersetv1alpha1.ComponentSpec{
+					Image: &supersetv1alpha1.ImageOverrideSpec{
+						Repository: strPtr("example.com/superset-websocket"),
+					},
+				},
+				Config: &apiextensionsv1.JSON{Raw: []byte(`{"port":8080}`)},
+				ConfigFrom: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "ws-config"},
+					Key:                  "config.json",
+				},
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("websocketServer.config"))
+		})
+
+		It("should reject inline websocketServer config outside Development", func() {
+			prodEnv := "Production"
+			cr := newSuperset("ws-config-prod", ns)
+			cr.Spec.Environment = &prodEnv
+			cr.Spec.SecretKey = nil
+			cr.Spec.SecretKeyFrom = &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: "app-secret"},
+				Key:                  "secret-key",
+			}
+			cr.Spec.Metastore = nil
+			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
+				ComponentSpec: supersetv1alpha1.ComponentSpec{
+					Image: &supersetv1alpha1.ImageOverrideSpec{
+						Repository: strPtr("example.com/superset-websocket"),
+					},
+				},
+				Config: &apiextensionsv1.JSON{Raw: []byte(`{"port":8080}`)},
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("websocketServer.config"))
+		})
+
+		It("should accept websocketServer configFrom outside Development", func() {
+			prodEnv := "Production"
+			cr := newSuperset("ws-configfrom-prod", ns)
+			cr.Spec.Environment = &prodEnv
+			cr.Spec.SecretKey = nil
+			cr.Spec.SecretKeyFrom = &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: "app-secret"},
+				Key:                  "secret-key",
+			}
+			cr.Spec.Metastore = nil
+			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
+				ComponentSpec: supersetv1alpha1.ComponentSpec{
+					Image: &supersetv1alpha1.ImageOverrideSpec{
+						Repository: strPtr("example.com/superset-websocket"),
+					},
+				},
+				ConfigFrom: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "ws-config"},
+					Key:                  "config.json",
 				},
 			}
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())

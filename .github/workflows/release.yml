@@ -85,7 +85,7 @@ jobs:
           cosign sign --yes "${{ env.IMAGE_NAME }}@${DIGEST}"
 
       - name: Install Helm
-        run: curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+        run: bash scripts/install-helm.sh
 
       - name: Set chart version for release tags
         if: startsWith(github.ref, 'refs/tags/v')

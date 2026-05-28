@@ -76,10 +76,10 @@ spec:
 
 The `metastore` field provides database connection configuration. There are two modes:
 
-**Passthrough URI** — provide the full SQLAlchemy connection string. In dev mode, use `uri` inline. In prod mode, use `uriFrom` to reference a Kubernetes Secret:
+**Passthrough URI** — provide the full SQLAlchemy connection string. In Development mode, use `uri` inline. In Staging or Production, use `uriFrom` to reference a Kubernetes Secret:
 
 ```yaml
-# Dev mode: inline URI
+# Development mode: inline URI
 spec:
   environment: Development
   metastore:
@@ -87,7 +87,7 @@ spec:
 ```
 
 ```yaml
-# Prod mode: URI from Secret
+# Staging/Production: URI from Secret
 spec:
   metastore:
     uriFrom:
@@ -97,10 +97,10 @@ spec:
 
 `uri` and `uriFrom` are mutually exclusive with each other and with the structured fields below.
 
-**Structured fields** — the operator sets individual env vars (`SUPERSET_OPERATOR__DB_HOST`, `SUPERSET_OPERATOR__DB_PORT`, `SUPERSET_OPERATOR__DB_NAME`, `SUPERSET_OPERATOR__DB_USER`, `SUPERSET_OPERATOR__DB_PASS`) that the generated config assembles into a connection URI. In prod mode, use `passwordFrom` to reference a Secret for the password:
+**Structured fields** — the operator sets individual env vars (`SUPERSET_OPERATOR__DB_HOST`, `SUPERSET_OPERATOR__DB_PORT`, `SUPERSET_OPERATOR__DB_NAME`, `SUPERSET_OPERATOR__DB_USER`, `SUPERSET_OPERATOR__DB_PASS`) that the generated config assembles into a connection URI. In Staging or Production, use `passwordFrom` to reference a Secret for the password:
 
 ```yaml
-# Dev mode: inline password
+# Development mode: inline password
 spec:
   environment: Development
   metastore:
@@ -113,7 +113,7 @@ spec:
 ```
 
 ```yaml
-# Prod mode: password from Secret
+# Staging/Production: password from Secret
 spec:
   metastore:
     type: PostgreSQL
@@ -207,7 +207,7 @@ spec:
       database: 15
 ```
 
-In dev mode, `valkey.password` can be set inline. In prod mode (default), use `valkey.passwordFrom` to reference a Kubernetes Secret — the operator injects the password via `valueFrom.secretKeyRef`.
+In Development mode, `valkey.password` can be set inline. In Staging or Production, use `valkey.passwordFrom` to reference a Kubernetes Secret — the operator injects the password via `valueFrom.secretKeyRef`.
 
 ### SSL/TLS
 
@@ -573,9 +573,9 @@ spec:
 ```
 
 Because the websocket server is Node.js-based, it does **not** receive a
-`superset_config.py`, and the `config` / `sqlaEngineOptions` fields are not
-available on this component. Configuration is handled via environment variables
-on the container template:
+`superset_config.py`, and `sqlaEngineOptions` is not available on this
+component. Configuration can be provided with environment variables, inline
+Development-only `config`, or a Secret-backed `configFrom`.
 
 ```yaml
 spec:
@@ -589,6 +589,44 @@ spec:
           - name: SUPERSET_WEBSERVER_URL
             value: "http://my-superset-web-server:8088"
 ```
+
+Inline `config` renders `config.json` and mounts it at
+`/home/superset-websocket/config.json`. It is allowed only in Development mode
+because websocket config commonly contains `jwtSecret` or Redis credentials:
+
+```yaml
+spec:
+  environment: Development
+  websocketServer:
+    image:
+      repository: oneacrefund/superset-websocket
+      tag: "latest"
+    config:
+      port: 8080
+      logLevel: debug
+      jwtSecret: CHANGE-ME
+      jwtCookieName: async-token
+      redis:
+        host: redis.default.svc
+        port: 6379
+        db: 0
+```
+
+In Staging and Production, store `config.json` in a Secret and reference it:
+
+```yaml
+spec:
+  websocketServer:
+    image:
+      repository: oneacrefund/superset-websocket
+      tag: "latest"
+    configFrom:
+      name: superset-websocket-config
+      key: config.json
+```
+
+The operator mounts the Secret key without reading or copying the Secret. If
+the Secret content changes, update `spec.forceReload` to roll websocket pods.
 
 The websocket server creates a Service (default port 8080) and supports the
 same scaling, deployment template, and pod template fields as other scalable

@@ -326,6 +326,9 @@ func (r *SupersetReconciler) expectedComponentResources(
 	if desc.hasPythonConfig {
 		resources = append(resources, r.observedResourceStatus(ctx, superset.Namespace, "ConfigMap", naming.ConfigMapName(resourceBaseName), &corev1.ConfigMap{}))
 	}
+	if desc.componentType == naming.ComponentWebsocketServer && accessor != nil && accessor.websocketConfig != nil {
+		resources = append(resources, r.observedResourceStatus(ctx, superset.Namespace, "ConfigMap", naming.ConfigMapName(resourceBaseName), &corev1.ConfigMap{}))
+	}
 	if componentHasService(desc, cfg) {
 		resources = append(resources, r.observedResourceStatus(ctx, superset.Namespace, "Service", resourceBaseName, &corev1.Service{}))
 	}

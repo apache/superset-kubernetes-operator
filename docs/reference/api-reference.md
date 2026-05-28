@@ -27,7 +27,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `username` _string_ | Admin username. | admin | Optional: \{\} <br /> |
-| `password` _string_ | Admin password. Stored as plain-text env var in dev mode. | admin | Optional: \{\} <br /> |
+| `password` _string_ | Admin password. Stored as plain-text env var in Development mode. | admin | Optional: \{\} <br /> |
 | `firstName` _string_ | Admin first name. | Superset | Optional: \{\} <br /> |
 | `lastName` _string_ | Admin last name. | Admin | Optional: \{\} <br /> |
 | `email` _string_ | Admin email. | admin@example.com | Optional: \{\} <br /> |
@@ -608,8 +608,8 @@ _Appears in:_
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
-| `adminUser` _[AdminUserSpec](#adminuserspec)_ | Admin user to create during initialization. Only allowed in dev mode.<br />When set, the operator appends a superset fab create-admin step to the init command. |  | Optional: \{\} <br /> |
-| `loadExamples` _boolean_ | Load example dashboards and data during initialization. Only allowed in dev mode.<br />When true, the operator appends a superset load-examples step to the init command. |  | Optional: \{\} <br /> |
+| `adminUser` _[AdminUserSpec](#adminuserspec)_ | Admin user to create during initialization. Only allowed in Development mode.<br />When set, the operator appends a superset fab create-admin step to the init command. |  | Optional: \{\} <br /> |
+| `loadExamples` _boolean_ | Load example dashboards and data during initialization. Only allowed in Development mode.<br />When true, the operator appends a superset load-examples step to the init command. |  | Optional: \{\} <br /> |
 
 
 #### LifecycleSpec
@@ -730,14 +730,14 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `uri` _string_ | Full SQLAlchemy database URI. Mutually exclusive with structured fields and uriFrom.<br />In prod mode, CRD validation rejects plain text URIs — use uriFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
+| `uri` _string_ | Full SQLAlchemy database URI. Mutually exclusive with structured fields and uriFrom.<br />In Staging or Production, CRD validation rejects plain text URIs — use uriFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
 | `uriFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the full SQLAlchemy URI.<br />Mutually exclusive with uri and structured fields. |  | Optional: \{\} <br /> |
 | `type` _string_ | Database type. Determines the SQLAlchemy driver. | PostgreSQL | Enum: [PostgreSQL MySQL] <br />Optional: \{\} <br /> |
 | `host` _string_ | Database hostname. |  | Optional: \{\} <br /> |
 | `port` _integer_ | Database port. Defaults per driver (5432 for postgresql, 3306 for mysql). |  | Optional: \{\} <br /> |
 | `database` _string_ | Database name. |  | Optional: \{\} <br /> |
 | `username` _string_ | Database username. |  | Optional: \{\} <br /> |
-| `password` _string_ | Database password. In prod mode, CRD validation rejects plain text passwords — use passwordFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
+| `password` _string_ | Database password. In Staging or Production, CRD validation rejects plain text passwords — use passwordFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
 | `passwordFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the database password.<br />Mutually exclusive with password. |  | Optional: \{\} <br /> |
 | `createDatabase` _boolean_ | CreateDatabase, when true, instructs the operator to attach a one-shot<br />init container to the migrate Job that issues `CREATE DATABASE` against<br />the server before `superset db upgrade` runs. Existing databases are<br />detected and the step becomes a no-op. Requires the configured metastore<br />user to hold CREATEDB (PostgreSQL) or CREATE (MySQL) privilege on the<br />server. Only valid with structured metastore (host/database/username);<br />rejected when uri or uriFrom is set. |  | Optional: \{\} <br /> |
 
@@ -1077,9 +1077,9 @@ _Appears in:_
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Default autoscaling for all scalable components (component-level overrides this). |  | Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | Default pod disruption budget for all scalable components (component-level overrides this). |  | Optional: \{\} <br /> |
 | `environment` _string_ | Environment mode: "Development", "Staging", or "Production". Controls validation strictness.<br />In Production mode, CRD validation rejects plain text secrets and disallows cloning.<br />In Staging mode, secrets are enforced (like Production) but cloning is allowed.<br />In Development mode, plain text secrets, cloning, admin user, and load examples are all permitted. | Production | Enum: [Development Staging Production] <br />Optional: \{\} <br /> |
-| `secretKey` _string_ | Plain text secret key for session signing. Only allowed in dev mode.<br />In prod, use secretKeyFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
+| `secretKey` _string_ | Plain text secret key for session signing. Only allowed in Development mode.<br />In Staging or Production, use secretKeyFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
 | `secretKeyFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the secret key for session signing.<br />Mutually exclusive with secretKey. |  | Optional: \{\} <br /> |
-| `previousSecretKey` _string_ | Plain text previous secret key for key rotation. Only allowed in dev mode.<br />When set, rendered as PREVIOUS_SECRET_KEY in superset_config.py for all<br />Python components, enabling fallback decryption during key transitions. |  | Optional: \{\} <br /> |
+| `previousSecretKey` _string_ | Plain text previous secret key for key rotation. Only allowed in Development mode.<br />When set, rendered as PREVIOUS_SECRET_KEY in superset_config.py for all<br />Python components, enabling fallback decryption during key transitions. |  | Optional: \{\} <br /> |
 | `previousSecretKeyFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the previous secret key for rotation.<br />Mutually exclusive with previousSecretKey. |  | Optional: \{\} <br /> |
 | `metastore` _[MetastoreSpec](#metastorespec)_ | Metastore database connection configuration. |  | Optional: \{\} <br /> |
 | `valkey` _[ValkeySpec](#valkeyspec)_ | Valkey cache, broker, and results backend configuration. |  | Optional: \{\} <br /> |
@@ -1263,7 +1263,9 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `host` _string_ | Valkey server hostname. |  |  |
 | `port` _integer_ | Valkey server port. | 6379 | Optional: \{\} <br /> |
-| `password` _string_ | Plain text password. Only allowed in dev mode — use passwordFrom in prod. |  | Optional: \{\} <br /> |
+| `username` _string_ | Valkey username. Useful for Redis ACL or managed Redis-compatible services. |  | Optional: \{\} <br /> |
+| `usernameFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the Valkey username.<br />Mutually exclusive with username. |  | Optional: \{\} <br /> |
+| `password` _string_ | Plain text password. Only allowed in Development mode — use passwordFrom in Staging or Production. |  | Optional: \{\} <br /> |
 | `passwordFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the Valkey password.<br />Mutually exclusive with password. |  | Optional: \{\} <br /> |
 | `ssl` _[ValkeySSLSpec](#valkeysslspec)_ | SSL/TLS configuration. When set, enables SSL for the Valkey connection. |  | Optional: \{\} <br /> |
 | `cache` _[ValkeyCacheSpec](#valkeycachespec)_ | General cache (CACHE_CONFIG). Default: db=1, prefix="superset_", timeout=300s. |  | Optional: \{\} <br /> |
@@ -1323,6 +1325,8 @@ _Appears in:_
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling. |  | Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
+| `config` _[JSON](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#json-v1-apiextensions-k8s-io)_ | Inline config.json content for the websocket server. Only allowed in<br />Development mode because this config commonly contains jwtSecret or Redis<br />credentials. In Production, use configFrom to mount an existing Secret key. |  | Type: object <br />Optional: \{\} <br /> |
+| `configFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing websocket server config.json.<br />The operator mounts the selected key at /home/superset-websocket/config.json<br />without reading or copying the Secret. |  | Optional: \{\} <br /> |
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration (type, port, annotations). |  | Optional: \{\} <br /> |
 
 

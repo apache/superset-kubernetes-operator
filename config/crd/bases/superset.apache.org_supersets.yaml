@@ -31176,10 +31176,27 @@ spec:
                       keyPrefix:
                         type: string
                     type: object
+                  username:
+                    type: string
+                  usernameFrom:
+                    properties:
+                      key:
+                        type: string
+                      name:
+                        default: ""
+                        type: string
+                      optional:
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
                 required:
                 - host
                 type: object
                 x-kubernetes-validations:
+                - message: username and usernameFrom are mutually exclusive
+                  rule: '!(has(self.username) && has(self.usernameFrom))'
                 - message: password and passwordFrom are mutually exclusive
                   rule: '!(has(self.password) && has(self.passwordFrom))'
               webServer:
@@ -35506,6 +35523,22 @@ spec:
                     x-kubernetes-validations:
                     - message: maxReplicas must be >= minReplicas
                       rule: '!has(self.minReplicas) || self.maxReplicas >= self.minReplicas'
+                  config:
+                    type: object
+                    x-kubernetes-preserve-unknown-fields: true
+                  configFrom:
+                    properties:
+                      key:
+                        type: string
+                      name:
+                        default: ""
+                        type: string
+                      optional:
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
                   deploymentTemplate:
                     properties:
                       minReadySeconds:
@@ -39169,6 +39202,9 @@ spec:
                     Superset image does not include websocket_server.js'
                   rule: has(self.image) && has(self.image.repository) && size(self.image.repository)
                     > 0
+                - message: websocketServer.config and websocketServer.configFrom are
+                    mutually exclusive
+                  rule: '!(has(self.config) && has(self.configFrom))'
             required:
             - image
             type: object
@@ -39177,19 +39213,19 @@ spec:
                 set
               rule: has(self.secretKey) != has(self.secretKeyFrom)
             - message: secretKey is only allowed when environment is Development;
-                use secretKeyFrom in Production
+                use secretKeyFrom in Staging or Production
               rule: (has(self.environment) && self.environment == 'Development') ||
                 !has(self.secretKey)
             - message: metastore.uri is only allowed when environment is Development;
-                use metastore.uriFrom in Production
+                use metastore.uriFrom in Staging or Production
               rule: (has(self.environment) && self.environment == 'Development') ||
                 !has(self.metastore) || !has(self.metastore.uri)
             - message: metastore.password is only allowed when environment is Development;
-                use metastore.passwordFrom in Production
+                use metastore.passwordFrom in Staging or Production
               rule: (has(self.environment) && self.environment == 'Development') ||
                 !has(self.metastore) || !has(self.metastore.password)
             - message: valkey.password is only allowed when environment is Development;
-                use valkey.passwordFrom in Production
+                use valkey.passwordFrom in Staging or Production
               rule: (has(self.environment) && self.environment == 'Development') ||
                 !has(self.valkey) || !has(self.valkey.password)
             - message: lifecycle.init.adminUser is only allowed when environment is
@@ -39200,6 +39236,11 @@ spec:
                 is Development
               rule: (has(self.environment) && self.environment == 'Development') ||
                 !has(self.lifecycle) || !has(self.lifecycle.init) || !has(self.lifecycle.init.loadExamples)
+            - message: websocketServer.config is only allowed when environment is
+                Development; use websocketServer.configFrom to reference a Secret
+                in Staging or Production
+              rule: (has(self.environment) && self.environment == 'Development') ||
+                !has(self.websocketServer) || !has(self.websocketServer.config)
             - message: spec.networking.ingress requires spec.webServer to be set (all
                 Ingress rules target the web server service)
               rule: '!has(self.networking) || !has(self.networking.ingress) || has(self.webServer)'
@@ -39227,7 +39268,7 @@ spec:
               rule: '!has(self.lifecycle) || !has(self.lifecycle.clone) || (has(self.lifecycle.clone.disabled)
                 && self.lifecycle.clone.disabled) || (has(self.metastore) && has(self.metastore.host))'
             - message: previousSecretKey is only allowed when environment is Development;
-                use previousSecretKeyFrom in Production
+                use previousSecretKeyFrom in Staging or Production
               rule: (has(self.environment) && self.environment == 'Development') ||
                 !has(self.previousSecretKey)
             - message: previousSecretKey and previousSecretKeyFrom are mutually exclusive

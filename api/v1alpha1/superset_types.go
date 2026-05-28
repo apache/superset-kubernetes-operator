@@ -21,25 +21,27 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 // SupersetSpec defines the desired state of a Superset deployment.
 // +kubebuilder:validation:XValidation:rule="has(self.secretKey) != has(self.secretKeyFrom)",message="exactly one of secretKey (dev only) or secretKeyFrom must be set"
-// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.secretKey)",message="secretKey is only allowed when environment is Development; use secretKeyFrom in Production"
-// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.metastore) || !has(self.metastore.uri)",message="metastore.uri is only allowed when environment is Development; use metastore.uriFrom in Production"
-// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.metastore) || !has(self.metastore.password)",message="metastore.password is only allowed when environment is Development; use metastore.passwordFrom in Production"
-// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.valkey) || !has(self.valkey.password)",message="valkey.password is only allowed when environment is Development; use valkey.passwordFrom in Production"
+// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.secretKey)",message="secretKey is only allowed when environment is Development; use secretKeyFrom in Staging or Production"
+// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.metastore) || !has(self.metastore.uri)",message="metastore.uri is only allowed when environment is Development; use metastore.uriFrom in Staging or Production"
+// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.metastore) || !has(self.metastore.password)",message="metastore.password is only allowed when environment is Development; use metastore.passwordFrom in Staging or Production"
+// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.valkey) || !has(self.valkey.password)",message="valkey.password is only allowed when environment is Development; use valkey.passwordFrom in Staging or Production"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.lifecycle) || !has(self.lifecycle.init) || !has(self.lifecycle.init.adminUser)",message="lifecycle.init.adminUser is only allowed when environment is Development"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.lifecycle) || !has(self.lifecycle.init) || !has(self.lifecycle.init.loadExamples)",message="lifecycle.init.loadExamples is only allowed when environment is Development"
+// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.websocketServer) || !has(self.websocketServer.config)",message="websocketServer.config is only allowed when environment is Development; use websocketServer.configFrom to reference a Secret in Staging or Production"
 // +kubebuilder:validation:XValidation:rule="!has(self.networking) || !has(self.networking.ingress) || has(self.webServer)",message="spec.networking.ingress requires spec.webServer to be set (all Ingress rules target the web server service)"
 // +kubebuilder:validation:XValidation:rule="!has(self.networking) || !has(self.networking.gateway) || has(self.webServer) || has(self.websocketServer) || has(self.mcpServer) || has(self.celeryFlower)",message="spec.networking.gateway requires at least one component with a routable service (webServer, websocketServer, mcpServer, or celeryFlower)"
 // +kubebuilder:validation:XValidation:rule="!has(self.monitoring) || !has(self.monitoring.serviceMonitor) || has(self.webServer)",message="spec.monitoring.serviceMonitor requires spec.webServer to be set (scrapes the web server service)"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && (self.environment == 'Development' || self.environment == 'Staging')) || !has(self.lifecycle) || !has(self.lifecycle.clone) || (has(self.lifecycle.clone.disabled) && self.lifecycle.clone.disabled)",message="lifecycle.clone is only allowed when environment is Development or Staging; cloning performs a destructive DROP DATABASE on the target metastore"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.lifecycle) || !has(self.lifecycle.clone) || !has(self.lifecycle.clone.source) || !has(self.lifecycle.clone.source.password)",message="lifecycle.clone.source.password is only allowed when environment is Development; use lifecycle.clone.source.passwordFrom in Staging"
 // +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.clone) || (has(self.lifecycle.clone.disabled) && self.lifecycle.clone.disabled) || (has(self.metastore) && has(self.metastore.host))",message="lifecycle.clone requires structured metastore configuration (host must be set)"
-// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.previousSecretKey)",message="previousSecretKey is only allowed when environment is Development; use previousSecretKeyFrom in Production"
+// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.previousSecretKey)",message="previousSecretKey is only allowed when environment is Development; use previousSecretKeyFrom in Staging or Production"
 // +kubebuilder:validation:XValidation:rule="!has(self.previousSecretKey) || !has(self.previousSecretKeyFrom)",message="previousSecretKey and previousSecretKeyFrom are mutually exclusive"
 // +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.rotate) || (has(self.lifecycle.rotate.disabled) && self.lifecycle.rotate.disabled) || has(self.previousSecretKey) || has(self.previousSecretKeyFrom)",message="lifecycle.rotate requires previousSecretKey (dev) or previousSecretKeyFrom to be set"
 type SupersetSpec struct {
@@ -71,8 +73,8 @@ type SupersetSpec struct {
 	// +kubebuilder:default=Production
 	Environment *string `json:"environment,omitempty"`
 
-	// Plain text secret key for session signing. Only allowed in dev mode.
-	// In prod, use secretKeyFrom to reference a Kubernetes Secret.
+	// Plain text secret key for session signing. Only allowed in Development mode.
+	// In Staging or Production, use secretKeyFrom to reference a Kubernetes Secret.
 	// +optional
 	SecretKey *string `json:"secretKey,omitempty"`
 
@@ -81,7 +83,7 @@ type SupersetSpec struct {
 	// +optional
 	SecretKeyFrom *corev1.SecretKeySelector `json:"secretKeyFrom,omitempty"`
 
-	// Plain text previous secret key for key rotation. Only allowed in dev mode.
+	// Plain text previous secret key for key rotation. Only allowed in Development mode.
 	// When set, rendered as PREVIOUS_SECRET_KEY in superset_config.py for all
 	// Python components, enabling fallback decryption during key transitions.
 	// +optional
@@ -245,9 +247,22 @@ type CeleryFlowerComponentSpec struct {
 // The websocket server is a Node.js app — the default Superset image does not contain
 // websocket_server.js, so an image override is required.
 // +kubebuilder:validation:XValidation:rule="has(self.image) && has(self.image.repository) && size(self.image.repository) > 0",message="websocketServer.image.repository is required: the default Superset image does not include websocket_server.js"
+// +kubebuilder:validation:XValidation:rule="!(has(self.config) && has(self.configFrom))",message="websocketServer.config and websocketServer.configFrom are mutually exclusive"
 type WebsocketServerComponentSpec struct {
 	ScalableComponentSpec `json:",inline"`
 	ComponentSpec         `json:",inline"`
+	// Inline config.json content for the websocket server. Only allowed in
+	// Development mode because this config commonly contains jwtSecret or Redis
+	// credentials. In Production, use configFrom to mount an existing Secret key.
+	// +optional
+	// +kubebuilder:validation:Type=object
+	// +kubebuilder:pruning:PreserveUnknownFields
+	Config *apiextensionsv1.JSON `json:"config,omitempty"`
+	// Reference to a Secret key containing websocket server config.json.
+	// The operator mounts the selected key at /home/superset-websocket/config.json
+	// without reading or copying the Secret.
+	// +optional
+	ConfigFrom *corev1.SecretKeySelector `json:"configFrom,omitempty"`
 	// Service configuration (type, port, annotations).
 	// +optional
 	Service *ComponentServiceSpec `json:"service,omitempty"`
@@ -417,12 +432,12 @@ type RotateTaskSpec struct {
 type InitTaskSpec struct {
 	BaseTaskSpec `json:",inline"`
 
-	// Admin user to create during initialization. Only allowed in dev mode.
+	// Admin user to create during initialization. Only allowed in Development mode.
 	// When set, the operator appends a superset fab create-admin step to the init command.
 	// +optional
 	AdminUser *AdminUserSpec `json:"adminUser,omitempty"`
 
-	// Load example dashboards and data during initialization. Only allowed in dev mode.
+	// Load example dashboards and data during initialization. Only allowed in Development mode.
 	// When true, the operator appends a superset load-examples step to the init command.
 	// +optional
 	LoadExamples *bool `json:"loadExamples,omitempty"`
@@ -434,7 +449,7 @@ type AdminUserSpec struct {
 	// +optional
 	// +kubebuilder:default="admin"
 	Username *string `json:"username,omitempty"`
-	// Admin password. Stored as plain-text env var in dev mode.
+	// Admin password. Stored as plain-text env var in Development mode.
 	// +optional
 	// +kubebuilder:default="admin"
 	Password *string `json:"password,omitempty"`

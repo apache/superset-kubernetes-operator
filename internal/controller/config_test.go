@@ -577,6 +577,38 @@ func TestCollectSecretEnvVars_Valkey(t *testing.T) {
 		}
 	})
 
+	t.Run("username", func(t *testing.T) {
+		spec := &supersetv1alpha1.SupersetSpec{
+			Valkey: &supersetv1alpha1.ValkeySpec{Host: "valkey", Username: common.Ptr("acl-user")},
+		}
+		envMap := envSliceToMap(collectSecretEnvVars(spec, "test"))
+		if envMap["SUPERSET_OPERATOR__VALKEY_USER"] != "acl-user" {
+			t.Errorf("expected username, got %q", envMap["SUPERSET_OPERATOR__VALKEY_USER"])
+		}
+	})
+
+	t.Run("usernameFrom", func(t *testing.T) {
+		spec := &supersetv1alpha1.SupersetSpec{
+			Valkey: &supersetv1alpha1.ValkeySpec{
+				Host: "valkey",
+				UsernameFrom: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "valkey-secret"},
+					Key:                  "username",
+				},
+			},
+		}
+		envs := collectSecretEnvVars(spec, "test")
+		for _, env := range envs {
+			if env.Name == "SUPERSET_OPERATOR__VALKEY_USER" {
+				if env.ValueFrom == nil || env.ValueFrom.SecretKeyRef.Name != "valkey-secret" || env.ValueFrom.SecretKeyRef.Key != "username" {
+					t.Errorf("expected secretKeyRef valkey-secret/username, got %+v", env.ValueFrom)
+				}
+				return
+			}
+		}
+		t.Error("expected SUPERSET_OPERATOR__VALKEY_USER env var")
+	})
+
 	t.Run("dev mode password", func(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
 			Environment: common.Ptr("Development"),

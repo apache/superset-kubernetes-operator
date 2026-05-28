@@ -290,6 +290,8 @@ modes render `SQLALCHEMY_DATABASE_URI` from `SUPERSET_OPERATOR__DB_URI`
 | Per-component config | yes | yes | yes | yes | yes |
 
 **WebsocketServer** is Node.js-based -- it does NOT get `superset_config.py`.
+Optional websocket `config.json` is handled separately through Development-only
+inline config or a Secret-backed `configFrom` mount.
 
 ### Secret Handling
 
