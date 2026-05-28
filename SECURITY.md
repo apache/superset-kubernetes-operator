@@ -40,8 +40,12 @@ Users who can create or modify `Superset` custom resources are trusted — they 
 deploy arbitrary containers and Python configuration. Restrict access to Superset
 CRs using Kubernetes RBAC.
 
-For a detailed description of trust boundaries, security assumptions, and
-scope, see the [Security](docs/reference/security.md) documentation. If you are unsure
+## Threat Model
+
+The threat model — trust boundaries, security assumptions, and in-scope /
+out-of-scope concerns — is documented in [docs/reference/security.md](docs/reference/security.md),
+alongside the operator's broader security posture (secret handling, RBAC
+justification, and security-relevant design decisions). If you are unsure
 whether something crosses the operator's trust boundary, please report it
 privately and the maintainers will help triage it.
 

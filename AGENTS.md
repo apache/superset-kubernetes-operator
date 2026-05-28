@@ -26,6 +26,11 @@ Kubernetes operator for Apache Superset, built with the Go-based Operator SDK an
 - API group: `superset.apache.org/v1alpha1`
 - License: Apache 2.0
 
+## Security
+
+- Security policy and vulnerability reporting: [SECURITY.md](SECURITY.md)
+- Security posture, including the threat model (trust boundaries, in-scope / out-of-scope), secret handling, and RBAC justification: [docs/reference/security.md](docs/reference/security.md)
+
 ## Developer Guide
 
 See `docs/contributing/development-setup.md` and `docs/contributing/development-guidelines.md` for development setup, make commands, testing philosophy, code generation workflow, linting, CI/supply chain, and contributing guidelines. Adhere to the conventions documented there.
