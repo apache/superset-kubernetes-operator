@@ -377,8 +377,8 @@ spec:
   secretKey: test-secret-key
   metastore:
     uri: postgresql+psycopg2://superset:superset@postgres:5432/superset
-  config: |
-    FEATURE_FLAGS = {"DASHBOARD_RBAC": True}
+  featureFlags:
+    ENABLE_TEMPLATE_PROCESSING: true
   webServer:
     replicas: 2
   celeryWorker:
@@ -435,7 +435,7 @@ spec:
 				g.Expect(err).To(HaveOccurred(), "WebsocketServer should have no ConfigMap")
 			}, 30*time.Second, time.Second).Should(Succeed())
 
-			By("verifying CeleryWorker ConfigMap contains both base and component config")
+			By("verifying CeleryWorker ConfigMap contains both top-level and component config")
 			Eventually(func(g Gomega) {
 				cmd := exec.Command("kubectl", "get", "configmap",
 					crName+"-celery-worker-config", "-n", namespace,
@@ -443,7 +443,7 @@ spec:
 				output, err := utils.Run(cmd)
 				g.Expect(err).NotTo(HaveOccurred())
 				g.Expect(output).To(ContainSubstring("FEATURE_FLAGS"),
-					"CeleryWorker config should contain base FEATURE_FLAGS")
+					"CeleryWorker config should contain top-level FEATURE_FLAGS")
 				g.Expect(output).To(ContainSubstring("CELERY_ANNOTATIONS"),
 					"CeleryWorker config should contain component CELERY_ANNOTATIONS")
 			}, 30*time.Second, time.Second).Should(Succeed())

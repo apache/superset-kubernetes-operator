@@ -65,7 +65,7 @@ spec:
       name: db-credentials
       key: connection-string
   featureFlags:
-    DASHBOARD_RBAC: true
+    ENABLE_TEMPLATE_PROCESSING: true
     ALERT_REPORTS: true
   config: |
     ROW_LIMIT = 10000

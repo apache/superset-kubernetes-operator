@@ -31,10 +31,8 @@ spec:
     uri: postgresql+psycopg2://superset:superset@postgres:5432/superset
   valkey:
     host: valkey
-  config: |
-    FEATURE_FLAGS = {
-        "ENABLE_TEMPLATE_PROCESSING": True,
-    }
+  featureFlags:
+    ENABLE_TEMPLATE_PROCESSING: true
   webServer: {}
   lifecycle:
     init:
