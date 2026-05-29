@@ -98,7 +98,7 @@ spec:
 
 For the plumbing-curious:
 
-- **Language & framework** — Go, built on [controller-runtime](https://github.com/kubernetes-sigs/controller-runtime). Validation is CEL-based on the CRD — no admission webhooks to operate.
+- **Language & framework** — written in Go, scaffolded with the [Operator SDK](https://sdk.operatorframework.io/) and built on [controller-runtime](https://github.com/kubernetes-sigs/controller-runtime). Validation is CEL-based on the CRD — no admission webhooks to operate.
 - **Kubernetes APIs** — tracks the current `k8s.io` client libraries and [Gateway API](https://gateway-api.sigs.k8s.io/); exact pinned versions live in [`go.mod`](go.mod).
 - **Image & supply chain** — distroless, multi-architecture (amd64/arm64) container; releases are [Cosign](https://github.com/sigstore/cosign)-signed; dependencies are kept current via [Renovate](https://docs.renovatebot.com/) with a minimum release age.
 - **Design & internals** — a single public CRD reconciled into parent-owned resources. See the [architecture overview](https://apache.github.io/superset-kubernetes-operator/architecture/overview/) and the [security & supply-chain notes](https://apache.github.io/superset-kubernetes-operator/reference/security/).
