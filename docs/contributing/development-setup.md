@@ -145,7 +145,7 @@ kind delete cluster --name superset
 | `make docs-build` | Build documentation site. |
 | `make docs-api` | Generate API reference documentation from Go types. |
 | `make supported-versions` | Regenerate the supported-Kubernetes-versions table in README.md and docs. |
-| `make make-commands` | Regenerate the make-commands tables in README.md and the contributing docs. |
+| `make make-commands` | Regenerate the make-commands tables in the contributing docs. |
 | `make sync-supported-versions` | Sync .github/supported-k8s.json with the pinned kind release's node images. |
 | `make verify-supported-versions` | Verify supported-k8s.json matches the pinned kind release and docs are up to date. |
 

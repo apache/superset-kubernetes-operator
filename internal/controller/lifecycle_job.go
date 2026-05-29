@@ -454,9 +454,14 @@ func jobFailureMessage(job *batchv1.Job) string {
 	return "Job failed"
 }
 
+// truncationMarker is appended to a failure message when it is truncated. It is
+// counted against maxTerminationMessageLen so the returned string never exceeds
+// that budget.
+const truncationMarker = "..."
+
 func truncateFailureMessage(msg string) string {
 	if len(msg) > maxTerminationMessageLen {
-		return msg[:maxTerminationMessageLen] + "..."
+		return msg[:maxTerminationMessageLen-len(truncationMarker)] + truncationMarker
 	}
 	return msg
 }

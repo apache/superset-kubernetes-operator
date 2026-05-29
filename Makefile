@@ -133,7 +133,7 @@ supported-versions: ## Regenerate the supported-Kubernetes-versions table in REA
 	./scripts/render-supported-versions.sh
 
 .PHONY: make-commands
-make-commands: ## Regenerate the make-commands tables in README.md and the contributing docs.
+make-commands: ## Regenerate the make-commands tables in the contributing docs.
 	./scripts/render-make-commands.sh
 
 .PHONY: sync-supported-versions

@@ -19,8 +19,8 @@ under the License.
 
 # Apache Superset Kubernetes Operator
 
-!!! warning "Under Development"
-    This project is under active development and is not yet stable. APIs, CRD schemas, and behavior may change without notice between releases. Do not use in production.
+!!! note "Alpha API"
+    The API is still `v1alpha1` — CRD schemas and behavior may change between releases until it stabilizes.
 
 A Kubernetes operator for deploying and managing [Apache Superset](https://superset.apache.org/). Built with the Go-based [Operator SDK](https://sdk.operatorframework.io/).
 

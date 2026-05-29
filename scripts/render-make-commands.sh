@@ -15,8 +15,8 @@
 # limitations under the License.
 #
 # Render the make-commands tables from the Makefile's `##@ Section` headers
-# and `target: ## description` annotations into README.md and the contributing
-# docs, between sentinel comments:
+# and `target: ## description` annotations into the contributing docs, between
+# sentinel comments:
 #
 #   <!-- BEGIN MAKE-COMMANDS -->
 #   ... generated block ...
@@ -31,7 +31,6 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MAKEFILE="${REPO_ROOT}/Makefile"
 TARGETS=(
-  "${REPO_ROOT}/README.md"
   "${REPO_ROOT}/docs/contributing/development-setup.md"
 )
 SKIP_SECTIONS_RE='^(General|Dependencies)$'

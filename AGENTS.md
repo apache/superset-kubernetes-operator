@@ -17,7 +17,7 @@ specific language governing permissions and limitations
 under the License.
 -->
 
-# CLAUDE.md
+# LLM Context Guide for Apache Superset Kubernetes Operator
 
 ## Project Overview
 

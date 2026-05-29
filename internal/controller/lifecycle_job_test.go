@@ -352,8 +352,8 @@ func TestTruncateFailureMessage(t *testing.T) {
 	t.Run("over-limit message is truncated with ellipsis", func(t *testing.T) {
 		msg := strings.Repeat("x", maxTerminationMessageLen+10)
 		got := truncateFailureMessage(msg)
-		assert.Equal(t, strings.Repeat("x", maxTerminationMessageLen)+"...", got)
-		assert.Len(t, got, maxTerminationMessageLen+3)
+		assert.Equal(t, strings.Repeat("x", maxTerminationMessageLen-len(truncationMarker))+"...", got)
+		assert.Len(t, got, maxTerminationMessageLen)
 	})
 }
 
@@ -386,6 +386,6 @@ func TestJobFailureMessage(t *testing.T) {
 	t.Run("truncates long condition messages", func(t *testing.T) {
 		long := strings.Repeat("x", maxTerminationMessageLen+5)
 		got := jobFailureMessage(failed("BackoffLimitExceeded", long))
-		assert.Len(t, got, maxTerminationMessageLen+3)
+		assert.Len(t, got, maxTerminationMessageLen)
 	})
 }
