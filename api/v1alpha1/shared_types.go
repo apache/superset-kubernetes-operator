@@ -105,9 +105,9 @@ type ContainerImageSpec struct {
 // They are mutually exclusive.
 // +kubebuilder:validation:XValidation:rule="!(has(self.uri) && has(self.uriFrom))",message="uri and uriFrom are mutually exclusive"
 // +kubebuilder:validation:XValidation:rule="!(has(self.password) && has(self.passwordFrom))",message="password and passwordFrom are mutually exclusive"
-// +kubebuilder:validation:XValidation:rule="!(has(self.uri) && (has(self.host) || has(self.database) || has(self.username) || has(self.password) || has(self.passwordFrom) || has(self.port)))",message="uri and structured fields are mutually exclusive"
-// +kubebuilder:validation:XValidation:rule="!(has(self.uriFrom) && (has(self.host) || has(self.database) || has(self.username) || has(self.password) || has(self.passwordFrom) || has(self.port)))",message="uriFrom and structured fields are mutually exclusive"
-// +kubebuilder:validation:XValidation:rule="!((has(self.database) || has(self.username) || has(self.password) || has(self.passwordFrom) || has(self.port)) && !has(self.host))",message="structured fields (database, username, password, passwordFrom, port) require host to be set"
+// +kubebuilder:validation:XValidation:rule="!(has(self.uri) && (has(self.host) || has(self.database) || has(self.username) || has(self.password) || has(self.passwordFrom) || has(self.port) || has(self.driver)))",message="uri and structured fields are mutually exclusive"
+// +kubebuilder:validation:XValidation:rule="!(has(self.uriFrom) && (has(self.host) || has(self.database) || has(self.username) || has(self.password) || has(self.passwordFrom) || has(self.port) || has(self.driver)))",message="uriFrom and structured fields are mutually exclusive"
+// +kubebuilder:validation:XValidation:rule="!((has(self.database) || has(self.username) || has(self.password) || has(self.passwordFrom) || has(self.port) || has(self.driver)) && !has(self.host))",message="structured fields (database, username, password, passwordFrom, port, driver) require host to be set"
 // +kubebuilder:validation:XValidation:rule="!has(self.host) || (has(self.database) && has(self.username))",message="structured metastore requires database and username when host is set"
 // +kubebuilder:validation:XValidation:rule="!(has(self.createDatabase) && self.createDatabase) || (has(self.host) && !has(self.uri) && !has(self.uriFrom))",message="createDatabase requires structured metastore (host set; database/username via the structured-fields rule) and is not supported with uri or uriFrom"
 type MetastoreSpec struct {
@@ -121,17 +121,24 @@ type MetastoreSpec struct {
 	// +optional
 	URIFrom *corev1.SecretKeySelector `json:"uriFrom,omitempty"`
 
-	// Database type. Determines the SQLAlchemy driver.
+	// Database type. Determines the SQLAlchemy dialect and default driver.
 	// +optional
 	// +kubebuilder:validation:Enum=PostgreSQL;MySQL
 	// +kubebuilder:default=PostgreSQL
 	Type *string `json:"type,omitempty"`
 
+	// SQLAlchemy driver name for structured mode. When omitted, PostgreSQL uses
+	// psycopg2 and MySQL uses mysqldb. Set this to a driver installed in the
+	// Superset image, such as psycopg, pg8000, pymysql, or mysqlconnector.
+	// +optional
+	// +kubebuilder:validation:Pattern=`^[A-Za-z0-9_]+$`
+	Driver *string `json:"driver,omitempty"`
+
 	// Database hostname.
 	// +optional
 	Host *string `json:"host,omitempty"`
 
-	// Database port. Defaults per driver (5432 for postgresql, 3306 for mysql).
+	// Database port. Defaults per type (5432 for PostgreSQL, 3306 for MySQL).
 	// +optional
 	Port *int32 `json:"port,omitempty"`
 

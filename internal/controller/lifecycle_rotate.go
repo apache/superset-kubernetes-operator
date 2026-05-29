@@ -37,6 +37,7 @@ func (r *SupersetReconciler) rotateInputs(superset *supersetv1alpha1.Superset) a
 	return struct {
 		Image                 string
 		Trigger               string
+		BootstrapScript       string
 		SecretKey             string
 		SecretKeyFrom         *corev1.SecretKeySelector
 		PreviousSecretKey     string
@@ -44,6 +45,7 @@ func (r *SupersetReconciler) rotateInputs(superset *supersetv1alpha1.Superset) a
 	}{
 		Image:                 currentImage,
 		Trigger:               trigger,
+		BootstrapScript:       effectiveLifecycleBootstrapScript(&superset.Spec),
 		SecretKey:             derefOrDefault(superset.Spec.SecretKey, ""),
 		SecretKeyFrom:         superset.Spec.SecretKeyFrom,
 		PreviousSecretKey:     derefOrDefault(superset.Spec.PreviousSecretKey, ""),
@@ -57,5 +59,5 @@ func defaultRotateCommand(superset *supersetv1alpha1.Superset) []string {
 	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Rotate != nil && len(superset.Spec.Lifecycle.Rotate.Command) > 0 {
 		return superset.Spec.Lifecycle.Rotate.Command
 	}
-	return []string{"/bin/sh", "-c", "superset re-encrypt-secrets"}
+	return withBootstrapScript([]string{"/bin/sh", "-c", "superset re-encrypt-secrets"}, effectiveLifecycleBootstrapScript(&superset.Spec))
 }

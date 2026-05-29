@@ -46,15 +46,17 @@ func (r *SupersetReconciler) initInputs(superset *supersetv1alpha1.Superset) any
 		trigger = derefOrDefault(superset.Spec.Lifecycle.Init.Trigger, "")
 	}
 	return struct {
-		Image      string
-		ConfigHash string
-		EnvHash    string
-		Trigger    string
+		Image           string
+		ConfigHash      string
+		EnvHash         string
+		BootstrapScript string
+		Trigger         string
 	}{
-		Image:      resolveLifecycleImage(&superset.Spec.Image, lifecycleImageOverride(superset)),
-		ConfigHash: computeChecksum(renderLifecycleTaskConfig(superset)),
-		EnvHash:    computeChecksum(initTaskEnv(superset)),
-		Trigger:    trigger,
+		Image:           resolveLifecycleImage(&superset.Spec.Image, lifecycleImageOverride(superset)),
+		ConfigHash:      computeChecksum(renderLifecycleTaskConfig(superset)),
+		EnvHash:         computeChecksum(initTaskEnv(superset)),
+		BootstrapScript: effectiveLifecycleBootstrapScript(&superset.Spec),
+		Trigger:         trigger,
 	}
 }
 
@@ -80,5 +82,5 @@ func defaultInitCommand(superset *supersetv1alpha1.Superset) []string {
 	if superset.Spec.Lifecycle != nil {
 		initSpec = superset.Spec.Lifecycle.Init
 	}
-	return buildInitCommand(initSpec)
+	return withBootstrapScript(buildInitCommand(initSpec), effectiveLifecycleBootstrapScript(&superset.Spec))
 }

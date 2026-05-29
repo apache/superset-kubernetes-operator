@@ -100,16 +100,13 @@ type ValkeyInput struct {
 type ConfigInput struct {
 	// Metastore mode and driver.
 	MetastoreMode MetastoreMode
-	// DBDriver is the database driver for structured mode (e.g. "postgresql", "mysql").
+	// DBType is the database type for structured mode (PostgreSQL or MySQL).
+	DBType string
+	// DBDriver is the SQLAlchemy driver for structured mode (e.g. psycopg2, mysqldb).
 	DBDriver string
 
 	// Valkey cache configuration. Nil when spec.valkey is not set.
 	Valkey *ValkeyInput
-
-	// Celery holds top-level Celery app config (spec.celery). Nil when spec.celery
-	// is not set; the renderer falls back to upstream defaults (controller fills these
-	// in when constructing the input).
-	Celery *CeleryInput
 
 	// FeatureFlags map rendered as FEATURE_FLAGS = {...}. Empty/nil omits the block.
 	FeatureFlags map[string]bool
@@ -151,9 +148,6 @@ func RenderConfig(componentType ComponentType, input *ConfigInput) string {
 	if input.EngineOptions != nil && input.EngineOptions.UseNullPool {
 		b.WriteString("from sqlalchemy.pool import NullPool\n")
 	}
-	if celeryClassWillRender(input.Valkey) {
-		b.WriteString("from celery.schedules import crontab\n")
-	}
 	b.WriteString("\n")
 
 	// [2] Operator-generated configs
@@ -175,7 +169,7 @@ func RenderConfig(componentType ComponentType, input *ConfigInput) string {
 	// Structured metastore: assemble URI from operator-internal env vars at Python runtime.
 	// Password uses os.environ.get() to support password-less connections (trust auth, IAM).
 	if input.MetastoreMode == MetastoreStructured {
-		driver := driverScheme(input.DBDriver)
+		driver := driverScheme(input.DBType, input.DBDriver)
 		fmt.Fprintf(&b, "_db_pass = os.environ.get(\"%s\", \"\")\n", common.EnvDBPass)
 		fmt.Fprintf(&b, "_db_cred = f\"{quote(os.environ['%s'], safe='')}:{quote(_db_pass, safe='')}\" if _db_pass else quote(os.environ['%s'], safe='')\n",
 			common.EnvDBUser, common.EnvDBUser,
@@ -214,7 +208,7 @@ func RenderConfig(componentType ComponentType, input *ConfigInput) string {
 
 	// [3] Valkey cache config
 	if input.Valkey != nil {
-		renderValkey(&b, input.Valkey, input.Celery)
+		renderValkey(&b, input.Valkey)
 	}
 
 	// [4] Base config (spec.config)
@@ -241,7 +235,7 @@ func RenderConfig(componentType ComponentType, input *ConfigInput) string {
 }
 
 // renderValkey writes the Valkey cache/broker/results Python configuration.
-func renderValkey(b *strings.Builder, v *ValkeyInput, c *CeleryInput) {
+func renderValkey(b *strings.Builder, v *ValkeyInput) {
 	b.WriteString("# Valkey cache config\n")
 
 	// Connection helpers using operator-injected env vars.
@@ -316,7 +310,7 @@ func renderValkey(b *strings.Builder, v *ValkeyInput, c *CeleryInput) {
 	}
 
 	// Celery config.
-	renderCeleryClass(b, v, c, hasSSLOpts)
+	renderCeleryClass(b, v, hasSSLOpts)
 
 	// Results backend (CacheLib RedisCache).
 	if !v.ResultsBackend.Disabled {
@@ -390,12 +384,18 @@ func pyQuote(s string) string {
 	return q[1 : len(q)-1]
 }
 
-// driverScheme returns the SQLAlchemy connection scheme for a given driver type.
-func driverScheme(dbType string) string {
+// driverScheme returns the SQLAlchemy connection scheme for a database type and driver.
+func driverScheme(dbType, driver string) string {
 	switch dbType {
 	case "MySQL":
-		return "mysql+mysqlconnector"
+		if driver == "" {
+			driver = "mysqldb"
+		}
+		return "mysql+" + driver
 	default:
-		return "postgresql+psycopg2"
+		if driver == "" {
+			driver = "psycopg2"
+		}
+		return "postgresql+" + driver
 	}
 }

@@ -87,6 +87,7 @@ func (r *SupersetReconciler) buildStandardTaskFlatSpec(
 	resourceBaseName := instanceName
 
 	renderedConfig := renderLifecycleTaskConfig(superset)
+	bootstrapScript := effectiveLifecycleBootstrapScript(&superset.Spec)
 	comp := convertTaskComponent(superset.Spec.Lifecycle, command)
 
 	secretEnvVars := collectSecretEnvVars(&superset.Spec, superset.Name)
@@ -94,7 +95,7 @@ func (r *SupersetReconciler) buildStandardTaskFlatSpec(
 	if taskType == taskTypeInit {
 		initEnvVars = collectLifecycleInitEnvVars(superset.Spec.Lifecycle)
 	}
-	operatorInjected := buildOperatorInjected(renderedConfig, resourceBaseName, superset.Spec.ForceReload, append(secretEnvVars, initEnvVars...))
+	operatorInjected := buildOperatorInjected(renderedConfig, bootstrapScript, resourceBaseName, superset.Spec.ForceReload, append(secretEnvVars, initEnvVars...))
 
 	flat := resolution.ResolveComponentSpec(
 		resolution.ComponentInit, topLevel, comp,

@@ -1467,6 +1467,21 @@ func TestDefaultRotateCommand(t *testing.T) {
 	})
 }
 
+func TestDefaultLifecycleCommandsSourceBootstrap(t *testing.T) {
+	superset := &supersetv1alpha1.Superset{}
+	superset.Spec.BootstrapScript = common.Ptr("echo bootstrap")
+
+	for name, cmd := range map[string][]string{
+		"migrate": defaultMigrateCommand(superset),
+		"rotate":  defaultRotateCommand(superset),
+		"init":    defaultInitCommand(superset),
+	} {
+		if len(cmd) < 3 || cmd[0] != "/bin/sh" || cmd[1] != "-c" || !strings.Contains(cmd[2], bootstrapScriptKey) {
+			t.Errorf("%s command should source bootstrap script, got %v", name, cmd)
+		}
+	}
+}
+
 func TestRotateInputs(t *testing.T) {
 	r := &SupersetReconciler{}
 

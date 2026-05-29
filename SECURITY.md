@@ -19,35 +19,9 @@ under the License.
 
 # Security Policy
 
-## Security Model
-
-The operator defaults to `Production` mode. CRD validation rejects inline
-secrets and credentials must be referenced from Kubernetes Secrets via
-`secretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`,
-`valkey.passwordFrom`, or websocket `configFrom`. The operator never reads,
-logs, or stores secret values in ConfigMaps or CRD status fields. The operator
-runs as a non-root, distroless container with read-only root filesystem,
-dropped capabilities, and least-privilege RBAC. `Staging` keeps production
-secret handling while allowing destructive clone workflows for migration tests.
-
-**Lifecycle task caveat:** When a lifecycle task Job fails, a truncated failure
-message (max 256 characters) may appear in the parent Superset status and Events. If the task
-command's error output includes credentials, a fragment could be exposed. This
-only applies to the task container's own output, not to operator-managed secret
-references.
-
-Users who can create or modify `Superset` custom resources are trusted — they can
-deploy arbitrary containers and Python configuration. Restrict access to Superset
-CRs using Kubernetes RBAC.
-
-## Threat Model
-
-The threat model — trust boundaries, security assumptions, and in-scope /
-out-of-scope concerns — is documented in [docs/reference/security.md](docs/reference/security.md),
-alongside the operator's broader security posture (secret handling, RBAC
-justification, and security-relevant design decisions). If you are unsure
-whether something crosses the operator's trust boundary, please report it
-privately and the maintainers will help triage it.
+For the operator threat model, trust boundaries, secret handling, RBAC
+justification, and security-relevant design decisions, see
+[docs/reference/security.md](docs/reference/security.md).
 
 ## Supported Versions
 
@@ -60,15 +34,6 @@ privately and the maintainers will help triage it.
 The Apache Superset Kubernetes Operator project follows the
 [Apache Software Foundation vulnerability handling process](https://apache.org/security/).
 
-To report a security vulnerability, please email **security@apache.org**.
+To report a security vulnerability, email **security@apache.org**.
 
-Please do **not** file a public GitHub issue for security vulnerabilities.
-
-## Scope
-
-This policy covers the Superset Kubernetes Operator and its components:
-
-- CRD definitions and CEL validation rules
-- Controller reconciliation logic
-- RBAC and resource management
-- Helm chart and deployment manifests
+Do not file a public GitHub issue for security vulnerabilities.

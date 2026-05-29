@@ -68,12 +68,14 @@ func (r *SupersetReconciler) migrateInputs(superset *supersetv1alpha1.Superset) 
 	return struct {
 		Image               string
 		Trigger             string
+		BootstrapScript     string
 		CreateDatabase      bool
 		Target              any
 		InitContainerScript string
 	}{
 		Image:               currentImage,
 		Trigger:             trigger,
+		BootstrapScript:     effectiveLifecycleBootstrapScript(&superset.Spec),
 		CreateDatabase:      createDatabase,
 		Target:              target,
 		InitContainerScript: initContainerScript,
@@ -86,5 +88,5 @@ func defaultMigrateCommand(superset *supersetv1alpha1.Superset) []string {
 	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Migrate != nil && len(superset.Spec.Lifecycle.Migrate.Command) > 0 {
 		return superset.Spec.Lifecycle.Migrate.Command
 	}
-	return []string{"/bin/sh", "-c", "superset db upgrade"}
+	return withBootstrapScript([]string{"/bin/sh", "-c", "superset db upgrade"}, effectiveLifecycleBootstrapScript(&superset.Spec))
 }

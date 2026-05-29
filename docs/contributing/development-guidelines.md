@@ -383,6 +383,8 @@ type: description
 ```
 
 Scope is optional but encouraged when the change is scoped to a single area.
+Keep titles concise: aim for 50 characters when practical, and avoid exceeding
+72 characters because GitHub wraps longer titles in common views.
 
 CI validates this on every PR via the `PR / Validate PR title` check.
 

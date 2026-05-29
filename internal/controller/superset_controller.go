@@ -34,12 +34,14 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -105,11 +107,12 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		Metastore           *supersetv1alpha1.MetastoreSpec
 		Valkey              *supersetv1alpha1.ValkeySpec
 		Config              *string
+		BootstrapScript     *string
 		SQLAEngineOptions   *supersetv1alpha1.SQLAlchemyEngineOptionsSpec
 		WebServerGunicorn   *supersetv1alpha1.GunicornSpec
 		CeleryWorkerProcess *supersetv1alpha1.CeleryWorkerProcessSpec
 	}{
-		superset.Spec.SecretKey, superset.Spec.SecretKeyFrom, superset.Spec.Metastore, superset.Spec.Valkey, superset.Spec.Config,
+		superset.Spec.SecretKey, superset.Spec.SecretKeyFrom, superset.Spec.Metastore, superset.Spec.Valkey, superset.Spec.Config, superset.Spec.BootstrapScript,
 		superset.Spec.SQLAlchemyEngineOptions,
 		gunicornSpecFrom(superset.Spec.WebServer),
 		celerySpecFrom(superset.Spec.CeleryWorker),
@@ -404,6 +407,20 @@ func (r *SupersetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		b = b.Owns(&gatewayv1.HTTPRoute{})
 	}
 
+	// Only watch ServiceMonitor if the monitoring CRDs are installed. The
+	// controller reconciles this resource unstructured to avoid a hard
+	// Prometheus Operator API dependency.
+	_, err = mgr.GetRESTMapper().RESTMapping(
+		schema.GroupKind{Group: serviceMonitorGVK.Group, Kind: serviceMonitorGVK.Kind},
+	)
+	if err == nil {
+		sm := &unstructured.Unstructured{}
+		sm.SetGroupVersionKind(serviceMonitorGVK)
+		b = b.Watches(sm, handler.EnqueueRequestForOwner(
+			mgr.GetScheme(), mgr.GetRESTMapper(), &supersetv1alpha1.Superset{}, handler.OnlyControllerOwner(),
+		))
+	}
+
 	return b.Complete(r)
 }
 
@@ -417,12 +434,13 @@ func reconcileParentOwnedConfigMap(
 	scheme *runtime.Scheme,
 	parent *supersetv1alpha1.Superset,
 	config string,
+	bootstrapScript string,
 	resourceBaseName string,
 	labels map[string]string,
 ) error {
 	cmName := naming.ConfigMapName(resourceBaseName)
 
-	if config == "" {
+	if config == "" && bootstrapScript == "" {
 		cm := &corev1.ConfigMap{}
 		cm.Name = cmName
 		cm.Namespace = parent.Namespace
@@ -441,9 +459,14 @@ func reconcileParentOwnedConfigMap(
 			return err
 		}
 		cm.Labels = mergeLabels(cm.Labels, labels)
-		cm.Data = map[string]string{
-			"superset_config.py": config,
+		data := map[string]string{}
+		if config != "" {
+			data["superset_config.py"] = config
 		}
+		if bootstrapScript != "" {
+			data[bootstrapScriptKey] = bootstrapScript
+		}
+		cm.Data = data
 		return nil
 	})
 	return err

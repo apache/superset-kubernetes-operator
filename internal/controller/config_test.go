@@ -19,7 +19,6 @@ limitations under the License.
 package controller
 
 import (
-	"reflect"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -126,45 +125,51 @@ func TestBuildConfigInput(t *testing.T) {
 		name       string
 		spec       *supersetv1alpha1.SupersetSpec
 		wantMode   supersetconfig.MetastoreMode
+		wantType   string
 		wantDriver string
 		wantConfig string
 	}{
 		{
 			"empty spec",
 			&supersetv1alpha1.SupersetSpec{},
-			supersetconfig.MetastoreNone, "", "",
+			supersetconfig.MetastoreNone, "", "", "",
 		},
 		{
 			"with config",
 			&supersetv1alpha1.SupersetSpec{Config: common.Ptr("FEATURE_FLAGS = {}")},
-			supersetconfig.MetastoreNone, "", "FEATURE_FLAGS = {}",
+			supersetconfig.MetastoreNone, "", "", "FEATURE_FLAGS = {}",
 		},
 		{
 			"metastore passthrough",
 			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{URI: common.Ptr("postgresql://user:pass@host/db")}},
-			supersetconfig.MetastorePassthrough, "", "",
+			supersetconfig.MetastorePassthrough, "", "", "",
 		},
 		{
 			"metastore structured postgresql",
 			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Host: common.Ptr("db.example.com")}},
-			supersetconfig.MetastoreStructured, "PostgreSQL", "",
+			supersetconfig.MetastoreStructured, "PostgreSQL", "", "",
 		},
 		{
 			"metastore structured mysql",
 			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Type: common.Ptr("MySQL"), Host: common.Ptr("db.example.com")}},
-			supersetconfig.MetastoreStructured, "MySQL", "",
+			supersetconfig.MetastoreStructured, "MySQL", "", "",
+		},
+		{
+			"metastore structured custom driver",
+			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Type: common.Ptr("MySQL"), Host: common.Ptr("db.example.com"), Driver: common.Ptr("pymysql")}},
+			supersetconfig.MetastoreStructured, "MySQL", "pymysql", "",
 		},
 		{
 			"URI takes precedence over host",
 			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{URI: common.Ptr("postgresql://..."), Host: common.Ptr("ignored")}},
-			supersetconfig.MetastorePassthrough, "", "",
+			supersetconfig.MetastorePassthrough, "", "", "",
 		},
 		{
 			"uriFrom triggers passthrough mode",
 			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{URIFrom: &corev1.SecretKeySelector{
 				LocalObjectReference: corev1.LocalObjectReference{Name: "db-secret"}, Key: "uri",
 			}}},
-			supersetconfig.MetastorePassthrough, "", "",
+			supersetconfig.MetastorePassthrough, "", "", "",
 		},
 	}
 
@@ -174,6 +179,9 @@ func TestBuildConfigInput(t *testing.T) {
 			if input.MetastoreMode != tt.wantMode {
 				t.Errorf("expected mode %d, got %d", tt.wantMode, input.MetastoreMode)
 			}
+			if input.DBType != tt.wantType {
+				t.Errorf("expected type %q, got %q", tt.wantType, input.DBType)
+			}
 			if input.DBDriver != tt.wantDriver {
 				t.Errorf("expected driver %q, got %q", tt.wantDriver, input.DBDriver)
 			}
@@ -182,43 +190,6 @@ func TestBuildConfigInput(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestBuildCeleryInput(t *testing.T) {
-	t.Run("nil spec defaults to upstream imports", func(t *testing.T) {
-		got := buildCeleryInput(nil)
-		if got == nil {
-			t.Fatal("expected non-nil CeleryInput")
-		}
-		if !reflect.DeepEqual(got.Imports, supersetconfig.DefaultCeleryImports) {
-			t.Errorf("Imports = %v, want %v", got.Imports, supersetconfig.DefaultCeleryImports)
-		}
-	})
-
-	t.Run("nil imports field defaults to upstream", func(t *testing.T) {
-		got := buildCeleryInput(&supersetv1alpha1.CelerySpec{})
-		if !reflect.DeepEqual(got.Imports, supersetconfig.DefaultCeleryImports) {
-			t.Errorf("Imports = %v, want %v", got.Imports, supersetconfig.DefaultCeleryImports)
-		}
-	})
-
-	t.Run("explicit empty slice is honored", func(t *testing.T) {
-		got := buildCeleryInput(&supersetv1alpha1.CelerySpec{Imports: []string{}})
-		if got.Imports == nil {
-			t.Fatal("expected non-nil empty slice, got nil")
-		}
-		if len(got.Imports) != 0 {
-			t.Errorf("Imports = %v, want empty slice", got.Imports)
-		}
-	})
-
-	t.Run("user-set imports preserved", func(t *testing.T) {
-		want := []string{"my.module", "other.tasks"}
-		got := buildCeleryInput(&supersetv1alpha1.CelerySpec{Imports: want})
-		if !reflect.DeepEqual(got.Imports, want) {
-			t.Errorf("Imports = %v, want %v", got.Imports, want)
-		}
-	})
 }
 
 func TestCollectSecretEnvVars_InstanceName(t *testing.T) {
@@ -317,7 +288,7 @@ func TestCollectSecretEnvVars_Metastore(t *testing.T) {
 
 func TestBuildOperatorInjected(t *testing.T) {
 	configEnvVars := []corev1.EnvVar{{Name: "SUPERSET_OPERATOR__SECRET_KEY", Value: "test"}}
-	injected := buildOperatorInjected("import os\n", "my-web-server", "v2", configEnvVars)
+	injected := buildOperatorInjected("import os\n", "", "my-web-server", "v2", configEnvVars)
 
 	if len(injected.Volumes) != 1 || injected.Volumes[0].Name != configVolumeName {
 		t.Errorf("expected 1 config volume, got %d", len(injected.Volumes))
@@ -335,12 +306,20 @@ func TestBuildOperatorInjected(t *testing.T) {
 	}
 
 	// Empty config: no volumes, no mounts.
-	empty := buildOperatorInjected("", "component", "", nil)
+	empty := buildOperatorInjected("", "", "component", "", nil)
 	if len(empty.Volumes) != 0 {
 		t.Errorf("expected 0 volumes for empty config, got %d", len(empty.Volumes))
 	}
 	if len(empty.VolumeMounts) != 0 {
 		t.Errorf("expected 0 volume mounts for empty config, got %d", len(empty.VolumeMounts))
+	}
+
+	bootstrapOnly := buildOperatorInjected("", "echo bootstrap", "component", "", nil)
+	if len(bootstrapOnly.Volumes) != 1 {
+		t.Errorf("expected bootstrap-only config volume, got %d", len(bootstrapOnly.Volumes))
+	}
+	if len(bootstrapOnly.VolumeMounts) != 1 {
+		t.Errorf("expected bootstrap-only volume mount, got %d", len(bootstrapOnly.VolumeMounts))
 	}
 }
 

@@ -196,6 +196,57 @@ func TestReconcile_WebsocketConfigFromMountsSecret(t *testing.T) {
 	}
 }
 
+func TestReconcile_BootstrapScriptAppliesToPythonComponentsOnly(t *testing.T) {
+	scheme := testScheme(t)
+
+	spec := minimalSupersetSpec()
+	spec.BootstrapScript = common.Ptr("echo top-level")
+	spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{
+		BootstrapScript: common.Ptr("echo worker"),
+	}
+	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
+		ComponentSpec: supersetv1alpha1.ComponentSpec{
+			Image: &supersetv1alpha1.ImageOverrideSpec{Repository: common.Ptr("example.com/superset-websocket")},
+		},
+	}
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Spec:       spec,
+	}
+
+	c := reconcileOnce(t, scheme, superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r)
+
+	webCM := &corev1.ConfigMap{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server-config", Namespace: "default"}, webCM); err != nil {
+		t.Fatalf("expected web ConfigMap: %v", err)
+	}
+	if webCM.Data[bootstrapScriptKey] != "echo top-level" {
+		t.Fatalf("expected top-level bootstrap on web, got %q", webCM.Data[bootstrapScriptKey])
+	}
+
+	workerCM := &corev1.ConfigMap{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-celery-worker-config", Namespace: "default"}, workerCM); err != nil {
+		t.Fatalf("expected worker ConfigMap: %v", err)
+	}
+	if workerCM.Data[bootstrapScriptKey] != "echo worker" {
+		t.Fatalf("expected worker bootstrap override, got %q", workerCM.Data[bootstrapScriptKey])
+	}
+	workerDeploy := &appsv1.Deployment{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-celery-worker", Namespace: "default"}, workerDeploy); err != nil {
+		t.Fatalf("expected worker Deployment: %v", err)
+	}
+	workerCommand := workerDeploy.Spec.Template.Spec.Containers[0].Command
+	if len(workerCommand) < 3 || !strings.Contains(workerCommand[2], "superset_bootstrap.sh") {
+		t.Fatalf("expected worker command to source bootstrap, got %#v", workerCommand)
+	}
+
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server-config", Namespace: "default"}, &corev1.ConfigMap{}); err == nil {
+		t.Fatal("did not expect top-level bootstrap ConfigMap for websocket")
+	}
+}
+
 // TestReconcile_ComponentResourcesCarryLabels asserts that every parent-owned
 // component resource (Deployment, ConfigMap, Service, HPA, PDB) carries the
 // operator-managed labels on its ObjectMeta. The internals doc promises label

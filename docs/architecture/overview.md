@@ -200,13 +200,15 @@ Superset is configured through `superset_config.py` — a Python module that exp
 
 The operator splits the difference:
 
-- **Typed CRD fields** are reserved for settings where the operator adds clear value: anything tied to Kubernetes resources (images, ports, replicas, autoscaling), anything sourced from Secrets (`secretKey`, metastore credentials, Valkey passwords), and any setting that the operator can validate, render uniformly, or wire up across components (metastore URIs, Valkey-driven cache and Celery backends, lifecycle gating). Typed fields earn their place because they can't be expressed as plain Python without re-implementing what the operator already does.
+- **Typed CRD fields** are reserved for settings where the operator adds clear value: anything tied to Kubernetes resources (images, ports, replicas, autoscaling), anything sourced from Secrets (`secretKey`, metastore credentials, Valkey passwords), and managed connectivity that the operator can validate, render uniformly, or wire up across components (metastore URIs, Valkey-backed caches, Celery broker/backend URLs, lifecycle gating). Typed fields earn their place because they can't be expressed as plain Python without re-implementing what the operator already does.
 
-- **Raw Python in `spec.config` and `spec.<component>.config`** is the default home for everything else: feature flags beyond a curated set, custom security managers, OAuth providers, thumbnail executors, custom Celery routes, beat schedules, task annotations, and anything else that is naturally a Python expression or class. Admins are comfortable writing Python in `superset_config.py`; forcing those settings through YAML schemas tends to obfuscate rather than clarify.
+- **Raw Python in `spec.config` and `spec.<component>.config`** is the default home for application behavior: feature flags beyond a curated set, custom security managers, OAuth providers, thumbnail executors, custom Celery imports, routes, beat schedules, task annotations, and anything else that is naturally a Python expression or class. Admins are comfortable writing Python in `superset_config.py`; forcing those settings through YAML schemas tends to obfuscate rather than clarify.
+
+For Celery, this boundary is explicit: the CRD provides managed connectivity to the broker and result backend; users provide the Celery app behavior they want in Python. The operator does not default task imports, task annotations, acknowledgement behavior, beat schedules, or scheduler expiration, because those are Superset application settings that can change across Superset versions and differ across production deployments.
 
 To make Python-side configuration ergonomic, the operator exposes a few resolved values as env vars (`SUPERSET_OPERATOR__INSTANCE_NAME`, `SUPERSET_OPERATOR__VALKEY_HOST`, etc.) so admins can reference them from raw Python without templating. Operator-rendered objects like the `CeleryConfig` class are regular Python — admins extend them by mutating attributes, subclassing, or replacing the assignment outright.
 
-This split is intentionally a moving boundary. As specific knobs prove to be widely used, frequently misconfigured, or worth cross-component validation, they migrate from raw Python into typed CRD fields. The starting position favors raw Python; promotions are made deliberately and case by case. The first promotions are `spec.featureFlags` (a `map[string]bool` rendering `FEATURE_FLAGS = {...}`) and `spec.celery.imports` (the Celery worker import tuple, defaulting to upstream Superset's modules).
+This split is intentionally a moving boundary. As specific knobs prove to be widely used, frequently misconfigured, or worth cross-component validation, they migrate from raw Python into typed CRD fields. The starting position favors raw Python; promotions are made deliberately and case by case.
 
 ---
 
@@ -235,7 +237,9 @@ exclusive. If both are set, the component receives all three sections:
    `EXPLORE_FORM_DATA_CACHE_CONFIG`, `THUMBNAIL_CACHE_CONFIG`,
    `CeleryConfig`, and `RESULTS_BACKEND` backed by Valkey. Connection details
    are read from `SUPERSET_OPERATOR__VALKEY_*` env vars at Python runtime.
-   SSL/mTLS cert paths are baked directly into the rendered config.
+   The rendered `CeleryConfig` contains only broker/backend connectivity and
+   SSL settings; users define Celery app behavior in raw Python. SSL/mTLS cert
+   paths are baked directly into the rendered config.
 4. **Base config (`spec.config`)** — Raw Python from the top-level `config`
    field, shared by all Python components. Appended after operator-generated
    configs.

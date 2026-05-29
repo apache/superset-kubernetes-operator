@@ -330,15 +330,12 @@ spec:
                 x-kubernetes-validations:
                 - message: maxReplicas must be >= minReplicas
                   rule: '!has(self.minReplicas) || self.maxReplicas >= self.minReplicas'
-              celery:
-                properties:
-                  imports:
-                    items:
-                      type: string
-                    type: array
-                type: object
+              bootstrapScript:
+                type: string
               celeryBeat:
                 properties:
+                  bootstrapScript:
+                    type: string
                   config:
                     type: string
                   deploymentTemplate:
@@ -4268,6 +4265,8 @@ spec:
                     x-kubernetes-validations:
                     - message: maxReplicas must be >= minReplicas
                       rule: '!has(self.minReplicas) || self.maxReplicas >= self.minReplicas'
+                  bootstrapScript:
+                    type: string
                   config:
                     type: string
                   deploymentTemplate:
@@ -8221,6 +8220,8 @@ spec:
                     x-kubernetes-validations:
                     - message: maxReplicas must be >= minReplicas
                       rule: '!has(self.minReplicas) || self.maxReplicas >= self.minReplicas'
+                  bootstrapScript:
+                    type: string
                   celery:
                     properties:
                       concurrency:
@@ -12007,6 +12008,8 @@ spec:
                 type: object
               lifecycle:
                 properties:
+                  bootstrapScript:
+                    type: string
                   clone:
                     properties:
                       command:
@@ -23324,6 +23327,8 @@ spec:
                     x-kubernetes-validations:
                     - message: maxReplicas must be >= minReplicas
                       rule: '!has(self.minReplicas) || self.maxReplicas >= self.minReplicas'
+                  bootstrapScript:
+                    type: string
                   config:
                     type: string
                   deploymentTemplate:
@@ -27024,6 +27029,9 @@ spec:
                     type: boolean
                   database:
                     type: string
+                  driver:
+                    pattern: ^[A-Za-z0-9_]+$
+                    type: string
                   host:
                     type: string
                   password:
@@ -27076,15 +27084,16 @@ spec:
                 - message: uri and structured fields are mutually exclusive
                   rule: '!(has(self.uri) && (has(self.host) || has(self.database)
                     || has(self.username) || has(self.password) || has(self.passwordFrom)
-                    || has(self.port)))'
+                    || has(self.port) || has(self.driver)))'
                 - message: uriFrom and structured fields are mutually exclusive
                   rule: '!(has(self.uriFrom) && (has(self.host) || has(self.database)
                     || has(self.username) || has(self.password) || has(self.passwordFrom)
-                    || has(self.port)))'
+                    || has(self.port) || has(self.driver)))'
                 - message: structured fields (database, username, password, passwordFrom,
-                    port) require host to be set
+                    port, driver) require host to be set
                   rule: '!((has(self.database) || has(self.username) || has(self.password)
-                    || has(self.passwordFrom) || has(self.port)) && !has(self.host))'
+                    || has(self.passwordFrom) || has(self.port) || has(self.driver))
+                    && !has(self.host))'
                 - message: structured metastore requires database and username when
                     host is set
                   rule: '!has(self.host) || (has(self.database) && has(self.username))'
@@ -31501,6 +31510,8 @@ spec:
                     x-kubernetes-validations:
                     - message: maxReplicas must be >= minReplicas
                       rule: '!has(self.minReplicas) || self.maxReplicas >= self.minReplicas'
+                  bootstrapScript:
+                    type: string
                   config:
                     type: string
                   deploymentTemplate:

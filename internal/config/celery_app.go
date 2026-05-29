@@ -23,40 +23,18 @@ import (
 	"strings"
 )
 
-// CeleryInput is the resolved spec.celery passed to the renderer. The controller
-// fills in upstream defaults so the renderer can emit unconditionally.
-type CeleryInput struct {
-	// Imports lists Python modules registered on the Celery worker via
-	// CeleryConfig.imports. Pre-defaulted by the controller; nil here means
-	// "do not emit imports" (admins explicitly set imports: [] in YAML).
-	Imports []string
-}
-
-// DefaultCeleryImports lists the Python modules upstream Superset registers
-// on the Celery worker by default (see superset/config.py CeleryConfig.imports).
-// Used by the controller when spec.celery.imports is unset.
-var DefaultCeleryImports = []string{
-	"superset.sql_lab",
-	"superset.tasks.scheduler",
-	"superset.tasks.thumbnails",
-	"superset.tasks.cache",
-	"superset.tasks.slack",
-}
-
-// renderCeleryClass writes the CeleryConfig class derived from Valkey settings
-// and typed spec.celery, plus upstream Superset defaults that would otherwise
-// be lost by replacing the upstream CeleryConfig class. Admins extend the class
-// further via spec.config (mutating attributes, subclassing, or replacing
-// CELERY_CONFIG) using SUPERSET_OPERATOR__INSTANCE_NAME to compute
-// instance-scoped queue names.
-func renderCeleryClass(b *strings.Builder, v *ValkeyInput, c *CeleryInput, hasSSLOpts bool) {
+// renderCeleryClass writes only the CeleryConfig fields derived from structured
+// Valkey settings. Application-level Celery behavior such as imports, task
+// annotations, and beat schedules belongs in spec.config.
+func renderCeleryClass(b *strings.Builder, v *ValkeyInput, hasSSLOpts bool) {
 	brokerEnabled := !v.CeleryBroker.Disabled
 	resultEnabled := !v.CeleryResultBackend.Disabled
 	if !brokerEnabled && !resultEnabled {
 		return
 	}
 
-	b.WriteString("\nclass CeleryConfig:\n")
+	b.WriteString("\n")
+	b.WriteString("class CeleryConfig:\n")
 	if brokerEnabled {
 		fmt.Fprintf(b, "    broker_url = f\"{_vk_base}/%d\"\n", v.CeleryBroker.Database)
 	}
@@ -72,59 +50,5 @@ func renderCeleryClass(b *strings.Builder, v *ValkeyInput, c *CeleryInput, hasSS
 		}
 	}
 
-	// Typed imports (defaults to upstream tuple, applied by the controller).
-	if c != nil {
-		renderCeleryImports(b, c.Imports)
-	}
-
-	// Hardcoded upstream defaults, preserved so that replacing upstream's
-	// CeleryConfig class doesn't silently drop them. Admins override via
-	// raw spec.config (e.g. CeleryConfig.beat_schedule = {...}).
-	b.WriteString("    worker_prefetch_multiplier = 1\n")
-	b.WriteString("    task_acks_late = False\n")
-	b.WriteString("    task_annotations = {\n")
-	b.WriteString("        \"sql_lab.get_sql_results\": {\n")
-	b.WriteString("            \"rate_limit\": \"100/s\",\n")
-	b.WriteString("        },\n")
-	b.WriteString("    }\n")
-	b.WriteString("    beat_schedule = {\n")
-	b.WriteString("        \"reports.scheduler\": {\n")
-	b.WriteString("            \"task\": \"reports.scheduler\",\n")
-	b.WriteString("            \"schedule\": crontab(minute=\"*\", hour=\"*\"),\n")
-	b.WriteString("        },\n")
-	b.WriteString("        \"reports.prune_log\": {\n")
-	b.WriteString("            \"task\": \"reports.prune_log\",\n")
-	b.WriteString("            \"schedule\": crontab(minute=0, hour=0),\n")
-	b.WriteString("        },\n")
-	b.WriteString("    }\n")
-
 	b.WriteString("CELERY_CONFIG = CeleryConfig\n")
-}
-
-// renderCeleryImports writes the imports tuple. An empty (non-nil) slice
-// renders as `imports = ()` to honor admins who explicitly suppress imports.
-// Nil means "skip" (controller is responsible for applying defaults).
-func renderCeleryImports(b *strings.Builder, imports []string) {
-	if imports == nil {
-		return
-	}
-	if len(imports) == 0 {
-		b.WriteString("    imports = ()\n")
-		return
-	}
-	b.WriteString("    imports = (\n")
-	for _, m := range imports {
-		fmt.Fprintf(b, "        \"%s\",\n", pyQuote(m))
-	}
-	b.WriteString("    )\n")
-}
-
-// celeryClassWillRender reports whether renderCeleryClass would emit a class
-// for the given inputs. Used by the renderer to decide whether to add the
-// `from celery.schedules import crontab` import.
-func celeryClassWillRender(v *ValkeyInput) bool {
-	if v == nil {
-		return false
-	}
-	return !v.CeleryBroker.Disabled || !v.CeleryResultBackend.Disabled
 }

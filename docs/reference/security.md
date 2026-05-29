@@ -132,10 +132,10 @@ references (`secretKeyFrom`, `previousSecretKeyFrom`, `metastore.uriFrom`,
 `metastore.passwordFrom`, `valkey.passwordFrom`,
 `lifecycle.clone.source.passwordFrom`, and `websocketServer.configFrom`).
 User-authored fields — raw Python in `spec.config`, component-level `config`,
-and `podTemplate.container.env` — are trusted input and may contain arbitrary
-values including secrets. Users with read access to Superset CRs or the
-generated ConfigMaps will see any values placed in these fields. These are out
-of scope for the operator's secret handling guarantees
+`bootstrapScript`, and `podTemplate.container.env` — are trusted input and may
+contain arbitrary values including secrets. Users with read access to Superset
+CRs or the generated ConfigMaps will see any values placed in these fields.
+These are out of scope for the operator's secret handling guarantees
 (see [What Is Generally Out of Scope](#what-is-generally-out-of-scope)).
 
 ### Raw Python Configuration
@@ -144,9 +144,10 @@ The `spec.config` field accepts arbitrary Python code that is appended to the
 generated `superset_config.py`. This is by design — Superset's configuration
 system is Python-based and requires arbitrary Python for features like custom
 security managers, database drivers, and feature flags. The same trust model
-applies to custom lifecycle commands, container env vars, and mounted files:
-operator-managed secret transport avoids ConfigMap leakage, but user-supplied
-raw fields can still expose secrets if CR authors put secrets there directly.
+applies to `bootstrapScript`, custom lifecycle commands, container env vars,
+and mounted files: operator-managed secret transport avoids ConfigMap leakage,
+but user-supplied raw fields can still expose secrets if CR authors put secrets
+there directly.
 
 Since CR creators can already deploy arbitrary containers (via `image`,
 `command`, `args`), the ability to inject Python does not expand the attack
@@ -211,12 +212,12 @@ repeat review cycles:
   successfully). It exists as a defensive guard, not as an expected code path.
 - **WebServer and McpServer share port 8088.** These are separate Pods and
   Services, so identical port numbers do not conflict.
-- **Generated Python uses operator-controlled values.** String fields
+- **Generated Python and bootstrap wrapping use operator-controlled values.** String fields
   interpolated into `superset_config.py` (key prefixes, SSL cert paths) come
   from CRD fields whose values are set by CR authors — trusted actors who can
-  already deploy arbitrary containers. Raw Python in `spec.config` is appended
-  verbatim by design and is out of scope (see "What Is Generally Out of Scope"
-  below).
+  already deploy arbitrary containers. Raw Python in `spec.config` and shell in
+  `bootstrapScript` are appended verbatim by design and are out of scope (see
+  "What Is Generally Out of Scope" below).
 - **Celery Flower uses shell expansion for `--url_prefix`.** The Flower default
   command uses `/bin/sh -c` to expand `$SUPERSET_OPERATOR__FLOWER_URL_PREFIX`,
   which is set from `service.gatewayPath`. The `gatewayPath` field is restricted

@@ -106,15 +106,18 @@ type SupersetSpec struct {
 	// +optional
 	Config *string `json:"config,omitempty"`
 
+	// Shell script mounted as superset_bootstrap.sh and sourced before the
+	// default command for Python components and lifecycle tasks. This is trusted
+	// executable input; prefer custom images for production dependency installs.
+	// Per-component bootstrapScript overrides this value. Set an override to an
+	// empty string to disable inherited bootstrap for that component.
+	// +optional
+	BootstrapScript *string `json:"bootstrapScript,omitempty"`
+
 	// Feature flags toggled in superset_config.py via FEATURE_FLAGS = {...}.
 	// Keys conventionally use UPPER_SNAKE_CASE (e.g. ALERT_REPORTS); values are booleans.
 	// +optional
 	FeatureFlags map[string]bool `json:"featureFlags,omitempty"`
-
-	// Top-level Celery app configuration rendered into CELERY_CONFIG. Per-component
-	// worker/beat process tuning lives on celeryWorker / celeryBeat.
-	// +optional
-	Celery *CelerySpec `json:"celery,omitempty"`
 
 	// SQLAlchemy engine options for connection pooling. Inherited by all Python
 	// components; per-component sqlaEngineOptions overrides this entirely.
@@ -184,6 +187,10 @@ type WebServerComponentSpec struct {
 	// Per-component raw Python appended after top-level config.
 	// +optional
 	Config *string `json:"config,omitempty"`
+	// Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an
+	// empty string to disable inherited bootstrap for this component.
+	// +optional
+	BootstrapScript *string `json:"bootstrapScript,omitempty"`
 	// Service configuration (type, port, annotations).
 	// +optional
 	Service *ComponentServiceSpec `json:"service,omitempty"`
@@ -202,6 +209,10 @@ type CeleryWorkerComponentSpec struct {
 	// Per-component raw Python appended after top-level config.
 	// +optional
 	Config *string `json:"config,omitempty"`
+	// Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an
+	// empty string to disable inherited bootstrap for this component.
+	// +optional
+	BootstrapScript *string `json:"bootstrapScript,omitempty"`
 	// Celery worker execution configuration. Controls concurrency, pool type, and related parameters.
 	// +optional
 	Celery *CeleryWorkerProcessSpec `json:"celery,omitempty"`
@@ -226,6 +237,10 @@ type CeleryBeatComponentSpec struct {
 	// Per-component raw Python appended after top-level config.
 	// +optional
 	Config *string `json:"config,omitempty"`
+	// Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an
+	// empty string to disable inherited bootstrap for this component.
+	// +optional
+	BootstrapScript *string `json:"bootstrapScript,omitempty"`
 	// Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely).
 	// +optional
 	SQLAlchemyEngineOptions *SQLAlchemyEngineOptionsSpec `json:"sqlaEngineOptions,omitempty"`
@@ -238,6 +253,10 @@ type CeleryFlowerComponentSpec struct {
 	// Per-component raw Python appended after top-level config.
 	// +optional
 	Config *string `json:"config,omitempty"`
+	// Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an
+	// empty string to disable inherited bootstrap for this component.
+	// +optional
+	BootstrapScript *string `json:"bootstrapScript,omitempty"`
 	// Service configuration (type, port, annotations).
 	// +optional
 	Service *ComponentServiceSpec `json:"service,omitempty"`
@@ -275,6 +294,10 @@ type McpServerComponentSpec struct {
 	// Per-component raw Python appended after top-level config.
 	// +optional
 	Config *string `json:"config,omitempty"`
+	// Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an
+	// empty string to disable inherited bootstrap for this component.
+	// +optional
+	BootstrapScript *string `json:"bootstrapScript,omitempty"`
 	// Service configuration (type, port, annotations).
 	// +optional
 	Service *ComponentServiceSpec `json:"service,omitempty"`
@@ -379,6 +402,12 @@ type LifecycleSpec struct {
 	// Per-lifecycle raw Python appended after top-level config.
 	// +optional
 	Config *string `json:"config,omitempty"`
+
+	// Bootstrap script for lifecycle migrate, rotate, and init task Jobs.
+	// Overrides spec.bootstrapScript. Set to an empty string to disable inherited
+	// bootstrap for lifecycle tasks.
+	// +optional
+	BootstrapScript *string `json:"bootstrapScript,omitempty"`
 
 	// Per-lifecycle SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely).
 	// +optional

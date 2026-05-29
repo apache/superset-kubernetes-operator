@@ -30,7 +30,7 @@ import (
 // TestInitInputs_ChangesWithRenderedConfig asserts that init's checksum input
 // reflects every config-rendering field the lifecycle Job actually consumes.
 // The previous hand-picked configChecksum struct silently skipped init re-runs
-// when fields like featureFlags or celery changed; hashing the rendered
+// when fields like featureFlags changed; hashing the rendered
 // superset_config.py forecloses that class of bug.
 func TestInitInputs_ChangesWithRenderedConfig(t *testing.T) {
 	r := &SupersetReconciler{}
@@ -46,8 +46,7 @@ func TestInitInputs_ChangesWithRenderedConfig(t *testing.T) {
 			Username:     common.Ptr("superset"),
 			PasswordFrom: secretKeyRef("db-secret", "password"),
 		}
-		// Valkey is required for Celery rendering — without it, the renderer
-		// emits no CELERY_CONFIG and celery imports never reach the config.
+		// Valkey exercises Celery connectivity rendering in the lifecycle config.
 		s.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey.svc"}
 		s.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 			Init: &supersetv1alpha1.InitTaskSpec{},
@@ -69,11 +68,9 @@ func TestInitInputs_ChangesWithRenderedConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "celery.imports",
+			name: "celery config in raw python",
 			mutate: func(s *supersetv1alpha1.Superset) {
-				s.Spec.Celery = &supersetv1alpha1.CelerySpec{
-					Imports: []string{"superset.tasks.cache"},
-				}
+				s.Spec.Config = common.Ptr(`CeleryConfig.imports = ("superset.tasks.cache",)`)
 			},
 		},
 		{

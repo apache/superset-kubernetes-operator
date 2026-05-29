@@ -159,7 +159,7 @@ The bar: every new "remember to also update X when Y changes" instruction is a b
 
 ## PR Conventions
 
-- **Title format**: `type(scope): description` or `type: description` — enforced by CI (`amannn/action-semantic-pull-request`). Scope is optional but encouraged.
+- **Title format**: `type(scope): description` or `type: description` — enforced by CI (`amannn/action-semantic-pull-request`). Scope is optional but encouraged. Aim for 50 characters when practical, and avoid exceeding 72 characters because GitHub wraps longer titles in common views.
 - **Types**: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `ci`, `build`, `perf`, `style`, `revert`
 - **Scopes** (when used): `api`, `controller`, `resolution`, `config`, `helm`, `ci`, `docs`, `deps`
 - **Description**: Every PR must have a Summary section with at least one paragraph explaining what and why. Use the Details section for implementation notes. PR template pre-fills these sections.

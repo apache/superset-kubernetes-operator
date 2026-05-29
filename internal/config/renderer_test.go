@@ -66,7 +66,7 @@ func TestRenderConfig_StructuredMetastore(t *testing.T) {
 	t.Run("postgresql", func(t *testing.T) {
 		input := &ConfigInput{
 			MetastoreMode: MetastoreStructured,
-			DBDriver:      "PostgreSQL",
+			DBType:        "PostgreSQL",
 		}
 		result := RenderConfig(ComponentWebServer, input)
 		assertContains(t, result, "from urllib.parse import quote")
@@ -82,10 +82,20 @@ func TestRenderConfig_StructuredMetastore(t *testing.T) {
 	t.Run("mysql", func(t *testing.T) {
 		input := &ConfigInput{
 			MetastoreMode: MetastoreStructured,
-			DBDriver:      "MySQL",
+			DBType:        "MySQL",
 		}
 		result := RenderConfig(ComponentWebServer, input)
-		assertContains(t, result, "mysql+mysqlconnector://")
+		assertContains(t, result, "mysql+mysqldb://")
+	})
+
+	t.Run("custom driver", func(t *testing.T) {
+		input := &ConfigInput{
+			MetastoreMode: MetastoreStructured,
+			DBType:        "MySQL",
+			DBDriver:      "pymysql",
+		}
+		result := RenderConfig(ComponentWebServer, input)
+		assertContains(t, result, "mysql+pymysql://")
 	})
 }
 
@@ -123,7 +133,7 @@ func TestRenderConfig_ComponentVariants(t *testing.T) {
 func TestRenderConfig_SectionOrder(t *testing.T) {
 	input := &ConfigInput{
 		MetastoreMode:   MetastoreStructured,
-		DBDriver:        "PostgreSQL",
+		DBType:          "PostgreSQL",
 		Config:          "BASE_SETTING = True\n",
 		ComponentConfig: "COMP_SETTING = 42\n",
 	}
@@ -365,7 +375,7 @@ func TestRenderConfig_ValkeyNoValkey(t *testing.T) {
 func TestRenderConfig_ValkeySectionOrder(t *testing.T) {
 	input := &ConfigInput{
 		MetastoreMode: MetastoreStructured,
-		DBDriver:      "PostgreSQL",
+		DBType:        "PostgreSQL",
 		Config:        "BASE = True\n",
 		Valkey: &ValkeyInput{
 			Cache:                ValkeyCacheInput{Database: 1, KeyPrefix: "s_", DefaultTimeout: 300},
@@ -398,7 +408,7 @@ func TestRenderConfig_ValkeySectionOrder(t *testing.T) {
 func TestRenderConfig_StructuredMetastore_URLReservedChars(t *testing.T) {
 	input := &ConfigInput{
 		MetastoreMode: MetastoreStructured,
-		DBDriver:      "PostgreSQL",
+		DBType:        "PostgreSQL",
 	}
 	result := RenderConfig(ComponentWebServer, input)
 
@@ -518,7 +528,7 @@ func TestRenderConfig_FeatureFlags(t *testing.T) {
 	})
 }
 
-func TestRenderConfig_CeleryClassDefaults(t *testing.T) {
+func TestRenderConfig_CeleryClass(t *testing.T) {
 	baseValkey := &ValkeyInput{
 		Cache:               ValkeyCacheInput{Database: 1, KeyPrefix: "p_", DefaultTimeout: 300},
 		CeleryBroker:        ValkeyCeleryInput{Database: 0},
@@ -526,65 +536,28 @@ func TestRenderConfig_CeleryClassDefaults(t *testing.T) {
 		ResultsBackend:      ValkeyResultsInput{Disabled: true},
 	}
 
-	t.Run("hardcoded upstream defaults always present when class emitted", func(t *testing.T) {
+	t.Run("renders only structured valkey wiring", func(t *testing.T) {
 		result := RenderConfig(ComponentCeleryWorker, &ConfigInput{
 			MetastoreMode: MetastorePassthrough,
 			Valkey:        baseValkey,
-			Celery:        &CeleryInput{Imports: DefaultCeleryImports},
 		})
 		assertContains(t, result, "class CeleryConfig:")
-		assertContains(t, result, "    worker_prefetch_multiplier = 1")
-		assertContains(t, result, "    task_acks_late = False")
-		assertContains(t, result, "    task_annotations = {")
-		assertContains(t, result, "\"sql_lab.get_sql_results\":")
-		assertContains(t, result, "\"rate_limit\": \"100/s\"")
-		assertContains(t, result, "    beat_schedule = {")
-		assertContains(t, result, "\"reports.scheduler\":")
-		assertContains(t, result, "\"reports.prune_log\":")
-		assertContains(t, result, "crontab(minute=\"*\", hour=\"*\")")
-		assertContains(t, result, "crontab(minute=0, hour=0)")
-		assertContains(t, result, "from celery.schedules import crontab")
-	})
-
-	t.Run("default imports tuple", func(t *testing.T) {
-		result := RenderConfig(ComponentCeleryWorker, &ConfigInput{
-			MetastoreMode: MetastorePassthrough,
-			Valkey:        baseValkey,
-			Celery:        &CeleryInput{Imports: DefaultCeleryImports},
-		})
-		assertContains(t, result, "    imports = (")
-		assertContains(t, result, "\"superset.sql_lab\",")
-		assertContains(t, result, "\"superset.tasks.scheduler\",")
-		assertContains(t, result, "\"superset.tasks.thumbnails\",")
-		assertContains(t, result, "\"superset.tasks.cache\",")
-		assertContains(t, result, "\"superset.tasks.slack\",")
-	})
-
-	t.Run("user-set imports replace default", func(t *testing.T) {
-		result := RenderConfig(ComponentCeleryWorker, &ConfigInput{
-			MetastoreMode: MetastorePassthrough,
-			Valkey:        baseValkey,
-			Celery:        &CeleryInput{Imports: []string{"my.module", "other.tasks"}},
-		})
-		assertContains(t, result, "\"my.module\",")
-		assertContains(t, result, "\"other.tasks\",")
-		assertNotContains(t, result, "\"superset.sql_lab\",")
-	})
-
-	t.Run("explicit empty imports renders empty tuple", func(t *testing.T) {
-		result := RenderConfig(ComponentCeleryWorker, &ConfigInput{
-			MetastoreMode: MetastorePassthrough,
-			Valkey:        baseValkey,
-			Celery:        &CeleryInput{Imports: []string{}},
-		})
-		assertContains(t, result, "    imports = ()\n")
-		assertNotContains(t, result, "\"superset.sql_lab\",")
+		assertContains(t, result, "    broker_url = f\"{_vk_base}/0\"")
+		assertContains(t, result, "    result_backend = f\"{_vk_base}/0\"")
+		assertContains(t, result, "CELERY_CONFIG = CeleryConfig")
+		assertNotContains(t, result, "imports =")
+		assertNotContains(t, result, "worker_prefetch_multiplier")
+		assertNotContains(t, result, "task_acks_late")
+		assertNotContains(t, result, "task_annotations")
+		assertNotContains(t, result, "beat_schedule")
+		assertNotContains(t, result, "CELERY_BEAT_SCHEDULER_EXPIRES")
+		assertNotContains(t, result, "from datetime import timedelta")
+		assertNotContains(t, result, "from celery.schedules import crontab")
 	})
 
 	t.Run("nil valkey: no class emitted, no crontab import", func(t *testing.T) {
 		result := RenderConfig(ComponentCeleryWorker, &ConfigInput{
 			MetastoreMode: MetastorePassthrough,
-			Celery:        &CeleryInput{Imports: DefaultCeleryImports},
 		})
 		assertNotContains(t, result, "class CeleryConfig:")
 		assertNotContains(t, result, "from celery.schedules import crontab")
@@ -599,7 +572,6 @@ func TestRenderConfig_CeleryClassDefaults(t *testing.T) {
 				CeleryResultBackend: ValkeyCeleryInput{Disabled: true},
 				ResultsBackend:      ValkeyResultsInput{Disabled: true},
 			},
-			Celery: &CeleryInput{Imports: DefaultCeleryImports},
 		})
 		assertNotContains(t, result, "class CeleryConfig:")
 		assertNotContains(t, result, "from celery.schedules import crontab")

@@ -128,6 +128,23 @@ spec:
 
 `password` and `passwordFrom` are mutually exclusive.
 
+Structured mode defaults to `postgresql+psycopg2` for PostgreSQL and
+`mysql+mysqldb` for MySQL. If your image installs a different SQLAlchemy
+driver, set `metastore.driver`:
+
+```yaml
+spec:
+  metastore:
+    type: MySQL
+    driver: pymysql
+    host: mysql.example.com
+    database: superset
+    username: superset
+    passwordFrom:
+      name: db-credentials
+      key: password
+```
+
 ### Auto-creating the database
 
 Setting `metastore.createDatabase: true` instructs the operator to attach a one-shot init container to the migrate Job that issues `CREATE DATABASE` against the server before `superset db upgrade` runs. The step is idempotent — existing databases are detected and the init container exits cleanly, so re-applying or re-running migrations is safe.
@@ -164,7 +181,7 @@ spec:
     host: valkey.default.svc
 ```
 
-This generates a complete `superset_config.py` with `CACHE_CONFIG`, `DATA_CACHE_CONFIG`, `FILTER_STATE_CACHE_CONFIG`, `EXPLORE_FORM_DATA_CACHE_CONFIG`, `THUMBNAIL_CACHE_CONFIG`, `DISTRIBUTED_COORDINATION_CONFIG`, `CeleryConfig`, and `RESULTS_BACKEND` — each cache section backed by a separate Valkey database for isolation (Celery broker and result backend share database 0 by default).
+This generates a `superset_config.py` with `CACHE_CONFIG`, `DATA_CACHE_CONFIG`, `FILTER_STATE_CACHE_CONFIG`, `EXPLORE_FORM_DATA_CACHE_CONFIG`, `THUMBNAIL_CACHE_CONFIG`, `DISTRIBUTED_COORDINATION_CONFIG`, a connectivity-only `CeleryConfig`, and `RESULTS_BACKEND` — each cache section backed by a separate Valkey database for isolation (Celery broker and result backend share database 0 by default). Celery application behavior such as imports, task routes, and beat schedules remains explicit Python config.
 
 **Default database assignments:**
 
@@ -297,7 +314,7 @@ In both passthrough and structured modes, the operator renders `SQLALCHEMY_DATAB
 
 The `config` field accepts raw Python that is appended after the operator-generated config. It is available at the top level (base config, shared by all Python components) and per component (component config).
 
-The operator exposes a curated set of knobs as typed CRD fields — anything tied to Kubernetes resources, anything sourced from Secrets, and the most common settings that benefit from validation or cross-component wiring (e.g. metastore, Valkey-driven cache and Celery backends, feature presets). Everything else lives in `config` as Python. Over time, settings that prove broadly useful or error-prone may graduate from raw Python to typed fields. See [Configuration Philosophy](../architecture/overview.md#configuration-philosophy-typed-fields-vs-raw-python) for the rationale.
+The operator exposes a curated set of knobs as typed CRD fields — Kubernetes resources, Kubernetes Secret references, and managed connectivity that the operator can safely validate and wire across components (for example metastore URIs, Valkey-backed caches, Celery broker/backend URLs, lifecycle gating, and feature presets). Application behavior stays in `config` as Python. Over time, settings that prove broadly useful or error-prone may graduate from raw Python to typed fields. See [Configuration Philosophy](../architecture/overview.md#configuration-philosophy-typed-fields-vs-raw-python) for the rationale.
 
 ```yaml
 spec:
@@ -315,6 +332,46 @@ spec:
 Both fields are **concatenated**, not mutually exclusive. In this example, the celery worker's `superset_config.py` contains the operator-generated configs (`SECRET_KEY`, structured DB URI if applicable), then the base config (`ROW_LIMIT`, `LOG_LEVEL`), then the component config (`CELERY_ANNOTATIONS`). The web server receives only the operator-generated configs and the base config, since it has no component-specific `config` field set.
 
 See [Config Rendering Pipeline](../architecture/overview.md#config-rendering-pipeline) for the full rendering order and an example of the generated output.
+
+## Bootstrap Script
+
+`bootstrapScript` is an escape hatch for the default Python component and
+lifecycle task commands. When set, the operator writes it as
+`superset_bootstrap.sh` in the component or lifecycle ConfigMap and sources it
+before the default command starts.
+
+```yaml
+spec:
+  bootstrapScript: |
+    pip install my-superset-plugin
+```
+
+The top-level value applies to web server, Celery worker, Celery Beat, Celery
+Flower, MCP server, and lifecycle `migrate`, `rotate`, and `init` task Jobs.
+The websocket server is a Node.js component and does not use this script. Clone
+tasks also do not use it because they run a database-tool image rather than the
+Superset image.
+
+Components and lifecycle tasks can override the top-level script. Set the
+override to an empty string to disable inheritance:
+
+```yaml
+spec:
+  bootstrapScript: |
+    pip install my-superset-plugin
+  celeryWorker:
+    bootstrapScript: ""
+  lifecycle:
+    bootstrapScript: |
+      pip install migration-only-helper
+```
+
+If you override `podTemplate.container.command` or a lifecycle task `command`,
+that command is responsible for sourcing `/app/pythonpath/superset_bootstrap.sh`
+if it still needs the script. `bootstrapScript` is trusted shell code and is
+stored in the generated ConfigMap, so do not place secrets in it. For production
+dependency installation, a custom image is usually more repeatable than
+installing packages on every pod start.
 
 ## Feature Flags
 
@@ -334,10 +391,10 @@ For feature flags whose values aren't booleans (rare), use raw `spec.config` ins
 
 ## Celery Configuration
 
-Enable Celery workers for background tasks (caching, scheduled reports, long-running queries) by setting `celeryWorker` and `celeryBeat`. When `spec.valkey` is configured, the operator renders a `CeleryConfig` class with broker and result backend wired up.
+Enable Celery workers for background tasks (caching, scheduled reports, long-running queries) by setting `celeryWorker` and `celeryBeat`. When `spec.valkey` is configured, the operator renders the Celery connectivity fields it can derive from the CRD: broker URL, result backend URL, and optional SSL settings.
 
 ```yaml
-# With valkey (recommended): Celery config auto-generated
+# With Valkey: connectivity is rendered from the CRD.
 spec:
   valkey:
     host: valkey.default.svc
@@ -347,66 +404,60 @@ spec:
 
 ### What the operator renders
 
-When `spec.valkey` is set, the operator renders a `CeleryConfig` class assigned to `CELERY_CONFIG`. Because this **replaces** Superset's upstream `CeleryConfig` wholesale (Python last-assignment-wins), the operator preserves upstream's stable defaults so they aren't silently lost:
+When `spec.valkey` is set, the operator renders a `CeleryConfig` class assigned to `CELERY_CONFIG`. This class intentionally contains only managed connectivity:
 
 | Field | Source | Notes |
 |---|---|---|
 | `broker_url` | `spec.valkey` | f-string from operator-internal Valkey env vars |
 | `result_backend` | `spec.valkey` | same |
 | `broker_use_ssl` / `redis_backend_use_ssl` | `spec.valkey.ssl` | rendered when SSL is configured |
-| `imports` | `spec.celery.imports` (typed) | defaults to upstream's tuple — see below |
-| `worker_prefetch_multiplier` | hardcoded `1` | matches upstream; runtime value may be overridden by `spec.celeryWorker.celery.prefetchMultiplier` (CLI flag wins) |
-| `task_acks_late` | hardcoded `False` | matches upstream |
-| `task_annotations` | hardcoded | matches upstream: `{"sql_lab.get_sql_results": {"rate_limit": "100/s"}}` |
-| `beat_schedule` | hardcoded | matches upstream: `reports.scheduler` (every minute) and `reports.prune_log` (daily at midnight) |
 
-#### Typed: `spec.celery.imports`
+Application-level Celery behavior is not defaulted by the operator. Define imports, task routes, task annotations, acknowledgement behavior, beat schedules, scheduler expiration, and other Celery app settings explicitly in `spec.config`. This keeps the CRD focused on managed connectivity and avoids freezing Superset application defaults into the Kubernetes API.
 
-`spec.celery.imports` lists Python modules Celery workers import on startup to discover task definitions. When unset, it defaults to upstream Superset's tuple:
-
-```
-superset.sql_lab
-superset.tasks.scheduler
-superset.tasks.thumbnails
-superset.tasks.cache
-superset.tasks.slack
-```
-
-Setting the field replaces the default list **wholesale**. To extend rather than replace, leave `spec.celery.imports` unset and mutate the rendered class from raw `spec.config`:
+Because assigning `CELERY_CONFIG` replaces Superset's own Celery config class, production deployments that enable Celery should include the Celery app settings they rely on. Put settings needed by multiple Python components in top-level `spec.config`; put Beat-only settings such as `beat_schedule` in `spec.celeryBeat.config` so schedule changes roll only the Celery Beat Deployment. The example below is a starting point; review the `superset_config.py` from the Superset version you deploy and tune it for your environment.
 
 ```yaml
 spec:
-  celery:
-    imports:                        # replaces the default list entirely
-      - superset.sql_lab
-      - superset.tasks.scheduler
-      - my_org.superset.custom_tasks
-```
+  valkey:
+    host: valkey.default.svc
+  celeryWorker: {}
+  celeryBeat:
+    config: |
+      from celery.schedules import crontab
 
-```yaml
-# Or leave imports unset and append to the default in spec.config:
-spec:
+      CELERY_BEAT_SCHEDULER_EXPIRES = 7 * 24 * 60 * 60
+
+      CeleryConfig.beat_schedule = {
+          "reports.scheduler": {
+              "task": "reports.scheduler",
+              "schedule": crontab(minute="*", hour="*"),
+              "options": {"expires": CELERY_BEAT_SCHEDULER_EXPIRES},
+          },
+          "reports.prune_log": {
+              "task": "reports.prune_log",
+              "schedule": crontab(minute=0, hour=0),
+          },
+      }
   config: |
-    CeleryConfig.imports = CeleryConfig.imports + ("my_org.superset.custom_tasks",)
-```
-
-An explicit `imports: []` is honored as "no imports" (renders as `imports = ()`).
-
-#### Overriding the hardcoded defaults
-
-Only a subset of `CeleryConfig` properties are surfaced as typed CRD fields. To customize any other property, override it from raw `spec.config` by reassigning attributes on the operator-rendered class, as shown below:
-
-```yaml
-spec:
-  config: |
-    CeleryConfig.task_acks_late = True
-    CeleryConfig.task_annotations = {"my.task": {"rate_limit": "50/s"}}
-    CeleryConfig.beat_schedule = {}    # disable upstream's reports.* periodic tasks
+    CeleryConfig.imports = (
+        "superset.sql_lab",
+        "superset.tasks.scheduler",
+        "superset.tasks.thumbnails",
+        "superset.tasks.cache",
+        "superset.tasks.slack",
+    )
+    CeleryConfig.worker_prefetch_multiplier = 1
+    CeleryConfig.task_acks_late = False
+    CeleryConfig.task_annotations = {
+        "sql_lab.get_sql_results": {
+            "rate_limit": "100/s",
+        },
+    }
 ```
 
 #### Without Valkey
 
-When `spec.valkey` is unset, the operator emits no `CeleryConfig` class. Provide it manually via `spec.config`:
+When `spec.valkey` is unset, the operator emits no `CeleryConfig` class. Provide both connectivity and app behavior manually via `spec.config`:
 
 ```yaml
 spec:
@@ -416,14 +467,15 @@ spec:
         broker_url = "redis://valkey:6379/0"
         result_backend = "redis://valkey:6379/1"
         imports = ("superset.sql_lab",)
+        beat_schedule = {}
     CELERY_CONFIG = CeleryConfig
   celeryWorker: {}
   celeryBeat: {}
 ```
 
-### Extending the rendered `CeleryConfig`
+### Custom Queues And Routes
 
-The operator-rendered `CeleryConfig` is a regular Python class — extend it from `spec.config` by mutating attributes, subclassing, or replacing `CELERY_CONFIG` outright. For instance-scoped queue naming (preventing cross-instance queue collisions on a shared broker), the operator exposes the parent CR name as `SUPERSET_OPERATOR__INSTANCE_NAME`:
+The operator-rendered `CeleryConfig` is a regular Python class. Extend it from `spec.config` by mutating attributes, subclassing, or replacing `CELERY_CONFIG` outright. For instance-scoped queue naming (preventing cross-instance queue collisions on a shared broker), the operator exposes the parent CR name as `SUPERSET_OPERATOR__INSTANCE_NAME`:
 
 ```yaml
 spec:

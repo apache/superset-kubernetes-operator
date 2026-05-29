@@ -102,6 +102,7 @@ _Appears in:_
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for Celery beat pods. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
+| `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an<br />empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
 
 
@@ -125,26 +126,8 @@ _Appears in:_
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
+| `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an<br />empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration (type, port, annotations). |  | Optional: \{\} <br /> |
-
-
-#### CelerySpec
-
-
-
-CelerySpec configures the operator-rendered CeleryConfig class. Settings here
-flow into the class the operator generates when spec.valkey is set. Admins
-can extend the class further from raw spec.config (mutating attributes,
-subclassing, or replacing CELERY_CONFIG outright).
-
-
-
-_Appears in:_
-- [SupersetSpec](#supersetspec)
-
-| Field | Description | Default | Validation |
-| --- | --- | --- | --- |
-| `imports` _string array_ | Imports lists Python modules that Celery workers import on startup to<br />discover task definitions. When unset, defaults to the modules shipped<br />by upstream Superset:<br />superset.sql_lab, superset.tasks.scheduler, superset.tasks.thumbnails,<br />superset.tasks.cache, superset.tasks.slack.<br />Setting this field replaces the default list wholesale; admins who want<br />to extend rather than replace can mutate CeleryConfig.imports from raw<br />spec.config. |  | Optional: \{\} <br /> |
 
 
 #### CeleryWorkerComponentSpec
@@ -167,6 +150,7 @@ _Appears in:_
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
+| `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an<br />empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
 | `celery` _[CeleryWorkerProcessSpec](#celeryworkerprocessspec)_ | Celery worker execution configuration. Controls concurrency, pool type, and related parameters. |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
 
@@ -633,6 +617,7 @@ _Appears in:_
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for lifecycle task Jobs. |  | Optional: \{\} <br /> |
 | `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Retention policy for completed lifecycle task Jobs and their Pods. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-lifecycle raw Python appended after top-level config. |  | Optional: \{\} <br /> |
+| `bootstrapScript` _string_ | Bootstrap script for lifecycle migrate, rotate, and init task Jobs.<br />Overrides spec.bootstrapScript. Set to an empty string to disable inherited<br />bootstrap for lifecycle tasks. |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-lifecycle SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
 | `maintenancePage` _[MaintenancePageSpec](#maintenancepagespec)_ | MaintenancePage configures a lightweight maintenance page served during<br />lifecycle drain and task execution. Presence enables the feature when a<br />drain will actually run and an existing web-server workload is present.<br />In managed mode (no image override), an nginx:alpine container serves<br />a default or custom HTML page. In custom mode (image set), the user's<br />image handles serving, and content fields are passed as env vars. |  | Optional: \{\} <br /> |
 | `clone` _[CloneTaskSpec](#clonetaskspec)_ | Clone configures database cloning from an external source before running<br />migrations. The clone target is always spec.metastore. Only allowed in<br />Development or Staging mode. |  | Optional: \{\} <br /> |
@@ -712,6 +697,7 @@ _Appears in:_
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
+| `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an<br />empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration (type, port, annotations). |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
 
@@ -733,9 +719,10 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `uri` _string_ | Full SQLAlchemy database URI. Mutually exclusive with structured fields and uriFrom.<br />In Staging or Production, CRD validation rejects plain text URIs — use uriFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
 | `uriFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the full SQLAlchemy URI.<br />Mutually exclusive with uri and structured fields. |  | Optional: \{\} <br /> |
-| `type` _string_ | Database type. Determines the SQLAlchemy driver. | PostgreSQL | Enum: [PostgreSQL MySQL] <br />Optional: \{\} <br /> |
+| `type` _string_ | Database type. Determines the SQLAlchemy dialect and default driver. | PostgreSQL | Enum: [PostgreSQL MySQL] <br />Optional: \{\} <br /> |
+| `driver` _string_ | SQLAlchemy driver name for structured mode. When omitted, PostgreSQL uses<br />psycopg2 and MySQL uses mysqldb. Set this to a driver installed in the<br />Superset image, such as psycopg, pg8000, pymysql, or mysqlconnector. |  | Pattern: `^[A-Za-z0-9_]+$` <br />Optional: \{\} <br /> |
 | `host` _string_ | Database hostname. |  | Optional: \{\} <br /> |
-| `port` _integer_ | Database port. Defaults per driver (5432 for postgresql, 3306 for mysql). |  | Optional: \{\} <br /> |
+| `port` _integer_ | Database port. Defaults per type (5432 for PostgreSQL, 3306 for MySQL). |  | Optional: \{\} <br /> |
 | `database` _string_ | Database name. |  | Optional: \{\} <br /> |
 | `username` _string_ | Database username. |  | Optional: \{\} <br /> |
 | `password` _string_ | Database password. In Staging or Production, CRD validation rejects plain text passwords — use passwordFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
@@ -1085,8 +1072,8 @@ _Appears in:_
 | `metastore` _[MetastoreSpec](#metastorespec)_ | Metastore database connection configuration. |  | Optional: \{\} <br /> |
 | `valkey` _[ValkeySpec](#valkeyspec)_ | Valkey cache, broker, and results backend configuration. |  | Optional: \{\} <br /> |
 | `config` _string_ | Raw Python appended after operator-generated superset_config.py. |  | Optional: \{\} <br /> |
+| `bootstrapScript` _string_ | Shell script mounted as superset_bootstrap.sh and sourced before the<br />default command for Python components and lifecycle tasks. This is trusted<br />executable input; prefer custom images for production dependency installs.<br />Per-component bootstrapScript overrides this value. Set an override to an<br />empty string to disable inherited bootstrap for that component. |  | Optional: \{\} <br /> |
 | `featureFlags` _object (keys:string, values:boolean)_ | Feature flags toggled in superset_config.py via FEATURE_FLAGS = \{...\}.<br />Keys conventionally use UPPER_SNAKE_CASE (e.g. ALERT_REPORTS); values are booleans. |  | Optional: \{\} <br /> |
-| `celery` _[CelerySpec](#celeryspec)_ | Top-level Celery app configuration rendered into CELERY_CONFIG. Per-component<br />worker/beat process tuning lives on celeryWorker / celeryBeat. |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | SQLAlchemy engine options for connection pooling. Inherited by all Python<br />components; per-component sqlaEngineOptions overrides this entirely.<br />When unset, the operator computes balanced defaults per component. |  | Optional: \{\} <br /> |
 | `webServer` _[WebServerComponentSpec](#webservercomponentspec)_ | Web server (gunicorn) component. Presence enables it; absence disables. |  | Optional: \{\} <br /> |
 | `celeryWorker` _[CeleryWorkerComponentSpec](#celeryworkercomponentspec)_ | Celery async task worker component. Uses spec.valkey as broker/backend when set;<br />otherwise the broker must be configured manually via spec.config. |  | Optional: \{\} <br /> |
@@ -1299,6 +1286,7 @@ _Appears in:_
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
+| `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an<br />empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration (type, port, annotations). |  | Optional: \{\} <br /> |
 | `gunicorn` _[GunicornSpec](#gunicornspec)_ | Gunicorn worker configuration. Controls worker processes, threads, and related parameters. |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |

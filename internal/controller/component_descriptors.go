@@ -45,6 +45,7 @@ type componentAccessor struct {
 	autoscaling         *supersetv1alpha1.AutoscalingSpec
 	pdb                 *supersetv1alpha1.PDBSpec
 	config              *string
+	bootstrapScript     *string
 	image               *supersetv1alpha1.ImageOverrideSpec
 	service             *supersetv1alpha1.ComponentServiceSpec
 	gunicorn            *supersetv1alpha1.GunicornSpec
@@ -169,6 +170,7 @@ func (r *SupersetReconciler) reconcileComponent(
 	var operatorInjected *resolution.OperatorInjected
 
 	if desc.hasPythonConfig {
+		bootstrapScript := effectiveBootstrapScript(superset.Spec.BootstrapScript, accessor.bootstrapScript)
 		compConfigInput := buildConfigInput(&superset.Spec)
 		if accessor.config != nil {
 			compConfigInput.ComponentConfig = *accessor.config
@@ -201,10 +203,10 @@ func (r *SupersetReconciler) reconcileComponent(
 
 		renderedConfig = supersetconfig.RenderConfig(desc.componentType, compConfigInput)
 		secretEnvVars = collectSecretEnvVars(&superset.Spec, superset.Name)
-		operatorInjected = buildOperatorInjected(renderedConfig, resourceBaseName, superset.Spec.ForceReload, secretEnvVars)
+		operatorInjected = buildOperatorInjected(renderedConfig, bootstrapScript, resourceBaseName, superset.Spec.ForceReload, secretEnvVars)
 
 		// Create/update the component ConfigMap.
-		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, renderedConfig, resourceBaseName, componentLabels(string(desc.componentType), superset.Name)); err != nil {
+		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, renderedConfig, bootstrapScript, resourceBaseName, componentLabels(string(desc.componentType), superset.Name)); err != nil {
 			return fmt.Errorf("reconciling ConfigMap for %s: %w", desc.componentType, err)
 		}
 
@@ -220,7 +222,7 @@ func (r *SupersetReconciler) reconcileComponent(
 		if desc.componentType == naming.ComponentCeleryWorker {
 			c := supersetconfig.ResolveCelery(accessor.celery)
 			if !c.Disabled {
-				injectCeleryCommand(comp, c.Command())
+				injectCeleryCommand(comp, withBootstrapScript(c.Command(), bootstrapScript))
 			}
 		}
 	} else {
@@ -281,7 +283,7 @@ func (r *SupersetReconciler) reconcileComponent(
 	// websocket component has no Python config, so its optional config.json
 	// checksum is computed above from either inline config or the Secret ref.
 	if desc.hasPythonConfig {
-		workloadChecksum = computeChecksum(configChecksum + renderedConfig)
+		workloadChecksum = computeChecksum(configChecksum + renderedConfig + effectiveBootstrapScript(superset.Spec.BootstrapScript, accessor.bootstrapScript))
 	}
 
 	flatSpec := flatSpecFromResolution(flat, &superset.Spec.Image, accessor.image, saName)
@@ -292,6 +294,12 @@ func (r *SupersetReconciler) reconcileComponent(
 	cfg, ok := componentResourceConfig(desc.componentType)
 	if !ok {
 		return fmt.Errorf("missing resource config for %s", desc.componentType)
+	}
+	if desc.hasPythonConfig {
+		cfg.deployConfig.DefaultCommand = withBootstrapScript(
+			cfg.deployConfig.DefaultCommand,
+			effectiveBootstrapScript(superset.Spec.BootstrapScript, accessor.bootstrapScript),
+		)
 	}
 
 	return reconcileComponentResources(ctx, r.Client, r.Scheme, r.Recorder, superset,
@@ -325,7 +333,7 @@ func (r *SupersetReconciler) deleteComponentResources(ctx context.Context, super
 	}
 
 	if desc.hasPythonConfig {
-		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, "", resourceBaseName, nil); err != nil {
+		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, "", "", resourceBaseName, nil); err != nil {
 			return fmt.Errorf("deleting ConfigMap for disabled %s: %w", desc.componentType, err)
 		}
 	}
@@ -357,7 +365,7 @@ func injectCeleryCommand(comp *resolution.ComponentInput, cmd []string) {
 
 // --- Descriptor definitions ---
 
-func extractScalable(s *supersetv1alpha1.ScalableComponentSpec, config *string, image *supersetv1alpha1.ImageOverrideSpec, service *supersetv1alpha1.ComponentServiceSpec) *componentAccessor {
+func extractScalable(s *supersetv1alpha1.ScalableComponentSpec, config, bootstrapScript *string, image *supersetv1alpha1.ImageOverrideSpec, service *supersetv1alpha1.ComponentServiceSpec) *componentAccessor {
 	return &componentAccessor{
 		deploymentTemplate: s.DeploymentTemplate,
 		podTemplate:        s.PodTemplate,
@@ -365,6 +373,7 @@ func extractScalable(s *supersetv1alpha1.ScalableComponentSpec, config *string, 
 		autoscaling:        s.Autoscaling,
 		pdb:                s.PodDisruptionBudget,
 		config:             config,
+		bootstrapScript:    bootstrapScript,
 		image:              image,
 		service:            service,
 	}
@@ -378,7 +387,7 @@ var webServerDescriptor = &componentDescriptor{
 		if c == nil {
 			return nil
 		}
-		a := extractScalable(&c.ScalableComponentSpec, c.Config, c.Image, c.Service)
+		a := extractScalable(&c.ScalableComponentSpec, c.Config, c.BootstrapScript, c.Image, c.Service)
 		a.gunicorn = c.Gunicorn
 		a.sqlaEngineOptions = c.SQLAlchemyEngineOptions
 		return a
@@ -396,7 +405,7 @@ var celeryWorkerDescriptor = &componentDescriptor{
 		if c == nil {
 			return nil
 		}
-		a := extractScalable(&c.ScalableComponentSpec, c.Config, c.Image, nil)
+		a := extractScalable(&c.ScalableComponentSpec, c.Config, c.BootstrapScript, c.Image, nil)
 		a.celery = c.Celery
 		a.sqlaEngineOptions = c.SQLAlchemyEngineOptions
 		return a
@@ -418,6 +427,7 @@ var celeryBeatDescriptor = &componentDescriptor{
 			deploymentTemplate: c.DeploymentTemplate,
 			podTemplate:        c.PodTemplate,
 			config:             c.Config,
+			bootstrapScript:    c.BootstrapScript,
 			image:              c.Image,
 			sqlaEngineOptions:  c.SQLAlchemyEngineOptions,
 		}
@@ -439,7 +449,7 @@ var celeryFlowerDescriptor = &componentDescriptor{
 		if c == nil {
 			return nil
 		}
-		return extractScalable(&c.ScalableComponentSpec, c.Config, c.Image, c.Service)
+		return extractScalable(&c.ScalableComponentSpec, c.Config, c.BootstrapScript, c.Image, c.Service)
 	},
 	statusAccessor: func(m *supersetv1alpha1.ComponentStatusMap) **supersetv1alpha1.ComponentRefStatus {
 		return &m.CeleryFlower
@@ -454,7 +464,7 @@ var mcpServerDescriptor = &componentDescriptor{
 		if c == nil {
 			return nil
 		}
-		a := extractScalable(&c.ScalableComponentSpec, c.Config, c.Image, c.Service)
+		a := extractScalable(&c.ScalableComponentSpec, c.Config, c.BootstrapScript, c.Image, c.Service)
 		a.sqlaEngineOptions = c.SQLAlchemyEngineOptions
 		return a
 	},
@@ -471,7 +481,7 @@ var websocketServerDescriptor = &componentDescriptor{
 		if c == nil {
 			return nil
 		}
-		a := extractScalable(&c.ScalableComponentSpec, nil, c.Image, c.Service)
+		a := extractScalable(&c.ScalableComponentSpec, nil, nil, c.Image, c.Service)
 		a.websocketConfig = c.Config
 		a.websocketConfigFrom = c.ConfigFrom
 		return a

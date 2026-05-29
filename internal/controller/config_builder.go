@@ -119,7 +119,10 @@ func buildConfigInput(spec *supersetv1alpha1.SupersetSpec) *supersetconfig.Confi
 			if spec.Metastore.Type != nil {
 				dbType = *spec.Metastore.Type
 			}
-			input.DBDriver = dbType
+			input.DBType = dbType
+			if spec.Metastore.Driver != nil {
+				input.DBDriver = *spec.Metastore.Driver
+			}
 		}
 	}
 
@@ -127,7 +130,6 @@ func buildConfigInput(spec *supersetv1alpha1.SupersetSpec) *supersetconfig.Confi
 		input.Valkey = buildValkeyInput(spec.Valkey)
 	}
 
-	input.Celery = buildCeleryInput(spec.Celery)
 	input.FeatureFlags = spec.FeatureFlags
 
 	if spec.Config != nil {
@@ -137,20 +139,6 @@ func buildConfigInput(spec *supersetv1alpha1.SupersetSpec) *supersetconfig.Confi
 	input.HasPreviousSecretKey = spec.PreviousSecretKey != nil || spec.PreviousSecretKeyFrom != nil
 
 	return input
-}
-
-// buildCeleryInput resolves spec.celery into a CeleryInput with upstream defaults
-// applied. The result is always non-nil so the renderer can emit unconditionally.
-// A nil input slice means "use upstream defaults"; an explicit empty slice from
-// YAML (imports: []) is honored as "no imports".
-func buildCeleryInput(c *supersetv1alpha1.CelerySpec) *supersetconfig.CeleryInput {
-	out := &supersetconfig.CeleryInput{}
-	if c == nil || c.Imports == nil {
-		out.Imports = supersetconfig.DefaultCeleryImports
-	} else {
-		out.Imports = c.Imports
-	}
-	return out
 }
 
 // buildValkeyInput converts the CRD ValkeySpec into a resolved ValkeyInput with defaults applied.
@@ -357,10 +345,10 @@ func defaultDBPort(driver *string) int32 {
 
 // --- Operator-injected volumes/env/mounts ---
 
-func buildOperatorInjected(renderedConfig, resourceBaseName, forceReload string, configEnvVars []corev1.EnvVar) *resolution.OperatorInjected {
+func buildOperatorInjected(renderedConfig, bootstrapScript, resourceBaseName, forceReload string, configEnvVars []corev1.EnvVar) *resolution.OperatorInjected {
 	injected := &resolution.OperatorInjected{}
 
-	if renderedConfig != "" {
+	if renderedConfig != "" || bootstrapScript != "" {
 		// Config volume + mount.
 		injected.Volumes = append(injected.Volumes, corev1.Volume{
 			Name: configVolumeName,
