@@ -33,11 +33,13 @@ Superset instance using dev mode.
 ```bash
 helm install superset-operator \
   oci://ghcr.io/apache/superset-kubernetes-operator/charts/superset-operator \
-  --version 0.0.0-dev \
+  --version <version> \
   --namespace superset-operator-system \
-  --create-namespace \
-  --set image.pullPolicy=Always
+  --create-namespace
 ```
+
+Replace `<version>` with a published chart version (e.g., `0.1.0`); see
+[Downloads](reference/downloads.md) for published tags.
 
 ## 2. Deploy Superset
 
@@ -52,7 +54,7 @@ metadata:
 spec:
   environment: Development
   image:
-    tag: "6.0.1"
+    tag: "6.1.0"
   secretKey: thisIsNotSecure_changeInProduction!
   metastore:
     uri: postgresql+psycopg2://superset:superset@postgres:5432/superset

@@ -269,7 +269,7 @@ across namespaces. Each permission is justified below:
 | `serviceaccounts` | CRUD | Creates per-instance ServiceAccount for pod identity |
 | `pods` | get, list, watch | Reads Job pods to verify drain progress and component readiness |
 | `jobs` | CRUD | Manages deterministic lifecycle task Jobs |
-| `events` | create, patch | Records reconciliation events |
+| `events` | create, patch, update | Records reconciliation events |
 | `deployments` | CRUD | Manages component Deployments |
 | `horizontalpodautoscalers` | CRUD | Manages HPA for scalable components |
 | `poddisruptionbudgets` | CRUD | Manages PDBs for availability |
@@ -277,7 +277,8 @@ across namespaces. Each permission is justified below:
 | `httproutes` | CRUD | Optional Gateway API support |
 | `servicemonitors` | CRUD | Optional Prometheus integration |
 | `tokenreviews`, `subjectaccessreviews` | create | Metrics endpoint auth/authz (controller-runtime secure metrics) |
-| `supersets` + `supersets/status` | get, list, watch, update, patch + status update | Reads `Superset` CRs and updates status |
+| `supersets` | get, list, watch | Reads `Superset` CRs (no write access to the CR spec) |
+| `supersets/status` | get, update, patch | Updates reconciliation status only |
 
 The operator does **not** request:
 

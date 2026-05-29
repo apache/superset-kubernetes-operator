@@ -156,7 +156,7 @@ metadata:
   name: my-superset
 spec:
   image:
-    tag: "6.0.1"
+    tag: "6.1.0"
 
   secretKeyFrom:
     name: superset-secrets
@@ -224,7 +224,7 @@ metadata:
   name: my-superset
 spec:
   image:
-    tag: "6.0.1"
+    tag: "6.1.0"
 
   secretKeyFrom:
     name: superset-secrets

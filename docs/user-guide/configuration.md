@@ -56,7 +56,7 @@ Use `secretKeyFrom` and `metastore.uriFrom` to reference Kubernetes Secrets. The
 ```yaml
 spec:
   image:
-    tag: "6.0.1"
+    tag: "6.1.0"
   secretKeyFrom:
     name: superset-secret
     key: secret-key
@@ -836,7 +836,7 @@ podTemplate                         → PodSpec-level
 ```yaml
 spec:
   image:
-    tag: "6.0.1"
+    tag: "6.1.0"
   webServer:
     replicas: 2
 ```
