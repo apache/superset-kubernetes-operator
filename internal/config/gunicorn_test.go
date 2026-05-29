@@ -78,6 +78,36 @@ func TestResolveGunicorn_FieldOverrides(t *testing.T) {
 	assert.Equal(t, int32(120), g.Timeout)
 }
 
+func TestResolveGunicorn_AllFieldOverrides(t *testing.T) {
+	// Every overridable field set to a non-default value, on top of a preset
+	// whose worker/thread defaults must be replaced by the explicit values.
+	g := ResolveGunicorn(&v1alpha1.GunicornSpec{
+		Preset:                ptr(PresetBalanced),
+		Workers:               ptr(int32(3)),
+		Threads:               ptr(int32(5)),
+		WorkerClass:           ptr("sync"),
+		Timeout:               ptr(int32(90)),
+		KeepAlive:             ptr(int32(7)),
+		MaxRequests:           ptr(int32(1000)),
+		MaxRequestsJitter:     ptr(int32(50)),
+		LimitRequestLine:      ptr(int32(8190)),
+		LimitRequestFieldSize: ptr(int32(16380)),
+		LogLevel:              ptr("debug"),
+	})
+
+	assert.False(t, g.Disabled)
+	assert.Equal(t, int32(3), g.Workers)
+	assert.Equal(t, int32(5), g.Threads)
+	assert.Equal(t, "sync", g.WorkerClass)
+	assert.Equal(t, int32(90), g.Timeout)
+	assert.Equal(t, int32(7), g.KeepAlive)
+	assert.Equal(t, int32(1000), g.MaxRequests)
+	assert.Equal(t, int32(50), g.MaxRequestsJitter)
+	assert.Equal(t, int32(8190), g.LimitRequestLine)
+	assert.Equal(t, int32(16380), g.LimitRequestFieldSize)
+	assert.Equal(t, "debug", g.LogLevel)
+}
+
 func TestResolveGunicorn_EnvVars(t *testing.T) {
 	g := ResolveGunicorn(nil)
 	envs := g.EnvVars()

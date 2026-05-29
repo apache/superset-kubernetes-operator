@@ -19,6 +19,7 @@ limitations under the License.
 package controller
 
 import (
+	"reflect"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -650,4 +651,56 @@ func TestCollectSecretEnvVars_Valkey(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestBuildInitCommand(t *testing.T) {
+	loadExamples := true
+	noLoadExamples := false
+
+	tests := []struct {
+		name       string
+		init       *supersetv1alpha1.InitTaskSpec
+		wantScript string
+	}{
+		{
+			name:       "nil init runs plain superset init",
+			init:       nil,
+			wantScript: "superset init",
+		},
+		{
+			name:       "empty init runs plain superset init",
+			init:       &supersetv1alpha1.InitTaskSpec{},
+			wantScript: "superset init",
+		},
+		{
+			name:       "admin user appends create-admin",
+			init:       &supersetv1alpha1.InitTaskSpec{AdminUser: &supersetv1alpha1.AdminUserSpec{}},
+			wantScript: `superset init && (superset fab create-admin --username "$SUPERSET_OPERATOR__ADMIN_USERNAME" --password "$SUPERSET_OPERATOR__ADMIN_PASSWORD" --firstname "$SUPERSET_OPERATOR__ADMIN_FIRST_NAME" --lastname "$SUPERSET_OPERATOR__ADMIN_LAST_NAME" --email "$SUPERSET_OPERATOR__ADMIN_EMAIL" || true)`,
+		},
+		{
+			name:       "load examples true appends load-examples",
+			init:       &supersetv1alpha1.InitTaskSpec{LoadExamples: &loadExamples},
+			wantScript: "superset init && superset load-examples",
+		},
+		{
+			name:       "load examples false is a no-op",
+			init:       &supersetv1alpha1.InitTaskSpec{LoadExamples: &noLoadExamples},
+			wantScript: "superset init",
+		},
+		{
+			name:       "admin user and load examples both append in order",
+			init:       &supersetv1alpha1.InitTaskSpec{AdminUser: &supersetv1alpha1.AdminUserSpec{}, LoadExamples: &loadExamples},
+			wantScript: `superset init && (superset fab create-admin --username "$SUPERSET_OPERATOR__ADMIN_USERNAME" --password "$SUPERSET_OPERATOR__ADMIN_PASSWORD" --firstname "$SUPERSET_OPERATOR__ADMIN_FIRST_NAME" --lastname "$SUPERSET_OPERATOR__ADMIN_LAST_NAME" --email "$SUPERSET_OPERATOR__ADMIN_EMAIL" || true) && superset load-examples`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := buildInitCommand(tt.init)
+			want := []string{"/bin/sh", "-c", tt.wantScript}
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("buildInitCommand() =\n  %#v\nwant\n  %#v", got, want)
+			}
+		})
+	}
 }

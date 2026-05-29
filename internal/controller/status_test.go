@@ -22,6 +22,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -411,4 +412,135 @@ func hasComponentResource(resources []supersetv1alpha1.ComponentResourceStatus, 
 		}
 	}
 	return false
+}
+
+func TestEffectiveAutoscalingForStatus(t *testing.T) {
+	componentAS := &supersetv1alpha1.AutoscalingSpec{MinReplicas: int32Ptr(3)}
+	topAS := &supersetv1alpha1.AutoscalingSpec{MinReplicas: int32Ptr(2)}
+
+	t.Run("per-component value wins", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Autoscaling: topAS}}
+		got := effectiveAutoscalingForStatus(superset, &componentAccessor{autoscaling: componentAS})
+		assert.Same(t, componentAS, got)
+	})
+
+	t.Run("falls back to top-level", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Autoscaling: topAS}}
+		got := effectiveAutoscalingForStatus(superset, &componentAccessor{})
+		assert.Same(t, topAS, got)
+	})
+
+	t.Run("nil when neither set", func(t *testing.T) {
+		assert.Nil(t, effectiveAutoscalingForStatus(&supersetv1alpha1.Superset{}, nil))
+	})
+}
+
+func TestEffectivePDBForStatus(t *testing.T) {
+	componentPDB := &supersetv1alpha1.PDBSpec{}
+	topPDB := &supersetv1alpha1.PDBSpec{}
+
+	t.Run("per-component value wins", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{PodDisruptionBudget: topPDB}}
+		assert.Same(t, componentPDB, effectivePDBForStatus(superset, &componentAccessor{pdb: componentPDB}))
+	})
+
+	t.Run("falls back to top-level", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{PodDisruptionBudget: topPDB}}
+		assert.Same(t, topPDB, effectivePDBForStatus(superset, &componentAccessor{}))
+	})
+
+	t.Run("nil when neither set", func(t *testing.T) {
+		assert.Nil(t, effectivePDBForStatus(&supersetv1alpha1.Superset{}, nil))
+	})
+}
+
+func TestDesiredReplicasForStatus(t *testing.T) {
+	webDesc := &componentDescriptor{componentType: common.ComponentWebServer}
+	beatDesc := &componentDescriptor{componentType: common.ComponentCeleryBeat}
+
+	t.Run("celery beat is always a singleton", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Replicas: int32Ptr(5)}}
+		assert.Equal(t, celeryBeatSingletonReplica, desiredReplicasForStatus(superset, beatDesc, &componentAccessor{}))
+	})
+
+	t.Run("autoscaling minReplicas takes precedence", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Replicas: int32Ptr(5)}}
+		accessor := &componentAccessor{autoscaling: &supersetv1alpha1.AutoscalingSpec{MinReplicas: int32Ptr(3)}}
+		assert.Equal(t, int32(3), desiredReplicasForStatus(superset, webDesc, accessor))
+	})
+
+	t.Run("autoscaling without minReplicas defaults to 1", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Replicas: int32Ptr(5)}}
+		accessor := &componentAccessor{autoscaling: &supersetv1alpha1.AutoscalingSpec{}}
+		assert.Equal(t, int32(1), desiredReplicasForStatus(superset, webDesc, accessor))
+	})
+
+	t.Run("per-component replicas win over top-level", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Replicas: int32Ptr(5)}}
+		assert.Equal(t, int32(2), desiredReplicasForStatus(superset, webDesc, &componentAccessor{replicas: int32Ptr(2)}))
+	})
+
+	t.Run("falls back to top-level replicas", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Replicas: int32Ptr(4)}}
+		assert.Equal(t, int32(4), desiredReplicasForStatus(superset, webDesc, &componentAccessor{}))
+	})
+
+	t.Run("defaults to 1 when nothing is set", func(t *testing.T) {
+		assert.Equal(t, int32(1), desiredReplicasForStatus(&supersetv1alpha1.Superset{}, webDesc, &componentAccessor{}))
+	})
+}
+
+func TestComponentPhaseAndMessage(t *testing.T) {
+	t.Run("scaled to zero is Ready", func(t *testing.T) {
+		phase, msg := componentPhaseAndMessage(&appsv1.Deployment{}, 0)
+		assert.Equal(t, componentPhaseReady, phase)
+		assert.Equal(t, "Scaled to zero", msg)
+	})
+
+	t.Run("all replicas ready is Ready with no message", func(t *testing.T) {
+		deploy := &appsv1.Deployment{Status: appsv1.DeploymentStatus{
+			ReadyReplicas: 2, UpdatedReplicas: 2, AvailableReplicas: 2,
+		}}
+		phase, msg := componentPhaseAndMessage(deploy, 2)
+		assert.Equal(t, componentPhaseReady, phase)
+		assert.Empty(t, msg)
+	})
+
+	t.Run("unobserved generation is Progressing", func(t *testing.T) {
+		deploy := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Generation: 2},
+			Status:     appsv1.DeploymentStatus{ObservedGeneration: 1},
+		}
+		phase, msg := componentPhaseAndMessage(deploy, 2)
+		assert.Equal(t, componentPhaseProgressing, phase)
+		assert.Equal(t, "Deployment has not observed the latest generation", msg)
+	})
+
+	t.Run("progress deadline exceeded is Unavailable", func(t *testing.T) {
+		deploy := &appsv1.Deployment{Status: appsv1.DeploymentStatus{
+			Conditions: []appsv1.DeploymentCondition{{
+				Type:    appsv1.DeploymentProgressing,
+				Status:  corev1.ConditionFalse,
+				Reason:  "ProgressDeadlineExceeded",
+				Message: "deadline exceeded",
+			}},
+		}}
+		phase, msg := componentPhaseAndMessage(deploy, 2)
+		assert.Equal(t, componentPhaseUnavailable, phase)
+		assert.Equal(t, "deadline exceeded", msg)
+	})
+
+	t.Run("partially ready is Progressing", func(t *testing.T) {
+		deploy := &appsv1.Deployment{Status: appsv1.DeploymentStatus{ReadyReplicas: 1}}
+		phase, msg := componentPhaseAndMessage(deploy, 3)
+		assert.Equal(t, componentPhaseProgressing, phase)
+		assert.Equal(t, "1 of 3 replicas are ready", msg)
+	})
+
+	t.Run("no replicas ready is Unavailable", func(t *testing.T) {
+		deploy := &appsv1.Deployment{Status: appsv1.DeploymentStatus{ReadyReplicas: 0}}
+		phase, msg := componentPhaseAndMessage(deploy, 3)
+		assert.Equal(t, componentPhaseUnavailable, phase)
+		assert.Equal(t, "0 of 3 replicas are ready", msg)
+	})
 }

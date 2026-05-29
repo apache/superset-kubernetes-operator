@@ -610,3 +610,25 @@ func TestDeleteByLabels_SkipsUnlabeledResource(t *testing.T) {
 }
 
 func pathTypePtr(pt networkingv1.PathType) *networkingv1.PathType { return &pt }
+
+func TestResolveServicePort(t *testing.T) {
+	custom := int32(9000)
+	tests := []struct {
+		name        string
+		svc         *supersetv1alpha1.ComponentServiceSpec
+		defaultPort int32
+		want        gatewayv1.PortNumber
+	}{
+		{"nil service", nil, 8088, 8088},
+		{"nil port", &supersetv1alpha1.ComponentServiceSpec{}, 8088, 8088},
+		{"custom port", &supersetv1alpha1.ComponentServiceSpec{Port: &custom}, 8088, 9000},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := resolveServicePort(tt.svc, tt.defaultPort)
+			if got != tt.want {
+				t.Errorf("resolveServicePort() = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}

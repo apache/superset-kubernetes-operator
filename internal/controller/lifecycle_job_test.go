@@ -20,9 +20,11 @@ package controller
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -337,4 +339,53 @@ func lifecycleTaskJobForRetention(name, checksum string, conditionType batchv1.J
 		}}
 	}
 	return job
+}
+
+func TestTruncateFailureMessage(t *testing.T) {
+	t.Run("short message is unchanged", func(t *testing.T) {
+		assert.Equal(t, "boom", truncateFailureMessage("boom"))
+	})
+	t.Run("message at the limit is unchanged", func(t *testing.T) {
+		msg := strings.Repeat("x", maxTerminationMessageLen)
+		assert.Equal(t, msg, truncateFailureMessage(msg))
+	})
+	t.Run("over-limit message is truncated with ellipsis", func(t *testing.T) {
+		msg := strings.Repeat("x", maxTerminationMessageLen+10)
+		got := truncateFailureMessage(msg)
+		assert.Equal(t, strings.Repeat("x", maxTerminationMessageLen)+"...", got)
+		assert.Len(t, got, maxTerminationMessageLen+3)
+	})
+}
+
+func TestJobFailureMessage(t *testing.T) {
+	failed := func(reason, message string) *batchv1.Job {
+		return &batchv1.Job{Status: batchv1.JobStatus{Conditions: []batchv1.JobCondition{{
+			Type:    batchv1.JobFailed,
+			Status:  corev1.ConditionTrue,
+			Reason:  reason,
+			Message: message,
+		}}}}
+	}
+
+	t.Run("prefers the condition message", func(t *testing.T) {
+		assert.Equal(t, "pods failed", jobFailureMessage(failed("BackoffLimitExceeded", "pods failed")))
+	})
+	t.Run("falls back to the reason when message empty", func(t *testing.T) {
+		assert.Equal(t, "BackoffLimitExceeded", jobFailureMessage(failed("BackoffLimitExceeded", "")))
+	})
+	t.Run("default when failed condition has neither", func(t *testing.T) {
+		assert.Equal(t, "Job failed", jobFailureMessage(failed("", "")))
+	})
+	t.Run("default when no failed condition present", func(t *testing.T) {
+		job := &batchv1.Job{Status: batchv1.JobStatus{Conditions: []batchv1.JobCondition{{
+			Type:   batchv1.JobComplete,
+			Status: corev1.ConditionTrue,
+		}}}}
+		assert.Equal(t, "Job failed", jobFailureMessage(job))
+	})
+	t.Run("truncates long condition messages", func(t *testing.T) {
+		long := strings.Repeat("x", maxTerminationMessageLen+5)
+		got := jobFailureMessage(failed("BackoffLimitExceeded", long))
+		assert.Len(t, got, maxTerminationMessageLen+3)
+	})
 }
