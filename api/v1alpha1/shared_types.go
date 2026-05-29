@@ -129,7 +129,9 @@ type MetastoreSpec struct {
 
 	// SQLAlchemy driver name for structured mode. When omitted, PostgreSQL uses
 	// psycopg2 and MySQL uses mysqldb. Set this to a driver installed in the
-	// Superset image, such as psycopg, pg8000, pymysql, or mysqlconnector.
+	// Superset image, such as psycopg, pg8000, pymysql, or mysqlconnector. The
+	// operator selects the SQLAlchemy scheme only; it does not install Python
+	// driver packages into the image.
 	// +optional
 	// +kubebuilder:validation:Pattern=`^[A-Za-z0-9_]+$`
 	Driver *string `json:"driver,omitempty"`

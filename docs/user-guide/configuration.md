@@ -129,8 +129,16 @@ spec:
 `password` and `passwordFrom` are mutually exclusive.
 
 Structured mode defaults to `postgresql+psycopg2` for PostgreSQL and
-`mysql+mysqldb` for MySQL. If your image installs a different SQLAlchemy
-driver, set `metastore.driver`:
+`mysql+mysqldb` for MySQL. The operator only selects the SQLAlchemy scheme; it
+does not install Python driver packages into the Superset image. The official
+lean Superset images do not include database drivers, so production images
+should add the driver package required by the selected scheme. For the default
+MySQL scheme, install `mysqlclient`; for the default PostgreSQL scheme, install
+`psycopg2` or a compatible package. See Superset's
+[Docker Builds](https://superset.apache.org/admin-docs/installation/docker-builds/#build-presets)
+and [MySQL](https://superset.apache.org/user-docs/databases/supported/mysql/)
+docs for the upstream driver guidance. If your image installs a different
+SQLAlchemy driver, set `metastore.driver`:
 
 ```yaml
 spec:

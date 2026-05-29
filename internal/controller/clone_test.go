@@ -19,12 +19,18 @@ limitations under the License.
 package controller
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/events"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
@@ -352,6 +358,62 @@ func TestBuildCloneTaskFlatSpec_CommandOnContainer(t *testing.T) {
 	}
 	if cmd[0] != "/bin/sh" || !strings.Contains(cmd[2], "pg_dump") {
 		t.Errorf("expected pg_dump shell command, got: %v", cmd)
+	}
+}
+
+func TestReconcileLifecycleTask_CloneIgnoresBootstrapScript(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+	bootstrapScript := "echo bootstrap"
+	password := "secret"
+	host := "postgres.default.svc"
+	database := "superset"
+	username := "superset"
+
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Spec: supersetv1alpha1.SupersetSpec{
+			BootstrapScript: &bootstrapScript,
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{
+				Clone: &supersetv1alpha1.CloneTaskSpec{
+					Source: supersetv1alpha1.CloneSourceSpec{
+						Host:     "pg-prod.svc",
+						Database: "superset_prod",
+						Username: "reader",
+						Password: &password,
+					},
+				},
+			},
+			Metastore: &supersetv1alpha1.MetastoreSpec{
+				Host:     &host,
+				Database: &database,
+				Username: &username,
+				Password: &password,
+			},
+		},
+	}
+
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	if _, err := r.reconcileLifecycleTask(
+		ctx,
+		superset,
+		taskTypeClone,
+		suffixClone,
+		nil,
+		"sha256:clone",
+		"sha256:config",
+		&resolution.SharedInput{},
+		"default",
+	); err != nil {
+		t.Fatalf("reconcileLifecycleTask: %v", err)
+	}
+
+	cm := &corev1.ConfigMap{}
+	err := c.Get(ctx, types.NamespacedName{Name: common.ConfigMapName("test-clone"), Namespace: "default"}, cm)
+	if !apierrors.IsNotFound(err) {
+		t.Fatalf("expected clone task to skip bootstrap ConfigMap, got %v", err)
 	}
 }
 

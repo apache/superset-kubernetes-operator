@@ -496,7 +496,10 @@ func (r *SupersetReconciler) reconcileLifecycleTask(
 
 	// Build the task's flat spec and pod configuration.
 	flatSpec, renderedConfig := r.buildTaskFlatSpec(superset, taskType, command, configChecksum, topLevel, saName)
-	bootstrapScript := effectiveLifecycleBootstrapScript(&superset.Spec)
+	bootstrapScript := ""
+	if taskType != taskTypeClone {
+		bootstrapScript = effectiveLifecycleBootstrapScript(&superset.Spec)
+	}
 
 	// Create the ConfigMap before the task Pod (only for tasks that need Python config).
 	if renderedConfig != "" || bootstrapScript != "" {

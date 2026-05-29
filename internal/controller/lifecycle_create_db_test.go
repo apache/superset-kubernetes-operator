@@ -597,6 +597,7 @@ func TestMigrateInputs_InitContainerScriptParticipatesInChecksum(t *testing.T) {
 	pgStruct, ok := pgInputs.(struct {
 		Image               string
 		Trigger             string
+		BootstrapScript     string
 		CreateDatabase      bool
 		Target              any
 		InitContainerScript string

@@ -720,7 +720,7 @@ _Appears in:_
 | `uri` _string_ | Full SQLAlchemy database URI. Mutually exclusive with structured fields and uriFrom.<br />In Staging or Production, CRD validation rejects plain text URIs — use uriFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
 | `uriFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the full SQLAlchemy URI.<br />Mutually exclusive with uri and structured fields. |  | Optional: \{\} <br /> |
 | `type` _string_ | Database type. Determines the SQLAlchemy dialect and default driver. | PostgreSQL | Enum: [PostgreSQL MySQL] <br />Optional: \{\} <br /> |
-| `driver` _string_ | SQLAlchemy driver name for structured mode. When omitted, PostgreSQL uses<br />psycopg2 and MySQL uses mysqldb. Set this to a driver installed in the<br />Superset image, such as psycopg, pg8000, pymysql, or mysqlconnector. |  | Pattern: `^[A-Za-z0-9_]+$` <br />Optional: \{\} <br /> |
+| `driver` _string_ | SQLAlchemy driver name for structured mode. When omitted, PostgreSQL uses<br />psycopg2 and MySQL uses mysqldb. Set this to a driver installed in the<br />Superset image, such as psycopg, pg8000, pymysql, or mysqlconnector. The<br />operator selects the SQLAlchemy scheme only; it does not install Python<br />driver packages into the image. |  | Pattern: `^[A-Za-z0-9_]+$` <br />Optional: \{\} <br /> |
 | `host` _string_ | Database hostname. |  | Optional: \{\} <br /> |
 | `port` _integer_ | Database port. Defaults per type (5432 for PostgreSQL, 3306 for MySQL). |  | Optional: \{\} <br /> |
 | `database` _string_ | Database name. |  | Optional: \{\} <br /> |
