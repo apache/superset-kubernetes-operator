@@ -59,6 +59,15 @@ published [kind](https://kind.sigs.k8s.io/) node image. The newest Kubernetes
 release gets best-effort coverage via a non-blocking CI lane until kind ships
 its node image.
 
+Older releases are likely to work but are not tested. The practical minimum is
+**Kubernetes 1.25**: the operator's CRD validation is implemented entirely with
+[CEL validation rules](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#validation-rules),
+which are enabled by default as beta from 1.25 and graduated to GA in 1.29. On
+clusters older than 1.25 the CRD still installs, but these rules are silently
+ignored — meaning the operator's secret-handling and configuration-safety checks
+are not enforced. Horizontal Pod Autoscaling additionally requires the
+`autoscaling/v2` API (Kubernetes 1.23+).
+
 ## Quick Start
 
 Install the operator via Helm:
