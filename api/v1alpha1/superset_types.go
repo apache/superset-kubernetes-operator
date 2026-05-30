@@ -35,7 +35,7 @@ import (
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.lifecycle) || !has(self.lifecycle.init) || !has(self.lifecycle.init.adminUser)",message="lifecycle.init.adminUser is only allowed when environment is Development"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.lifecycle) || !has(self.lifecycle.init) || !has(self.lifecycle.init.loadExamples)",message="lifecycle.init.loadExamples is only allowed when environment is Development"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.websocketServer) || !has(self.websocketServer.config)",message="websocketServer.config is only allowed when environment is Development; use websocketServer.configFrom to reference a Secret in Staging or Production"
-// +kubebuilder:validation:XValidation:rule="!has(self.networking) || !has(self.networking.ingress) || has(self.webServer)",message="spec.networking.ingress requires spec.webServer to be set (all Ingress rules target the web server service)"
+// +kubebuilder:validation:XValidation:rule="!has(self.networking) || !has(self.networking.ingress) || has(self.webServer)",message="spec.networking.ingress requires spec.webServer to be set (it provides the catch-all '/' route; other components are routed by path)"
 // +kubebuilder:validation:XValidation:rule="!has(self.networking) || !has(self.networking.gateway) || has(self.webServer) || has(self.websocketServer) || has(self.mcpServer) || has(self.celeryFlower)",message="spec.networking.gateway requires at least one component with a routable service (webServer, websocketServer, mcpServer, or celeryFlower)"
 // +kubebuilder:validation:XValidation:rule="!has(self.monitoring) || !has(self.monitoring.serviceMonitor) || has(self.webServer)",message="spec.monitoring.serviceMonitor requires spec.webServer to be set (scrapes the web server service)"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && (self.environment == 'Development' || self.environment == 'Staging')) || !has(self.lifecycle) || !has(self.lifecycle.clone) || (has(self.lifecycle.clone.disabled) && self.lifecycle.clone.disabled)",message="lifecycle.clone is only allowed when environment is Development or Staging; cloning performs a destructive DROP DATABASE on the target metastore"
@@ -141,6 +141,9 @@ type SupersetSpec struct {
 	// +optional
 	CeleryFlower *CeleryFlowerComponentSpec `json:"celeryFlower,omitempty"`
 	// WebSocket server for real-time updates (Node.js, no Python config).
+	// Experimental: the websocket server is not yet well supported (it requires a
+	// custom Node.js image, and gateway/ingress routing for it is unvalidated).
+	// Treat it as subject to change.
 	// +optional
 	WebsocketServer *WebsocketServerComponentSpec `json:"websocketServer,omitempty"`
 	// FastMCP server component for AI tooling integration.
@@ -265,6 +268,10 @@ type CeleryFlowerComponentSpec struct {
 // WebsocketServerComponentSpec defines the websocket server component on the parent CRD.
 // The websocket server is a Node.js app — the default Superset image does not contain
 // websocket_server.js, so an image override is required.
+//
+// Experimental: this component is not yet well supported. It requires a custom
+// Node.js image, and path-based gateway/ingress routing to it has not been
+// validated. The shape and behavior may change in a future release.
 // +kubebuilder:validation:XValidation:rule="has(self.image) && has(self.image.repository) && size(self.image.repository) > 0",message="websocketServer.image.repository is required: the default Superset image does not include websocket_server.js"
 // +kubebuilder:validation:XValidation:rule="!(has(self.config) && has(self.configFrom))",message="websocketServer.config and websocketServer.configFrom are mutually exclusive"
 type WebsocketServerComponentSpec struct {

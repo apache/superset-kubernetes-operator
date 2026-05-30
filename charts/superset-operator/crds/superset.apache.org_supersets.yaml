@@ -39279,8 +39279,8 @@ spec:
                 in Staging or Production
               rule: (has(self.environment) && self.environment == 'Development') ||
                 !has(self.websocketServer) || !has(self.websocketServer.config)
-            - message: spec.networking.ingress requires spec.webServer to be set (all
-                Ingress rules target the web server service)
+            - message: spec.networking.ingress requires spec.webServer to be set (it
+                provides the catch-all '/' route; other components are routed by path)
               rule: '!has(self.networking) || !has(self.networking.ingress) || has(self.webServer)'
             - message: spec.networking.gateway requires at least one component with
                 a routable service (webServer, websocketServer, mcpServer, or celeryFlower)

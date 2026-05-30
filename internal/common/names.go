@@ -59,6 +59,12 @@ const (
 // Annotation keys.
 const (
 	AnnotationConfigChecksum = "superset.apache.org/config-checksum"
+	// AnnotationTaskPodSpecHash records a hash of a lifecycle task Job's rendered
+	// pod spec. Unlike the semantic task checksum, it changes for any pod-spec
+	// edit (resources, securityContext, etc.) and lets the controller recreate a
+	// task Job that is wedged (un-startable) once the spec that would fix it
+	// changes — without re-running healthy tasks on cosmetic edits.
+	AnnotationTaskPodSpecHash = "superset.apache.org/task-pod-spec-hash"
 )
 
 // Default ports.

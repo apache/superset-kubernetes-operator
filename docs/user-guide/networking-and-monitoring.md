@@ -78,6 +78,25 @@ spec:
 
 Gateway API and Ingress are mutually exclusive — set one or the other, not both.
 
+Ingress uses the **same per-component path routing** as Gateway API: a host with
+no explicit `paths` is expanded by the operator into one rule per present
+component (`/` → web server, plus `/flower`, `/mcp`, `/ws` for the components
+that are enabled), reusing each component's `service.gatewayPath`. Requests are
+forwarded as-is (no path rewrite), so each component owns its subpath the same
+way it does under Gateway API (e.g. Flower via its `--url_prefix`).
+
+```yaml
+spec:
+  networking:
+    ingress:
+      className: nginx
+      host: superset.example.com   # no explicit paths -> all components routed by path
+```
+
+A host **with** explicit `paths` is treated as a user-controlled override and
+those paths route to the web server only — use this when you want full control
+of the path rules for a host:
+
 ```yaml
 spec:
   networking:

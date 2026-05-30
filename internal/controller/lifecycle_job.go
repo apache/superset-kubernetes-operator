@@ -182,6 +182,10 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 			return lifecycleCheckpoint(), nil
 		}
 
+		if result, handled, err := r.handleStuckTaskPod(ctx, superset, existingJob, taskType, taskName, flatSpec, taskRef); handled || err != nil {
+			return result, err
+		}
+
 		taskRef.State = taskStateRunning
 		if taskRef.StartedAt == nil {
 			if existingJob.Status.StartTime != nil {
@@ -225,6 +229,105 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 	return lifecycleWait(), nil
 }
 
+// reasonTaskCannotStart is the condition reason and event reason used when a
+// task Pod is wedged (un-startable) and the controller cannot self-heal it.
+const reasonTaskCannotStart = "TaskCannotStart"
+
+// handleStuckTaskPod detects a wedged task Pod (one that cannot start its
+// containers without intervention) and either self-heals or surfaces it.
+//
+// Self-heal: a Job's pod template is immutable, so a spec fix can only take
+// effect by replacing the Job. When the desired pod-spec hash differs from the
+// hash stamped on the existing Job, the spec that would fix the wedge has
+// changed, so the controller deletes the Job and lets the next reconcile
+// recreate it from the current spec — without anyone having to delete it by
+// hand. When the hash matches (spec unchanged), it instead records a clear,
+// actionable status/condition/event and waits, rather than silently looping
+// until the Job's activeDeadlineSeconds.
+//
+// Returns handled=true when it took ownership of this reconcile step.
+func (r *SupersetReconciler) handleStuckTaskPod(
+	ctx context.Context,
+	superset *supersetv1alpha1.Superset,
+	existingJob *batchv1.Job,
+	taskType, taskName string,
+	flatSpec *supersetv1alpha1.FlatComponentSpec,
+	taskRef *supersetv1alpha1.TaskRefStatus,
+) (lifecycleResult, bool, error) {
+	log := logf.FromContext(ctx)
+
+	msg, stuck, err := r.taskPodStartupError(ctx, superset, taskName)
+	if err != nil {
+		return lifecycleResult{}, false, err
+	}
+	if !stuck {
+		return lifecycleResult{}, false, nil
+	}
+
+	desiredHash := podSpecHash(buildInitPod(flatSpec))
+	if existingJob.Annotations[naming.AnnotationTaskPodSpecHash] != desiredHash {
+		log.Info("Task pod cannot start and pod spec changed; recreating task job",
+			"task", taskType, "reason", msg)
+		if err := r.Delete(ctx, existingJob); client.IgnoreNotFound(err) != nil {
+			return lifecycleResult{}, false, fmt.Errorf("deleting wedged task job %s: %w", existingJob.Name, err)
+		}
+		taskRef.State = taskStatePending
+		taskRef.Message = "Recreating task after spec change: " + msg
+		r.Recorder.Eventf(superset, nil, corev1.EventTypeNormal, "TaskRecovering", "Lifecycle",
+			"%s task pod could not start (%s); recreating with updated spec", taskType, msg)
+		return lifecycleWait(), true, nil
+	}
+
+	// Spec unchanged: cannot self-heal automatically. Surface the blocker so it
+	// is visible on the Superset status and as an event, and keep waiting.
+	taskRef.Message = msg
+	if !hasLifecycleConditionReason(superset, reasonTaskCannotStart) {
+		r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, reasonTaskCannotStart, "Lifecycle",
+			"%s task pod cannot start: %s", taskType, msg)
+	}
+	setCondition(&taskRef.Conditions, supersetv1alpha1.ConditionTypeTaskComplete,
+		metav1.ConditionFalse, reasonTaskCannotStart, msg, superset.Generation)
+	setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
+		metav1.ConditionFalse, reasonTaskCannotStart,
+		fmt.Sprintf("%s task pod cannot start: %s", taskType, msg), superset.Generation)
+	return lifecycleWait(), true, nil
+}
+
+// taskPodStartupError lists the Pods of a lifecycle task Job and returns the
+// first un-startable one's reason, if any.
+func (r *SupersetReconciler) taskPodStartupError(ctx context.Context, superset *supersetv1alpha1.Superset, taskName string) (string, bool, error) {
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods,
+		client.InNamespace(superset.Namespace),
+		client.MatchingLabels{labelInitInstance: taskName},
+	); err != nil {
+		return "", false, fmt.Errorf("listing task pods for %s: %w", taskName, err)
+	}
+	for i := range pods.Items {
+		if msg, stuck := podStartupError(&pods.Items[i]); stuck {
+			return msg, true, nil
+		}
+	}
+	return "", false, nil
+}
+
+// taskPodSpecChanged reports whether the desired pod spec for a task differs
+// from the spec stamped on its existing Job (AnnotationTaskPodSpecHash). It lets
+// the controller retry a terminally failed task once the user changes something
+// about how the pod runs (securityContext, resources, etc.) — that change may be
+// exactly what fixes the failure. Returns false when no Job exists, so the
+// normal create path applies.
+func (r *SupersetReconciler) taskPodSpecChanged(ctx context.Context, superset *supersetv1alpha1.Superset, taskName string, flatSpec *supersetv1alpha1.FlatComponentSpec) (bool, error) {
+	job, err := r.getLifecycleTaskJob(ctx, superset, taskName)
+	if err != nil {
+		return false, err
+	}
+	if job == nil {
+		return false, nil
+	}
+	return job.Annotations[naming.AnnotationTaskPodSpecHash] != podSpecHash(buildInitPod(flatSpec)), nil
+}
+
 func (r *SupersetReconciler) getLifecycleTaskJob(ctx context.Context, superset *supersetv1alpha1.Superset, taskName string) (*batchv1.Job, error) {
 	job := &batchv1.Job{}
 	if err := r.Get(ctx, types.NamespacedName{Name: taskName, Namespace: superset.Namespace}, job); err != nil {
@@ -246,8 +349,14 @@ func (r *SupersetReconciler) buildLifecycleTaskJob(
 	podSpec := buildInitPod(flatSpec)
 	pt := safePodTemplatePtr(flatSpec.PodTemplate)
 	labels := mergeLabels(pt.Labels, r.lifecycleTaskLabels(superset, taskName, taskType))
-	annotations := mergeAnnotations(pt.Annotations, map[string]string{
+	// Pod-template annotations carry the semantic task checksum (drives rolling
+	// restarts). The pod-spec hash is stamped on the Job only — never on the pod
+	// template — so it cannot feed back into its own input.
+	podAnnotations := mergeAnnotations(pt.Annotations, map[string]string{
 		naming.AnnotationConfigChecksum: taskChecksum,
+	})
+	jobAnnotations := mergeAnnotations(podAnnotations, map[string]string{
+		naming.AnnotationTaskPodSpecHash: podSpecHash(podSpec),
 	})
 	var activeDeadlineSeconds *int64
 	if timeout > 0 {
@@ -263,7 +372,7 @@ func (r *SupersetReconciler) buildLifecycleTaskJob(
 			Name:        taskName,
 			Namespace:   superset.Namespace,
 			Labels:      labels,
-			Annotations: annotations,
+			Annotations: jobAnnotations,
 		},
 		Spec: batchv1.JobSpec{
 			BackoffLimit:          ptrInt32(jobBackoffLimit),
@@ -273,7 +382,7 @@ func (r *SupersetReconciler) buildLifecycleTaskJob(
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels:      labels,
-					Annotations: annotations,
+					Annotations: podAnnotations,
 				},
 				Spec: podSpec,
 			},
@@ -283,6 +392,13 @@ func (r *SupersetReconciler) buildLifecycleTaskJob(
 
 func ptrInt32(v int32) *int32 {
 	return &v
+}
+
+// podSpecHash returns a stable hash of a task Job's rendered pod spec. It is
+// stamped on the Job (AnnotationTaskPodSpecHash) so the controller can tell
+// whether the desired pod spec has changed since a wedged Job was created.
+func podSpecHash(podSpec corev1.PodSpec) string {
+	return computeChecksum(podSpec)
 }
 
 func (r *SupersetReconciler) taskJobMatchesChecksum(job *batchv1.Job, taskChecksum string) bool {

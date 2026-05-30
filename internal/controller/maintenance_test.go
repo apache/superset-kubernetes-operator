@@ -96,6 +96,80 @@ func TestRenderNginxConf_UsesDefaultPort(t *testing.T) {
 	}
 }
 
+func TestRenderMaintenanceNginxMainConf_RunsNonRoot(t *testing.T) {
+	// The main nginx.conf must route the pid file and all temp paths off
+	// root-owned directories so nginx starts as a non-root user. Without this,
+	// a hardened (runAsNonRoot) maintenance pod fails to write /run/nginx.pid.
+	conf := renderMaintenanceNginxMainConf()
+	for _, want := range []string{
+		"pid /tmp/nginx.pid;",
+		"client_body_temp_path /tmp/client_temp;",
+		"proxy_temp_path /tmp/proxy_temp;",
+		"include /etc/nginx/conf.d/*.conf;",
+	} {
+		if !strings.Contains(conf, want) {
+			t.Errorf("nginx.conf missing %q\n--- conf ---\n%s", want, conf)
+		}
+	}
+}
+
+func TestBuildMaintenanceFlatSpec_DefaultsNonRoot(t *testing.T) {
+	// Managed mode must default the container to a non-root, hardened security
+	// context and mount the custom nginx.conf, so the maintenance page satisfies
+	// restricted Pod Security Standards out of the box.
+	title := "down"
+	flat := buildMaintenanceFlatSpec("parent", &supersetv1alpha1.MaintenancePageSpec{Title: &title})
+
+	sc := flat.PodTemplate.Container.SecurityContext
+	if sc == nil {
+		t.Fatal("expected a default container securityContext")
+	}
+	if sc.RunAsUser == nil || *sc.RunAsUser != maintenanceNonRootUID {
+		t.Errorf("RunAsUser = %v, want %d", sc.RunAsUser, maintenanceNonRootUID)
+	}
+	if sc.RunAsNonRoot == nil || !*sc.RunAsNonRoot {
+		t.Errorf("RunAsNonRoot = %v, want true", sc.RunAsNonRoot)
+	}
+	if sc.AllowPrivilegeEscalation == nil || *sc.AllowPrivilegeEscalation {
+		t.Errorf("AllowPrivilegeEscalation = %v, want false", sc.AllowPrivilegeEscalation)
+	}
+	if sc.Capabilities == nil || len(sc.Capabilities.Drop) != 1 || sc.Capabilities.Drop[0] != "ALL" {
+		t.Errorf("Capabilities.Drop = %+v, want [ALL]", sc.Capabilities)
+	}
+
+	if !maintenanceMountsConf(flat, "/etc/nginx/nginx.conf") {
+		t.Error("expected nginx.conf to be mounted at /etc/nginx/nginx.conf")
+	}
+}
+
+func TestBuildMaintenanceFlatSpec_RespectsUserRunAsUser(t *testing.T) {
+	// An explicit user UID must win over the operator default.
+	title := "down"
+	flat := buildMaintenanceFlatSpec("parent", &supersetv1alpha1.MaintenancePageSpec{
+		Title: &title,
+		PodTemplate: &supersetv1alpha1.PodTemplate{
+			Container: &supersetv1alpha1.ContainerTemplate{
+				SecurityContext: &corev1.SecurityContext{RunAsUser: common.Ptr(int64(2020))},
+			},
+		},
+	})
+	if sc := flat.PodTemplate.Container.SecurityContext; sc.RunAsUser == nil || *sc.RunAsUser != 2020 {
+		t.Errorf("expected user RunAsUser=2020 to be respected, got %v", sc.RunAsUser)
+	}
+}
+
+func maintenanceMountsConf(flat supersetv1alpha1.FlatComponentSpec, path string) bool {
+	if flat.PodTemplate == nil || flat.PodTemplate.Container == nil {
+		return false
+	}
+	for _, m := range flat.PodTemplate.Container.VolumeMounts {
+		if m.MountPath == path {
+			return true
+		}
+	}
+	return false
+}
+
 func TestResolveWebServerPort_Default(t *testing.T) {
 	s := &supersetv1alpha1.Superset{
 		Spec: supersetv1alpha1.SupersetSpec{

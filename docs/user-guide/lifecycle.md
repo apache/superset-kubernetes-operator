@@ -362,6 +362,16 @@ On failure, the operator retries with exponential backoff (`10s * 2^(attempt-1)`
 capped at 5m). If a Job exceeds the timeout while Running or Pending, it counts
 as a failed attempt.
 
+If a task pod cannot start at all — a `CreateContainerConfigError` (for example a
+`runAsNonRoot` policy the image can't satisfy), an image pull failure, or an
+unschedulable pod — the operator surfaces the reason on the `Superset` status and
+events rather than silently waiting. Once you change the task's pod
+configuration (`securityContext`, resources, image, etc.), the operator
+recreates the task Job from the corrected spec automatically. This also rescues a
+task that has already exhausted its retries: editing how the pod runs lets it run
+again, with no need to delete the Job by hand. A purely application-level failure
+(unchanged pod, e.g. a broken migration) stays terminal so it does not loop.
+
 **Task retention policies:**
 
 | Policy | On Success | On Failure |

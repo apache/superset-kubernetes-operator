@@ -20,6 +20,7 @@ package controller
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	networkingv1 "k8s.io/api/networking/v1"
@@ -376,6 +377,138 @@ func TestResolveGatewayPath(t *testing.T) {
 				t.Errorf("resolveGatewayPath() = %s, want %s", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestFlowerHealthPath(t *testing.T) {
+	// Flower serves under its URL prefix, so the health probe must be prefixed.
+	// We use /healthcheck (200, no auth); /api/workers 404s without the prefix
+	// and 401s under Flower 2.0's default API auth — either would CrashLoopBackOff
+	// an otherwise-healthy pod.
+	custom := "/monitoring"
+	trailing := "/flower/"
+	tests := []struct {
+		name string
+		svc  *supersetv1alpha1.ComponentServiceSpec
+		want string
+	}{
+		{"default prefix", nil, "/flower/healthcheck"},
+		{"empty gatewayPath uses default", &supersetv1alpha1.ComponentServiceSpec{}, "/flower/healthcheck"},
+		{"custom gatewayPath", &supersetv1alpha1.ComponentServiceSpec{GatewayPath: &custom}, "/monitoring/healthcheck"},
+		{"trailing slash not doubled", &supersetv1alpha1.ComponentServiceSpec{GatewayPath: &trailing}, "/flower/healthcheck"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := flowerHealthPath(tt.svc); got != tt.want {
+				t.Errorf("flowerHealthPath() = %s, want %s", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestComponentRoutes(t *testing.T) {
+	// Both the Ingress and the HTTPRoute build from componentRoutes, so this
+	// pins the ordering (most-specific first, web "/" last) and per-component
+	// path/backend mapping that both reconcilers depend on.
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec: supersetv1alpha1.SupersetSpec{
+			WebServer:    &supersetv1alpha1.WebServerComponentSpec{},
+			McpServer:    &supersetv1alpha1.McpServerComponentSpec{},
+			CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{},
+		},
+	}
+	want := []componentRoute{
+		{svcName: "test-mcp-server", port: common.PortMcpServer, path: "/mcp"},
+		{svcName: "test-celery-flower", port: common.PortCeleryFlower, path: "/flower"},
+		{svcName: "test-web-server", port: common.PortWebServer, path: "/"},
+	}
+	if got := componentRoutes(superset); !reflect.DeepEqual(got, want) {
+		t.Errorf("componentRoutes() = %+v, want %+v", got, want)
+	}
+}
+
+func TestReconcileIngress_MultiComponentFanout(t *testing.T) {
+	// A host with no explicit Paths must fan out to every present component by
+	// path (the Ingress/Gateway symmetry fix), not route everything to the web
+	// server.
+	scheme := testScheme(t)
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Spec: supersetv1alpha1.SupersetSpec{
+			Image:        supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+			WebServer:    &supersetv1alpha1.WebServerComponentSpec{},
+			McpServer:    &supersetv1alpha1.McpServerComponentSpec{},
+			CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{},
+			Lifecycle:    &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Networking: &supersetv1alpha1.NetworkingSpec{
+				Ingress: &supersetv1alpha1.IngressSpec{Host: "superset.example.com"},
+			},
+		},
+	}
+
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	if err := r.reconcileIngress(context.Background(), superset); err != nil {
+		t.Fatalf("reconcileIngress: %v", err)
+	}
+
+	ingress := &networkingv1.Ingress{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, ingress); err != nil {
+		t.Fatalf("expected Ingress: %v", err)
+	}
+	if len(ingress.Spec.Rules) != 1 {
+		t.Fatalf("expected 1 rule, got %d", len(ingress.Spec.Rules))
+	}
+	got := map[string]string{} // path -> backend service
+	for _, p := range ingress.Spec.Rules[0].HTTP.Paths {
+		got[p.Path] = p.Backend.Service.Name
+	}
+	want := map[string]string{
+		"/mcp":    "test-mcp-server",
+		"/flower": "test-celery-flower",
+		"/":       "test-web-server",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("ingress paths = %+v, want %+v", got, want)
+	}
+}
+
+func TestReconcileIngress_ExplicitPathsRouteToWebServer(t *testing.T) {
+	// A host WITH explicit Paths is a user-controlled override: those paths route
+	// to the web server, not the component fan-out.
+	scheme := testScheme(t)
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Spec: supersetv1alpha1.SupersetSpec{
+			Image:        supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+			WebServer:    &supersetv1alpha1.WebServerComponentSpec{},
+			CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{},
+			Lifecycle:    &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Networking: &supersetv1alpha1.NetworkingSpec{
+				Ingress: &supersetv1alpha1.IngressSpec{
+					Hosts: []supersetv1alpha1.IngressHost{
+						{Host: "superset.example.com", Paths: []supersetv1alpha1.IngressPath{
+							{Path: "/", PathType: pathTypePtr(networkingv1.PathTypePrefix)},
+						}},
+					},
+				},
+			},
+		},
+	}
+
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	if err := r.reconcileIngress(context.Background(), superset); err != nil {
+		t.Fatalf("reconcileIngress: %v", err)
+	}
+	ingress := &networkingv1.Ingress{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, ingress); err != nil {
+		t.Fatalf("expected Ingress: %v", err)
+	}
+	paths := ingress.Spec.Rules[0].HTTP.Paths
+	if len(paths) != 1 || paths[0].Path != "/" || paths[0].Backend.Service.Name != "test-web-server" {
+		t.Errorf("explicit paths should route to web server only, got %+v", paths)
 	}
 }
 

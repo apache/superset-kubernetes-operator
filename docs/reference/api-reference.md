@@ -1079,7 +1079,7 @@ _Appears in:_
 | `celeryWorker` _[CeleryWorkerComponentSpec](#celeryworkercomponentspec)_ | Celery async task worker component. Uses spec.valkey as broker/backend when set;<br />otherwise the broker must be configured manually via spec.config. |  | Optional: \{\} <br /> |
 | `celeryBeat` _[CeleryBeatComponentSpec](#celerybeatcomponentspec)_ | Celery periodic task scheduler (singleton, always 1 replica). Uses spec.valkey<br />as broker/backend when set; otherwise the broker must be configured manually<br />via spec.config. |  | Optional: \{\} <br /> |
 | `celeryFlower` _[CeleryFlowerComponentSpec](#celeryflowercomponentspec)_ | Celery Flower monitoring UI component. |  | Optional: \{\} <br /> |
-| `websocketServer` _[WebsocketServerComponentSpec](#websocketservercomponentspec)_ | WebSocket server for real-time updates (Node.js, no Python config). |  | Optional: \{\} <br /> |
+| `websocketServer` _[WebsocketServerComponentSpec](#websocketservercomponentspec)_ | WebSocket server for real-time updates (Node.js, no Python config).<br />Experimental: the websocket server is not yet well supported (it requires a<br />custom Node.js image, and gateway/ingress routing for it is unvalidated).<br />Treat it as subject to change. |  | Optional: \{\} <br /> |
 | `mcpServer` _[McpServerComponentSpec](#mcpservercomponentspec)_ | FastMCP server component for AI tooling integration. |  | Optional: \{\} <br /> |
 | `lifecycle` _[LifecycleSpec](#lifecyclespec)_ | Lifecycle configuration (database migration, init, upgrade mode). |  | Optional: \{\} <br /> |
 | `networking` _[NetworkingSpec](#networkingspec)_ | Networking configuration (Ingress or Gateway API). |  | Optional: \{\} <br /> |
@@ -1299,6 +1299,10 @@ _Appears in:_
 WebsocketServerComponentSpec defines the websocket server component on the parent CRD.
 The websocket server is a Node.js app — the default Superset image does not contain
 websocket_server.js, so an image override is required.
+
+Experimental: this component is not yet well supported. It requires a custom
+Node.js image, and path-based gateway/ingress routing to it has not been
+validated. The shape and behavior may change in a future release.
 
 
 

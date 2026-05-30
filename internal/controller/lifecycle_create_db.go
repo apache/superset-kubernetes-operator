@@ -90,6 +90,13 @@ echo "Ensured MySQL database $SUPERSET_OPERATOR__DB_NAME exists"`
 // image stays operator-default — the migrate task uses the Superset image,
 // but this init container needs psql/mysql clients (postgres:17-alpine /
 // mysql:8-alpine).
+//
+// The DB-tool images run as root by default, so an inherited pod-level
+// runAsNonRoot would make kubelet reject this container with
+// CreateContainerConfigError. The client tools connect over TCP and run
+// correctly as any UID, so when no UID is pinned (container- or pod-level) we
+// default to the image's built-in non-root user. That keeps createDatabase
+// compatible with runAsNonRoot pod security contexts out of the box.
 func buildCreateDatabaseInitContainer(superset *supersetv1alpha1.Superset, lifecyclePod *supersetv1alpha1.PodTemplate) *corev1.Container {
 	if !createDatabaseEnabled(superset) {
 		return nil
@@ -107,13 +114,57 @@ func buildCreateDatabaseInitContainer(superset *supersetv1alpha1.Superset, lifec
 		Command:         []string{"/bin/sh", "-c", script},
 		Env:             createDatabaseEnvVars(superset.Spec.Metastore),
 	}
-	if lifecyclePod != nil && lifecyclePod.Container != nil {
-		if lifecyclePod.Container.Resources != nil {
-			ctr.Resources = *lifecyclePod.Container.Resources
+	var containerSC *corev1.SecurityContext
+	var podSC *corev1.PodSecurityContext
+	if lifecyclePod != nil {
+		if lifecyclePod.Container != nil {
+			if lifecyclePod.Container.Resources != nil {
+				ctr.Resources = *lifecyclePod.Container.Resources
+			}
+			containerSC = lifecyclePod.Container.SecurityContext
 		}
-		ctr.SecurityContext = lifecyclePod.Container.SecurityContext
+		podSC = lifecyclePod.PodSecurityContext
 	}
+	ctr.SecurityContext = helperNonRootSecurityContext(containerSC, podSC, helperNonRootUID(dbType))
 	return ctr
+}
+
+// helperNonRootUID returns a non-root UID present in the DB-tool image, used as
+// the default runAsUser for the create-database init container so it satisfies
+// a pod-level runAsNonRoot policy. Using the image's built-in service-account
+// UID (postgres=70 on alpine, mysql=999) guarantees a matching /etc/passwd
+// entry; the client tools themselves work as any UID.
+func helperNonRootUID(dbType string) int64 {
+	if dbType == dbTypeMySQL {
+		return 999
+	}
+	return 70
+}
+
+// helperNonRootSecurityContext returns the SecurityContext for an
+// operator-managed helper container. It preserves any user-provided container
+// securityContext and, when neither the container nor the pod pins a UID,
+// defaults runAsUser to a non-root value so the container can start under a
+// runAsNonRoot pod security context. An explicit UID at either level is
+// respected.
+func helperNonRootSecurityContext(containerSC *corev1.SecurityContext, podSC *corev1.PodSecurityContext, defaultUID int64) *corev1.SecurityContext {
+	sc := containerSC.DeepCopy()
+	if sc == nil {
+		sc = &corev1.SecurityContext{}
+	}
+	podPinsUser := podSC != nil && podSC.RunAsUser != nil
+	if sc.RunAsUser == nil && !podPinsUser {
+		uid := defaultUID
+		sc.RunAsUser = &uid
+		// Only assert runAsNonRoot when neither level already speaks to it, so
+		// an explicit user choice (including a deliberate runAsNonRoot: false)
+		// is never overridden.
+		if sc.RunAsNonRoot == nil && (podSC == nil || podSC.RunAsNonRoot == nil) {
+			nonRoot := true
+			sc.RunAsNonRoot = &nonRoot
+		}
+	}
+	return sc
 }
 
 // createDatabaseEnabled reports whether spec.metastore.createDatabase is true

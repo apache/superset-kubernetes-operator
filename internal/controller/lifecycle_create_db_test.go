@@ -302,6 +302,10 @@ func TestBuildCreateDatabaseInitContainer_InheritsFromMigrateContainerTemplate(t
 		RunAsNonRoot:             common.Ptr(true),
 		AllowPrivilegeEscalation: common.Ptr(false),
 		ReadOnlyRootFilesystem:   common.Ptr(true),
+		// The user set runAsNonRoot but no UID; the operator defaults the helper
+		// to the image's non-root UID so kubelet does not reject the root-default
+		// postgres image with CreateContainerConfigError.
+		RunAsUser: common.Ptr(int64(70)),
 	}
 	migratePod := &supersetv1alpha1.PodTemplate{
 		Container: &supersetv1alpha1.ContainerTemplate{
@@ -621,4 +625,88 @@ func podHasContainer(containers []corev1.Container, name string) bool {
 		}
 	}
 	return false
+}
+
+func TestHelperNonRootSecurityContext(t *testing.T) {
+	// The DB-tool images (postgres/mysql) run as root by default, so an
+	// inherited pod-level runAsNonRoot would make kubelet reject the
+	// create-database init container with CreateContainerConfigError. These
+	// cases pin that the operator defaults a non-root UID when (and only when)
+	// neither the container nor the pod already pins one.
+	cases := map[string]struct {
+		containerSC *corev1.SecurityContext
+		podSC       *corev1.PodSecurityContext
+		dbType      string
+		wantUID     *int64
+		wantNonRoot *bool
+	}{
+		"nothing pinned -> default postgres uid": {
+			dbType:      dbTypePostgresql,
+			wantUID:     common.Ptr(int64(70)),
+			wantNonRoot: common.Ptr(true),
+		},
+		"nothing pinned -> default mysql uid": {
+			dbType:      dbTypeMySQL,
+			wantUID:     common.Ptr(int64(999)),
+			wantNonRoot: common.Ptr(true),
+		},
+		"pod runAsNonRoot but no uid -> default uid, do not override nonRoot": {
+			podSC:       &corev1.PodSecurityContext{RunAsNonRoot: common.Ptr(true)},
+			dbType:      dbTypePostgresql,
+			wantUID:     common.Ptr(int64(70)),
+			wantNonRoot: nil, // pod-level runAsNonRoot already applies; container stays unset
+		},
+		"explicit container uid respected": {
+			containerSC: &corev1.SecurityContext{RunAsUser: common.Ptr(int64(1234))},
+			dbType:      dbTypePostgresql,
+			wantUID:     common.Ptr(int64(1234)),
+			wantNonRoot: nil,
+		},
+		"pod pins uid -> container not defaulted": {
+			podSC:       &corev1.PodSecurityContext{RunAsUser: common.Ptr(int64(2000))},
+			dbType:      dbTypePostgresql,
+			wantUID:     nil,
+			wantNonRoot: nil,
+		},
+		"explicit runAsNonRoot false honored (no uid forced)": {
+			containerSC: &corev1.SecurityContext{RunAsNonRoot: common.Ptr(false)},
+			dbType:      dbTypePostgresql,
+			// no uid pinned anywhere, so the helper still defaults a uid, but
+			// must not flip the user's explicit runAsNonRoot:false.
+			wantUID:     common.Ptr(int64(70)),
+			wantNonRoot: common.Ptr(false),
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			got := helperNonRootSecurityContext(tc.containerSC, tc.podSC, helperNonRootUID(tc.dbType))
+			if !int64PtrEqual(got.RunAsUser, tc.wantUID) {
+				t.Errorf("RunAsUser = %v, want %v", derefInt64(got.RunAsUser), derefInt64(tc.wantUID))
+			}
+			if !boolPtrEqual(got.RunAsNonRoot, tc.wantNonRoot) {
+				t.Errorf("RunAsNonRoot = %v, want %v", got.RunAsNonRoot, tc.wantNonRoot)
+			}
+		})
+	}
+}
+
+func int64PtrEqual(a, b *int64) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
+}
+
+func boolPtrEqual(a, b *bool) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
+}
+
+func derefInt64(p *int64) any {
+	if p == nil {
+		return nil
+	}
+	return *p
 }

@@ -1,0 +1,162 @@
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Throwaway PostgreSQL + Valkey for local DEVELOPMENT/testing on Kind.
+# Provides the two backing services that superset_v1alpha1_superset_dev_full.yaml
+# expects: a PostgreSQL at host "postgres" and a Valkey at host "valkey", with
+# matching credentials (user/db "superset", password "superset").
+#
+# WARNING: ephemeral (emptyDir) storage, plain-text passwords, single replica —
+# NOT for production. Data is lost when the pod restarts.
+#
+#   kubectl apply -f config/samples/dev-dependencies.yaml
+#
+# Prefer Helm? The Bitnami charts provide the same services with auth flags.
+# Set fullnameOverride so the Service names match the sample (or update
+# spec.metastore.host / spec.valkey.host to the chart's Service names):
+#
+#   helm install postgres oci://registry-1.docker.io/bitnamicharts/postgresql \
+#     --set auth.username=superset --set auth.password=superset \
+#     --set auth.database=superset --set fullnameOverride=postgres
+#
+#   helm install valkey oci://registry-1.docker.io/bitnamicharts/valkey \
+#     --set architecture=standalone --set auth.password=superset \
+#     --set fullnameOverride=valkey
+#
+# After a Helm install, run `kubectl get svc` and point the sample at the
+# resulting Service names if they differ (e.g. valkey-primary).
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+    app.kubernetes.io/part-of: superset-dev
+spec:
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+    app.kubernetes.io/part-of: superset-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+        app.kubernetes.io/part-of: superset-dev
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          env:
+            - name: POSTGRES_USER
+              value: superset
+            - name: POSTGRES_PASSWORD
+              value: superset
+            - name: POSTGRES_DB
+              value: superset
+            # Write data under a subdir so the emptyDir mount root stays clean.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          ports:
+            - name: postgres
+              containerPort: 5432
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "superset", "-d", "superset"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: valkey
+  labels:
+    app: valkey
+    app.kubernetes.io/part-of: superset-dev
+spec:
+  selector:
+    app: valkey
+  ports:
+    - name: valkey
+      port: 6379
+      targetPort: 6379
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: valkey
+  labels:
+    app: valkey
+    app.kubernetes.io/part-of: superset-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: valkey
+  template:
+    metadata:
+      labels:
+        app: valkey
+        app.kubernetes.io/part-of: superset-dev
+    spec:
+      containers:
+        - name: valkey
+          image: valkey/valkey:8-alpine
+          # Require a password (matches spec.valkey.password in the sample) and
+          # disable on-disk persistence for an ephemeral dev cache.
+          command: ["valkey-server", "--requirepass", "superset", "--save", ""]
+          ports:
+            - name: valkey
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["valkey-cli", "-a", "superset", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi

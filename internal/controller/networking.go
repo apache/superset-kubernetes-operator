@@ -21,6 +21,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -174,10 +175,6 @@ func (r *SupersetReconciler) reconcileHTTPRoute(ctx context.Context, superset *s
 		},
 	}
 
-	_, webServerPort := webServerServiceRef(superset)
-	webServerSvcName := gatewayv1.ObjectName(webServerDescriptor.resourceBaseName(&superset.Spec, superset.Name))
-	gwPort := webServerPort
-
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, route, func() error {
 		if err := controllerutil.SetControllerReference(superset, route, r.Scheme); err != nil {
 			return err
@@ -186,35 +183,10 @@ func (r *SupersetReconciler) reconcileHTTPRoute(ctx context.Context, superset *s
 		route.Labels = mergeLabels(gw.Labels, parentLabels(superset.Name))
 		route.Annotations = mergeAnnotations(nil, gw.Annotations)
 
+		// Rules are ordered most-specific first (web "/" last) by componentRoutes.
 		var rules []gatewayv1.HTTPRouteRule
-
-		// Add websocket route FIRST (more specific) if websocket server is enabled.
-		if superset.Spec.WebsocketServer != nil {
-			svcName := gatewayv1.ObjectName(websocketServerDescriptor.resourceBaseName(&superset.Spec, superset.Name))
-			port := resolveServicePort(superset.Spec.WebsocketServer.Service, common.PortWebsocket)
-			path := resolveGatewayPath(superset.Spec.WebsocketServer.Service, "/ws")
-			rules = append(rules, buildHTTPRouteRule(svcName, port, path))
-		}
-
-		// Add MCP route if MCP server is enabled.
-		if superset.Spec.McpServer != nil {
-			svcName := gatewayv1.ObjectName(mcpServerDescriptor.resourceBaseName(&superset.Spec, superset.Name))
-			port := resolveServicePort(superset.Spec.McpServer.Service, common.PortMcpServer)
-			path := resolveGatewayPath(superset.Spec.McpServer.Service, "/mcp")
-			rules = append(rules, buildHTTPRouteRule(svcName, port, path))
-		}
-
-		// Add Celery Flower route if enabled.
-		if superset.Spec.CeleryFlower != nil {
-			svcName := gatewayv1.ObjectName(celeryFlowerDescriptor.resourceBaseName(&superset.Spec, superset.Name))
-			port := resolveServicePort(superset.Spec.CeleryFlower.Service, common.PortCeleryFlower)
-			path := resolveGatewayPath(superset.Spec.CeleryFlower.Service, "/flower")
-			rules = append(rules, buildHTTPRouteRule(svcName, port, path))
-		}
-
-		// Default route for web server (less specific, listed LAST).
-		if superset.Spec.WebServer != nil {
-			rules = append(rules, buildHTTPRouteRule(webServerSvcName, gwPort, "/"))
+		for _, rt := range componentRoutes(superset) {
+			rules = append(rules, buildHTTPRouteRule(gatewayv1.ObjectName(rt.svcName), rt.port, rt.path))
 		}
 
 		route.Spec = gatewayv1.HTTPRouteSpec{
@@ -251,6 +223,16 @@ func resolveGatewayPath(svc *supersetv1alpha1.ComponentServiceSpec, defaultPath 
 	return defaultPath
 }
 
+// flowerHealthPath returns Flower's HTTP health endpoint. Flower runs with
+// --url_prefix (the gateway path, default /flower), so its routes are served
+// under that prefix — the health endpoint is <prefix>/healthcheck. We probe
+// /healthcheck (returns 200 "OK", no auth) rather than /api/workers, which
+// Flower 2.0+ gates behind FLOWER_UNAUTHENTICATED_API and otherwise 401s.
+// A probe that 404s or 401s would CrashLoopBackOff an otherwise-healthy pod.
+func flowerHealthPath(svc *supersetv1alpha1.ComponentServiceSpec) string {
+	return strings.TrimRight(resolveGatewayPath(svc, "/flower"), "/") + "/healthcheck"
+}
+
 // buildHTTPRouteRule constructs a single HTTPRouteRule for a component backend.
 func buildHTTPRouteRule(svcName gatewayv1.ObjectName, port gatewayv1.PortNumber, path string) gatewayv1.HTTPRouteRule {
 	pathPrefix := gatewayv1.PathMatchPathPrefix
@@ -271,6 +253,67 @@ func buildHTTPRouteRule(svcName gatewayv1.ObjectName, port gatewayv1.PortNumber,
 						Port: &port,
 					},
 				},
+			},
+		},
+	}
+}
+
+// componentRoute is a single path -> backend Service mapping for a routable
+// component. Shared by the Gateway (HTTPRoute) and Ingress reconcilers so both
+// expose components identically: dumb path-prefix forwarding with no rewrite,
+// each component owning its own subpath (e.g. Flower via --url_prefix).
+type componentRoute struct {
+	svcName string
+	port    int32
+	path    string
+}
+
+// componentRoutes returns the path routes for every present routable component,
+// ordered most-specific first so the web server's "/" catch-all is last.
+func componentRoutes(superset *supersetv1alpha1.Superset) []componentRoute {
+	var routes []componentRoute
+	if superset.Spec.WebsocketServer != nil {
+		routes = append(routes, componentRoute{
+			svcName: websocketServerDescriptor.resourceBaseName(&superset.Spec, superset.Name),
+			port:    resolveServicePort(superset.Spec.WebsocketServer.Service, common.PortWebsocket),
+			path:    resolveGatewayPath(superset.Spec.WebsocketServer.Service, "/ws"),
+		})
+	}
+	if superset.Spec.McpServer != nil {
+		routes = append(routes, componentRoute{
+			svcName: mcpServerDescriptor.resourceBaseName(&superset.Spec, superset.Name),
+			port:    resolveServicePort(superset.Spec.McpServer.Service, common.PortMcpServer),
+			path:    resolveGatewayPath(superset.Spec.McpServer.Service, "/mcp"),
+		})
+	}
+	if superset.Spec.CeleryFlower != nil {
+		routes = append(routes, componentRoute{
+			svcName: celeryFlowerDescriptor.resourceBaseName(&superset.Spec, superset.Name),
+			port:    resolveServicePort(superset.Spec.CeleryFlower.Service, common.PortCeleryFlower),
+			path:    resolveGatewayPath(superset.Spec.CeleryFlower.Service, "/flower"),
+		})
+	}
+	if superset.Spec.WebServer != nil {
+		_, port := webServerServiceRef(superset)
+		routes = append(routes, componentRoute{
+			svcName: webServerDescriptor.resourceBaseName(&superset.Spec, superset.Name),
+			port:    port,
+			path:    "/",
+		})
+	}
+	return routes
+}
+
+// ingressPath builds a single Ingress HTTP path rule pointing at a Service.
+func ingressPath(path string, pathType networkingv1.PathType, svcName string, port int32) networkingv1.HTTPIngressPath {
+	pt := pathType
+	return networkingv1.HTTPIngressPath{
+		Path:     path,
+		PathType: &pt,
+		Backend: networkingv1.IngressBackend{
+			Service: &networkingv1.IngressServiceBackend{
+				Name: svcName,
+				Port: networkingv1.ServiceBackendPort{Number: port},
 			},
 		},
 	}
@@ -309,7 +352,12 @@ func (r *SupersetReconciler) reconcileIngress(ctx context.Context, superset *sup
 			}
 		}
 
-		// Build rules from hosts.
+		// Build rules from hosts. A host without explicit Paths gets the full
+		// per-component fan-out (web "/" plus /flower, /mcp, /ws for present
+		// components), mirroring the Gateway HTTPRoute. A host with explicit
+		// Paths is treated as a user-controlled override and routes those paths
+		// to the web server.
+		routes := componentRoutes(superset)
 		for _, h := range hosts {
 			rule := networkingv1.IngressRule{
 				Host: h.Host,
@@ -324,37 +372,11 @@ func (r *SupersetReconciler) reconcileIngress(ctx context.Context, superset *sup
 					if p.PathType != nil {
 						pathType = *p.PathType
 					}
-					rule.HTTP.Paths = append(rule.HTTP.Paths,
-						networkingv1.HTTPIngressPath{
-							Path:     p.Path,
-							PathType: &pathType,
-							Backend: networkingv1.IngressBackend{
-								Service: &networkingv1.IngressServiceBackend{
-									Name: webServerSvcName,
-									Port: networkingv1.ServiceBackendPort{
-										Number: webServerPort,
-									},
-								},
-							},
-						},
-					)
+					rule.HTTP.Paths = append(rule.HTTP.Paths, ingressPath(p.Path, pathType, webServerSvcName, webServerPort))
 				}
 			} else {
-				// Default path.
-				pathType := networkingv1.PathTypePrefix
-				rule.HTTP.Paths = []networkingv1.HTTPIngressPath{
-					{
-						Path:     "/",
-						PathType: &pathType,
-						Backend: networkingv1.IngressBackend{
-							Service: &networkingv1.IngressServiceBackend{
-								Name: webServerSvcName,
-								Port: networkingv1.ServiceBackendPort{
-									Number: webServerPort,
-								},
-							},
-						},
-					},
+				for _, rt := range routes {
+					rule.HTTP.Paths = append(rule.HTTP.Paths, ingressPath(rt.path, networkingv1.PathTypePrefix, rt.svcName, rt.port))
 				}
 			}
 

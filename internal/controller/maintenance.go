@@ -44,6 +44,12 @@ const (
 	maintenanceDefaultTag     = "alpine"
 
 	maintenanceContainerName = "maintenance-page"
+
+	// maintenanceNonRootUID is the default UID for the maintenance nginx
+	// container. The rendered nginx.conf routes the pid file and temp paths to
+	// /tmp, so nginx runs correctly as any non-root UID regardless of the
+	// image's built-in nginx user.
+	maintenanceNonRootUID int64 = 101
 )
 
 var maintenanceDeployConfig = DeploymentConfig{
@@ -317,6 +323,7 @@ func (r *SupersetReconciler) reconcileMaintenanceConfigMap(
 				return err
 			}
 			cm.Data = map[string]string{
+				"nginx.conf":   renderMaintenanceNginxMainConf(),
 				"default.conf": renderNginxConf(port),
 				"index.html":   renderMaintenanceHTML(spec),
 			}
@@ -368,6 +375,7 @@ func buildMaintenanceFlatSpec(parentName string, spec *supersetv1alpha1.Maintena
 			},
 		}
 		volumeMounts := []corev1.VolumeMount{
+			{Name: "maintenance-config", MountPath: "/etc/nginx/nginx.conf", SubPath: "nginx.conf"},
 			{Name: "maintenance-config", MountPath: "/etc/nginx/conf.d/default.conf", SubPath: "default.conf"},
 			{Name: "maintenance-config", MountPath: "/usr/share/nginx/html/index.html", SubPath: "index.html"},
 		}
@@ -380,6 +388,14 @@ func buildMaintenanceFlatSpec(parentName string, spec *supersetv1alpha1.Maintena
 			flat.PodTemplate.Container = &supersetv1alpha1.ContainerTemplate{}
 		}
 		flat.PodTemplate.Container.VolumeMounts = append(flat.PodTemplate.Container.VolumeMounts, volumeMounts...)
+
+		// Default the maintenance container to non-root. Stock nginx runs as root
+		// by default, so it would be rejected under a runAsNonRoot pod security
+		// context (e.g. a hardened maintenancePage.podTemplate). The rendered
+		// nginx.conf redirects the pid file and temp paths to /tmp, so any
+		// non-root UID works. An explicit user securityContext is respected.
+		flat.PodTemplate.Container.SecurityContext = maintenanceSecurityContext(
+			flat.PodTemplate.Container.SecurityContext, flat.PodTemplate.PodSecurityContext)
 	}
 
 	// Inject env vars.
@@ -419,6 +435,46 @@ func computeMaintenanceChecksum(spec *supersetv1alpha1.MaintenancePageSpec) stri
 		h.Write([]byte(spec.Image.Tag))
 	}
 	return fmt.Sprintf("%x", h.Sum(nil))[:16]
+}
+
+// maintenanceSecurityContext returns the maintenance container's security
+// context, defaulting to non-root with privilege escalation disabled and all
+// capabilities dropped (so it satisfies restricted Pod Security Standards),
+// while respecting any user-provided container securityContext.
+func maintenanceSecurityContext(containerSC *corev1.SecurityContext, podSC *corev1.PodSecurityContext) *corev1.SecurityContext {
+	sc := helperNonRootSecurityContext(containerSC, podSC, maintenanceNonRootUID)
+	if sc.AllowPrivilegeEscalation == nil {
+		no := false
+		sc.AllowPrivilegeEscalation = &no
+	}
+	if sc.Capabilities == nil {
+		sc.Capabilities = &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}}
+	}
+	return sc
+}
+
+// renderMaintenanceNginxMainConf renders the main nginx.conf for the managed
+// maintenance page. It routes the pid file and all temp paths to /tmp and logs
+// to stdout/stderr so nginx runs as an unprivileged, non-root user. The
+// per-server configuration lives in conf.d/default.conf (renderNginxConf).
+func renderMaintenanceNginxMainConf() string {
+	return `worker_processes 1;
+pid /tmp/nginx.pid;
+error_log /dev/stderr warn;
+events {
+    worker_connections 1024;
+}
+http {
+    access_log /dev/stdout;
+    client_body_temp_path /tmp/client_temp;
+    proxy_temp_path /tmp/proxy_temp;
+    fastcgi_temp_path /tmp/fastcgi_temp;
+    uwsgi_temp_path /tmp/uwsgi_temp;
+    scgi_temp_path /tmp/scgi_temp;
+    include /etc/nginx/mime.types;
+    default_type application/octet-stream;
+    include /etc/nginx/conf.d/*.conf;
+}`
 }
 
 func renderNginxConf(port int32) string {

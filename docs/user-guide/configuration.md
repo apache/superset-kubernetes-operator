@@ -175,7 +175,7 @@ Requirements and caveats:
 - **Structured metastore only.** Rejected by CRD validation when `uri` or `uriFrom` is set — the operator needs the individual host/database/username fields to issue admin-level statements.
 - **Privileges.** The configured metastore user must have `CREATEDB` (PostgreSQL) or `CREATE` (MySQL) privilege on the server. The init container connects to the `postgres` admin database (PostgreSQL) or runs `CREATE DATABASE IF NOT EXISTS` (MySQL).
 - **Init container image.** The operator uses `postgres:17-alpine` or `mysql:8-alpine` (matching the clone task) — the Superset image is not assumed to ship database client tools.
-- **Resources and securityContext are inherited from `spec.lifecycle.podTemplate.container`.** Whatever you set on `spec.lifecycle.podTemplate.container.resources` and `spec.lifecycle.podTemplate.container.securityContext` is applied to the create-database init container. This lets you satisfy strict admission policies (Pod Security Standards `restricted`, Kyverno, OPA) without a dedicated knob.
+- **Resources and securityContext are inherited from `spec.lifecycle.podTemplate.container`.** Whatever you set on `spec.lifecycle.podTemplate.container.resources` and `spec.lifecycle.podTemplate.container.securityContext` is applied to the create-database init container. This lets you satisfy strict admission policies (Pod Security Standards `restricted`, Kyverno, OPA) without a dedicated knob. The init container also defaults to a non-root UID (matching its DB-tool image), so it starts cleanly under a pod-level `runAsNonRoot: true` even when you don't pin a UID — an explicit `runAsUser` at the pod or container level is always respected.
 - **Redundant with `lifecycle.clone`.** Clone already drops and re-creates its target database every time it runs, so toggling `createDatabase` on alongside clone is harmless but does no extra work in practice — the init container detects the existing database (created by clone) and no-ops.
 
 ## Valkey
@@ -610,6 +610,12 @@ spec:
 ```
 
 ## Websocket Server
+
+!!! warning "Experimental"
+    The websocket server is **experimental and not yet well supported**. It
+    requires a custom Node.js image (below), and path-based gateway/ingress
+    routing to it is unvalidated. Treat its spec and behavior as subject to
+    change.
 
 Enable Superset's async event streaming by setting `websocketServer`. This
 deploys a **Node.js** application (not Python) that pushes real-time updates to

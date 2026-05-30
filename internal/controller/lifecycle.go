@@ -520,10 +520,23 @@ func (r *SupersetReconciler) reconcileLifecycleTask(
 	}
 
 	if taskRef.State == taskStateFailed && taskRef.CompletedChecksum == taskChecksum && taskRef.Attempts >= taskRef.MaxRetries {
-		log.Info("Task permanently failed", "task", taskType)
-		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
-			metav1.ConditionFalse, "TaskFailed", fmt.Sprintf("%s: %s", taskType, taskRef.Message), superset.Generation)
-		return lifecycleTerminal(), nil
+		// A terminally failed task is normally not retried. But if the user has
+		// since changed the task's pod spec (e.g. fixed a securityContext or
+		// bumped resources), that change may be exactly what fixes the failure —
+		// so fall through to the stale-reset path below to give it another run.
+		// Absent a pod-spec change we stay terminal, so genuine failures (bad
+		// migration SQL, etc.) don't loop.
+		podSpecChanged, err := r.taskPodSpecChanged(ctx, superset, taskName, &flatSpec)
+		if err != nil {
+			return lifecycleResult{}, fmt.Errorf("checking pod spec for failed task %s: %w", taskName, err)
+		}
+		if !podSpecChanged {
+			log.Info("Task permanently failed", "task", taskType)
+			setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
+				metav1.ConditionFalse, "TaskFailed", fmt.Sprintf("%s: %s", taskType, taskRef.Message), superset.Generation)
+			return lifecycleTerminal(), nil
+		}
+		log.Info("Task previously failed but pod spec changed; retrying", "task", taskType)
 	}
 
 	if taskRef.State == taskStateComplete || taskRef.State == taskStateFailed || (taskRef.CompletedChecksum != "" && taskRef.CompletedChecksum != taskChecksum) {

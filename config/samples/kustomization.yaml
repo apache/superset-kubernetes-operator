@@ -1,5 +1,6 @@
 ## Append samples of your project ##
 resources:
 - superset_v1alpha1_superset.yaml
+- superset_v1alpha1_superset_dev_full.yaml
 - superset_v1alpha1_superset_prod.yaml
 # +kubebuilder:scaffold:manifestskustomizesamples

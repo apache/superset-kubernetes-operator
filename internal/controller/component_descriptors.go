@@ -302,8 +302,26 @@ func (r *SupersetReconciler) reconcileComponent(
 		)
 	}
 
+	// Flower serves under its URL prefix (--url_prefix), so its HTTP health
+	// endpoint lives at <prefix>/api/workers, not /api/workers. Build the probes
+	// from the same prefix used for the env var; otherwise the probe 404s and
+	// kubelet kills the (otherwise healthy) pod into CrashLoopBackOff.
+	applyFlowerProbes(desc.componentType, &cfg, accessor.service)
+
 	return reconcileComponentResources(ctx, r.Client, r.Scheme, r.Recorder, superset,
 		&flatSpec, cfg, workloadChecksum, accessor.service, flatSpec.Autoscaling, flatSpec.PodDisruptionBudget)
+}
+
+// applyFlowerProbes overrides the Celery Flower health probes so they target
+// Flower's prefixed health endpoint (<url_prefix>/api/workers). No-op for other
+// components. See flowerHealthPath for why the prefix matters.
+func applyFlowerProbes(componentType naming.ComponentType, cfg *componentReconcilerConfig, svc *supersetv1alpha1.ComponentServiceSpec) {
+	if componentType != naming.ComponentCeleryFlower {
+		return
+	}
+	probePath := flowerHealthPath(svc)
+	cfg.deployConfig.DefaultLivenessProbe = httpProbe(probePath, naming.PortCeleryFlower, 15)
+	cfg.deployConfig.DefaultReadinessProbe = httpProbe(probePath, naming.PortCeleryFlower, 5)
 }
 
 func (r *SupersetReconciler) deleteComponentResources(ctx context.Context, superset *supersetv1alpha1.Superset, desc *componentDescriptor) error {

@@ -125,8 +125,11 @@ func ComponentResourceDefs() []ComponentResourceDef {
 					DefaultPorts: []corev1.ContainerPort{
 						{Name: common.PortNameHTTP, ContainerPort: common.PortCeleryFlower, Protocol: corev1.ProtocolTCP},
 					},
-					DefaultLivenessProbe:  httpProbe("/api/workers", common.PortCeleryFlower, 15),
-					DefaultReadinessProbe: httpProbe("/api/workers", common.PortCeleryFlower, 5),
+					// Path is overridden per-instance by applyFlowerProbes to include
+					// Flower's URL prefix (<prefix>/healthcheck); the bare path here is
+					// only a placeholder for the no-prefix case.
+					DefaultLivenessProbe:  httpProbe("/healthcheck", common.PortCeleryFlower, 15),
+					DefaultReadinessProbe: httpProbe("/healthcheck", common.PortCeleryFlower, 5),
 				},
 				defaultPort: common.PortCeleryFlower,
 				hasScaling:  true,

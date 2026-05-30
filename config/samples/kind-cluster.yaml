@@ -1,0 +1,58 @@
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Kind cluster config for locally testing the comprehensive dev sample through an
+# ingress controller WITHOUT port-forwards. It maps host ports 80/443 onto the
+# cluster and labels the control-plane node `ingress-ready=true` so ingress-nginx
+# (Kind provider) schedules its controller there and binds those ports.
+#
+# extraPortMappings can only be set at cluster creation, so this requires a fresh
+# cluster:
+#
+#   kind create cluster --config config/samples/kind-cluster.yaml
+#   # then ingress-nginx (Kind provider):
+#   kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+#   kubectl -n ingress-nginx wait --for=condition=ready pod \
+#     -l app.kubernetes.io/component=controller --timeout=120s
+#   # then the backing services + sample:
+#   kubectl apply -f config/samples/dev-dependencies.yaml
+#   kubectl apply -f config/samples/superset_v1alpha1_superset_dev_full.yaml
+#
+# *.localhost resolves to 127.0.0.1, so the instance is then reachable directly,
+# no /etc/hosts edit and no port-forward:
+#
+#   http://superset-dev.localhost/            -> web server
+#   http://superset-dev.localhost/flower/     -> Celery Flower
+#   http://superset-dev.localhost/mcp         -> MCP server
+#
+# If host ports 80/443 are already in use (or privileged on your setup), change
+# the hostPort values below (e.g. 8080/8443) and use that port in the URLs.
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 80
+        protocol: TCP
+      - containerPort: 443
+        hostPort: 443
+        protocol: TCP

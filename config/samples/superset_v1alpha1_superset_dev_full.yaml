@@ -1,0 +1,230 @@
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Comprehensive Development-mode sample. Brings up nearly every component and
+# feature at once for end-to-end smoke testing (intended for a local Kind
+# cluster). NOT for production — it uses inline secrets and dev-only fields.
+#
+# Exercises: web server, Celery worker, Celery beat, Flower, MCP server,
+# deployment/pod templating, template processing, thumbnails, and alerts &
+# reports. The websocket server is intentionally omitted (experimental).
+#
+# Prerequisites (in the same namespace):
+#   - A PostgreSQL reachable at host "postgres" (db/user/pass "superset").
+#   - A Valkey (or Redis) reachable at host "valkey" (password "superset").
+# The companion manifest provides both for local testing:
+#       kubectl apply -f config/samples/dev-dependencies.yaml
+# (It also documents an equivalent Bitnami Helm install.)
+#
+# Accessing the UI:
+#   - NodePort: http://localhost:30088 (works on any Kind cluster, no ingress
+#     controller needed). On some Kind setups you may need extraPortMappings.
+#   - Port-forward (universal):
+#       kubectl port-forward svc/superset-dev-web-server 8088:8088
+#   - Ingress: spec.networking.ingress below targets the nginx IngressClass and
+#     host "superset-dev.localhost". It only takes effect if an ingress-nginx
+#     controller is installed; it is harmless otherwise. Because the host has no
+#     explicit paths, the operator fans it out per component, so you also get
+#     http://superset-dev.localhost/flower/ and /mcp on the same host. To reach
+#     it on :80 with no port-forward, create the cluster from
+#     config/samples/kind-cluster.yaml (maps host 80/443) and install ingress-nginx.
+#   Log in with admin / admin (created by the init task).
+#
+# Alerts & Reports caveat: the operator renders all the necessary config
+# (FEATURE_FLAGS, beat schedule, WebDriver settings), but actual screenshot
+# generation requires a headless browser in the image. The stock Superset image
+# does not ship one, so reports/thumbnails will configure but may not render
+# screenshots without additional browser dependencies.
+apiVersion: superset.apache.org/v1alpha1
+kind: Superset
+metadata:
+  name: superset-dev
+spec:
+  image:
+    tag: 6.1.0-dev
+  environment: Development
+  secretKey: thisIsNotSecure_changeInProduction!
+
+  # Structured metastore (dev-mode inline password). Renders SQLALCHEMY_DATABASE_URI
+  # as an f-string from operator-injected env vars. createDatabase attaches a
+  # one-shot init container to the migrate lifecycle Job that creates the target
+  # database if it does not already exist (idempotent).
+  metastore:
+    type: PostgreSQL
+    host: postgres
+    port: 5432
+    database: superset
+    username: superset
+    password: superset
+    createDatabase: true
+
+  # Valkey drives cache, Celery broker/results, and the thumbnail cache. The
+  # operator renders CACHE_CONFIG, THUMBNAIL_CACHE_CONFIG, CeleryConfig, and
+  # RESULTS_BACKEND automatically. Cache sub-specs below are shown explicitly to
+  # demonstrate the knobs; broker/result backends use their defaults.
+  valkey:
+    host: valkey
+    port: 6379
+    password: superset
+    cache:
+      database: 1
+      defaultTimeout: 300
+    thumbnailCache:
+      database: 5
+      defaultTimeout: 3600
+
+  # Application feature flags -> FEATURE_FLAGS dict in superset_config.py.
+  featureFlags:
+    ENABLE_TEMPLATE_PROCESSING: true
+    THUMBNAILS: true
+    ALERT_REPORTS: true
+
+  # Top-level deployment/pod templating — defaults inherited by every component
+  # AND by the lifecycle task pods.
+  deploymentTemplate:
+    revisionHistoryLimit: 3
+  podTemplate:
+    # runAsNonRoot is enforced everywhere, including lifecycle task pods.
+    # runAsUser must be a NUMERIC UID: the Superset image declares `USER superset`
+    # (a name), and kubelet cannot verify a non-numeric user is non-root — so
+    # runAsNonRoot alone is rejected with "image has non-numeric user". The
+    # official Superset image's `superset` user is UID 1000. (The operator's own
+    # helper containers — create-database, maintenance page — default to a
+    # non-root UID on their own, so they need nothing here.)
+    podSecurityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
+    container:
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+        readOnlyRootFilesystem: false # Superset needs /tmp and /app writes
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: "1"
+          memory: 1Gi
+      env:
+        - name: SUPERSET_LOG_LEVEL
+          value: info
+
+  # Shared Python config (applies to all Python components). WebDriver/screenshot
+  # settings power thumbnails and alerts & reports; CeleryConfig.imports/prefetch
+  # are shared Celery app behavior layered onto the operator-rendered CeleryConfig.
+  config: |
+    # --- Reports & thumbnails: WebDriver / screenshot settings ---
+    WEBDRIVER_TYPE = "chrome"
+    WEBDRIVER_BASEURL = "http://superset-dev-web-server:8088/"
+    WEBDRIVER_BASEURL_USER_FRIENDLY = "http://localhost:30088/"
+    # Selenium/Playwright logs in as this user to render screenshots.
+    THUMBNAIL_SELENIUM_USER = "admin"
+    SCREENSHOT_LOCATE_WAIT = 30
+    SCREENSHOT_LOAD_WAIT = 60
+
+    # --- Shared Celery app behavior (layered onto the operator's CeleryConfig) ---
+    CeleryConfig.imports = (
+        "superset.sql_lab",
+        "superset.tasks.scheduler",
+        "superset.tasks.thumbnails",
+        "superset.tasks.cache",
+    )
+    CeleryConfig.worker_prefetch_multiplier = 1
+    CeleryConfig.task_acks_late = False
+
+  webServer:
+    replicas: 2
+    service:
+      type: NodePort
+      nodePort: 30088
+    # Per-component template override demonstrating field-level merge: larger
+    # resources than the top-level default, plus a graceful-shutdown preStop hook.
+    podTemplate:
+      container:
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: "2"
+            memory: 2Gi
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 15"]
+
+  celeryWorker:
+    replicas: 2
+    celery:
+      preset: balanced
+
+  # Singleton scheduler. Beat-only settings live here so schedule edits roll just
+  # the Beat Deployment. beat_schedule mutates the operator-rendered CeleryConfig.
+  celeryBeat:
+    config: |
+      from celery.schedules import crontab
+
+      CeleryConfig.beat_schedule = {
+          "reports.scheduler": {
+              "task": "reports.scheduler",
+              "schedule": crontab(minute="*", hour="*"),
+          },
+          "reports.prune_log": {
+              "task": "reports.prune_log",
+              "schedule": crontab(minute=0, hour=0),
+          },
+      }
+
+  # Flower is not bundled in the stock Superset image. Install it at startup via
+  # the bootstrap script (sourced before the flower command). The runtime
+  # `uv pip install` needs to write to the venv (and uv's cache), so this one pod
+  # runs as root — overriding the top-level non-root policy. Dev convenience only;
+  # for production, bake flower into a custom image and drop this override.
+  celeryFlower:
+    bootstrapScript: |
+      uv pip install --no-cache flower
+    podTemplate:
+      podSecurityContext:
+        runAsNonRoot: false
+        runAsUser: 0
+
+  mcpServer: {}
+
+  # Optional Ingress demo — only effective when an ingress-nginx controller is
+  # present. With no explicit paths, the operator routes every component by path
+  # under this host (/ → web, /flower → flower, /mcp → mcp), so all services are
+  # reachable from one origin. Use the NodePort or port-forward above otherwise.
+  networking:
+    ingress:
+      className: nginx
+      host: superset-dev.localhost
+
+  lifecycle:
+    # Lightweight maintenance page served while components are drained for
+    # lifecycle tasks. Managed mode (no image) renders an nginx:alpine page from
+    # the title/message below. Only started when a drain actually runs and an
+    # existing web-server workload is present.
+    maintenancePage:
+      title: Superset is upgrading
+      message: We'll be back shortly — applying database migrations.
+    migrate: {}
+    init:
+      adminUser: {}
+      loadExamples: true
