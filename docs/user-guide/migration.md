@@ -47,7 +47,7 @@ routing as part of a control loop that keeps your declared state reconciled.
 | Default labels & annotations | chart-supplied; can drift | `app.kubernetes.io/{name,instance,component}` + `superset.apache.org/parent` on every resource, protected from override; per-component `deploymentTemplate`/`podTemplate` labels/annotations inherit top-level defaults |
 | **Routing** | | |
 | Ingress | web server only (websocket via a separate rule) | web server **and** every present component (websocket, Flower, MCP), each on its own subpath, from one object |
-| Gateway API | — | ✓ — first-class, with the same automatic per-component fan-out |
+| Gateway API | — | first-class, with the same automatic per-component fan-out |
 | **Lifecycle** | | |
 | Migrate — `superset db upgrade` | install-time hook Job | managed `migrate` task: drains to avoid deadlocks, gates rollout, retries, status |
 | Init — `superset init` | same hook Job | managed `init` task: config-checksum driven |
