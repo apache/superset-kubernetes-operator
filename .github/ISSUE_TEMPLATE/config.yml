@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or discussion
+    url: https://github.com/apache/superset-kubernetes-operator/discussions
+    about: Ask usage questions and discuss ideas here.
+  - name: Security vulnerability
+    url: https://github.com/apache/superset-kubernetes-operator/blob/main/SECURITY.md
+    about: Do NOT open a public issue. Report security issues per SECURITY.md (security@apache.org).
+  - name: Documentation
+    url: https://github.com/apache/superset-kubernetes-operator/tree/main/docs
+    about: Installation, configuration, and architecture docs.
