@@ -272,10 +272,36 @@ spec:
 | Component `podDisruptionBudget.*` | Component `podDisruptionBudget` | Supported for web server, Celery worker, Flower, websocket server, and MCP server. |
 | `supersetCeleryBeat.podDisruptionBudget.*` | No direct equivalent | Celery Beat is a singleton in the operator and currently has no PDB field. |
 
-## Known Parity Gaps
+## Operator Differences and Parity Gaps
 
-The operator covers the chart's commonly used features. The items below have
-no direct equivalent today; each lists the recommended workaround:
+The operator covers the chart's commonly used features. These differences may
+matter when planning a migration:
+
+- **Lifecycle operations.** Lifecycle work is part of the controller loop
+  instead of install-time hook execution. Migrations, initialization,
+  secret-key rotation, drains, retries, and upgrade approval are tracked in
+  `Superset` status and can gate component rollout.
+- **Continuous reconciliation.** The operator reconciles parent-owned resources
+  after install. If the spec changes, or a managed Deployment, Service,
+  ConfigMap, lifecycle Job, HPA, PDB, networking, monitoring, or NetworkPolicy
+  resource drifts, the controller works back toward the declared state.
+- **Typed configuration fields.** Common metastore, Valkey, Gunicorn, Celery,
+  SQLAlchemy engine options, networking, and scaling settings are modeled in
+  the CR instead of relying only on copied Python snippets and chart-specific
+  values logic.
+- **Secret and mode validation.** Production mode rejects inline
+  operator-managed secrets and invalid secret/configuration combinations before
+  reconciliation. This catches some migration mistakes before workloads are
+  created or updated.
+- **Kubernetes version support.** Supported Kubernetes versions are documented
+  and exercised in CI. This gives operators a concrete compatibility target
+  when choosing the cluster version for the migration.
+- **Test coverage.** Common deployment, configuration, validation, and upgrade
+  paths are covered by tests. This reduces reliance on manual checks and helps
+  protect expected behavior against regressions.
+
+The items below have no direct equivalent today; each lists the recommended
+workaround:
 
 - **Celery Beat PDB.** The chart exposes `supersetCeleryBeat.podDisruptionBudget`.
   The operator pins Beat to a single replica and does not surface a PDB field;
