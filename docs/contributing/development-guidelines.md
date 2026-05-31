@@ -249,6 +249,7 @@ the `#`-comment form:
 - **Don't fetch resources by name for cleanup** — use `deleteByLabels` with parent/component labels to discover and clean up. Name-based `CreateOrUpdate` and status reads are fine — those address resources whose names the operator controls.
 - **Don't hardcode commands/ports** — use `DeploymentConfig` defaults
 - **Don't duplicate controller logic** — use `component_reconciler.go` helpers
+- **Don't copy derived facts between docs** — values defined in code or in one canonical doc (e.g. the per-component routing paths in [`networking-and-monitoring.md`](../user-guide/networking-and-monitoring.md)) should be stated once and cross-linked from elsewhere, not re-listed on other pages where they silently go stale. Same spirit as the Automation Principle: one source of truth.
 - **Don't add fields without doc comments** — they become CRD descriptions
 - **Don't use `bool` with `omitempty`** — use `*bool` to distinguish false from unset
 - **Don't write integration tests for unit-testable logic** — use fake client

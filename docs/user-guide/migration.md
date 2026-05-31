@@ -198,10 +198,22 @@ Superset version you deploy.
 | Helm chart value | Operator equivalent | Notes |
 |---|---|---|
 | `service.type`, `service.port`, `service.nodePort.http`, `service.annotations` | `spec.webServer.service.type`, `port`, `nodePort`, `annotations` | `loadBalancerIP` is not modeled because the Kubernetes field is deprecated; use provider annotations where possible. |
-| `ingress.enabled`, `ingress.ingressClassName`, `ingress.annotations`, `ingress.hosts`, `ingress.tls`, `ingress.path`, `ingress.pathType` | `spec.networking.ingress` | A host with no explicit `paths` fans out per present component (`/` web server, plus `/flower`, `/mcp`, `/ws`), mirroring Gateway API. Use `className` for `ingressClassName`, or keep legacy `kubernetes.io/ingress.class` under `annotations`. Helm's top-level `path`/`pathType` move to `hosts[].paths[]`; setting explicit paths routes them to the web server only. |
+| `ingress.enabled`, `ingress.ingressClassName`, `ingress.annotations`, `ingress.hosts`, `ingress.tls`, `ingress.path`, `ingress.pathType` | `spec.networking.ingress` | A host with no explicit `paths` fans out into one rule per present component, mirroring Gateway API (see [Networking & Monitoring](networking-and-monitoring.md#gateway-api-recommended) for the routing table). Use `className` for `ingressClassName`, or keep legacy `kubernetes.io/ingress.class` under `annotations`. Helm's top-level `path`/`pathType` move to `hosts[].paths[]`; setting explicit paths routes them to the web server only. |
 | `ingress.extraHostsRaw` | `spec.networking.ingress.hosts` for normal web routes, or a custom Ingress | Use a separate Ingress for non-web backends or unusual raw rules. |
-| `supersetWebsockets.ingress.*` | `spec.networking.ingress` or `spec.networking.gateway` | Both reconcilers route `/ws` to the websocket service automatically when `websocketServer` is present. Customize the path with `websocketServer.service.gatewayPath`. |
-| Flower or MCP external paths | `spec.networking.gateway` | Gateway API can route `/flower` and `/mcp` to their services. |
+| `supersetWebsockets.ingress.*` | `spec.networking.ingress` or `spec.networking.gateway` | Both reconcilers expose the websocket service automatically when `websocketServer` is present; set its path with `websocketServer.service.gatewayPath`. |
+| Flower or MCP external paths | `spec.networking.ingress` or `spec.networking.gateway` | Both reconcilers expose every present component on its own subpath; see the routing table in [Networking & Monitoring](networking-and-monitoring.md#gateway-api-recommended). |
+
+Both reconcilers expand a host with no explicit `paths` into one rule per
+present component, each served under its own subpath (overridable via
+`service.gatewayPath`). Requests are forwarded as-is, with no path rewriting, so
+each component owns its subpath: the operator configures Flower for this
+automatically (its `--url_prefix`), and the web server serves at the root. This
+differs from the Helm chart, where the web server sat at `/` and the websocket
+was a separate `/ws` Ingress rule. If a component must be reached at the root
+instead of a subpath, give it its own host or a prefix-stripping rewrite on your
+controller. See
+[Networking & Monitoring](networking-and-monitoring.md#gateway-api-recommended)
+for the routing table.
 
 Helm's web Ingress shape:
 
@@ -419,11 +431,11 @@ websocket Deployment.
 
 ## Websocket Routing
 
-The Helm chart's `supersetWebsockets.ingress` injects a `/ws` rule alongside the
-web server. The operator does the same automatically: whenever `websocketServer`
-is present, both the Ingress and Gateway API reconcilers add a `/ws` rule
-pointing at the `<superset-name>-websocket-server` Service. A bare Ingress host
-is enough:
+The Helm chart's `supersetWebsockets.ingress` injects a websocket rule alongside
+the web server. The operator does the same automatically: whenever
+`websocketServer` is present, both the Ingress and Gateway API reconcilers add a
+rule pointing at the `<superset-name>-websocket-server` Service. A bare Ingress
+host is enough:
 
 ```yaml
 spec:
@@ -434,7 +446,7 @@ spec:
   networking:
     ingress:
       hosts:
-        - host: superset.example.com   # auto-routes / , /ws, and any other present components
+        - host: superset.example.com   # fans out to every present component on its subpath
 ```
 
 The equivalent with Gateway API, plus a customized websocket path via
