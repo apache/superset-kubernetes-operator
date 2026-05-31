@@ -95,36 +95,25 @@ spec:
   # AND by the lifecycle task pods.
   deploymentTemplate:
     revisionHistoryLimit: 3
-  podTemplate:
-    # runAsNonRoot is enforced everywhere, including lifecycle task pods.
-    # runAsUser must be a NUMERIC UID: the Superset image declares `USER superset`
-    # (a name), and kubelet cannot verify a non-numeric user is non-root — so
-    # runAsNonRoot alone is rejected with "image has non-numeric user". The
-    # official Superset image's `superset` user is UID 1000. (The operator's own
-    # helper containers — create-database, maintenance page — default to a
-    # non-root UID on their own, so they need nothing here.)
-    podSecurityContext:
-      runAsNonRoot: true
-      runAsUser: 1000
-      runAsGroup: 1000
-      seccompProfile:
-        type: RuntimeDefault
-    container:
-      securityContext:
-        allowPrivilegeEscalation: false
-        capabilities:
-          drop: ["ALL"]
-        readOnlyRootFilesystem: false # Superset needs /tmp and /app writes
-      resources:
-        requests:
-          cpu: 250m
-          memory: 512Mi
-        limits:
-          cpu: "1"
-          memory: 1Gi
-      env:
-        - name: SUPERSET_LOG_LEVEL
-          value: info
+  # podTemplate:
+  #   # Optional hardening knobs, left off for dev. Without them, pods run as the
+  #   # image's default user (the official Superset image's `superset`, UID 1000).
+  #   # Uncomment to enforce a non-root, least-privilege pod across every component
+  #   # and lifecycle task. runAsUser must be the NUMERIC UID: the image declares
+  #   # `USER superset` (a name), so kubelet rejects `runAsNonRoot` alone with
+  #   # "image has non-numeric user".
+  #   podSecurityContext:
+  #     runAsNonRoot: true
+  #     runAsUser: 1000
+  #     runAsGroup: 1000
+  #     seccompProfile:
+  #       type: RuntimeDefault
+  #   container:
+  #     securityContext:
+  #       allowPrivilegeEscalation: false
+  #       capabilities:
+  #         drop: ["ALL"]
+  #       readOnlyRootFilesystem: false # Superset needs /tmp and /app writes
 
   # Shared Python config (applies to all Python components). WebDriver/screenshot
   # settings power thumbnails and alerts & reports; CeleryConfig.imports/prefetch
@@ -154,17 +143,10 @@ spec:
     service:
       type: NodePort
       nodePort: 30088
-    # Per-component template override demonstrating field-level merge: larger
-    # resources than the top-level default, plus a graceful-shutdown preStop hook.
+    # Per-component template override (field-level merge): a graceful-shutdown
+    # preStop hook layered onto the inherited top-level pod template.
     podTemplate:
       container:
-        resources:
-          requests:
-            cpu: 500m
-            memory: 1Gi
-          limits:
-            cpu: "2"
-            memory: 2Gi
         lifecycle:
           preStop:
             exec:
@@ -192,11 +174,11 @@ spec:
           },
       }
 
-  # Flower is not bundled in the stock Superset image. Install it at startup via
-  # the bootstrap script (sourced before the flower command). The runtime
-  # `uv pip install` needs to write to the venv (and uv's cache), so this one pod
-  # runs as root — overriding the top-level non-root policy. Dev convenience only;
-  # for production, bake flower into a custom image and drop this override.
+  # Flower isn't bundled in the stock Superset image. On a custom image you'd bake
+  # it in and this becomes `celeryFlower: {}`. For dev convenience the bootstrapScript
+  # escape hatch installs it at startup — the script is sourced before the flower
+  # command. The install writes into the venv (/app/.venv), which the image owns as
+  # root, so this one pod must run as root. Dev convenience only.
   celeryFlower:
     bootstrapScript: |
       uv pip install --no-cache flower
