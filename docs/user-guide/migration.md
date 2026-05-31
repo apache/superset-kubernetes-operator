@@ -24,7 +24,7 @@ chart to a `Superset` custom resource. It focuses on feature parity and on the
 places where the operator intentionally uses a different model.
 
 > **Comparison target:** This guide is written against the upstream
-> [`apache/superset` Helm chart](https://github.com/apache/superset/tree/master/helm/superset)
+> [`apache/superset` Helm chart](https://github.com/apache/superset/tree/superset-helm-chart-0.15.5/helm/superset)
 > at chart version `0.15.5` / `appVersion: 5.0.0`. Older Helm releases share
 > most field names, but some values differ across chart versions.
 
@@ -58,15 +58,25 @@ The main differences are deliberate:
    helm get values <release> -n <namespace> -o yaml > superset-values.yaml
    ```
 
-2. Identify external dependencies. If the Helm release currently installed
-   Bitnami PostgreSQL or Redis, provision replacement services before removing
-   the chart. Do not delete the Helm release until database persistence and
-   backups are understood.
+2. Identify external dependencies. If the Helm release currently relied on the
+   bundled PostgreSQL or Redis subcharts, install those dependencies as
+   standalone Helm releases or otherwise provision equivalent services before
+   moving Superset to the operator. Do not delete the Helm release until
+   database persistence and backups are understood.
 
 3. Create Kubernetes Secrets for the Superset `SECRET_KEY`, database
    connection string or password, and Valkey/Redis password. Prefer a full
    SQLAlchemy URI in `metastore.uriFrom` when migrating from Helm because it
    preserves the exact connection string.
+
+   Check which Secret and key currently hold each credential before wiring the
+   operator CR. With the upstream chart's default `secretEnv.create: true`, the
+   chart creates a Helm-owned Secret named `<helm-fullname>-env` containing
+   `DB_PASS`. If the bundled PostgreSQL subchart is enabled, Bitnami also
+   creates a database Secret, typically `<release>-postgresql` with key
+   `password`. Before uninstalling Helm, copy the credentials you intend to keep
+   into Secrets that will remain after the release is removed, or point the
+   operator at existing externally managed Secrets.
 
 4. Translate application configuration from `configOverrides` into
    `spec.config`. Move sensitive values out of Python source and into Secret
@@ -131,7 +141,7 @@ The main differences are deliberate:
 | `envFromSecret`, `envFromSecrets` | `spec.podTemplate.container.envFrom` | Can also be set per component. |
 | `extraEnv`, `extraEnvRaw` | `spec.podTemplate.container.env` | `env` entries merge by name between top-level and per-component templates. |
 | `extraSecretEnv` | Kubernetes Secret plus `envFrom` or `env.valueFrom.secretKeyRef` | For operator-owned secrets, use first-class fields such as `secretKeyFrom`, `metastore.uriFrom`, and `valkey.passwordFrom`. |
-| `configOverrides`, `configOverridesFiles` | `spec.config` or per-component `config` | The operator appends this Python after generated `SECRET_KEY`, metastore, Valkey, Celery, and SQLAlchemy config. |
+| `configOverrides`, `configOverridesFiles` | `spec.config` or per-component `config` | Copy the Python snippets into operator config. Helm treats each `configOverrides` child key as an arbitrary label/comment, not as a typed setting. The operator appends `spec.config` after generated `SECRET_KEY`, metastore, Valkey, Celery, and SQLAlchemy config. |
 | `configFromSecret` | `spec.config` plus Secret-backed env vars | The operator renders `superset_config.py` into ConfigMaps. Avoid putting secret values directly in Python config. |
 | `extraConfigs` | External ConfigMap plus `podTemplate.volumes` and `volumeMounts` | If you used `import_datasources.yaml`, add a custom lifecycle init command to import it. |
 | `extraSecrets` | External Secret plus `podTemplate.volumes` and `volumeMounts` | Mount additional files explicitly where your config expects them. |
@@ -141,11 +151,11 @@ The main differences are deliberate:
 
 | Helm chart value | Operator equivalent | Notes |
 |---|---|---|
-| `supersetNode.connections.db_*` | `spec.metastore` | Use `uriFrom` for an exact SQLAlchemy URI, or structured `host`, `database`, `username`, and `passwordFrom`. |
+| `supersetNode.connections.db_*` | `spec.metastore` | Use `uriFrom` for an exact SQLAlchemy URI, or structured `host`, `database`, `username`, and `passwordFrom`. The Helm `db_pass` value is rendered into `DB_PASS` in the chart env Secret; for `passwordFrom`, reference whichever long-lived Secret/key will hold that database password after migration. |
 | `supersetNode.connections.redis_*` | `spec.valkey` | `valkey` works with Redis-compatible services and renders cache, Celery broker/backend, and SQL Lab results backend config. `redis_user` maps to `username`. |
-| `supersetNode.connections.redis_ssl` | `spec.valkey.ssl` | Mount client certs or CA bundles with `podTemplate.volumes` if needed. Helm `CERT_NONE` maps to `certRequired: none`. |
-| `postgresql.*` | Not managed by this operator | Use a managed database, CloudNativePG, another PostgreSQL operator, or keep an existing PostgreSQL instance. |
-| `redis.*` | Not managed by this operator | Use a managed Redis/Valkey service, Redis/Valkey operator, or separate Helm chart. |
+| `supersetNode.connections.redis_ssl` | `spec.valkey.ssl` | Set `ssl: {}` for Redis/Valkey TLS. Mount client certs or CA bundles with `podTemplate.volumes` if needed; when certificate paths are configured, translate Helm `ssl_cert_reqs` values from `CERT_NONE`/`CERT_OPTIONAL`/`CERT_REQUIRED` to `certRequired: none`/`optional`/`required`. |
+| `postgresql.*` | Not managed by this operator | Provide an existing PostgreSQL endpoint and reference it from `spec.metastore`. |
+| `redis.*` | Not managed by this operator | Provide an existing Redis/Valkey-compatible endpoint and reference it from `spec.valkey`. |
 
 The Helm chart exposes one cache DB (`redis_cache_db`) and one Celery DB
 (`redis_celery_db`). The operator gives each Superset cache role its own
@@ -272,9 +282,12 @@ no direct equivalent today; each lists the recommended workaround:
   a PDB on a 1-replica workload is advisory only. If Beat downtime during
   voluntary disruptions is unacceptable, use `priorityClassName` and node
   affinity to influence scheduling instead.
-- **Bundled PostgreSQL and Redis subcharts.** Intentional — the operator does
-  not provision external dependencies. Use a managed database service,
-  CloudNativePG, or a Redis/Valkey operator.
+- **Bundled PostgreSQL and Redis subcharts.** Unlike the Helm chart, the
+  operator does not bundle support for managing PostgreSQL or Redis/Valkey
+  resources. Helm-based deployments that used the bundled subcharts should move
+  those dependencies to standalone Helm releases or equivalent separately
+  managed services, then configure `spec.metastore` and `spec.valkey` to point
+  at those endpoints.
 - **`loadBalancerIP`.** Intentional — the Kubernetes field is deprecated. Use
   cloud-provider Service annotations to influence load-balancer placement.
 
@@ -306,8 +319,24 @@ supersetCeleryBeat:
   enabled: true
 
 configOverrides:
-  feature_flags: |
+  enable_alert_reports: |
     FEATURE_FLAGS = {"ALERT_REPORTS": True}
+```
+
+The `enable_alert_reports` key above is only a Helm override label. The chart
+appends its value to `superset_config.py`; it does not define a special
+`feature_flags` values field.
+
+Create or choose a Secret that will remain after Helm is removed:
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: superset-secrets
+stringData:
+  secret-key: "<copy the current Superset SECRET_KEY>"
+  db-password: "<copy Helm DB_PASS or your external database password>"
 ```
 
 Operator CR:
@@ -330,8 +359,8 @@ spec:
     database: superset
     username: superset
     passwordFrom:
-      name: superset-db
-      key: password
+      name: superset-secrets
+      key: db-password
   valkey:
     host: valkey
     port: 6379
@@ -416,6 +445,7 @@ stringData:
 apiVersion: superset.apache.org/v1alpha1
 kind: Superset
 spec:
+  webServer: {}
   websocketServer:
     image:
       repository: oneacrefund/superset-websocket
