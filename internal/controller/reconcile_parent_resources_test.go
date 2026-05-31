@@ -298,6 +298,58 @@ func TestReconcile_ComponentResourcesCarryLabels(t *testing.T) {
 	assertLabels(t, "Service", svc.Labels)
 }
 
+// TestReconcile_DeploymentTemplateLabelsAndAnnotations asserts that
+// user-supplied deploymentTemplate labels/annotations land on the Deployment's
+// ObjectMeta (merged top-level + per-component), while operator-managed labels
+// still win on conflict and cannot be removed.
+func TestReconcile_DeploymentTemplateLabelsAndAnnotations(t *testing.T) {
+	scheme := testScheme(t)
+
+	spec := minimalSupersetSpec()
+	spec.DeploymentTemplate = &supersetv1alpha1.DeploymentTemplate{
+		Labels:      map[string]string{"team": "data", "tier": "top"},
+		Annotations: map[string]string{"owner": "platform"},
+	}
+	spec.WebServer.DeploymentTemplate = &supersetv1alpha1.DeploymentTemplate{
+		// Component overrides "tier" and tries (in vain) to override the
+		// operator-managed component label.
+		Labels:      map[string]string{"tier": "web", "app.kubernetes.io/component": "hijack"},
+		Annotations: map[string]string{"scrape": "true"},
+	}
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Spec:       spec,
+	}
+
+	c := reconcileOnce(t, scheme, superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r)
+
+	deploy := &appsv1.Deployment{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, deploy); err != nil {
+		t.Fatalf("get Deployment: %v", err)
+	}
+
+	// User labels present; component value wins over top-level on "tier".
+	if got := deploy.Labels["team"]; got != "data" {
+		t.Errorf("Deployment label team = %q, want data", got)
+	}
+	if got := deploy.Labels["tier"]; got != "web" {
+		t.Errorf("Deployment label tier = %q, want web (component overrides top-level)", got)
+	}
+	// Operator-managed label wins over the user's hijack attempt.
+	if got := deploy.Labels["app.kubernetes.io/component"]; got != "web-server" {
+		t.Errorf("Deployment label app.kubernetes.io/component = %q, want web-server (operator protected)", got)
+	}
+	// Annotations merge from both levels.
+	if got := deploy.Annotations["owner"]; got != "platform" {
+		t.Errorf("Deployment annotation owner = %q, want platform", got)
+	}
+	if got := deploy.Annotations["scrape"]; got != "true" {
+		t.Errorf("Deployment annotation scrape = %q, want true", got)
+	}
+}
+
 func TestReconcile_LifecycleCreatesParentOwnedTaskJobAndStatus(t *testing.T) {
 	scheme := testScheme(t)
 

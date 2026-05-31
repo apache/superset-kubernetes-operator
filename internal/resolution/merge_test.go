@@ -23,6 +23,8 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
+
+	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 )
 
 func TestMergeMaps(t *testing.T) {
@@ -481,6 +483,54 @@ func TestResolveOverridableValue(t *testing.T) {
 		result := ResolveOverridableValue((*corev1.PodSecurityContext)(nil), &v2)
 		if *result.RunAsUser != 2000 {
 			t.Errorf("expected 2000, got %d", *result.RunAsUser)
+		}
+	})
+}
+
+func TestMergeDeploymentTemplate(t *testing.T) {
+	t.Run("both nil returns nil", func(t *testing.T) {
+		if got := MergeDeploymentTemplate(nil, nil); got != nil {
+			t.Errorf("expected nil, got %+v", got)
+		}
+	})
+
+	t.Run("component scalar overrides top-level", func(t *testing.T) {
+		comp := &supersetv1alpha1.DeploymentTemplate{RevisionHistoryLimit: Ptr(int32(3))}
+		tl := &supersetv1alpha1.DeploymentTemplate{RevisionHistoryLimit: Ptr(int32(7))}
+		got := MergeDeploymentTemplate(comp, tl)
+		if got.RevisionHistoryLimit == nil || *got.RevisionHistoryLimit != 3 {
+			t.Errorf("expected component value 3, got %v", got.RevisionHistoryLimit)
+		}
+	})
+
+	t.Run("labels and annotations merge, component wins on conflict", func(t *testing.T) {
+		comp := &supersetv1alpha1.DeploymentTemplate{
+			Labels:      map[string]string{"tier": "web"},
+			Annotations: map[string]string{"scrape": "true"},
+		}
+		tl := &supersetv1alpha1.DeploymentTemplate{
+			Labels:      map[string]string{"team": "data", "tier": "top"},
+			Annotations: map[string]string{"owner": "platform"},
+		}
+		got := MergeDeploymentTemplate(comp, tl)
+		assertMapsEqual(t, map[string]string{"team": "data", "tier": "web"}, got.Labels)
+		assertMapsEqual(t, map[string]string{"owner": "platform", "scrape": "true"}, got.Annotations)
+	})
+
+	t.Run("only labels set still returns non-nil", func(t *testing.T) {
+		got := MergeDeploymentTemplate(&supersetv1alpha1.DeploymentTemplate{
+			Labels: map[string]string{"a": "1"},
+		}, nil)
+		if got == nil {
+			t.Fatal("expected non-nil result when only labels are set")
+		}
+		assertMapsEqual(t, map[string]string{"a": "1"}, got.Labels)
+	})
+
+	t.Run("empty inputs return nil", func(t *testing.T) {
+		got := MergeDeploymentTemplate(&supersetv1alpha1.DeploymentTemplate{}, &supersetv1alpha1.DeploymentTemplate{})
+		if got != nil {
+			t.Errorf("expected nil for empty inputs, got %+v", got)
 		}
 	})
 }

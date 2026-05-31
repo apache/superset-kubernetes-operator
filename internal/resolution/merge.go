@@ -179,8 +179,12 @@ func MergeDeploymentTemplate(comp, tl *supersetv1alpha1.DeploymentTemplate) *sup
 		MinReadySeconds:         ResolveOverridableValue(c.MinReadySeconds, t.MinReadySeconds),
 		ProgressDeadlineSeconds: ResolveOverridableValue(c.ProgressDeadlineSeconds, t.ProgressDeadlineSeconds),
 		Strategy:                ResolveOverridableValue(c.Strategy, t.Strategy),
+		Labels:                  MergeMaps(t.Labels, c.Labels),
+		Annotations:             MergeMaps(t.Annotations, c.Annotations),
 	}
-	if *result == (supersetv1alpha1.DeploymentTemplate{}) {
+	if result.RevisionHistoryLimit == nil && result.MinReadySeconds == nil &&
+		result.ProgressDeadlineSeconds == nil && result.Strategy == nil &&
+		result.Labels == nil && result.Annotations == nil {
 		return nil
 	}
 	return result

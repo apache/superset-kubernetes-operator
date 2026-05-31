@@ -340,6 +340,14 @@ spec:
                     type: string
                   deploymentTemplate:
                     properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      labels:
+                        additionalProperties:
+                          type: string
+                        type: object
                       minReadySeconds:
                         format: int32
                         type: integer
@@ -4271,6 +4279,14 @@ spec:
                     type: string
                   deploymentTemplate:
                     properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      labels:
+                        additionalProperties:
+                          type: string
+                        type: object
                       minReadySeconds:
                         format: int32
                         type: integer
@@ -8281,6 +8297,14 @@ spec:
                     type: string
                   deploymentTemplate:
                     properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      labels:
+                        additionalProperties:
+                          type: string
+                        type: object
                       minReadySeconds:
                         format: int32
                         type: integer
@@ -11942,6 +11966,14 @@ spec:
                 type: string
               deploymentTemplate:
                 properties:
+                  annotations:
+                    additionalProperties:
+                      type: string
+                    type: object
+                  labels:
+                    additionalProperties:
+                      type: string
+                    type: object
                   minReadySeconds:
                     format: int32
                     type: integer
@@ -15753,6 +15785,14 @@ spec:
                         type: string
                       deploymentTemplate:
                         properties:
+                          annotations:
+                            additionalProperties:
+                              type: string
+                            type: object
+                          labels:
+                            additionalProperties:
+                              type: string
+                            type: object
                           minReadySeconds:
                             format: int32
                             type: integer
@@ -23333,6 +23373,14 @@ spec:
                     type: string
                   deploymentTemplate:
                     properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      labels:
+                        additionalProperties:
+                          type: string
+                        type: object
                       minReadySeconds:
                         format: int32
                         type: integer
@@ -31516,6 +31564,14 @@ spec:
                     type: string
                   deploymentTemplate:
                     properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      labels:
+                        additionalProperties:
+                          type: string
+                        type: object
                       minReadySeconds:
                         format: int32
                         type: integer
@@ -35573,6 +35629,14 @@ spec:
                     x-kubernetes-map-type: atomic
                   deploymentTemplate:
                     properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        type: object
+                      labels:
+                        additionalProperties:
+                          type: string
+                        type: object
                       minReadySeconds:
                         format: int32
                         type: integer

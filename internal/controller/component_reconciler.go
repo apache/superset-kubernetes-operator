@@ -116,7 +116,11 @@ func reconcileComponentDeployment(
 		if err := controllerutil.SetControllerReference(owner, deploy, scheme); err != nil {
 			return err
 		}
-		deploy.Labels = mergeLabels(deploy.Labels, labels)
+		dt := safeDeploymentTemplatePtr(spec.DeploymentTemplate)
+		// Operator-managed labels are passed last so they win on conflict and
+		// cannot be overridden by user-supplied deployment labels.
+		deploy.Labels = mergeLabels(dt.Labels, labels)
+		deploy.Annotations = mergeAnnotations(deploy.Annotations, dt.Annotations)
 		deploy.Spec = buildDeploymentSpec(spec, cfg, checksumAnnotations, labels)
 		return nil
 	})

@@ -487,6 +487,13 @@ type DeploymentTemplate struct {
 	// Deployment update strategy.
 	// +optional
 	Strategy *appsv1.DeploymentStrategy `json:"strategy,omitempty"`
+	// Deployment metadata labels (merged with operator-managed labels which
+	// cannot be overridden).
+	// +optional
+	Labels map[string]string `json:"labels,omitempty"`
+	// Deployment metadata annotations.
+	// +optional
+	Annotations map[string]string `json:"annotations,omitempty"`
 }
 
 // PodTemplate configures Kubernetes PodSpec fields for the pod template.

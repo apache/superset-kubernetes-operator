@@ -19,6 +19,7 @@ limitations under the License.
 package resolution
 
 import (
+	"reflect"
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -438,16 +439,35 @@ func TestResolveComponentSpec_DeploymentLevelFields(t *testing.T) {
 		DeploymentTemplate: &supersetv1alpha1.DeploymentTemplate{
 			RevisionHistoryLimit: Ptr(int32(5)),
 			Strategy:             strategy,
+			Labels:               map[string]string{"team": "data", "tier": "top"},
+			Annotations:          map[string]string{"owner": "platform"},
+		},
+	}
+	component := &ComponentInput{
+		SharedInput: SharedInput{
+			DeploymentTemplate: &supersetv1alpha1.DeploymentTemplate{
+				Labels:      map[string]string{"tier": "web"},
+				Annotations: map[string]string{"scrape": "true"},
+			},
 		},
 	}
 
-	result := ResolveComponentSpec(ComponentWebServer, topLevel, nil, nil, nil)
+	result := ResolveComponentSpec(ComponentWebServer, topLevel, component, nil, nil)
 
 	if result.DeploymentTemplate.RevisionHistoryLimit == nil || *result.DeploymentTemplate.RevisionHistoryLimit != 5 {
 		t.Error("expected revisionHistoryLimit from topLevel")
 	}
 	if result.DeploymentTemplate.Strategy != strategy {
 		t.Error("expected strategy from topLevel")
+	}
+	// Component values override top-level on key conflict; non-conflicting keys merge.
+	wantLabels := map[string]string{"team": "data", "tier": "web"}
+	if !reflect.DeepEqual(result.DeploymentTemplate.Labels, wantLabels) {
+		t.Errorf("labels = %v, want %v", result.DeploymentTemplate.Labels, wantLabels)
+	}
+	wantAnnotations := map[string]string{"owner": "platform", "scrape": "true"}
+	if !reflect.DeepEqual(result.DeploymentTemplate.Annotations, wantAnnotations) {
+		t.Errorf("annotations = %v, want %v", result.DeploymentTemplate.Annotations, wantAnnotations)
 	}
 }
 

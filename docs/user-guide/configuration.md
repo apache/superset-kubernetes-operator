@@ -835,6 +835,14 @@ podTemplate                         → PodSpec-level
 └── container                       → main container
 ```
 
+`deploymentTemplate` carries Deployment-level fields: `strategy`,
+`revisionHistoryLimit`, `minReadySeconds`, `progressDeadlineSeconds`, and
+`labels`/`annotations` for the Deployment object's own metadata. Deployment
+`labels`/`annotations` are merged by key (component wins over top-level);
+operator-managed labels are applied last and cannot be overridden. They land on
+the Deployment metadata only, so changing them does not roll the pods — for pod
+metadata use `podTemplate.labels`/`annotations`.
+
 ### Three usage patterns
 
 **1. Omit entirely** — use operator defaults (most users start here):

@@ -424,6 +424,8 @@ _Appears in:_
 | `minReadySeconds` _integer_ | Minimum seconds a pod must be ready before considered available. |  | Optional: \{\} <br /> |
 | `progressDeadlineSeconds` _integer_ | Maximum seconds for a deployment to make progress before considered failed. |  | Optional: \{\} <br /> |
 | `strategy` _[DeploymentStrategy](https://pkg.go.dev/k8s.io/api/apps/v1#DeploymentStrategy)_ | Deployment update strategy. |  | Optional: \{\} <br /> |
+| `labels` _object (keys:string, values:string)_ | Deployment metadata labels (merged with operator-managed labels which<br />cannot be overridden). |  | Optional: \{\} <br /> |
+| `annotations` _object (keys:string, values:string)_ | Deployment metadata annotations. |  | Optional: \{\} <br /> |
 
 
 #### GatewaySpec
