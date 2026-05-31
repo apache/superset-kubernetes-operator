@@ -28,27 +28,52 @@ places where the operator intentionally uses a different model.
 > at chart version `0.15.5` / `appVersion: 5.0.0`. Older Helm releases share
 > most field names, but some values differ across chart versions.
 
-The operator covers the chart's core application features: web server, Celery
-workers, Celery Beat, Celery Flower, websocket server, database migration,
-application initialization, Python configuration, env vars, services, ingress,
-autoscaling, disruption budgets, probes, security contexts, scheduling
-constraints, sidecars, init containers, and custom volumes.
+The operator runs the same core application as the chart — web server, Celery
+workers, Celery Beat, Celery Flower, and the websocket server — and reads the
+same `superset_config.py`, so most of your Helm values map across directly. What
+changes is the surrounding machinery: instead of an install-time hook Job and
+static manifests, the operator manages migrations, initialization, scaling, and
+routing as part of a control loop that keeps your declared state reconciled.
 
-The main differences are deliberate:
+## Helm Chart vs. Operator
 
-- The operator does not install PostgreSQL or Redis/Valkey. Bring your own
-  database and cache, then reference them from the `Superset` CR.
-- Production mode rejects inline operator-managed secrets. Use Kubernetes
-  Secrets through `secretKeyFrom`, `metastore.uriFrom`,
-  `metastore.passwordFrom`, and `valkey.passwordFrom`.
-- Lifecycle work is split into managed `migrate` and `init` tasks instead of a
-  Helm hook Job. This gives the operator status, retries, upgrade gating, and
-  maintenance-page support.
-- Gateway API and Ingress are both first-class. Either one routes the web
-  server plus the websocket, Flower, and MCP services from a single object —
-  the operator expands a bare host into one rule per present component. Gateway
-  API is preferred only when you need multi-gateway topologies or richer
-  routing than Ingress can express.
+| Capability | Helm chart | Operator |
+|---|---|---|
+| **Application & configuration** | | |
+| Web server, workers, Celery Beat, Flower, websocket | ✓ | ✓ |
+| Env vars, sidecars, init containers, custom volumes | ✓ | ✓ |
+| Probes, security contexts, scheduling constraints, PDBs | ✓ | ✓ |
+| `superset_config.py` | one shared file assembled from `configOverrides` keys | operator-generated base (`SECRET_KEY`, metastore, Valkey, Celery, SQLAlchemy) with your top-level `config` and per-component `config` appended after it |
+| Default labels & annotations | chart-supplied; can drift | `app.kubernetes.io/{name,instance,component}` + `superset.apache.org/parent` on every resource, protected from override; per-component `deploymentTemplate`/`podTemplate` labels/annotations inherit top-level defaults |
+| **Routing** | | |
+| Ingress | web server only (websocket via a separate rule) | web server **and** every present component (websocket, Flower, MCP), each on its own subpath, from one object |
+| Gateway API | — | ✓ — first-class, with the same automatic per-component fan-out |
+| **Lifecycle** | | |
+| Migrate — `superset db upgrade` | install-time hook Job | managed `migrate` task: drains to avoid deadlocks, gates rollout, retries, status |
+| Init — `superset init` | same hook Job | managed `init` task: config-checksum driven |
+| Secret-key rotation — `re-encrypt-secrets` | — | `rotate` task |
+| Staging data clone | — | `clone` task — Development/Staging only, `cronSchedule` refresh, **not** a backup |
+| Upgrade gating, supervised approval, maintenance page | — | ✓ |
+| **Scaling & operations** | | |
+| Autoscaling | web server, worker | web, worker, **Flower, websocket** (`autoscaling/v2`: CPU/memory/custom/external) |
+| Continuous reconciliation & drift correction | — | ✓ |
+| Typed metastore/Valkey/Gunicorn/Celery config + production secret validation | — | ✓ |
+| Prometheus `ServiceMonitor` | — | ✓ |
+| Per-instance `NetworkPolicy` isolation | — | ✓ |
+| **Dependencies & secrets** | | |
+| Bundled PostgreSQL / Redis subcharts | ✓ | bring your own |
+| Inline secrets in values | ✓ | external Kubernetes Secrets required in production |
+| Celery Beat PDB | ✓ | singleton, no PDB field |
+| `service.loadBalancerIP` | ✓ | use a provider Service annotation |
+
+The operator's intentional gaps each have a straightforward workaround:
+provision PostgreSQL and Redis/Valkey separately and point `spec.metastore` /
+`spec.valkey` at them; move inline secrets into Kubernetes Secrets referenced by
+`secretKeyFrom` and the `*From` fields; influence Celery Beat scheduling with
+`priorityClassName` and affinity (a PDB on a 1-replica singleton is advisory
+only); and pin a load-balancer address with a cloud-provider Service annotation.
+The [Value Mapping](#value-mapping) section below translates every field in
+detail.
 
 ## Migration Workflow
 
@@ -182,10 +207,28 @@ Superset version you deploy.
 | `supersetCeleryFlower.service.*` | `spec.celeryFlower.service.*` | Supports service type, port, nodePort, labels, and annotations. |
 | `supersetWebsockets.enabled` | `spec.websocketServer.image.{repository,tag}` | An image override is required (CEL-validated): the default Superset image does not include `websocket_server.js`. Use a community image such as `oneacrefund/superset-websocket` or your own. |
 | `supersetWebsockets.config` | `spec.websocketServer.config` or `configFrom` | Inline `config` is Development-only. In Staging/Production, create a Secret with `config.json` and reference it with `configFrom`. |
-| `init.enabled` | `spec.lifecycle.disabled` or task-level `disabled` | Lifecycle is enabled by default. Set `lifecycle.disabled: true` to skip all tasks. |
-| `init.command`, `init.initscript` | `spec.lifecycle.migrate.command`, `spec.lifecycle.init.command` | The operator splits database migration and application initialization into separate tasks. |
-| `init.createAdmin`, `init.adminUser`, `init.loadExamples` | `spec.lifecycle.init.adminUser`, `spec.lifecycle.init.loadExamples` | These are allowed only in `environment: Development`. In production, create users through your normal identity and admin process or a custom task command using Secret-backed env vars. |
-| `init.jobAnnotations` | Not applicable | Lifecycle tasks are CRD-managed pods, not Helm hook Jobs. |
+
+### Lifecycle Tasks
+
+The chart runs a single install-time hook Job (`init.*`) that performs
+`superset db upgrade` then `superset init`. The operator splits this into up to
+four sequential, individually configurable tasks under `spec.lifecycle` —
+**clone → migrate → rotate → init** — each tracked in `Superset` status with
+retries, timeouts, and upgrade gating. Tasks that change the schema or secrets
+drain running components first (scale to zero), then components are recreated
+once the pipeline completes; enable `spec.lifecycle.maintenancePage` to serve a
+holding page during the drain. See [Lifecycle](lifecycle.md) for the full model.
+
+| Helm chart value | Operator equivalent | Notes |
+|---|---|---|
+| `init.enabled` | `spec.lifecycle.disabled`, or per-task `disabled` | Lifecycle is enabled by default (even when `spec.lifecycle` is unset). Set `lifecycle.disabled: true` to skip everything, or disable a single task with `<task>.disabled: true`. |
+| — (chart has no equivalent) | `spec.lifecycle.clone` | **Operator-only; Development/Staging only.** Seeds the target metastore from an external source database (default `pg_dump`/`mysqldump` stream) so you can test an upgrade against a copy of production. Performs a destructive `DROP DATABASE` and always drains components first, so it is **not** a production backup. Supports `excludeTables`/`excludeTableData` and a `cronSchedule` for periodically refreshing a staging environment. Requires structured metastore mode + `CREATEDB` rights. |
+| `init.command` (the `superset db upgrade` part) | `spec.lifecycle.migrate`, `migrate.command` | Runs `superset db upgrade`. Image/schema-version driven and gates component rollout. Drains components by default (`requiresDrain: true`) so schema changes don't deadlock against live connections or hit version/schema mismatches; set `requiresDrain: false` to opt into rolling, additive-only migrations. `metastore.createDatabase: true` adds a `CREATE DATABASE` init container for fresh servers. |
+| — (chart has no equivalent) | `spec.lifecycle.rotate` | **Operator-only.** Runs `superset re-encrypt-secrets` to re-encrypt stored secrets after a `SECRET_KEY` change; runs after migrate, before init. Set `previousSecretKeyFrom` (+ `secretKeyFrom`) and add `rotate: {}`. Idempotent, drains by default. |
+| `init.initscript` (the `superset init` part) | `spec.lifecycle.init`, `init.command` | Runs `superset init` (roles/permissions). Config-checksum driven (rendered `superset_config.py` changes re-run it). Does not drain by default — role/permission work is safe while components run. |
+| `init.createAdmin`, `init.adminUser`, `init.loadExamples` | `spec.lifecycle.init.adminUser`, `init.loadExamples` | Development mode only (rejected by CRD validation in Staging/Production); the operator appends `fab create-admin` / `load-examples` steps to the init command. In production, create users through your normal identity/admin process or a custom `init.command` with Secret-backed env vars. |
+| `init.jobAnnotations` | Not applicable | Lifecycle tasks are CRD-managed Jobs, not Helm hook Jobs. Annotate task pods via `spec.lifecycle.podTemplate.annotations`. |
+
 
 ### Pod and Deployment Customization
 
@@ -207,7 +250,7 @@ Superset version you deploy.
 
 | Helm chart value | Operator equivalent | Notes |
 |---|---|---|
-| `service.type`, `service.port`, `service.nodePort.http`, `service.annotations` | `spec.webServer.service.type`, `port`, `nodePort`, `annotations` | `loadBalancerIP` is not modeled because the Kubernetes field is deprecated; use provider annotations where possible. |
+| `service.type`, `service.port`, `service.nodePort.http`, `service.annotations` | `spec.webServer.service.type`, `port`, `nodePort`, `annotations` | `loadBalancerIP` is not modeled because the Kubernetes field is deprecated; pin a static address with a provider annotation under `service.annotations` instead (example below). |
 | `ingress.enabled`, `ingress.ingressClassName`, `ingress.annotations`, `ingress.hosts`, `ingress.tls`, `ingress.path`, `ingress.pathType` | `spec.networking.ingress` | A host with no explicit `paths` fans out into one rule per present component, mirroring Gateway API (see [Networking & Monitoring](networking-and-monitoring.md#gateway-api-recommended) for the routing table). Use `className` for `ingressClassName`, or keep legacy `kubernetes.io/ingress.class` under `annotations`. Helm's top-level `path`/`pathType` move to `hosts[].paths[]`; setting explicit paths routes them to the web server only. |
 | `ingress.extraHostsRaw` | `spec.networking.ingress.hosts` for normal web routes, or a custom Ingress | Use a separate Ingress for non-web backends or unusual raw rules. |
 | `supersetWebsockets.ingress.*` | `spec.networking.ingress` or `spec.networking.gateway` | Both reconcilers expose the websocket service automatically when `websocketServer` is present; set its path with `websocketServer.service.gatewayPath`. |
@@ -263,6 +306,39 @@ spec:
       className: alb
 ```
 
+TLS terminates on the Ingress just as it does in the chart. Helm's `ingress.tls`
+maps directly to `spec.networking.ingress.tls`, which takes the standard
+`IngressTLS` shape (a `secretName` plus the hosts it covers). cert-manager works
+the same way — request the certificate with `annotations`:
+
+```yaml
+spec:
+  networking:
+    ingress:
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-prod
+      hosts:
+        - host: superset.example.com
+      tls:
+        - hosts:
+            - superset.example.com
+          secretName: superset-tls
+```
+
+Helm's `service.loadBalancerIP` is intentionally not modeled (the Kubernetes
+field is deprecated). To keep a pinned load-balancer address, set the
+provider-specific annotation on the web-server Service:
+
+```yaml
+spec:
+  webServer:
+    service:
+      type: LoadBalancer
+      annotations:
+        # GKE example; use your provider's equivalent
+        networking.gke.io/load-balancer-ip-addresses: my-static-ip
+```
+
 ### Scaling and Availability
 
 | Helm chart value | Operator equivalent | Notes |
@@ -271,51 +347,6 @@ spec:
 | `supersetWorker.autoscaling.*` | `spec.celeryWorker.autoscaling` | Same HPA model as web server. |
 | Component `podDisruptionBudget.*` | Component `podDisruptionBudget` | Supported for web server, Celery worker, Flower, websocket server, and MCP server. |
 | `supersetCeleryBeat.podDisruptionBudget.*` | No direct equivalent | Celery Beat is a singleton in the operator and currently has no PDB field. |
-
-## Operator Differences and Parity Gaps
-
-The operator covers the chart's commonly used features. These differences may
-matter when planning a migration:
-
-- **Lifecycle operations.** Lifecycle work is part of the controller loop
-  instead of install-time hook execution. Migrations, initialization,
-  secret-key rotation, drains, retries, and upgrade approval are tracked in
-  `Superset` status and can gate component rollout.
-- **Continuous reconciliation.** The operator reconciles parent-owned resources
-  after install. If the spec changes, or a managed Deployment, Service,
-  ConfigMap, lifecycle Job, HPA, PDB, networking, monitoring, or NetworkPolicy
-  resource drifts, the controller works back toward the declared state.
-- **Typed configuration fields.** Common metastore, Valkey, Gunicorn, Celery,
-  SQLAlchemy engine options, networking, and scaling settings are modeled in
-  the CR instead of relying only on copied Python snippets and chart-specific
-  values logic.
-- **Secret and mode validation.** Production mode rejects inline
-  operator-managed secrets and invalid secret/configuration combinations before
-  reconciliation. This catches some migration mistakes before workloads are
-  created or updated.
-- **Kubernetes version support.** Supported Kubernetes versions are documented
-  and exercised in CI. This gives operators a concrete compatibility target
-  when choosing the cluster version for the migration.
-- **Test coverage.** Common deployment, configuration, validation, and upgrade
-  paths are covered by tests. This reduces reliance on manual checks and helps
-  protect expected behavior against regressions.
-
-The items below have no direct equivalent today; each lists the recommended
-workaround:
-
-- **Celery Beat PDB.** The chart exposes `supersetCeleryBeat.podDisruptionBudget`.
-  The operator pins Beat to a single replica and does not surface a PDB field;
-  a PDB on a 1-replica workload is advisory only. If Beat downtime during
-  voluntary disruptions is unacceptable, use `priorityClassName` and node
-  affinity to influence scheduling instead.
-- **Bundled PostgreSQL and Redis subcharts.** Unlike the Helm chart, the
-  operator does not bundle support for managing PostgreSQL or Redis/Valkey
-  resources. Helm-based deployments that used the bundled subcharts should move
-  those dependencies to standalone Helm releases or equivalent separately
-  managed services, then configure `spec.metastore` and `spec.valkey` to point
-  at those endpoints.
-- **`loadBalancerIP`.** Intentional — the Kubernetes field is deprecated. Use
-  cloud-provider Service annotations to influence load-balancer placement.
 
 ## Example Translation
 
