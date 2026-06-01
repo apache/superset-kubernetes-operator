@@ -153,13 +153,21 @@ spec:
 
 When an image change is detected in supervised mode, the operator sets
 `status.phase: AwaitingApproval` and records the upgrade context in
-`status.lifecycle.upgrade`. Approve the upgrade by annotating the CR:
+`status.lifecycle.upgrade`. Approve the upgrade by annotating the CR with the
+recorded approval token:
 
 ```bash
-kubectl annotate superset my-superset superset.apache.org/approve-upgrade=true
+TOKEN=$(kubectl get superset my-superset \
+  -o jsonpath='{.status.lifecycle.upgrade.approvalToken}')
+kubectl annotate superset my-superset \
+  superset.apache.org/approve-upgrade="${TOKEN}" --overwrite
 ```
 
-The operator clears the annotation automatically after lifecycle tasks complete.
+The approval is consumed once: the operator clears the annotation automatically
+after lifecycle tasks complete or the image change is otherwise settled. This
+prevents a stale approval annotation from approving a later image change. If the
+target image changes while an upgrade is awaiting approval, the approval token
+changes and the new transition must be approved separately.
 You can monitor the upgrade status with:
 
 ```bash
@@ -753,7 +761,7 @@ Task Job names are deterministic: `{parentName}-{taskType}` (e.g. `my-superset-m
 | `Initializing` | First deployment — lifecycle tasks running for the first time |
 | `Upgrading` | Image change detected — lifecycle tasks running against new version |
 | `Blocked` | Downgrade detected — lifecycle tasks will not run (manual intervention required) |
-| `AwaitingApproval` | Supervised upgrade mode — waiting for approval annotation before proceeding |
+| `AwaitingApproval` | Supervised upgrade mode — waiting for the target-bound approval annotation before proceeding |
 
 Drain progress appears in the `Lifecycle` column and
 `status.lifecycle.phase=Draining`, while the top-level phase remains

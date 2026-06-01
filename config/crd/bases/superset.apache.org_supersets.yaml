@@ -40043,6 +40043,8 @@ spec:
                     type: object
                   upgrade:
                     properties:
+                      approvalToken:
+                        type: string
                       direction:
                         enum:
                         - Upgrade

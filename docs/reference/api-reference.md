@@ -613,7 +613,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `upgradeMode` _string_ | UpgradeMode controls whether upgrades require manual approval.<br />Automatic runs immediately on image change; Supervised waits for an<br />approval annotation before proceeding. | Automatic | Enum: [Automatic Supervised] <br />Optional: \{\} <br /> |
+| `upgradeMode` _string_ | UpgradeMode controls whether upgrades require manual approval.<br />Automatic runs immediately on image change; Supervised waits for an<br />approval annotation matching the recorded upgrade token before proceeding. | Automatic | Enum: [Automatic Supervised] <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Set to true to skip all lifecycle tasks entirely. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image override for lifecycle task Jobs. |  | Optional: \{\} <br /> |
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for lifecycle task Jobs. |  | Optional: \{\} <br /> |
@@ -1160,6 +1160,7 @@ _Appears in:_
 | `fromVersion` _string_ |  |  | Optional: \{\} <br /> |
 | `toVersion` _string_ |  |  | Optional: \{\} <br /> |
 | `direction` _string_ |  |  | Enum: [Upgrade Downgrade Unknown] <br />Optional: \{\} <br /> |
+| `approvalToken` _string_ | ApprovalToken is the annotation value required to approve this exact upgrade transition. |  | Optional: \{\} <br /> |
 | `startedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
 
 

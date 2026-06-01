@@ -427,6 +427,7 @@ func (r *SupersetReconciler) checkUpgradeGates(
 	oldTag := tagFromImageRef(lastImage)
 	newTag := tagFromImageRef(currentImage)
 	direction := CompareVersions(oldTag, newTag)
+	approvalToken := upgradeApprovalToken(lastImage, currentImage)
 
 	if direction == DirectionDowngrade {
 		log.Info("Downgrade detected, blocking lifecycle", "from", oldTag, "to", newTag)
@@ -437,36 +438,38 @@ func (r *SupersetReconciler) checkUpgradeGates(
 		superset.Status.Phase = phaseBlocked
 		superset.Status.Lifecycle.Phase = lifecyclePhaseBlocked
 		superset.Status.Lifecycle.Upgrade = &supersetv1alpha1.UpgradeContext{
-			FromVersion: oldTag,
-			ToVersion:   newTag,
-			Direction:   string(DirectionDowngrade),
+			FromVersion:   oldTag,
+			ToVersion:     newTag,
+			Direction:     string(DirectionDowngrade),
+			ApprovalToken: approvalToken,
 		}
 		r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "DowngradeBlocked", "Lifecycle",
 			"Downgrade from %s to %s is not supported", oldTag, newTag)
 		return lifecycleTerminal(), true
 	}
 
-	// Set upgrade context only once (preserve StartedAt across reconciles).
-	if superset.Status.Lifecycle.Upgrade == nil {
+	contextMatches := upgradeContextMatches(superset.Status.Lifecycle.Upgrade, oldTag, newTag, direction, approvalToken)
+	if !contextMatches {
 		superset.Status.Lifecycle.Upgrade = &supersetv1alpha1.UpgradeContext{
-			FromVersion: oldTag,
-			ToVersion:   newTag,
-			Direction:   string(direction),
-			StartedAt:   nowPtr(),
+			FromVersion:   oldTag,
+			ToVersion:     newTag,
+			Direction:     string(direction),
+			ApprovalToken: approvalToken,
+			StartedAt:     nowPtr(),
 		}
 	}
 
 	// Supervised mode: check for approval annotation.
 	if getUpgradeMode(superset) == upgradeModeSupervised {
 		annotations := superset.GetAnnotations()
-		if annotations == nil || annotations[annotationApproveUpgrade] != "true" {
+		if !contextMatches || annotations == nil || annotations[annotationApproveUpgrade] != approvalToken {
 			log.Info("Upgrade awaiting approval")
 			setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 				metav1.ConditionFalse, "AwaitingApproval",
-				fmt.Sprintf("Upgrade from %s to %s detected. Approve with: kubectl annotate superset %s %s=true",
+				fmt.Sprintf("Upgrade from %s to %s detected. Approve with: kubectl annotate superset %s %s=%s",
 					superset.Status.Lifecycle.Upgrade.FromVersion,
 					superset.Status.Lifecycle.Upgrade.ToVersion,
-					superset.Name, annotationApproveUpgrade),
+					superset.Name, annotationApproveUpgrade, approvalToken),
 				superset.Generation)
 			superset.Status.Phase = phaseAwaitingApproval
 			superset.Status.Lifecycle.Phase = lifecyclePhaseAwaitingApproval
@@ -475,6 +478,30 @@ func (r *SupersetReconciler) checkUpgradeGates(
 	}
 
 	return lifecycleResult{}, false
+}
+
+func upgradeContextMatches(
+	upgrade *supersetv1alpha1.UpgradeContext,
+	fromVersion string,
+	toVersion string,
+	direction VersionDirection,
+	approvalToken string,
+) bool {
+	return upgrade != nil &&
+		upgrade.FromVersion == fromVersion &&
+		upgrade.ToVersion == toVersion &&
+		upgrade.Direction == string(direction) &&
+		upgrade.ApprovalToken == approvalToken
+}
+
+func upgradeApprovalToken(fromImage, toImage string) string {
+	return computeChecksum(struct {
+		FromImage string `json:"fromImage"`
+		ToImage   string `json:"toImage"`
+	}{
+		FromImage: fromImage,
+		ToImage:   toImage,
+	})
 }
 
 // reconcileLifecycleTask creates or manages a single parent-owned lifecycle task

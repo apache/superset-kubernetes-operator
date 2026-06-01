@@ -98,6 +98,84 @@ func TestReconcileLifecycle_NoTasksConfigured(t *testing.T) {
 	}
 }
 
+func TestCheckUpgradeGates_SupervisedApprovalRequiresRecordedToken(t *testing.T) {
+	mode := upgradeModeSupervised
+	lastImage := "apache/superset:1.0.0"
+	currentImage := "apache/superset:1.1.0"
+	token := upgradeApprovalToken(lastImage, currentImage)
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "test",
+			Namespace:   "default",
+			Annotations: map[string]string{annotationApproveUpgrade: token},
+		},
+		Spec: supersetv1alpha1.SupersetSpec{
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{UpgradeMode: &mode},
+		},
+		Status: supersetv1alpha1.SupersetStatus{
+			Lifecycle: &supersetv1alpha1.LifecycleStatus{},
+		},
+	}
+	r := &SupersetReconciler{}
+
+	_, gated := r.checkUpgradeGates(context.Background(), superset, true, lastImage, currentImage)
+	if !gated {
+		t.Fatal("expected first reconcile to publish the approval token before accepting it")
+	}
+	if superset.Status.Phase != phaseAwaitingApproval {
+		t.Fatalf("expected parent phase AwaitingApproval, got %q", superset.Status.Phase)
+	}
+	if got := superset.Status.Lifecycle.Upgrade.ApprovalToken; got != token {
+		t.Fatalf("expected approval token %q, got %q", token, got)
+	}
+
+	_, gated = r.checkUpgradeGates(context.Background(), superset, true, lastImage, currentImage)
+	if gated {
+		t.Fatal("expected matching recorded approval token to allow the upgrade")
+	}
+}
+
+func TestCheckUpgradeGates_StaleApprovalDoesNotApproveChangedTarget(t *testing.T) {
+	mode := upgradeModeSupervised
+	lastImage := "apache/superset:1.0.0"
+	oldTarget := "apache/superset:1.1.0"
+	newTarget := "apache/superset:1.2.0"
+	oldToken := upgradeApprovalToken(lastImage, oldTarget)
+	newToken := upgradeApprovalToken(lastImage, newTarget)
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "test",
+			Namespace:   "default",
+			Annotations: map[string]string{annotationApproveUpgrade: oldToken},
+		},
+		Spec: supersetv1alpha1.SupersetSpec{
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{UpgradeMode: &mode},
+		},
+		Status: supersetv1alpha1.SupersetStatus{
+			Lifecycle: &supersetv1alpha1.LifecycleStatus{
+				Upgrade: &supersetv1alpha1.UpgradeContext{
+					FromVersion:   "1.0.0",
+					ToVersion:     "1.1.0",
+					Direction:     string(DirectionUpgrade),
+					ApprovalToken: oldToken,
+				},
+			},
+		},
+	}
+	r := &SupersetReconciler{}
+
+	_, gated := r.checkUpgradeGates(context.Background(), superset, true, lastImage, newTarget)
+	if !gated {
+		t.Fatal("expected stale approval token to keep the changed target gated")
+	}
+	if got := superset.Status.Lifecycle.Upgrade.ToVersion; got != "1.2.0" {
+		t.Fatalf("expected upgrade context to move to 1.2.0, got %q", got)
+	}
+	if got := superset.Status.Lifecycle.Upgrade.ApprovalToken; got != newToken {
+		t.Fatalf("expected new approval token %q, got %q", newToken, got)
+	}
+}
+
 // TestClearUpgradeApprovalAnnotation_RemovesAnnotation covers finding #6:
 // the annotation-clearing helper must actually remove the annotation when
 // invoked. This guards the "happy path" piece of the bug fix.

@@ -216,8 +216,11 @@ spec:
 		expectJSONPath("superset", crName, "{.status.lifecycle.upgrade.direction}", "Upgrade", time.Minute)
 
 		By("approving the supervised upgrade")
-		_, err := runKubectl("annotate", "superset", crName, "-n", namespace,
-			"superset.apache.org/approve-upgrade=true", "--overwrite")
+		token, err := jsonPath("superset", crName, "{.status.lifecycle.upgrade.approvalToken}")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(token).NotTo(BeEmpty())
+		_, err = runKubectl("annotate", "superset", crName, "-n", namespace,
+			"superset.apache.org/approve-upgrade="+token, "--overwrite")
 		Expect(err).NotTo(HaveOccurred())
 
 		By("verifying the image change is settled")

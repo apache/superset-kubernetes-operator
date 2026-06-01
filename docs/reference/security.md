@@ -48,6 +48,15 @@ A `Superset` CR controls all of the above plus arbitrary Python configuration
 via `spec.config`. Restrict access to the `supersets` resource using Kubernetes
 RBAC.
 
+Supervised upgrade approval is object-local and uses the
+`superset.apache.org/approve-upgrade` annotation on the `Superset` CR. This is
+not a separate authorization boundary from `Superset` write access: anyone with
+permission to patch or update the `Superset` resource can approve an image
+change by setting the annotation to the approval token recorded in
+`status.lifecycle.upgrade.approvalToken`. Clusters that need a distinct approver
+role that cannot modify the parent CR spec should enforce that separation with
+an external admission policy or a separate approval API.
+
 ### Single Public CRD
 
 The operator exposes one public custom resource, `Superset`. Component
@@ -238,6 +247,17 @@ repeat review cycles:
   deleted during reconciliation. This is within the trust model: users who can
   create or update Superset CRs are trusted namespace operators and already have
   the effective ability to manage the corresponding workloads and resources.
+- **Supervised upgrade approval uses a consumed, target-bound annotation.** In
+  supervised mode, an image change is gated on the
+  `superset.apache.org/approve-upgrade` annotation matching the approval token
+  recorded in `status.lifecycle.upgrade.approvalToken`. The token is derived
+  from the observed source and target image refs, so a later spec update changes
+  the token and requires a separate approval. After lifecycle completion is
+  persisted to status, the operator deletes the annotation so a stale approval
+  cannot authorize a later image change. Kubernetes RBAC cannot grant
+  metadata-only patch access, so the manager has `patch` on `supersets`; the
+  implementation uses that permission only to remove the approval annotation
+  from the parent resource.
 - **NetworkPolicy provides baseline ingress segmentation, not egress
   restriction.** When the built-in NetworkPolicy is enabled, the operator
   installs policies that isolate ingress between Superset instances and allow
@@ -277,7 +297,7 @@ across namespaces. Each permission is justified below:
 | `httproutes` | CRUD | Optional Gateway API support |
 | `servicemonitors` | CRUD | Optional Prometheus integration |
 | `tokenreviews`, `subjectaccessreviews` | create | Metrics endpoint auth/authz (controller-runtime secure metrics) |
-| `supersets` | get, list, watch | Reads `Superset` CRs (no write access to the CR spec) |
+| `supersets` | get, list, watch, patch | Reads `Superset` CRs and patches metadata to consume target-bound supervised-upgrade approval; Kubernetes RBAC is not field-scoped |
 | `supersets/status` | get, update, patch | Updates reconciliation status only |
 
 The operator does **not** request:

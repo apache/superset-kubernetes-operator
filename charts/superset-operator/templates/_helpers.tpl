@@ -152,5 +152,5 @@ desired indentation.
   verbs: [get, patch, update]
 - apiGroups: [superset.apache.org]
   resources: [supersets]
-  verbs: [get, list, watch]
+  verbs: [get, list, patch, watch]
 {{- end }}

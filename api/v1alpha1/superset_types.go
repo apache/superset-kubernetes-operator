@@ -384,7 +384,7 @@ type SchedulableBaseTaskSpec struct {
 type LifecycleSpec struct {
 	// UpgradeMode controls whether upgrades require manual approval.
 	// Automatic runs immediately on image change; Supervised waits for an
-	// approval annotation before proceeding.
+	// approval annotation matching the recorded upgrade token before proceeding.
 	// +optional
 	// +kubebuilder:validation:Enum=Automatic;Supervised
 	// +kubebuilder:default=Automatic
@@ -868,6 +868,9 @@ type UpgradeContext struct {
 	// +optional
 	// +kubebuilder:validation:Enum=Upgrade;Downgrade;Unknown
 	Direction string `json:"direction,omitempty"`
+	// ApprovalToken is the annotation value required to approve this exact upgrade transition.
+	// +optional
+	ApprovalToken string `json:"approvalToken,omitempty"`
 	// +optional
 	StartedAt *metav1.Time `json:"startedAt,omitempty"`
 }
