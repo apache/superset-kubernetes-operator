@@ -52,17 +52,22 @@ func TestE2E(t *testing.T) {
 var _ = BeforeSuite(func() {
 	if os.Getenv("E2E_SKIP_BUILD_LOAD") != "" {
 		_, _ = fmt.Fprintf(GinkgoWriter, "E2E_SKIP_BUILD_LOAD set — skipping image build and kind load\n")
-		return
+	} else {
+		By("building the manager(Operator) image")
+		cmd := exec.Command("make", "docker-build", fmt.Sprintf("IMG=%s", projectImage))
+		_, err := utils.Run(cmd)
+		ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to build the manager(Operator) image")
+
+		By("loading the manager(Operator) image on Kind")
+		err = utils.LoadImageToKindClusterWithName(projectImage)
+		ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to load the manager(Operator) image into Kind")
 	}
 
-	By("building the manager(Operator) image")
-	cmd := exec.Command("make", "docker-build", fmt.Sprintf("IMG=%s", projectImage))
-	_, err := utils.Run(cmd)
-	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to build the manager(Operator) image")
+	setupManager()
+})
 
-	By("loading the manager(Operator) image on Kind")
-	err = utils.LoadImageToKindClusterWithName(projectImage)
-	ExpectWithOffset(1, err).NotTo(HaveOccurred(), "Failed to load the manager(Operator) image into Kind")
+var _ = AfterSuite(func() {
+	teardownManager()
 })
 
 func getEnvOrDefault(key, fallback string) string {
