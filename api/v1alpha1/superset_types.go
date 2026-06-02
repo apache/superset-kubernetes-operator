@@ -141,9 +141,11 @@ type SupersetSpec struct {
 	// +optional
 	CeleryFlower *CeleryFlowerComponentSpec `json:"celeryFlower,omitempty"`
 	// WebSocket server for real-time updates (Node.js, no Python config).
-	// Experimental: the websocket server is not yet well supported (it requires a
-	// custom Node.js image, and gateway/ingress routing for it is unvalidated).
-	// Treat it as subject to change.
+	// Experimental: the websocket server is not yet well supported and is
+	// pending security hardening — it may exhibit gaps in the operator (e.g.
+	// unvalidated gateway/ingress routing) or upstream in the Superset/websocket
+	// image. It requires a custom Node.js image. Treat it as subject to change
+	// and avoid enabling it in production until it is hardened.
 	// +optional
 	WebsocketServer *WebsocketServerComponentSpec `json:"websocketServer,omitempty"`
 	// FastMCP server component for AI tooling integration.

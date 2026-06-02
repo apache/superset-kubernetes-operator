@@ -612,10 +612,13 @@ spec:
 ## Websocket Server
 
 !!! warning "Experimental"
-    The websocket server is **experimental and not yet well supported**. It
-    requires a custom Node.js image (below), and path-based gateway/ingress
-    routing to it is unvalidated. Treat its spec and behavior as subject to
-    change.
+    The websocket server is **experimental and pending security hardening**. It
+    is not yet well supported and may exhibit gaps, either in the operator (e.g.
+    unvalidated path-based gateway/ingress routing) or upstream in the Node.js
+    websocket image. It requires a custom Node.js image (below). Treat its spec
+    and behavior as subject to change, and avoid enabling it in production until
+    it is hardened. See the [security reference](../reference/security.md#what-is-generally-out-of-scope)
+    for details.
 
 Enable Superset's async event streaming by setting `websocketServer`. This
 deploys a **Node.js** application (not Python) that pushes real-time updates to

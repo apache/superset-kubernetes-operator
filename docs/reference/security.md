@@ -441,6 +441,16 @@ one of these conditions materially worse:
 - **Workload pod security contexts** — the operator propagates user-configured
   security contexts but does not enforce defaults; workload pod hardening is
   the user's responsibility (see the production sample for recommended settings)
+- **Websocket server is experimental and pending security hardening** — the
+  `websocketServer` component is not yet well supported and may exhibit gaps,
+  either in the operator (e.g. unvalidated gateway/ingress routing) or upstream
+  in the Node.js websocket image, which is community-maintained and not part of
+  the default Superset image. Treat it as subject to change and avoid enabling
+  it in production until it is hardened. Note that in Development mode the
+  inline `websocketServer.config` is written to a ConfigMap — the one place an
+  inline secret (e.g. the websocket JWT secret) legitimately lands in a
+  ConfigMap. Staging and Production reject inline `config` and require
+  `websocketServer.configFrom`, which mounts the referenced Secret as a file.
 - **Network-level attacks** (MITM, DNS spoofing) — these are infrastructure
   concerns outside the operator's control
 - **Missing features** (e.g., "should support Vault integration") — these are
@@ -470,3 +480,7 @@ This policy covers the Superset Kubernetes Operator and its components:
 - Controller reconciliation logic
 - RBAC and resource management
 - Helm chart and deployment manifests
+
+The `websocketServer` component is experimental and pending security hardening
+(see [What Is Generally Out of Scope](#what-is-generally-out-of-scope)); its
+guarantees are best-effort until that work is complete.

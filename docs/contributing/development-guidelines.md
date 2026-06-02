@@ -63,6 +63,19 @@ Across all tiers:
   to implementation, not behavior, and should be rewritten to assert on
   observable outputs or removed entirely.
 
+### Security and the threat model
+
+The [security reference](../reference/security.md) is the source of truth for the
+operator's security guarantees. Keep it and the tests that guard it in lockstep:
+
+- **When you change the threat model**, update the corresponding security
+  regression tests in the same PR (e.g. the ConfigMap no-leak guard, the RBAC
+  scope guard, and the CEL secret-gating specs) so the guarantees and their
+  guards never drift apart.
+- **When you add a feature**, confirm the threat model still holds — update it
+  if the change introduces a new trust boundary, secret, or risk surface — and
+  add tests covering that new security surface.
+
 ### Test pyramid
 
 We use a **pyramid testing strategy** where the vast majority of logic is

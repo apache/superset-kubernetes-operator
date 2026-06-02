@@ -26,22 +26,19 @@ import (
 )
 
 var _ = Describe("Superset CRD validation", func() {
-	DescribeTable("rejects inline secrets outside Development",
-		func(name, spec, want string) {
-			cr := fmt.Sprintf(`apiVersion: superset.apache.org/v1alpha1
+	// Inline-secret rejection is exhaustively covered at the integration tier
+	// (internal/controller/cel_validation_test.go, "rejects inline secrets
+	// outside Development"). Here we keep a single representative smoke case to
+	// confirm the CEL rules are compiled into the CRD as actually installed and
+	// enforced by a real cluster's admission path.
+	It("rejects an inline secretKey outside Development", func() {
+		cr := fmt.Sprintf(`apiVersion: superset.apache.org/v1alpha1
 kind: Superset
 metadata:
-  name: %s
+  name: invalid-inline-secretkey
   namespace: %s
 spec:
-%s
-`, name, namespace, spec)
-
-			output, err := serverDryRunYAML(name, cr, false)
-			Expect(err).To(HaveOccurred())
-			Expect(output).To(ContainSubstring(want))
-		},
-		Entry("secretKey", "invalid-inline-secretkey", `  image:
+  image:
     tag: "latest"
   environment: Production
   secretKey: plain-text-key
@@ -51,49 +48,12 @@ spec:
       key: uri
   lifecycle:
     disabled: true
-`, "secretKey is only allowed"),
-		Entry("metastore.uri", "invalid-inline-db-uri", `  image:
-    tag: "latest"
-  environment: Production
-  secretKeyFrom:
-    name: app-secret
-    key: secret-key
-  metastore:
-    uri: postgresql+psycopg2://u:p@postgres:5432/superset
-  lifecycle:
-    disabled: true
-`, "metastore.uri is only allowed"),
-		Entry("metastore.password", "invalid-inline-db-password", `  image:
-    tag: "latest"
-  environment: Production
-  secretKeyFrom:
-    name: app-secret
-    key: secret-key
-  metastore:
-    host: postgres
-    database: superset
-    username: superset
-    password: plain-text-password
-  lifecycle:
-    disabled: true
-`, "metastore.password is only allowed"),
-		Entry("valkey.password", "invalid-inline-valkey-password", `  image:
-    tag: "latest"
-  environment: Production
-  secretKeyFrom:
-    name: app-secret
-    key: secret-key
-  metastore:
-    uriFrom:
-      name: db-secret
-      key: uri
-  valkey:
-    host: valkey
-    password: plain-text-password
-  lifecycle:
-    disabled: true
-`, "valkey.password is only allowed"),
-	)
+`, namespace)
+
+		output, err := serverDryRunYAML("invalid-inline-secretkey", cr, false)
+		Expect(err).To(HaveOccurred())
+		Expect(output).To(ContainSubstring("secretKey is only allowed"))
+	})
 
 	It("rejects namespace fields on SecretKeySelector references", func() {
 		cr := fmt.Sprintf(`apiVersion: superset.apache.org/v1alpha1

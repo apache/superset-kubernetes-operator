@@ -27,6 +27,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
+	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -105,6 +106,50 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 		}
 	})
+
+	// --- Secret externalization (inline secrets rejected outside Development) ---
+	//
+	// This is the comprehensive matrix for the flagship "secrets must be
+	// externalized in Staging/Production" guarantee. It lives at the integration
+	// tier because CEL validation needs a real API server; e2e keeps a single
+	// representative smoke case to confirm the rules ship in the installed CRD.
+
+	DescribeTable("rejects inline secrets outside Development",
+		func(name string, mutate func(*supersetv1alpha1.Superset), want string) {
+			cr := validProdSuperset(name)
+			mutate(cr)
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(want))
+		},
+		Entry("secretKey", "inline-secretkey-prod",
+			func(s *supersetv1alpha1.Superset) {
+				s.Spec.SecretKey = strPtr("plain-text-key")
+				s.Spec.SecretKeyFrom = nil
+			}, "secretKey is only allowed"),
+		Entry("metastore.uri", "inline-db-uri-prod",
+			func(s *supersetv1alpha1.Superset) {
+				s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+					URI: strPtr("postgresql+psycopg2://u:p@postgres:5432/superset"),
+				}
+			}, "metastore.uri is only allowed"),
+		Entry("metastore.password", "inline-db-pw-prod",
+			func(s *supersetv1alpha1.Superset) {
+				s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+					Host:     strPtr("postgres"),
+					Database: strPtr("superset"),
+					Username: strPtr("superset"),
+					Password: strPtr("plain-text-password"),
+				}
+			}, "metastore.password is only allowed"),
+		Entry("valkey.password", "inline-valkey-pw-prod",
+			func(s *supersetv1alpha1.Superset) {
+				s.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
+					Host:     "valkey",
+					Password: strPtr("plain-text-password"),
+				}
+			}, "valkey.password is only allowed"),
+	)
 
 	// --- Metastore field constraints ---
 
@@ -494,6 +539,41 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("init.command is mutually exclusive"))
+		})
+	})
+
+	// --- Websocket server (experimental; config carries a JWT secret) ---
+
+	Describe("Websocket", func() {
+		// A valid image override is set so the image-required rule does not fire,
+		// isolating the rule under test.
+		wsImage := func() supersetv1alpha1.ComponentSpec {
+			return supersetv1alpha1.ComponentSpec{
+				Image: &supersetv1alpha1.ImageOverrideSpec{Repository: strPtr("example.com/superset-websocket")},
+			}
+		}
+
+		It("rejects inline websocketServer.config outside Development", func() {
+			cr := validProdSuperset("ws-config-prod")
+			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
+				ComponentSpec: wsImage(),
+				Config:        &apiextensionsv1.JSON{Raw: []byte(`{"port":8080,"jwtSecret":"plain"}`)},
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("websocketServer.config is only allowed"))
+		})
+
+		It("rejects websocketServer.config together with configFrom", func() {
+			cr := validDevSuperset("ws-config-both")
+			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
+				ComponentSpec: wsImage(),
+				Config:        &apiextensionsv1.JSON{Raw: []byte(`{"port":8080}`)},
+				ConfigFrom:    secretRef("ws-config", "config.json"),
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("mutually exclusive"))
 		})
 	})
 
