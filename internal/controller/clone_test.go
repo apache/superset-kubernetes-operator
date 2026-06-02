@@ -37,293 +37,302 @@ import (
 	"github.com/apache/superset-kubernetes-operator/internal/resolution"
 )
 
-func TestBuildPostgresCloneScript(t *testing.T) {
-	clone := &supersetv1alpha1.CloneTaskSpec{
-		Source: supersetv1alpha1.CloneSourceSpec{
-			Host:     "pg-prod.svc",
-			Database: "superset_prod",
-			Username: "reader",
-		},
-	}
-
-	script := buildPostgresCloneScript(clone)
-
-	if !strings.Contains(script, "set -e") {
-		t.Error("expected set -e")
-	}
-	if !strings.Contains(script, "dropdb --if-exists") {
-		t.Error("expected dropdb")
-	}
-	if !strings.Contains(script, "createdb") {
-		t.Error("expected createdb")
-	}
-	if !strings.Contains(script, "pg_dump") {
-		t.Error("expected pg_dump")
-	}
-	if !strings.Contains(script, "--no-owner --no-privileges") {
-		t.Error("expected --no-owner --no-privileges")
-	}
-	if !strings.Contains(script, "| PGPASSWORD") {
-		t.Error("expected pipe to psql")
-	}
-}
-
-func TestBuildPostgresCloneScript_ExcludeTables(t *testing.T) {
-	clone := &supersetv1alpha1.CloneTaskSpec{
-		Source: supersetv1alpha1.CloneSourceSpec{
-			Host:     "pg-prod.svc",
-			Database: "superset_prod",
-			Username: "reader",
-		},
-		ExcludeTables:    []string{"logs", "tab_state"},
-		ExcludeTableData: []string{"query", "saved_query"},
-	}
-
-	script := buildPostgresCloneScript(clone)
-
-	if !strings.Contains(script, `--exclude-table="logs"`) {
-		t.Errorf("expected --exclude-table for logs, got: %s", script)
-	}
-	if !strings.Contains(script, `--exclude-table="tab_state"`) {
-		t.Errorf("expected --exclude-table for tab_state, got: %s", script)
-	}
-	if !strings.Contains(script, `--exclude-table-data="query"`) {
-		t.Errorf("expected --exclude-table-data for query, got: %s", script)
-	}
-	if !strings.Contains(script, `--exclude-table-data="saved_query"`) {
-		t.Errorf("expected --exclude-table-data for saved_query, got: %s", script)
-	}
-}
-
-func TestBuildMySQLCloneScript(t *testing.T) {
-	mysqlType := "MySQL"
-	clone := &supersetv1alpha1.CloneTaskSpec{
-		Source: supersetv1alpha1.CloneSourceSpec{
-			Type:     &mysqlType,
-			Host:     "mysql-prod.svc",
-			Database: "superset_prod",
-			Username: "reader",
-		},
-	}
-
-	script := buildMySQLCloneScript(clone)
-
-	if !strings.Contains(script, "set -e") {
-		t.Error("expected set -e")
-	}
-	if !strings.Contains(script, "DROP DATABASE IF EXISTS") {
-		t.Error("expected DROP DATABASE")
-	}
-	if !strings.Contains(script, "CREATE DATABASE") {
-		t.Error("expected CREATE DATABASE")
-	}
-	if !strings.Contains(script, "mysqldump") {
-		t.Error("expected mysqldump")
-	}
-	if !strings.Contains(script, "--single-transaction") {
-		t.Error("expected --single-transaction")
-	}
-	if !strings.Contains(script, "| mysql") {
-		t.Error("expected pipe to mysql")
-	}
-	if strings.Contains(script, "`") {
-		t.Error("script must not contain backticks (shell command substitution)")
-	}
-}
-
-func TestBuildMySQLCloneScript_ExcludeTables(t *testing.T) {
-	mysqlType := "MySQL"
-	clone := &supersetv1alpha1.CloneTaskSpec{
-		Source: supersetv1alpha1.CloneSourceSpec{
-			Type:     &mysqlType,
-			Host:     "mysql-prod.svc",
-			Database: "superset_prod",
-			Username: "reader",
-		},
-		ExcludeTables: []string{"logs", "tab_state"},
-	}
-
-	script := buildMySQLCloneScript(clone)
-
-	if !strings.Contains(script, `--ignore-table="$SUPERSET_OPERATOR__CLONE_SRC_DB"."logs"`) {
-		t.Errorf("expected --ignore-table for logs, got: %s", script)
-	}
-	if !strings.Contains(script, `--ignore-table="$SUPERSET_OPERATOR__CLONE_SRC_DB"."tab_state"`) {
-		t.Errorf("expected --ignore-table for tab_state, got: %s", script)
-	}
-}
-
-func TestBuildMySQLCloneScript_ExcludeTableData(t *testing.T) {
-	mysqlType := "MySQL"
-	clone := &supersetv1alpha1.CloneTaskSpec{
-		Source: supersetv1alpha1.CloneSourceSpec{
-			Type:     &mysqlType,
-			Host:     "mysql-prod.svc",
-			Database: "superset_prod",
-			Username: "reader",
-		},
-		ExcludeTables:    []string{"tab_state"},
-		ExcludeTableData: []string{"logs", "query"},
-	}
-
-	script := buildMySQLCloneScript(clone)
-
-	// Schema-only pass for ExcludeTableData tables.
-	if !strings.Contains(script, `--no-data`) {
-		t.Errorf("expected --no-data pass for ExcludeTableData, got: %s", script)
-	}
-	if strings.Contains(script, "--skip-triggers") {
-		t.Errorf("schema-only pass must preserve triggers (mirrors Postgres --exclude-table-data which keeps schema objects), got: %s", script)
-	}
-	if !strings.Contains(script, `"$SUPERSET_OPERATOR__CLONE_SRC_DB" "logs" "query"`) {
-		t.Errorf("expected schema-only dump to list logs and query tables, got: %s", script)
-	}
-
-	// Data pass should --ignore-table both ExcludeTables and ExcludeTableData.
-	for _, table := range []string{"tab_state", "logs", "query"} {
-		needle := `--ignore-table="$SUPERSET_OPERATOR__CLONE_SRC_DB".` + fmt.Sprintf("%q", table)
-		if !strings.Contains(script, needle) {
-			t.Errorf("expected --ignore-table for %q in data pass, got: %s", table, script)
-		}
-	}
-
-	// Combined output piped to mysql.
-	if !strings.Contains(script, `) | mysql `) {
-		t.Errorf("expected grouped passes piped into mysql, got: %s", script)
-	}
-}
-
-func TestBuildMySQLCloneScript_NoExcludeTableDataKeepsSinglePass(t *testing.T) {
-	mysqlType := "MySQL"
-	clone := &supersetv1alpha1.CloneTaskSpec{
-		Source: supersetv1alpha1.CloneSourceSpec{
-			Type:     &mysqlType,
-			Host:     "mysql-prod.svc",
-			Database: "superset_prod",
-			Username: "reader",
-		},
-	}
-
-	script := buildMySQLCloneScript(clone)
-
-	if strings.Contains(script, "--no-data") {
-		t.Errorf("did not expect --no-data pass when ExcludeTableData is empty, got: %s", script)
-	}
-}
-
-func TestBuildCloneScript_PostCloneSQL(t *testing.T) {
-	t.Run("postgres", func(t *testing.T) {
+// TestBuildCloneScript covers the clone-script builders (buildPostgresCloneScript /
+// buildMySQLCloneScript): base dump+restore pipelines, table and table-data
+// exclusions, single- vs two-pass mysqldump, and postCloneSQL injection.
+func TestBuildCloneScript(t *testing.T) {
+	t.Run("postgres base", func(t *testing.T) {
 		clone := &supersetv1alpha1.CloneTaskSpec{
 			Source: supersetv1alpha1.CloneSourceSpec{
-				Host: "pg-prod.svc", Database: "superset_prod", Username: "reader",
-			},
-			PostCloneSQL: []string{
-				"UPDATE report_schedule SET active = false",
-				"DELETE FROM oauth2_token",
+				Host:     "pg-prod.svc",
+				Database: "superset_prod",
+				Username: "reader",
 			},
 		}
 
 		script := buildPostgresCloneScript(clone)
 
-		if !strings.Contains(script, `psql`) {
-			t.Fatal("expected psql in script")
+		if !strings.Contains(script, "set -e") {
+			t.Error("expected set -e")
 		}
-		if !strings.Contains(script, `-c "UPDATE report_schedule SET active = false"`) {
-			t.Errorf("expected first postCloneSQL statement, got: %s", script)
+		if !strings.Contains(script, "dropdb --if-exists") {
+			t.Error("expected dropdb")
 		}
-		if !strings.Contains(script, `-c "DELETE FROM oauth2_token"`) {
-			t.Errorf("expected second postCloneSQL statement, got: %s", script)
+		if !strings.Contains(script, "createdb") {
+			t.Error("expected createdb")
+		}
+		if !strings.Contains(script, "pg_dump") {
+			t.Error("expected pg_dump")
+		}
+		if !strings.Contains(script, "--no-owner --no-privileges") {
+			t.Error("expected --no-owner --no-privileges")
+		}
+		if !strings.Contains(script, "| PGPASSWORD") {
+			t.Error("expected pipe to psql")
 		}
 	})
 
-	t.Run("mysql", func(t *testing.T) {
-		mysqlType := "MySQL"
+	t.Run("postgres exclude tables", func(t *testing.T) {
 		clone := &supersetv1alpha1.CloneTaskSpec{
 			Source: supersetv1alpha1.CloneSourceSpec{
-				Type: &mysqlType, Host: "mysql-prod.svc", Database: "superset_prod", Username: "reader",
+				Host:     "pg-prod.svc",
+				Database: "superset_prod",
+				Username: "reader",
 			},
-			PostCloneSQL: []string{"UPDATE report_schedule SET active = 0"},
+			ExcludeTables:    []string{"logs", "tab_state"},
+			ExcludeTableData: []string{"query", "saved_query"},
 		}
 
-		script := buildMySQLCloneScript(clone)
+		script := buildPostgresCloneScript(clone)
 
-		if !strings.Contains(script, `-e "UPDATE report_schedule SET active = 0"`) {
-			t.Errorf("expected postCloneSQL statement in mysql script, got: %s", script)
+		if !strings.Contains(script, `--exclude-table="logs"`) {
+			t.Errorf("expected --exclude-table for logs, got: %s", script)
+		}
+		if !strings.Contains(script, `--exclude-table="tab_state"`) {
+			t.Errorf("expected --exclude-table for tab_state, got: %s", script)
+		}
+		if !strings.Contains(script, `--exclude-table-data="query"`) {
+			t.Errorf("expected --exclude-table-data for query, got: %s", script)
+		}
+		if !strings.Contains(script, `--exclude-table-data="saved_query"`) {
+			t.Errorf("expected --exclude-table-data for saved_query, got: %s", script)
 		}
 	})
-}
 
-func TestBuildCloneCommand_CustomCommand(t *testing.T) {
-	r := &SupersetReconciler{}
-	superset := &supersetv1alpha1.Superset{}
-	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Clone: &supersetv1alpha1.CloneTaskSpec{
-			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
-				BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{
-					Command: []string{"/bin/sh", "-c", "custom-clone-script.sh"},
-				},
-			},
-			Source: supersetv1alpha1.CloneSourceSpec{
-				Host:     "pg-prod.svc",
-				Database: "superset_prod",
-				Username: "reader",
-			},
-		},
-	}
-
-	cmd := r.buildCloneCommand(superset)
-
-	if len(cmd) != 3 || cmd[2] != "custom-clone-script.sh" {
-		t.Errorf("expected custom command, got: %v", cmd)
-	}
-}
-
-func TestBuildCloneCommand_DefaultPostgres(t *testing.T) {
-	r := &SupersetReconciler{}
-	superset := &supersetv1alpha1.Superset{}
-	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Clone: &supersetv1alpha1.CloneTaskSpec{
-			Source: supersetv1alpha1.CloneSourceSpec{
-				Host:     "pg-prod.svc",
-				Database: "superset_prod",
-				Username: "reader",
-			},
-		},
-	}
-
-	cmd := r.buildCloneCommand(superset)
-
-	if len(cmd) != 3 || cmd[0] != "/bin/sh" || cmd[1] != "-c" {
-		t.Fatalf("expected shell command, got: %v", cmd)
-	}
-	if !strings.Contains(cmd[2], "pg_dump") {
-		t.Errorf("expected pg_dump in command, got: %s", cmd[2])
-	}
-}
-
-func TestBuildCloneCommand_MySQL(t *testing.T) {
-	r := &SupersetReconciler{}
-	mysqlType := "MySQL"
-	superset := &supersetv1alpha1.Superset{}
-	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Clone: &supersetv1alpha1.CloneTaskSpec{
+	t.Run("mysql base", func(t *testing.T) {
+		mysqlType := "MySQL"
+		clone := &supersetv1alpha1.CloneTaskSpec{
 			Source: supersetv1alpha1.CloneSourceSpec{
 				Type:     &mysqlType,
 				Host:     "mysql-prod.svc",
 				Database: "superset_prod",
 				Username: "reader",
 			},
-		},
-	}
+		}
 
-	cmd := r.buildCloneCommand(superset)
+		script := buildMySQLCloneScript(clone)
 
-	if len(cmd) != 3 || cmd[0] != "/bin/sh" || cmd[1] != "-c" {
-		t.Fatalf("expected shell command, got: %v", cmd)
-	}
-	if !strings.Contains(cmd[2], "mysqldump") {
-		t.Errorf("expected mysqldump in command, got: %s", cmd[2])
-	}
+		if !strings.Contains(script, "set -e") {
+			t.Error("expected set -e")
+		}
+		if !strings.Contains(script, "DROP DATABASE IF EXISTS") {
+			t.Error("expected DROP DATABASE")
+		}
+		if !strings.Contains(script, "CREATE DATABASE") {
+			t.Error("expected CREATE DATABASE")
+		}
+		if !strings.Contains(script, "mysqldump") {
+			t.Error("expected mysqldump")
+		}
+		if !strings.Contains(script, "--single-transaction") {
+			t.Error("expected --single-transaction")
+		}
+		if !strings.Contains(script, "| mysql") {
+			t.Error("expected pipe to mysql")
+		}
+		if strings.Contains(script, "`") {
+			t.Error("script must not contain backticks (shell command substitution)")
+		}
+	})
+
+	t.Run("mysql exclude tables", func(t *testing.T) {
+		mysqlType := "MySQL"
+		clone := &supersetv1alpha1.CloneTaskSpec{
+			Source: supersetv1alpha1.CloneSourceSpec{
+				Type:     &mysqlType,
+				Host:     "mysql-prod.svc",
+				Database: "superset_prod",
+				Username: "reader",
+			},
+			ExcludeTables: []string{"logs", "tab_state"},
+		}
+
+		script := buildMySQLCloneScript(clone)
+
+		if !strings.Contains(script, `--ignore-table="$SUPERSET_OPERATOR__CLONE_SRC_DB"."logs"`) {
+			t.Errorf("expected --ignore-table for logs, got: %s", script)
+		}
+		if !strings.Contains(script, `--ignore-table="$SUPERSET_OPERATOR__CLONE_SRC_DB"."tab_state"`) {
+			t.Errorf("expected --ignore-table for tab_state, got: %s", script)
+		}
+	})
+
+	t.Run("mysql exclude table data", func(t *testing.T) {
+		mysqlType := "MySQL"
+		clone := &supersetv1alpha1.CloneTaskSpec{
+			Source: supersetv1alpha1.CloneSourceSpec{
+				Type:     &mysqlType,
+				Host:     "mysql-prod.svc",
+				Database: "superset_prod",
+				Username: "reader",
+			},
+			ExcludeTables:    []string{"tab_state"},
+			ExcludeTableData: []string{"logs", "query"},
+		}
+
+		script := buildMySQLCloneScript(clone)
+
+		// Schema-only pass for ExcludeTableData tables.
+		if !strings.Contains(script, `--no-data`) {
+			t.Errorf("expected --no-data pass for ExcludeTableData, got: %s", script)
+		}
+		if strings.Contains(script, "--skip-triggers") {
+			t.Errorf("schema-only pass must preserve triggers (mirrors Postgres --exclude-table-data which keeps schema objects), got: %s", script)
+		}
+		if !strings.Contains(script, `"$SUPERSET_OPERATOR__CLONE_SRC_DB" "logs" "query"`) {
+			t.Errorf("expected schema-only dump to list logs and query tables, got: %s", script)
+		}
+
+		// Data pass should --ignore-table both ExcludeTables and ExcludeTableData.
+		for _, table := range []string{"tab_state", "logs", "query"} {
+			needle := `--ignore-table="$SUPERSET_OPERATOR__CLONE_SRC_DB".` + fmt.Sprintf("%q", table)
+			if !strings.Contains(script, needle) {
+				t.Errorf("expected --ignore-table for %q in data pass, got: %s", table, script)
+			}
+		}
+
+		// Combined output piped to mysql.
+		if !strings.Contains(script, `) | mysql `) {
+			t.Errorf("expected grouped passes piped into mysql, got: %s", script)
+		}
+	})
+
+	t.Run("mysql no exclude table data keeps single pass", func(t *testing.T) {
+		mysqlType := "MySQL"
+		clone := &supersetv1alpha1.CloneTaskSpec{
+			Source: supersetv1alpha1.CloneSourceSpec{
+				Type:     &mysqlType,
+				Host:     "mysql-prod.svc",
+				Database: "superset_prod",
+				Username: "reader",
+			},
+		}
+
+		script := buildMySQLCloneScript(clone)
+
+		if strings.Contains(script, "--no-data") {
+			t.Errorf("did not expect --no-data pass when ExcludeTableData is empty, got: %s", script)
+		}
+	})
+
+	t.Run("postCloneSQL", func(t *testing.T) {
+		t.Run("postgres", func(t *testing.T) {
+			clone := &supersetv1alpha1.CloneTaskSpec{
+				Source: supersetv1alpha1.CloneSourceSpec{
+					Host: "pg-prod.svc", Database: "superset_prod", Username: "reader",
+				},
+				PostCloneSQL: []string{
+					"UPDATE report_schedule SET active = false",
+					"DELETE FROM oauth2_token",
+				},
+			}
+
+			script := buildPostgresCloneScript(clone)
+
+			if !strings.Contains(script, `psql`) {
+				t.Fatal("expected psql in script")
+			}
+			if !strings.Contains(script, `-c "UPDATE report_schedule SET active = false"`) {
+				t.Errorf("expected first postCloneSQL statement, got: %s", script)
+			}
+			if !strings.Contains(script, `-c "DELETE FROM oauth2_token"`) {
+				t.Errorf("expected second postCloneSQL statement, got: %s", script)
+			}
+		})
+
+		t.Run("mysql", func(t *testing.T) {
+			mysqlType := "MySQL"
+			clone := &supersetv1alpha1.CloneTaskSpec{
+				Source: supersetv1alpha1.CloneSourceSpec{
+					Type: &mysqlType, Host: "mysql-prod.svc", Database: "superset_prod", Username: "reader",
+				},
+				PostCloneSQL: []string{"UPDATE report_schedule SET active = 0"},
+			}
+
+			script := buildMySQLCloneScript(clone)
+
+			if !strings.Contains(script, `-e "UPDATE report_schedule SET active = 0"`) {
+				t.Errorf("expected postCloneSQL statement in mysql script, got: %s", script)
+			}
+		})
+	})
+}
+
+// TestBuildCloneCommand covers buildCloneCommand: honoring a user command override
+// and constructing the default /bin/sh dump pipeline for PostgreSQL and MySQL sources.
+func TestBuildCloneCommand(t *testing.T) {
+	t.Run("custom command", func(t *testing.T) {
+		r := &SupersetReconciler{}
+		superset := &supersetv1alpha1.Superset{}
+		superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+			Clone: &supersetv1alpha1.CloneTaskSpec{
+				SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
+					BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{
+						Command: []string{"/bin/sh", "-c", "custom-clone-script.sh"},
+					},
+				},
+				Source: supersetv1alpha1.CloneSourceSpec{
+					Host:     "pg-prod.svc",
+					Database: "superset_prod",
+					Username: "reader",
+				},
+			},
+		}
+
+		cmd := r.buildCloneCommand(superset)
+
+		if len(cmd) != 3 || cmd[2] != "custom-clone-script.sh" {
+			t.Errorf("expected custom command, got: %v", cmd)
+		}
+	})
+
+	t.Run("default postgres", func(t *testing.T) {
+		r := &SupersetReconciler{}
+		superset := &supersetv1alpha1.Superset{}
+		superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+			Clone: &supersetv1alpha1.CloneTaskSpec{
+				Source: supersetv1alpha1.CloneSourceSpec{
+					Host:     "pg-prod.svc",
+					Database: "superset_prod",
+					Username: "reader",
+				},
+			},
+		}
+
+		cmd := r.buildCloneCommand(superset)
+
+		if len(cmd) != 3 || cmd[0] != "/bin/sh" || cmd[1] != "-c" {
+			t.Fatalf("expected shell command, got: %v", cmd)
+		}
+		if !strings.Contains(cmd[2], "pg_dump") {
+			t.Errorf("expected pg_dump in command, got: %s", cmd[2])
+		}
+	})
+
+	t.Run("mysql", func(t *testing.T) {
+		r := &SupersetReconciler{}
+		mysqlType := "MySQL"
+		superset := &supersetv1alpha1.Superset{}
+		superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+			Clone: &supersetv1alpha1.CloneTaskSpec{
+				Source: supersetv1alpha1.CloneSourceSpec{
+					Type:     &mysqlType,
+					Host:     "mysql-prod.svc",
+					Database: "superset_prod",
+					Username: "reader",
+				},
+			},
+		}
+
+		cmd := r.buildCloneCommand(superset)
+
+		if len(cmd) != 3 || cmd[0] != "/bin/sh" || cmd[1] != "-c" {
+			t.Fatalf("expected shell command, got: %v", cmd)
+		}
+		if !strings.Contains(cmd[2], "mysqldump") {
+			t.Errorf("expected mysqldump in command, got: %s", cmd[2])
+		}
+	})
 }
 
 func TestBuildCloneTaskFlatSpec_CommandOnContainer(t *testing.T) {
@@ -519,113 +528,117 @@ func TestCollectCloneEnvVars_SecretRef(t *testing.T) {
 	t.Error("SUPERSET_OPERATOR__CLONE_SRC_PASS not found in env vars")
 }
 
-func TestResolveCloneImage_DefaultPostgres(t *testing.T) {
-	clone := &supersetv1alpha1.CloneTaskSpec{
-		Source: supersetv1alpha1.CloneSourceSpec{
-			Host:     "pg-prod.svc",
-			Database: "superset_prod",
-			Username: "reader",
-		},
-	}
+// TestResolveCloneImage covers resolveCloneImage: type-appropriate defaults
+// (postgres/mysql), full custom overrides, and partial overrides that inherit the
+// database tooling repository or tag rather than the Superset image.
+func TestResolveCloneImage(t *testing.T) {
+	t.Run("default postgres", func(t *testing.T) {
+		clone := &supersetv1alpha1.CloneTaskSpec{
+			Source: supersetv1alpha1.CloneSourceSpec{
+				Host:     "pg-prod.svc",
+				Database: "superset_prod",
+				Username: "reader",
+			},
+		}
 
-	img := resolveCloneImage(clone)
+		img := resolveCloneImage(clone)
 
-	if img.Repository != "postgres" || img.Tag != "17-alpine" {
-		t.Errorf("expected postgres:17-alpine, got: %s:%s", img.Repository, img.Tag)
-	}
-}
+		if img.Repository != "postgres" || img.Tag != "17-alpine" {
+			t.Errorf("expected postgres:17-alpine, got: %s:%s", img.Repository, img.Tag)
+		}
+	})
 
-func TestResolveCloneImage_DefaultMySQL(t *testing.T) {
-	mysqlType := "MySQL"
-	clone := &supersetv1alpha1.CloneTaskSpec{
-		Source: supersetv1alpha1.CloneSourceSpec{
-			Type:     &mysqlType,
-			Host:     "mysql-prod.svc",
-			Database: "superset_prod",
-			Username: "reader",
-		},
-	}
+	t.Run("default mysql", func(t *testing.T) {
+		mysqlType := "MySQL"
+		clone := &supersetv1alpha1.CloneTaskSpec{
+			Source: supersetv1alpha1.CloneSourceSpec{
+				Type:     &mysqlType,
+				Host:     "mysql-prod.svc",
+				Database: "superset_prod",
+				Username: "reader",
+			},
+		}
 
-	img := resolveCloneImage(clone)
+		img := resolveCloneImage(clone)
 
-	if img.Repository != "mysql" || img.Tag != "8-alpine" {
-		t.Errorf("expected mysql:8-alpine, got: %s:%s", img.Repository, img.Tag)
-	}
-}
+		if img.Repository != "mysql" || img.Tag != "8-alpine" {
+			t.Errorf("expected mysql:8-alpine, got: %s:%s", img.Repository, img.Tag)
+		}
+	})
 
-func TestResolveCloneImage_CustomOverride(t *testing.T) {
-	clone := &supersetv1alpha1.CloneTaskSpec{
-		Source: supersetv1alpha1.CloneSourceSpec{
-			Host:     "pg-prod.svc",
-			Database: "superset_prod",
-			Username: "reader",
-		},
-		Image: &supersetv1alpha1.ContainerImageSpec{
-			Repository: "my-registry/custom-tools",
-			Tag:        "v2",
-		},
-	}
+	t.Run("custom override", func(t *testing.T) {
+		clone := &supersetv1alpha1.CloneTaskSpec{
+			Source: supersetv1alpha1.CloneSourceSpec{
+				Host:     "pg-prod.svc",
+				Database: "superset_prod",
+				Username: "reader",
+			},
+			Image: &supersetv1alpha1.ContainerImageSpec{
+				Repository: "my-registry/custom-tools",
+				Tag:        "v2",
+			},
+		}
 
-	img := resolveCloneImage(clone)
+		img := resolveCloneImage(clone)
 
-	if img.Repository != "my-registry/custom-tools" || img.Tag != "v2" {
-		t.Errorf("expected my-registry/custom-tools:v2, got: %s:%s", img.Repository, img.Tag)
-	}
-}
+		if img.Repository != "my-registry/custom-tools" || img.Tag != "v2" {
+			t.Errorf("expected my-registry/custom-tools:v2, got: %s:%s", img.Repository, img.Tag)
+		}
+	})
 
-// TestResolveCloneImage_PartialOverride asserts that an image spec with only a
-// tag set inherits the type-appropriate database tooling repository, not the
-// Superset image repository — which is the bug ContainerImageSpec was
-// introduced to prevent.
-func TestResolveCloneImage_PartialOverride(t *testing.T) {
-	tests := []struct {
-		name         string
-		srcType      string
-		image        *supersetv1alpha1.ContainerImageSpec
-		expectedRepo string
-		expectedTag  string
-	}{
-		{
-			name:         "tag-only override on PostgreSQL inherits postgres repo",
-			srcType:      dbTypePostgresql,
-			image:        &supersetv1alpha1.ContainerImageSpec{Tag: "16-alpine"},
-			expectedRepo: "postgres",
-			expectedTag:  "16-alpine",
-		},
-		{
-			name:         "tag-only override on MySQL inherits mysql repo",
-			srcType:      dbTypeMySQL,
-			image:        &supersetv1alpha1.ContainerImageSpec{Tag: "9-alpine"},
-			expectedRepo: "mysql",
-			expectedTag:  "9-alpine",
-		},
-		{
-			name:         "repository-only override on PostgreSQL inherits default tag",
-			srcType:      dbTypePostgresql,
-			image:        &supersetv1alpha1.ContainerImageSpec{Repository: "my-registry/postgres"},
-			expectedRepo: "my-registry/postgres",
-			expectedTag:  "17-alpine",
-		},
-	}
+	// partial override: an image spec with only a tag (or only a repository) set
+	// inherits the type-appropriate database tooling repository/tag, not the
+	// Superset image repository — the bug ContainerImageSpec was introduced to prevent.
+	t.Run("partial override", func(t *testing.T) {
+		tests := []struct {
+			name         string
+			srcType      string
+			image        *supersetv1alpha1.ContainerImageSpec
+			expectedRepo string
+			expectedTag  string
+		}{
+			{
+				name:         "tag-only override on PostgreSQL inherits postgres repo",
+				srcType:      dbTypePostgresql,
+				image:        &supersetv1alpha1.ContainerImageSpec{Tag: "16-alpine"},
+				expectedRepo: "postgres",
+				expectedTag:  "16-alpine",
+			},
+			{
+				name:         "tag-only override on MySQL inherits mysql repo",
+				srcType:      dbTypeMySQL,
+				image:        &supersetv1alpha1.ContainerImageSpec{Tag: "9-alpine"},
+				expectedRepo: "mysql",
+				expectedTag:  "9-alpine",
+			},
+			{
+				name:         "repository-only override on PostgreSQL inherits default tag",
+				srcType:      dbTypePostgresql,
+				image:        &supersetv1alpha1.ContainerImageSpec{Repository: "my-registry/postgres"},
+				expectedRepo: "my-registry/postgres",
+				expectedTag:  "17-alpine",
+			},
+		}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			srcType := tt.srcType
-			clone := &supersetv1alpha1.CloneTaskSpec{
-				Source: supersetv1alpha1.CloneSourceSpec{
-					Host:     "src.svc",
-					Database: "src",
-					Username: "reader",
-					Type:     &srcType,
-				},
-				Image: tt.image,
-			}
-			img := resolveCloneImage(clone)
-			if img.Repository != tt.expectedRepo || img.Tag != tt.expectedTag {
-				t.Errorf("expected %s:%s, got %s:%s", tt.expectedRepo, tt.expectedTag, img.Repository, img.Tag)
-			}
-		})
-	}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				srcType := tt.srcType
+				clone := &supersetv1alpha1.CloneTaskSpec{
+					Source: supersetv1alpha1.CloneSourceSpec{
+						Host:     "src.svc",
+						Database: "src",
+						Username: "reader",
+						Type:     &srcType,
+					},
+					Image: tt.image,
+				}
+				img := resolveCloneImage(clone)
+				if img.Repository != tt.expectedRepo || img.Tag != tt.expectedTag {
+					t.Errorf("expected %s:%s, got %s:%s", tt.expectedRepo, tt.expectedTag, img.Repository, img.Tag)
+				}
+			})
+		}
+	})
 }
 
 func TestIsTaskEnabled(t *testing.T) {

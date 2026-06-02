@@ -23,7 +23,6 @@ import (
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Superset lifecycle", func() {
@@ -173,63 +172,5 @@ spec:
 		By("verifying the rotate task completes")
 		expectJSONPath("superset", crName, "{.status.lifecycle.rotate.state}", "Complete", 3*time.Minute)
 		expectJSONPath("superset", crName, "{.status.lifecycle.phase}", "Complete", time.Minute)
-	})
-
-	It("detects image changes and gates supervised upgrades", func() {
-		const crName = "test-image-change"
-		DeferCleanup(deleteSuperset, crName)
-
-		cr := fmt.Sprintf(`apiVersion: superset.apache.org/v1alpha1
-kind: Superset
-metadata:
-  name: %s
-  namespace: %s
-spec:
-  image:
-    repository: apache/superset
-    tag: "1.0.0"
-  environment: Development
-  secretKey: test-secret-key-not-for-production
-  metastore:
-    uri: postgresql+psycopg2://superset:superset@postgres:5432/superset
-  lifecycle:
-    upgradeMode: Supervised
-    migrate:
-      disabled: true
-    init:
-      disabled: true
-`, crName, namespace)
-
-		By("applying a Superset CR with no enabled lifecycle tasks")
-		applyYAML(crName, cr)
-		expectJSONPath("superset", crName, "{.status.lastLifecycleImage}", "apache/superset:1.0.0", time.Minute)
-		expectJSONPath("superset", crName, "{.status.lifecycle.phase}", "Complete", time.Minute)
-
-		By("patching the image tag")
-		patchSuperset(crName, "merge", `{"spec":{"image":{"tag":"1.1.0"}}}`)
-
-		By("verifying the upgrade is awaiting approval")
-		expectJSONPath("superset", crName, "{.status.phase}", "AwaitingApproval", time.Minute)
-		expectJSONPath("superset", crName, "{.status.lifecycle.phase}", "AwaitingApproval", time.Minute)
-		expectJSONPath("superset", crName, "{.status.lifecycle.upgrade.fromVersion}", "1.0.0", time.Minute)
-		expectJSONPath("superset", crName, "{.status.lifecycle.upgrade.toVersion}", "1.1.0", time.Minute)
-		expectJSONPath("superset", crName, "{.status.lifecycle.upgrade.direction}", "Upgrade", time.Minute)
-
-		By("approving the supervised upgrade")
-		token, err := jsonPath("superset", crName, "{.status.lifecycle.upgrade.approvalToken}")
-		Expect(err).NotTo(HaveOccurred())
-		Expect(token).NotTo(BeEmpty())
-		_, err = runKubectl("annotate", "superset", crName, "-n", namespace,
-			"superset.apache.org/approve-upgrade="+token, "--overwrite")
-		Expect(err).NotTo(HaveOccurred())
-
-		By("verifying the image change is settled")
-		expectJSONPath("superset", crName, "{.status.lastLifecycleImage}", "apache/superset:1.1.0", time.Minute)
-		expectJSONPath("superset", crName, "{.status.lifecycle.phase}", "Complete", time.Minute)
-		Eventually(func(g Gomega) {
-			output, err := jsonPath("superset", crName, "{.metadata.annotations}")
-			g.Expect(err).NotTo(HaveOccurred())
-			g.Expect(output).NotTo(ContainSubstring("superset.apache.org/approve-upgrade"))
-		}, time.Minute, time.Second).Should(Succeed())
 	})
 })

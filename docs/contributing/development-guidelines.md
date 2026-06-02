@@ -99,6 +99,15 @@ individual behaviors.
 envtest/e2e for things that genuinely need a real API server (CEL
 validation, CRD defaulting, multi-controller interaction).
 
+> **Why CEL/schema tests can't move down.** The controller-runtime fake client
+> does **not** enforce CRD OpenAPI schema or CEL (`x-kubernetes-validations`)
+> rules — those only fire on a real API server. So tests for schema/CEL
+> validation must live at the integration tier (envtest) and cannot be rewritten
+> as fake-client unit tests, even though they look like "just" a create call.
+> Conversely, anything that only builds or reconciles objects and asserts on the
+> result belongs at the unit tier. (envtest/Kind cost is dominated by fixed suite
+> startup, not per-spec, so moving a spec between tiers rarely changes CI time.)
+
 ### Test granularity
 
 - **Prefer broad happy-path tests** that cover critical assertions in a single test function. For example, one comprehensive test that creates all components and verifies config, env vars, and status is better than 10 separate tests each checking one field.

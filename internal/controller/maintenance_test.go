@@ -31,131 +31,147 @@ import (
 	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
-func TestRenderMaintenanceHTML_EscapesTitle(t *testing.T) {
-	title := `<script>alert("xss")</script>`
-	spec := &supersetv1alpha1.MaintenancePageSpec{Title: &title}
-	html := renderMaintenanceHTML(spec)
+// TestRenderMaintenanceHTML covers renderMaintenanceHTML: user title/message are
+// HTML-escaped, a custom body passes through verbatim, and defaults render a full
+// escaped document.
+func TestRenderMaintenanceHTML(t *testing.T) {
+	t.Run("escapes title", func(t *testing.T) {
+		title := `<script>alert("xss")</script>`
+		spec := &supersetv1alpha1.MaintenancePageSpec{Title: &title}
+		html := renderMaintenanceHTML(spec)
 
-	if strings.Contains(html, "<script>") {
-		t.Error("title should be HTML-escaped but contains raw <script> tag")
-	}
-	if !strings.Contains(html, "&lt;script&gt;") {
-		t.Error("expected escaped title in output")
-	}
-}
-
-func TestRenderMaintenanceHTML_EscapesMessage(t *testing.T) {
-	msg := `<img src=x onerror="alert('xss')">`
-	spec := &supersetv1alpha1.MaintenancePageSpec{Message: &msg}
-	html := renderMaintenanceHTML(spec)
-
-	if strings.Contains(html, "<img") {
-		t.Error("message should be HTML-escaped but contains raw <img tag")
-	}
-	if !strings.Contains(html, "&lt;img") {
-		t.Error("expected escaped message in output")
-	}
-}
-
-func TestRenderMaintenanceHTML_BodyPassesThrough(t *testing.T) {
-	body := `<html><body><h1>Custom</h1><script>ok()</script></body></html>`
-	spec := &supersetv1alpha1.MaintenancePageSpec{Body: &body}
-	result := renderMaintenanceHTML(spec)
-
-	if result != body {
-		t.Errorf("body should be returned as-is, got: %s", result)
-	}
-}
-
-func TestRenderMaintenanceHTML_DefaultsAreEscaped(t *testing.T) {
-	spec := &supersetv1alpha1.MaintenancePageSpec{}
-	html := renderMaintenanceHTML(spec)
-
-	if !strings.Contains(html, maintenanceDefaultTitle) {
-		t.Error("expected default title in output")
-	}
-	if !strings.Contains(html, "<!DOCTYPE html>") {
-		t.Error("expected full HTML document")
-	}
-}
-
-func TestRenderNginxConf_UsesCustomPort(t *testing.T) {
-	conf := renderNginxConf(9090)
-	if !strings.Contains(conf, "listen 9090") {
-		t.Error("expected nginx to listen on custom port 9090")
-	}
-	if strings.Contains(conf, "listen 8088") {
-		t.Error("should not contain default port when custom port is provided")
-	}
-}
-
-func TestRenderNginxConf_UsesDefaultPort(t *testing.T) {
-	conf := renderNginxConf(common.PortWebServer)
-	if !strings.Contains(conf, "listen 8088") {
-		t.Error("expected nginx to listen on default port 8088")
-	}
-}
-
-func TestRenderMaintenanceNginxMainConf_RunsNonRoot(t *testing.T) {
-	// The main nginx.conf must route the pid file and all temp paths off
-	// root-owned directories so nginx starts as a non-root user. Without this,
-	// a hardened (runAsNonRoot) maintenance pod fails to write /run/nginx.pid.
-	conf := renderMaintenanceNginxMainConf()
-	for _, want := range []string{
-		"pid /tmp/nginx.pid;",
-		"client_body_temp_path /tmp/client_temp;",
-		"proxy_temp_path /tmp/proxy_temp;",
-		"include /etc/nginx/conf.d/*.conf;",
-	} {
-		if !strings.Contains(conf, want) {
-			t.Errorf("nginx.conf missing %q\n--- conf ---\n%s", want, conf)
+		if strings.Contains(html, "<script>") {
+			t.Error("title should be HTML-escaped but contains raw <script> tag")
 		}
-	}
-}
-
-func TestBuildMaintenanceFlatSpec_DefaultsNonRoot(t *testing.T) {
-	// Managed mode must default the container to a non-root, hardened security
-	// context and mount the custom nginx.conf, so the maintenance page satisfies
-	// restricted Pod Security Standards out of the box.
-	title := "down"
-	flat := buildMaintenanceFlatSpec("parent", &supersetv1alpha1.MaintenancePageSpec{Title: &title})
-
-	sc := flat.PodTemplate.Container.SecurityContext
-	if sc == nil {
-		t.Fatal("expected a default container securityContext")
-	}
-	if sc.RunAsUser == nil || *sc.RunAsUser != maintenanceNonRootUID {
-		t.Errorf("RunAsUser = %v, want %d", sc.RunAsUser, maintenanceNonRootUID)
-	}
-	if sc.RunAsNonRoot == nil || !*sc.RunAsNonRoot {
-		t.Errorf("RunAsNonRoot = %v, want true", sc.RunAsNonRoot)
-	}
-	if sc.AllowPrivilegeEscalation == nil || *sc.AllowPrivilegeEscalation {
-		t.Errorf("AllowPrivilegeEscalation = %v, want false", sc.AllowPrivilegeEscalation)
-	}
-	if sc.Capabilities == nil || len(sc.Capabilities.Drop) != 1 || sc.Capabilities.Drop[0] != "ALL" {
-		t.Errorf("Capabilities.Drop = %+v, want [ALL]", sc.Capabilities)
-	}
-
-	if !maintenanceMountsConf(flat, "/etc/nginx/nginx.conf") {
-		t.Error("expected nginx.conf to be mounted at /etc/nginx/nginx.conf")
-	}
-}
-
-func TestBuildMaintenanceFlatSpec_RespectsUserRunAsUser(t *testing.T) {
-	// An explicit user UID must win over the operator default.
-	title := "down"
-	flat := buildMaintenanceFlatSpec("parent", &supersetv1alpha1.MaintenancePageSpec{
-		Title: &title,
-		PodTemplate: &supersetv1alpha1.PodTemplate{
-			Container: &supersetv1alpha1.ContainerTemplate{
-				SecurityContext: &corev1.SecurityContext{RunAsUser: common.Ptr(int64(2020))},
-			},
-		},
+		if !strings.Contains(html, "&lt;script&gt;") {
+			t.Error("expected escaped title in output")
+		}
 	})
-	if sc := flat.PodTemplate.Container.SecurityContext; sc.RunAsUser == nil || *sc.RunAsUser != 2020 {
-		t.Errorf("expected user RunAsUser=2020 to be respected, got %v", sc.RunAsUser)
-	}
+
+	t.Run("escapes message", func(t *testing.T) {
+		msg := `<img src=x onerror="alert('xss')">`
+		spec := &supersetv1alpha1.MaintenancePageSpec{Message: &msg}
+		html := renderMaintenanceHTML(spec)
+
+		if strings.Contains(html, "<img") {
+			t.Error("message should be HTML-escaped but contains raw <img tag")
+		}
+		if !strings.Contains(html, "&lt;img") {
+			t.Error("expected escaped message in output")
+		}
+	})
+
+	t.Run("body passes through", func(t *testing.T) {
+		body := `<html><body><h1>Custom</h1><script>ok()</script></body></html>`
+		spec := &supersetv1alpha1.MaintenancePageSpec{Body: &body}
+		result := renderMaintenanceHTML(spec)
+
+		if result != body {
+			t.Errorf("body should be returned as-is, got: %s", result)
+		}
+	})
+
+	t.Run("defaults are escaped", func(t *testing.T) {
+		spec := &supersetv1alpha1.MaintenancePageSpec{}
+		html := renderMaintenanceHTML(spec)
+
+		if !strings.Contains(html, maintenanceDefaultTitle) {
+			t.Error("expected default title in output")
+		}
+		if !strings.Contains(html, "<!DOCTYPE html>") {
+			t.Error("expected full HTML document")
+		}
+	})
+}
+
+// TestMaintenanceNginxConf covers the nginx config renderers: the per-server conf
+// (renderNginxConf) honoring custom/default ports, and the main conf
+// (renderMaintenanceNginxMainConf) routing pid/temp paths off root-owned dirs so
+// the pod runs non-root.
+func TestMaintenanceNginxConf(t *testing.T) {
+	t.Run("server conf custom port", func(t *testing.T) {
+		conf := renderNginxConf(9090)
+		if !strings.Contains(conf, "listen 9090") {
+			t.Error("expected nginx to listen on custom port 9090")
+		}
+		if strings.Contains(conf, "listen 8088") {
+			t.Error("should not contain default port when custom port is provided")
+		}
+	})
+
+	t.Run("server conf default port", func(t *testing.T) {
+		conf := renderNginxConf(common.PortWebServer)
+		if !strings.Contains(conf, "listen 8088") {
+			t.Error("expected nginx to listen on default port 8088")
+		}
+	})
+
+	t.Run("main conf runs non-root", func(t *testing.T) {
+		// The main nginx.conf must route the pid file and all temp paths off
+		// root-owned directories so nginx starts as a non-root user. Without this,
+		// a hardened (runAsNonRoot) maintenance pod fails to write /run/nginx.pid.
+		conf := renderMaintenanceNginxMainConf()
+		for _, want := range []string{
+			"pid /tmp/nginx.pid;",
+			"client_body_temp_path /tmp/client_temp;",
+			"proxy_temp_path /tmp/proxy_temp;",
+			"include /etc/nginx/conf.d/*.conf;",
+		} {
+			if !strings.Contains(conf, want) {
+				t.Errorf("nginx.conf missing %q\n--- conf ---\n%s", want, conf)
+			}
+		}
+	})
+}
+
+// TestBuildMaintenanceFlatSpec covers buildMaintenanceFlatSpec: the managed-mode
+// default non-root hardened security context + nginx.conf mount, and that an
+// explicit user runAsUser overrides the operator default.
+func TestBuildMaintenanceFlatSpec(t *testing.T) {
+	t.Run("defaults non-root", func(t *testing.T) {
+		// Managed mode must default the container to a non-root, hardened security
+		// context and mount the custom nginx.conf, so the maintenance page satisfies
+		// restricted Pod Security Standards out of the box.
+		title := "down"
+		flat := buildMaintenanceFlatSpec("parent", &supersetv1alpha1.MaintenancePageSpec{Title: &title})
+
+		sc := flat.PodTemplate.Container.SecurityContext
+		if sc == nil {
+			t.Fatal("expected a default container securityContext")
+		}
+		if sc.RunAsUser == nil || *sc.RunAsUser != maintenanceNonRootUID {
+			t.Errorf("RunAsUser = %v, want %d", sc.RunAsUser, maintenanceNonRootUID)
+		}
+		if sc.RunAsNonRoot == nil || !*sc.RunAsNonRoot {
+			t.Errorf("RunAsNonRoot = %v, want true", sc.RunAsNonRoot)
+		}
+		if sc.AllowPrivilegeEscalation == nil || *sc.AllowPrivilegeEscalation {
+			t.Errorf("AllowPrivilegeEscalation = %v, want false", sc.AllowPrivilegeEscalation)
+		}
+		if sc.Capabilities == nil || len(sc.Capabilities.Drop) != 1 || sc.Capabilities.Drop[0] != "ALL" {
+			t.Errorf("Capabilities.Drop = %+v, want [ALL]", sc.Capabilities)
+		}
+
+		if !maintenanceMountsConf(flat, "/etc/nginx/nginx.conf") {
+			t.Error("expected nginx.conf to be mounted at /etc/nginx/nginx.conf")
+		}
+	})
+
+	t.Run("respects user runAsUser", func(t *testing.T) {
+		// An explicit user UID must win over the operator default.
+		title := "down"
+		flat := buildMaintenanceFlatSpec("parent", &supersetv1alpha1.MaintenancePageSpec{
+			Title: &title,
+			PodTemplate: &supersetv1alpha1.PodTemplate{
+				Container: &supersetv1alpha1.ContainerTemplate{
+					SecurityContext: &corev1.SecurityContext{RunAsUser: common.Ptr(int64(2020))},
+				},
+			},
+		})
+		if sc := flat.PodTemplate.Container.SecurityContext; sc.RunAsUser == nil || *sc.RunAsUser != 2020 {
+			t.Errorf("expected user RunAsUser=2020 to be respected, got %v", sc.RunAsUser)
+		}
+	})
 }
 
 func maintenanceMountsConf(flat supersetv1alpha1.FlatComponentSpec, path string) bool {
@@ -170,65 +186,70 @@ func maintenanceMountsConf(flat supersetv1alpha1.FlatComponentSpec, path string)
 	return false
 }
 
-func TestResolveWebServerPort_Default(t *testing.T) {
-	s := &supersetv1alpha1.Superset{
-		Spec: supersetv1alpha1.SupersetSpec{
-			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
-		},
-	}
-	port := resolveWebServerPort(s)
-	if port != common.PortWebServer {
-		t.Errorf("expected default port %d, got %d", common.PortWebServer, port)
-	}
-}
+// TestResolveWebServerPort covers resolveWebServerPort: the default port, a
+// per-component container-port override, inheritance of a top-level container port,
+// and the default when no webServer is configured.
+func TestResolveWebServerPort(t *testing.T) {
+	t.Run("default", func(t *testing.T) {
+		s := &supersetv1alpha1.Superset{
+			Spec: supersetv1alpha1.SupersetSpec{
+				WebServer: &supersetv1alpha1.WebServerComponentSpec{},
+			},
+		}
+		port := resolveWebServerPort(s)
+		if port != common.PortWebServer {
+			t.Errorf("expected default port %d, got %d", common.PortWebServer, port)
+		}
+	})
 
-func TestResolveWebServerPort_ComponentOverride(t *testing.T) {
-	s := &supersetv1alpha1.Superset{
-		Spec: supersetv1alpha1.SupersetSpec{
-			WebServer: &supersetv1alpha1.WebServerComponentSpec{
-				ScalableComponentSpec: supersetv1alpha1.ScalableComponentSpec{
-					PodTemplate: &supersetv1alpha1.PodTemplate{
-						Container: &supersetv1alpha1.ContainerTemplate{
-							Ports: []corev1.ContainerPort{
-								{Name: "http", ContainerPort: 9090},
+	t.Run("component override", func(t *testing.T) {
+		s := &supersetv1alpha1.Superset{
+			Spec: supersetv1alpha1.SupersetSpec{
+				WebServer: &supersetv1alpha1.WebServerComponentSpec{
+					ScalableComponentSpec: supersetv1alpha1.ScalableComponentSpec{
+						PodTemplate: &supersetv1alpha1.PodTemplate{
+							Container: &supersetv1alpha1.ContainerTemplate{
+								Ports: []corev1.ContainerPort{
+									{Name: "http", ContainerPort: 9090},
+								},
 							},
 						},
 					},
 				},
 			},
-		},
-	}
-	port := resolveWebServerPort(s)
-	if port != 9090 {
-		t.Errorf("expected custom port 9090, got %d", port)
-	}
-}
+		}
+		port := resolveWebServerPort(s)
+		if port != 9090 {
+			t.Errorf("expected custom port 9090, got %d", port)
+		}
+	})
 
-func TestResolveWebServerPort_TopLevelOverride(t *testing.T) {
-	s := &supersetv1alpha1.Superset{
-		Spec: supersetv1alpha1.SupersetSpec{
-			PodTemplate: &supersetv1alpha1.PodTemplate{
-				Container: &supersetv1alpha1.ContainerTemplate{
-					Ports: []corev1.ContainerPort{
-						{Name: "http", ContainerPort: 7070},
+	t.Run("top-level override", func(t *testing.T) {
+		s := &supersetv1alpha1.Superset{
+			Spec: supersetv1alpha1.SupersetSpec{
+				PodTemplate: &supersetv1alpha1.PodTemplate{
+					Container: &supersetv1alpha1.ContainerTemplate{
+						Ports: []corev1.ContainerPort{
+							{Name: "http", ContainerPort: 7070},
+						},
 					},
 				},
+				WebServer: &supersetv1alpha1.WebServerComponentSpec{},
 			},
-			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
-		},
-	}
-	port := resolveWebServerPort(s)
-	if port != 7070 {
-		t.Errorf("expected top-level port 7070 inherited, got %d", port)
-	}
-}
+		}
+		port := resolveWebServerPort(s)
+		if port != 7070 {
+			t.Errorf("expected top-level port 7070 inherited, got %d", port)
+		}
+	})
 
-func TestResolveWebServerPort_NoWebServer(t *testing.T) {
-	s := &supersetv1alpha1.Superset{}
-	port := resolveWebServerPort(s)
-	if port != common.PortWebServer {
-		t.Errorf("expected default port %d for nil WebServer, got %d", common.PortWebServer, port)
-	}
+	t.Run("no web server", func(t *testing.T) {
+		s := &supersetv1alpha1.Superset{}
+		port := resolveWebServerPort(s)
+		if port != common.PortWebServer {
+			t.Errorf("expected default port %d for nil WebServer, got %d", common.PortWebServer, port)
+		}
+	})
 }
 
 func TestReconcileWebServerService_SelectorBasedOnMaintenanceActive(t *testing.T) {

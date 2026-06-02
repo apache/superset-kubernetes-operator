@@ -33,89 +33,94 @@ import (
 	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
+// TestSetCondition covers setCondition: adding a new condition, updating an existing
+// one, no-op when nothing changed, and LastTransitionTime semantics when only the
+// reason or message changes.
 func TestSetCondition(t *testing.T) {
-	var conditions []metav1.Condition
+	t.Run("add, update, and add a second type", func(t *testing.T) {
+		var conditions []metav1.Condition
 
-	// Add a new condition.
-	setCondition(&conditions, supersetv1alpha1.ConditionTypeReady, metav1.ConditionTrue, "AllReady", "All good", 1)
+		// Add a new condition.
+		setCondition(&conditions, supersetv1alpha1.ConditionTypeReady, metav1.ConditionTrue, "AllReady", "All good", 1)
 
-	if len(conditions) != 1 {
-		t.Fatalf("expected 1 condition, got %d", len(conditions))
-	}
-	if conditions[0].Type != supersetv1alpha1.ConditionTypeReady {
-		t.Errorf("expected Ready type")
-	}
-	if conditions[0].Status != metav1.ConditionTrue {
-		t.Errorf("expected True status")
-	}
-	if conditions[0].Reason != "AllReady" {
-		t.Errorf("expected AllReady reason, got %s", conditions[0].Reason)
-	}
-	if conditions[0].ObservedGeneration != 1 {
-		t.Errorf("expected ObservedGeneration 1, got %d", conditions[0].ObservedGeneration)
-	}
+		if len(conditions) != 1 {
+			t.Fatalf("expected 1 condition, got %d", len(conditions))
+		}
+		if conditions[0].Type != supersetv1alpha1.ConditionTypeReady {
+			t.Errorf("expected Ready type")
+		}
+		if conditions[0].Status != metav1.ConditionTrue {
+			t.Errorf("expected True status")
+		}
+		if conditions[0].Reason != "AllReady" {
+			t.Errorf("expected AllReady reason, got %s", conditions[0].Reason)
+		}
+		if conditions[0].ObservedGeneration != 1 {
+			t.Errorf("expected ObservedGeneration 1, got %d", conditions[0].ObservedGeneration)
+		}
 
-	// Update existing condition.
-	setCondition(&conditions, supersetv1alpha1.ConditionTypeReady, metav1.ConditionFalse, "NotReady", "Degraded", 2)
+		// Update existing condition.
+		setCondition(&conditions, supersetv1alpha1.ConditionTypeReady, metav1.ConditionFalse, "NotReady", "Degraded", 2)
 
-	if len(conditions) != 1 {
-		t.Fatalf("expected still 1 condition after update, got %d", len(conditions))
-	}
-	if conditions[0].Status != metav1.ConditionFalse {
-		t.Errorf("expected updated status False")
-	}
+		if len(conditions) != 1 {
+			t.Fatalf("expected still 1 condition after update, got %d", len(conditions))
+		}
+		if conditions[0].Status != metav1.ConditionFalse {
+			t.Errorf("expected updated status False")
+		}
 
-	// Add a second condition type.
-	setCondition(&conditions, supersetv1alpha1.ConditionTypeProgressing, metav1.ConditionFalse, "Done", "", 2)
+		// Add a second condition type.
+		setCondition(&conditions, supersetv1alpha1.ConditionTypeProgressing, metav1.ConditionFalse, "Done", "", 2)
 
-	if len(conditions) != 2 {
-		t.Fatalf("expected 2 conditions, got %d", len(conditions))
-	}
-}
+		if len(conditions) != 2 {
+			t.Fatalf("expected 2 conditions, got %d", len(conditions))
+		}
+	})
 
-func TestSetCondition_NoOpWhenUnchanged(t *testing.T) {
-	ts := metav1.Now()
-	conditions := []metav1.Condition{
-		{Type: supersetv1alpha1.ConditionTypeReady, Status: metav1.ConditionTrue, Reason: "AllReady", LastTransitionTime: ts},
-	}
+	t.Run("no-op when unchanged", func(t *testing.T) {
+		ts := metav1.Now()
+		conditions := []metav1.Condition{
+			{Type: supersetv1alpha1.ConditionTypeReady, Status: metav1.ConditionTrue, Reason: "AllReady", LastTransitionTime: ts},
+		}
 
-	setCondition(&conditions, supersetv1alpha1.ConditionTypeReady, metav1.ConditionTrue, "AllReady", "All good", 0)
+		setCondition(&conditions, supersetv1alpha1.ConditionTypeReady, metav1.ConditionTrue, "AllReady", "All good", 0)
 
-	if !conditions[0].LastTransitionTime.Equal(&ts) {
-		t.Errorf("expected LastTransitionTime to be unchanged")
-	}
-}
+		if !conditions[0].LastTransitionTime.Equal(&ts) {
+			t.Errorf("expected LastTransitionTime to be unchanged")
+		}
+	})
 
-func TestSetCondition_ReasonChangePreservesTransitionTime(t *testing.T) {
-	ts := metav1.Now()
-	conditions := []metav1.Condition{
-		{Type: supersetv1alpha1.ConditionTypeReady, Status: metav1.ConditionFalse, Reason: "NotReady", LastTransitionTime: ts, ObservedGeneration: 1},
-	}
+	t.Run("reason change preserves transition time", func(t *testing.T) {
+		ts := metav1.Now()
+		conditions := []metav1.Condition{
+			{Type: supersetv1alpha1.ConditionTypeReady, Status: metav1.ConditionFalse, Reason: "NotReady", LastTransitionTime: ts, ObservedGeneration: 1},
+		}
 
-	setCondition(&conditions, supersetv1alpha1.ConditionTypeReady, metav1.ConditionFalse, "PartiallyReady", "Some ready", 1)
+		setCondition(&conditions, supersetv1alpha1.ConditionTypeReady, metav1.ConditionFalse, "PartiallyReady", "Some ready", 1)
 
-	if conditions[0].Reason != "PartiallyReady" {
-		t.Errorf("expected reason to be updated, got %s", conditions[0].Reason)
-	}
-	if !conditions[0].LastTransitionTime.Equal(&ts) {
-		t.Errorf("expected LastTransitionTime preserved when only reason changes")
-	}
-}
+		if conditions[0].Reason != "PartiallyReady" {
+			t.Errorf("expected reason to be updated, got %s", conditions[0].Reason)
+		}
+		if !conditions[0].LastTransitionTime.Equal(&ts) {
+			t.Errorf("expected LastTransitionTime preserved when only reason changes")
+		}
+	})
 
-func TestSetCondition_MessageChangeUpdatesMessageNotTransitionTime(t *testing.T) {
-	ts := metav1.Now()
-	conditions := []metav1.Condition{
-		{Type: supersetv1alpha1.ConditionTypeReady, Status: metav1.ConditionFalse, Reason: "NotReady", Message: "old diagnostic", LastTransitionTime: ts, ObservedGeneration: 1},
-	}
+	t.Run("message change updates message not transition time", func(t *testing.T) {
+		ts := metav1.Now()
+		conditions := []metav1.Condition{
+			{Type: supersetv1alpha1.ConditionTypeReady, Status: metav1.ConditionFalse, Reason: "NotReady", Message: "old diagnostic", LastTransitionTime: ts, ObservedGeneration: 1},
+		}
 
-	setCondition(&conditions, supersetv1alpha1.ConditionTypeReady, metav1.ConditionFalse, "NotReady", "new diagnostic", 1)
+		setCondition(&conditions, supersetv1alpha1.ConditionTypeReady, metav1.ConditionFalse, "NotReady", "new diagnostic", 1)
 
-	if conditions[0].Message != "new diagnostic" {
-		t.Errorf("expected message updated to %q, got %q", "new diagnostic", conditions[0].Message)
-	}
-	if !conditions[0].LastTransitionTime.Equal(&ts) {
-		t.Errorf("expected LastTransitionTime preserved when only message changes")
-	}
+		if conditions[0].Message != "new diagnostic" {
+			t.Errorf("expected message updated to %q, got %q", "new diagnostic", conditions[0].Message)
+		}
+		if !conditions[0].LastTransitionTime.Equal(&ts) {
+			t.Errorf("expected LastTransitionTime preserved when only message changes")
+		}
+	})
 }
 
 func TestGetComponentStatusFromDeployment(t *testing.T) {
