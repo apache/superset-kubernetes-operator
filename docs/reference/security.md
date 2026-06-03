@@ -391,18 +391,29 @@ Pod that drifts from this baseline.
 
 The release pipeline produces signed multi-architecture artifacts:
 
-- **Base image:** [`gcr.io/distroless/static:nonroot`](https://github.com/GoogleContainerTools/distroless)
-  — no shell, no package manager, no unnecessary binaries. The Dockerfile
-  pins the digest and Renovate keeps it current.
+- **Base images:** the build stage uses a fully-qualified Go patch tag and the
+  runtime stage uses
+  [`gcr.io/distroless/static:nonroot`](https://github.com/GoogleContainerTools/distroless)
+  — no shell, no package manager, no unnecessary binaries. The Dockerfile pins both
+  by digest and Renovate keeps them current (digest refreshes are applied without the
+  version soak — see the dependency policy below).
 - **Architectures:** `linux/amd64` and `linux/arm64` are built and signed
   identically.
 - **Image signatures:** The release workflow signs the manager image and the
   packaged Helm chart with [Cosign](https://github.com/sigstore/cosign) using
   GitHub Actions OIDC (keyless). Verify with
   `cosign verify ghcr.io/apache/superset-kubernetes-operator@<digest>`.
-- **Dependency policy:** Go modules and GitHub Actions are kept current via
-  [Renovate](https://docs.renovatebot.com/) with a 7-day minimum age and
-  pinned action versions.
+- **Dependency policy:** Go modules, GitHub Actions, and container base images are
+  kept current via [Renovate](https://docs.renovatebot.com/) with pinned versions and
+  a 7-day minimum age before a *version* update is proposed. This soak does **not**
+  apply to *digest* updates: when a floating tag is re-pushed to a new digest for the
+  same version (a base-OS rebuild, or a patch published under a rolling tag), Renovate
+  proposes the digest bump immediately, because `minimumReleaseAge` gates versions, not
+  digests. The Go builder is pinned to a fully-qualified patch version so Go upgrades
+  are soaked version updates; the distroless runtime base has no semantic-version tag,
+  so its digest refreshes are inherently un-soaked. This residual exposure is accepted
+  and bounded by the minimal distroless base and by keyless Cosign signing of the
+  image this project itself publishes.
 - **Future work:** SBOM and SLSA build provenance generation are tracked as
   enhancements for later releases.
 

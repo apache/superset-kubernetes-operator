@@ -14,8 +14,7 @@
 # limitations under the License.
 
 # Build the manager binary
-# To update the digest: docker pull golang:1.26 && docker inspect --format='{{index .RepoDigests 0}}' golang:1.26
-FROM --platform=$BUILDPLATFORM golang:1.26@sha256:2d6c80227255c3112a4d08e67ba98e58efd3846daf15d9d7d4c389565d881b1a AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.3@sha256:2d6c80227255c3112a4d08e67ba98e58efd3846daf15d9d7d4c389565d881b1a AS builder
 ARG TARGETOS
 ARG TARGETARCH
 
