@@ -464,6 +464,54 @@ func envSliceToMap(envs []corev1.EnvVar) map[string]string {
 	return m
 }
 
+func TestResolveValkeyResults(t *testing.T) {
+	t.Run("nil spec applies defaults", func(t *testing.T) {
+		// Use a non-standard defaultDB and prefix to prove both arguments are
+		// honored (not hardcoded) and to keep the function's default parameters
+		// genuinely variable across call sites.
+		got := resolveValkeyResults(nil, 13, "custom_default_")
+		if got.Disabled {
+			t.Error("expected not disabled by default")
+		}
+		if got.Database != 13 {
+			t.Errorf("expected default database 13, got %d", got.Database)
+		}
+		if got.KeyPrefix != "custom_default_" {
+			t.Errorf("expected default key prefix, got %q", got.KeyPrefix)
+		}
+	})
+
+	t.Run("disabled true", func(t *testing.T) {
+		got := resolveValkeyResults(&supersetv1alpha1.ValkeyResultsBackendSpec{Disabled: common.Ptr(true)}, 6, "superset_results_")
+		if !got.Disabled {
+			t.Error("expected disabled=true")
+		}
+		if got.Database != 6 {
+			t.Errorf("expected default database 6, got %d", got.Database)
+		}
+	})
+
+	t.Run("database override", func(t *testing.T) {
+		got := resolveValkeyResults(&supersetv1alpha1.ValkeyResultsBackendSpec{Database: common.Ptr(int32(9))}, 6, "superset_results_")
+		if got.Database != 9 {
+			t.Errorf("expected database override 9, got %d", got.Database)
+		}
+		if got.KeyPrefix != "superset_results_" {
+			t.Errorf("expected default key prefix preserved, got %q", got.KeyPrefix)
+		}
+	})
+
+	t.Run("key prefix override", func(t *testing.T) {
+		got := resolveValkeyResults(&supersetv1alpha1.ValkeyResultsBackendSpec{KeyPrefix: common.Ptr("custom_results_")}, 6, "superset_results_")
+		if got.KeyPrefix != "custom_results_" {
+			t.Errorf("expected key prefix override, got %q", got.KeyPrefix)
+		}
+		if got.Database != 6 {
+			t.Errorf("expected default database preserved, got %d", got.Database)
+		}
+	})
+}
+
 func TestBuildConfigInput_Valkey(t *testing.T) {
 	t.Run("nil valkey", func(t *testing.T) {
 		input := buildConfigInput(&supersetv1alpha1.SupersetSpec{})

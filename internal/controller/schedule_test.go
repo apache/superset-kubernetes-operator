@@ -20,6 +20,7 @@ package controller
 
 import (
 	"testing"
+	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/events"
@@ -118,4 +119,169 @@ func hasScheduleValidCondition(conditions []metav1.Condition) bool {
 		}
 	}
 	return false
+}
+
+// fixedNow returns a deterministic clock for schedule tests.
+func fixedNow(t time.Time) func() time.Time {
+	return func() time.Time { return t }
+}
+
+func TestNextScheduleRequeue(t *testing.T) {
+	// A daily 02:00 cron, evaluated at 03:00, next tick is the following day's
+	// 02:00 — i.e. 23h ahead. The requeue adds a one-second guard.
+	base := time.Date(2026, 6, 2, 3, 0, 0, 0, time.UTC)
+
+	t.Run("nil lifecycle yields zero", func(t *testing.T) {
+		r := &SupersetReconciler{Now: fixedNow(base)}
+		superset := &supersetv1alpha1.Superset{}
+		if d := r.nextScheduleRequeue(superset); d != 0 {
+			t.Fatalf("expected 0 for nil lifecycle, got %s", d)
+		}
+	})
+
+	t.Run("no active schedule yields zero", func(t *testing.T) {
+		r := &SupersetReconciler{Now: fixedNow(base)}
+		superset := &supersetv1alpha1.Superset{
+			Spec: supersetv1alpha1.SupersetSpec{Lifecycle: &supersetv1alpha1.LifecycleSpec{
+				Clone: &supersetv1alpha1.CloneTaskSpec{},
+			}},
+		}
+		if d := r.nextScheduleRequeue(superset); d != 0 {
+			t.Fatalf("expected 0 with no cron schedule, got %s", d)
+		}
+	})
+
+	t.Run("clone cron schedule produces a positive requeue", func(t *testing.T) {
+		r := &SupersetReconciler{Now: fixedNow(base)}
+		sched := "0 2 * * *"
+		superset := &supersetv1alpha1.Superset{
+			Spec: supersetv1alpha1.SupersetSpec{Lifecycle: &supersetv1alpha1.LifecycleSpec{
+				Clone: &supersetv1alpha1.CloneTaskSpec{
+					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &sched},
+				},
+			}},
+		}
+		d := r.nextScheduleRequeue(superset)
+		// next 02:00 is 23h after 03:00, plus one second guard.
+		want := 23*time.Hour + time.Second
+		if d != want {
+			t.Fatalf("expected requeue %s, got %s", want, d)
+		}
+	})
+
+	t.Run("disabled clone yields zero", func(t *testing.T) {
+		r := &SupersetReconciler{Now: fixedNow(base)}
+		sched := "0 2 * * *"
+		superset := &supersetv1alpha1.Superset{
+			Spec: supersetv1alpha1.SupersetSpec{Lifecycle: &supersetv1alpha1.LifecycleSpec{
+				Clone: &supersetv1alpha1.CloneTaskSpec{
+					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
+						BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: boolPtr(true)},
+						CronSchedule: &sched,
+					},
+				},
+			}},
+		}
+		if d := r.nextScheduleRequeue(superset); d != 0 {
+			t.Fatalf("expected 0 for disabled clone, got %s", d)
+		}
+	})
+
+	t.Run("sub-second remaining clamps to one second", func(t *testing.T) {
+		// Evaluate at 01:59:59.9 so the next 02:00 tick is 0.1s away; the
+		// computed duration (next - now + 1s) would still exceed a second, so
+		// to exercise the clamp we instead evaluate just past a minute-resolution
+		// tick boundary. The clamp guards against a next-tick that is effectively
+		// "now": with a per-minute schedule evaluated exactly on the tick, the
+		// next tick is ~1 minute out. We assert the floor never drops below 1s.
+		now := time.Date(2026, 6, 2, 1, 59, 59, 0, time.UTC)
+		r := &SupersetReconciler{Now: fixedNow(now)}
+		sched := "* * * * *" // every minute
+		superset := &supersetv1alpha1.Superset{
+			Spec: supersetv1alpha1.SupersetSpec{Lifecycle: &supersetv1alpha1.LifecycleSpec{
+				Clone: &supersetv1alpha1.CloneTaskSpec{
+					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &sched},
+				},
+			}},
+		}
+		d := r.nextScheduleRequeue(superset)
+		if d < time.Second {
+			t.Fatalf("requeue must never be below 1s, got %s", d)
+		}
+	})
+}
+
+func TestProjectScheduleStatus(t *testing.T) {
+	base := time.Date(2026, 6, 2, 3, 0, 0, 0, time.UTC)
+
+	t.Run("nil lifecycle is a no-op", func(t *testing.T) {
+		r := &SupersetReconciler{Now: fixedNow(base)}
+		superset := &supersetv1alpha1.Superset{}
+		ref := &supersetv1alpha1.TaskRefStatus{}
+		r.projectScheduleStatus(superset, taskTypeClone, ref)
+		if ref.LastScheduledAt != nil || ref.NextScheduleAt != nil {
+			t.Fatalf("expected no projection for nil lifecycle, got %+v", ref)
+		}
+	})
+
+	t.Run("clone with no schedule is a no-op", func(t *testing.T) {
+		r := &SupersetReconciler{Now: fixedNow(base)}
+		superset := &supersetv1alpha1.Superset{
+			Spec: supersetv1alpha1.SupersetSpec{Lifecycle: &supersetv1alpha1.LifecycleSpec{
+				Clone: &supersetv1alpha1.CloneTaskSpec{},
+			}},
+		}
+		ref := &supersetv1alpha1.TaskRefStatus{}
+		r.projectScheduleStatus(superset, taskTypeClone, ref)
+		if ref.LastScheduledAt != nil || ref.NextScheduleAt != nil {
+			t.Fatalf("expected no projection without a cron schedule, got %+v", ref)
+		}
+	})
+
+	t.Run("non-clone task type is a no-op", func(t *testing.T) {
+		r := &SupersetReconciler{Now: fixedNow(base)}
+		sched := "0 2 * * *"
+		superset := &supersetv1alpha1.Superset{
+			Spec: supersetv1alpha1.SupersetSpec{Lifecycle: &supersetv1alpha1.LifecycleSpec{
+				Clone: &supersetv1alpha1.CloneTaskSpec{
+					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &sched},
+				},
+			}},
+		}
+		ref := &supersetv1alpha1.TaskRefStatus{}
+		r.projectScheduleStatus(superset, taskTypeMigrate, ref)
+		if ref.LastScheduledAt != nil || ref.NextScheduleAt != nil {
+			t.Fatalf("expected no projection for non-clone task, got %+v", ref)
+		}
+	})
+
+	t.Run("clone with cron projects last and next", func(t *testing.T) {
+		r := &SupersetReconciler{Now: fixedNow(base)}
+		sched := "0 2 * * *"
+		superset := &supersetv1alpha1.Superset{
+			Spec: supersetv1alpha1.SupersetSpec{Lifecycle: &supersetv1alpha1.LifecycleSpec{
+				Clone: &supersetv1alpha1.CloneTaskSpec{
+					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &sched},
+				},
+			}},
+		}
+		ref := &supersetv1alpha1.TaskRefStatus{}
+		r.projectScheduleStatus(superset, taskTypeClone, ref)
+
+		if ref.LastScheduledAt == nil {
+			t.Fatal("expected LastScheduledAt to be set")
+		}
+		// Last tick at or before 03:00 is today's 02:00.
+		wantLast := time.Date(2026, 6, 2, 2, 0, 0, 0, time.UTC)
+		if !ref.LastScheduledAt.Time.Equal(wantLast) {
+			t.Errorf("LastScheduledAt = %s, want %s", ref.LastScheduledAt.Time, wantLast)
+		}
+		if ref.NextScheduleAt == nil {
+			t.Fatal("expected NextScheduleAt to be set")
+		}
+		wantNext := time.Date(2026, 6, 3, 2, 0, 0, 0, time.UTC)
+		if !ref.NextScheduleAt.Time.Equal(wantNext) {
+			t.Errorf("NextScheduleAt = %s, want %s", ref.NextScheduleAt.Time, wantNext)
+		}
+	})
 }

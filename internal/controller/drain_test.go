@@ -409,3 +409,148 @@ func assertNoEvents(t *testing.T, recorder *events.FakeRecorder) {
 	default:
 	}
 }
+
+func TestDrainComponents_DeletesWorkloadsAndReportsDrained(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec: supersetv1alpha1.SupersetSpec{
+			WebServer:    &supersetv1alpha1.WebServerComponentSpec{},
+			CeleryWorker: &supersetv1alpha1.CeleryWorkerComponentSpec{},
+		},
+	}
+
+	webDeploy := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+		Name: common.ResourceBaseName("test", common.ComponentWebServer), Namespace: "default",
+	}}
+	workerDeploy := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+		Name: common.ResourceBaseName("test", common.ComponentCeleryWorker), Namespace: "default",
+	}}
+	// A celery-worker Service (non-web-server) should be deleted too.
+	workerSvc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+		Name: common.ResourceBaseName("test", common.ComponentCeleryWorker), Namespace: "default",
+	}}
+
+	c := fake.NewClientBuilder().WithScheme(scheme).
+		WithObjects(superset, webDeploy, workerDeploy, workerSvc).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	// No component pods exist, so drain completes in a single pass.
+	drained, err := r.drainComponents(ctx, superset)
+	if err != nil {
+		t.Fatalf("drainComponents: %v", err)
+	}
+	if !drained {
+		t.Fatal("expected drained=true when no component pods remain")
+	}
+
+	// Deployments deleted.
+	for _, name := range []string{
+		common.ResourceBaseName("test", common.ComponentWebServer),
+		common.ResourceBaseName("test", common.ComponentCeleryWorker),
+	} {
+		err := c.Get(ctx, client.ObjectKey{Name: name, Namespace: "default"}, &appsv1.Deployment{})
+		if err == nil {
+			t.Errorf("expected Deployment %s deleted", name)
+		}
+	}
+	// Worker Service deleted.
+	if err := c.Get(ctx, client.ObjectKey{Name: workerSvc.Name, Namespace: "default"}, &corev1.Service{}); err == nil {
+		t.Error("expected celery-worker Service deleted during drain")
+	}
+}
+
+func TestDrainComponents_WaitsForComponentPods(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec:       supersetv1alpha1.SupersetSpec{WebServer: &supersetv1alpha1.WebServerComponentSpec{}},
+	}
+	// A surviving web-server pod blocks drain completion.
+	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Name: "test-web-server-x", Namespace: "default",
+		Labels: map[string]string{
+			common.LabelKeyParent:    "test",
+			common.LabelKeyComponent: string(common.ComponentWebServer),
+		},
+	}}
+	// An init pod must NOT block drain.
+	initPod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		Name: "test-init-y", Namespace: "default",
+		Labels: map[string]string{
+			common.LabelKeyParent:    "test",
+			common.LabelKeyComponent: string(common.ComponentInit),
+		},
+	}}
+
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, pod, initPod).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	drained, err := r.drainComponents(ctx, superset)
+	if err != nil {
+		t.Fatalf("drainComponents: %v", err)
+	}
+	if drained {
+		t.Fatal("expected drained=false while a component pod remains")
+	}
+}
+
+func TestHasExistingWebServerWorkload(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+	}
+
+	t.Run("no workload returns false", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
+		r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+		has, err := r.hasExistingWebServerWorkload(ctx, superset)
+		if err != nil {
+			t.Fatalf("hasExistingWebServerWorkload: %v", err)
+		}
+		if has {
+			t.Error("expected no workload")
+		}
+	})
+
+	t.Run("deployment with replicas returns true", func(t *testing.T) {
+		one := int32(1)
+		deploy := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: common.ResourceBaseName("test", common.ComponentWebServer), Namespace: "default",
+			},
+			Spec: appsv1.DeploymentSpec{Replicas: &one},
+		}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, deploy).Build()
+		r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+		has, err := r.hasExistingWebServerWorkload(ctx, superset)
+		if err != nil {
+			t.Fatalf("hasExistingWebServerWorkload: %v", err)
+		}
+		if !has {
+			t.Error("expected workload present")
+		}
+	})
+
+	t.Run("live web-server pod returns true even without deployment", func(t *testing.T) {
+		pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+			Name: "test-web-server-z", Namespace: "default",
+			Labels: map[string]string{
+				common.LabelKeyParent:    "test",
+				common.LabelKeyComponent: string(common.ComponentWebServer),
+			},
+		}}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, pod).Build()
+		r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+		has, err := r.hasExistingWebServerWorkload(ctx, superset)
+		if err != nil {
+			t.Fatalf("hasExistingWebServerWorkload: %v", err)
+		}
+		if !has {
+			t.Error("expected live pod to count as a workload")
+		}
+	})
+}

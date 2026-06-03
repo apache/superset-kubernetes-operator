@@ -169,3 +169,43 @@ func TestResolveLifecycleImage(t *testing.T) {
 		})
 	}
 }
+
+func TestTaskRequiresDrain(t *testing.T) {
+	r := &SupersetReconciler{}
+
+	t.Run("isTaskEnabled is false for unknown task type", func(t *testing.T) {
+		// The descriptor lookup misses, so the wrapper short-circuits to false.
+		assert.False(t, r.isTaskEnabled(&supersetv1alpha1.Superset{}, "Bogus"))
+	})
+
+	t.Run("unknown task type does not drain", func(t *testing.T) {
+		assert.False(t, r.taskRequiresDrain(&supersetv1alpha1.Superset{}, "Bogus"))
+	})
+
+	t.Run("defaults per task type", func(t *testing.T) {
+		// clone/migrate/rotate default to draining; init does not.
+		empty := &supersetv1alpha1.Superset{}
+		assert.True(t, r.taskRequiresDrain(empty, taskTypeClone))
+		assert.True(t, r.taskRequiresDrain(empty, taskTypeMigrate))
+		assert.True(t, r.taskRequiresDrain(empty, taskTypeRotate))
+		assert.False(t, r.taskRequiresDrain(empty, taskTypeInit))
+	})
+
+	t.Run("per-task RequiresDrain override wins", func(t *testing.T) {
+		// Override migrate (default true) to false.
+		noDrain := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Migrate: &supersetv1alpha1.MigrateTaskSpec{
+				BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{RequiresDrain: boolPtr(false)},
+			}},
+		}}
+		assert.False(t, r.taskRequiresDrain(noDrain, taskTypeMigrate))
+
+		// Override init (default false) to true.
+		drain := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Init: &supersetv1alpha1.InitTaskSpec{
+				BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{RequiresDrain: boolPtr(true)},
+			}},
+		}}
+		assert.True(t, r.taskRequiresDrain(drain, taskTypeInit))
+	})
+}

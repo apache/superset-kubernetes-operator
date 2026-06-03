@@ -58,6 +58,15 @@ func TestMergeLabels(t *testing.T) {
 	if merged2["a"] != "1" {
 		t.Errorf("expected base labels returned for nil extra, got %v", merged2)
 	}
+
+	// Both nil/empty must return a non-nil empty map (required for label selectors).
+	merged3 := mergeLabels(nil, nil)
+	if merged3 == nil {
+		t.Fatal("expected non-nil empty map for both-nil input")
+	}
+	if len(merged3) != 0 {
+		t.Errorf("expected empty map, got %v", merged3)
+	}
 }
 
 func TestMergeAnnotations(t *testing.T) {

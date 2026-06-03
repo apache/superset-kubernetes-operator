@@ -23,9 +23,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/events"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
@@ -419,4 +425,252 @@ func TestResolveMaintenanceImage_PartialOverride(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDeploymentHasReplicas(t *testing.T) {
+	one := int32(1)
+	zero := int32(0)
+
+	t.Run("status replicas counts as present", func(t *testing.T) {
+		d := &appsv1.Deployment{Status: appsv1.DeploymentStatus{Replicas: 2}}
+		assert.True(t, deploymentHasReplicas(d))
+	})
+
+	t.Run("ready/available/updated/unavailable each count", func(t *testing.T) {
+		for _, d := range []*appsv1.Deployment{
+			{Status: appsv1.DeploymentStatus{ReadyReplicas: 1}},
+			{Status: appsv1.DeploymentStatus{AvailableReplicas: 1}},
+			{Status: appsv1.DeploymentStatus{UpdatedReplicas: 1}},
+			{Status: appsv1.DeploymentStatus{UnavailableReplicas: 1}},
+		} {
+			assert.True(t, deploymentHasReplicas(d))
+		}
+	})
+
+	t.Run("nil spec replicas with empty status counts as present", func(t *testing.T) {
+		// A Deployment with nil spec.Replicas defaults to 1 replica.
+		d := &appsv1.Deployment{}
+		assert.True(t, deploymentHasReplicas(d))
+	})
+
+	t.Run("explicit one replica counts as present", func(t *testing.T) {
+		d := &appsv1.Deployment{Spec: appsv1.DeploymentSpec{Replicas: &one}}
+		assert.True(t, deploymentHasReplicas(d))
+	})
+
+	t.Run("scaled to zero with empty status is absent", func(t *testing.T) {
+		d := &appsv1.Deployment{Spec: appsv1.DeploymentSpec{Replicas: &zero}}
+		assert.False(t, deploymentHasReplicas(d))
+	})
+}
+
+func TestComputeMaintenanceChecksum(t *testing.T) {
+	title := "Down"
+	otherTitle := "Up"
+	body := "<h1>x</h1>"
+
+	base := &supersetv1alpha1.MaintenancePageSpec{Title: &title}
+
+	t.Run("stable for identical specs", func(t *testing.T) {
+		assert.Equal(t, computeMaintenanceChecksum(base), computeMaintenanceChecksum(&supersetv1alpha1.MaintenancePageSpec{Title: &title}))
+	})
+
+	t.Run("changes when title changes", func(t *testing.T) {
+		assert.NotEqual(t, computeMaintenanceChecksum(base), computeMaintenanceChecksum(&supersetv1alpha1.MaintenancePageSpec{Title: &otherTitle}))
+	})
+
+	t.Run("changes when body is set", func(t *testing.T) {
+		assert.NotEqual(t, computeMaintenanceChecksum(base), computeMaintenanceChecksum(&supersetv1alpha1.MaintenancePageSpec{Title: &title, Body: &body}))
+	})
+
+	t.Run("includes image fields", func(t *testing.T) {
+		withImage := &supersetv1alpha1.MaintenancePageSpec{
+			Title: &title,
+			Image: &supersetv1alpha1.ContainerImageSpec{Repository: "nginx", Tag: "1.27"},
+		}
+		assert.NotEqual(t, computeMaintenanceChecksum(base), computeMaintenanceChecksum(withImage))
+	})
+
+	t.Run("empty spec yields a fixed-length hex digest", func(t *testing.T) {
+		c := computeMaintenanceChecksum(&supersetv1alpha1.MaintenancePageSpec{})
+		assert.Len(t, c, 16)
+	})
+}
+
+func TestWebServerDesiredReplicas_NoWebServer(t *testing.T) {
+	// With no webServer configured the accessor is nil, so desired replicas is 0.
+	s := &supersetv1alpha1.Superset{}
+	assert.Equal(t, int32(0), webServerDesiredReplicas(s))
+}
+
+func TestReconcileMaintenancePageUp(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+	title := "Down for maintenance"
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Spec: supersetv1alpha1.SupersetSpec{
+			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{
+				MaintenancePage: &supersetv1alpha1.MaintenancePageSpec{Title: &title},
+			},
+		},
+		Status: supersetv1alpha1.SupersetStatus{Lifecycle: &supersetv1alpha1.LifecycleStatus{}},
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(20)}
+
+	// First pass: managed-mode ConfigMap + Deployment created, but not ready yet.
+	ready, err := r.reconcileMaintenancePageUp(ctx, superset)
+	assert.NoError(t, err)
+	assert.False(t, ready, "Deployment has no ready replicas yet")
+
+	// ConfigMap (managed mode) created.
+	cm := &corev1.ConfigMap{}
+	require.NoError(t, c.Get(ctx, client.ObjectKey{Name: maintenanceConfigMapName("test"), Namespace: "default"}, cm))
+	assert.Contains(t, cm.Data, "index.html")
+	assert.Contains(t, cm.Data, "nginx.conf")
+
+	// Deployment created and parent-owned.
+	deploy := &appsv1.Deployment{}
+	require.NoError(t, c.Get(ctx, client.ObjectKey{Name: maintenanceDeploymentName("test"), Namespace: "default"}, deploy))
+	assert.True(t, isOwnedBy(deploy, superset))
+
+	// Mark the Deployment ready, then the page is up and MaintenanceActive flips.
+	deploy.Status.ReadyReplicas = 1
+	require.NoError(t, c.Status().Update(ctx, deploy))
+
+	ready, err = r.reconcileMaintenancePageUp(ctx, superset)
+	assert.NoError(t, err)
+	assert.True(t, ready)
+	assert.True(t, superset.Status.Lifecycle.MaintenanceActive)
+}
+
+func TestReconcileMaintenanceReturn_AlreadyInactive(t *testing.T) {
+	r := &SupersetReconciler{Recorder: events.NewFakeRecorder(10)}
+	superset := &supersetv1alpha1.Superset{Status: supersetv1alpha1.SupersetStatus{}}
+	cleared, err := r.reconcileMaintenanceReturn(context.Background(), superset)
+	assert.NoError(t, err)
+	assert.True(t, cleared, "no lifecycle status means already cleared")
+}
+
+func TestReconcileMaintenanceReturn_WebServerRemoved(t *testing.T) {
+	recorder := events.NewFakeRecorder(10)
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Spec:       supersetv1alpha1.SupersetSpec{}, // WebServer nil
+		Status: supersetv1alpha1.SupersetStatus{
+			Lifecycle: &supersetv1alpha1.LifecycleStatus{MaintenanceActive: true},
+		},
+	}
+	r := &SupersetReconciler{Recorder: recorder}
+	cleared, err := r.reconcileMaintenanceReturn(context.Background(), superset)
+	assert.NoError(t, err)
+	assert.True(t, cleared)
+	assert.False(t, superset.Status.Lifecycle.MaintenanceActive)
+	assertNextEventContains(t, recorder, "Normal MaintenanceEnded Maintenance page disabled because webServer was removed")
+}
+
+func TestReconcileMaintenanceReturn_WaitsForWebServerReady(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Spec: supersetv1alpha1.SupersetSpec{
+			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
+		},
+		Status: supersetv1alpha1.SupersetStatus{
+			Lifecycle: &supersetv1alpha1.LifecycleStatus{MaintenanceActive: true},
+		},
+	}
+	webName := common.ResourceBaseName("test", common.ComponentWebServer)
+	deploy := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{Name: webName, Namespace: "default"},
+		Status:     appsv1.DeploymentStatus{ReadyReplicas: 0},
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, deploy).WithStatusSubresource(deploy).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	// Web-server not ready: should not clear.
+	cleared, err := r.reconcileMaintenanceReturn(ctx, superset)
+	assert.NoError(t, err)
+	assert.False(t, cleared)
+	assert.True(t, superset.Status.Lifecycle.MaintenanceActive)
+
+	// Mark ready, then it clears.
+	deploy.Status.ReadyReplicas = 1
+	require.NoError(t, c.Status().Update(ctx, deploy))
+	cleared, err = r.reconcileMaintenanceReturn(ctx, superset)
+	assert.NoError(t, err)
+	assert.True(t, cleared)
+	assert.False(t, superset.Status.Lifecycle.MaintenanceActive)
+}
+
+func TestDeleteMaintenanceResources(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+	}
+	deploy := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: maintenanceDeploymentName("test"), Namespace: "default"}}
+	cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: maintenanceConfigMapName("test"), Namespace: "default"}}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, deploy, cm).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	require.NoError(t, r.deleteMaintenanceResources(ctx, superset))
+
+	err := c.Get(ctx, client.ObjectKey{Name: maintenanceDeploymentName("test"), Namespace: "default"}, &appsv1.Deployment{})
+	assert.True(t, errors.IsNotFound(err))
+	err = c.Get(ctx, client.ObjectKey{Name: maintenanceConfigMapName("test"), Namespace: "default"}, &corev1.ConfigMap{})
+	assert.True(t, errors.IsNotFound(err))
+
+	// Deleting again (resources absent) is a clean no-op.
+	assert.NoError(t, r.deleteMaintenanceResources(ctx, superset))
+}
+
+func TestCleanupMaintenanceResources_ClearsActiveFlag(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Status:     supersetv1alpha1.SupersetStatus{Lifecycle: &supersetv1alpha1.LifecycleStatus{MaintenanceActive: true}},
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	require.NoError(t, r.cleanupMaintenanceResources(ctx, superset))
+	assert.False(t, superset.Status.Lifecycle.MaintenanceActive)
+}
+
+func TestReconcileMaintenancePageUp_CustomModeSkipsConfigMap(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Spec: supersetv1alpha1.SupersetSpec{
+			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{
+				MaintenancePage: &supersetv1alpha1.MaintenancePageSpec{
+					// Custom mode: user supplies an image, so no managed ConfigMap.
+					Image: &supersetv1alpha1.ContainerImageSpec{Repository: "my/maint", Tag: "v1"},
+				},
+			},
+		},
+		Status: supersetv1alpha1.SupersetStatus{Lifecycle: &supersetv1alpha1.LifecycleStatus{}},
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(20)}
+
+	ready, err := r.reconcileMaintenancePageUp(ctx, superset)
+	assert.NoError(t, err)
+	assert.False(t, ready)
+
+	// No managed ConfigMap created in custom mode.
+	err = c.Get(ctx, client.ObjectKey{Name: maintenanceConfigMapName("test"), Namespace: "default"}, &corev1.ConfigMap{})
+	assert.True(t, errors.IsNotFound(err), "custom mode must not create a managed ConfigMap")
+
+	// Deployment still created.
+	deploy := &appsv1.Deployment{}
+	require.NoError(t, c.Get(ctx, client.ObjectKey{Name: maintenanceDeploymentName("test"), Namespace: "default"}, deploy))
+	assert.Equal(t, "my/maint:v1", deploy.Spec.Template.Spec.Containers[0].Image)
 }

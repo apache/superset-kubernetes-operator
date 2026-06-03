@@ -23,6 +23,7 @@ import (
 	"reflect"
 	"testing"
 
+	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -763,5 +764,74 @@ func TestResolveServicePort(t *testing.T) {
 				t.Errorf("resolveServicePort() = %d, want %d", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestReconcileWebServerService_CreatesAndSwitchesSelector(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Spec: supersetv1alpha1.SupersetSpec{
+			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
+		},
+		Status: supersetv1alpha1.SupersetStatus{Lifecycle: &supersetv1alpha1.LifecycleStatus{}},
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	svcName, _ := webServerServiceRef(superset)
+
+	// Normal mode: selector targets web-server.
+	if err := r.reconcileWebServerService(ctx, superset); err != nil {
+		t.Fatalf("reconcileWebServerService: %v", err)
+	}
+	svc := &corev1.Service{}
+	if err := c.Get(ctx, client.ObjectKey{Name: svcName, Namespace: "default"}, svc); err != nil {
+		t.Fatalf("get service: %v", err)
+	}
+	if svc.Spec.Selector[common.LabelKeyComponent] != string(common.ComponentWebServer) {
+		t.Errorf("expected web-server selector, got %v", svc.Spec.Selector)
+	}
+	if !isOwnedBy(svc, superset) {
+		t.Error("expected web-server Service to be owned by parent")
+	}
+
+	// Maintenance active: selector switches to maintenance-page.
+	superset.Status.Lifecycle.MaintenanceActive = true
+	if err := r.reconcileWebServerService(ctx, superset); err != nil {
+		t.Fatalf("reconcileWebServerService (maintenance): %v", err)
+	}
+	if err := c.Get(ctx, client.ObjectKey{Name: svcName, Namespace: "default"}, svc); err != nil {
+		t.Fatalf("get service: %v", err)
+	}
+	if svc.Spec.Selector[common.LabelKeyComponent] != string(common.ComponentMaintenancePage) {
+		t.Errorf("expected maintenance-page selector during maintenance, got %v", svc.Spec.Selector)
+	}
+}
+
+func TestReconcileWebServerService_DeletesWhenWebServerRemoved(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		// WebServer nil -> Service should be deleted.
+	}
+	svcName, _ := webServerServiceRef(superset)
+	existing := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: svcName, Namespace: "default"}}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, existing).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	if err := r.reconcileWebServerService(ctx, superset); err != nil {
+		t.Fatalf("reconcileWebServerService: %v", err)
+	}
+	err := c.Get(ctx, client.ObjectKey{Name: svcName, Namespace: "default"}, &corev1.Service{})
+	if !errors.IsNotFound(err) {
+		t.Errorf("expected web-server Service deleted, got %v", err)
+	}
+
+	// Idempotent when already absent.
+	if err := r.reconcileWebServerService(ctx, superset); err != nil {
+		t.Fatalf("reconcileWebServerService (absent): %v", err)
 	}
 }

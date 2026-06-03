@@ -23,6 +23,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	batchv1 "k8s.io/api/batch/v1"
@@ -387,5 +388,122 @@ func TestJobFailureMessage(t *testing.T) {
 		long := strings.Repeat("x", maxTerminationMessageLen+5)
 		got := jobFailureMessage(failed("BackoffLimitExceeded", long))
 		assert.Len(t, got, maxTerminationMessageLen)
+	})
+}
+
+func TestResetTaskStatusForRun(t *testing.T) {
+	now := metav1.Now()
+	taskRef := &supersetv1alpha1.TaskRefStatus{
+		State:             taskStateComplete,
+		StartedAt:         &now,
+		CompletedAt:       &now,
+		Attempts:          2,
+		MaxRetries:        1,
+		NextAttemptAt:     &now,
+		DesiredChecksum:   "old-desired",
+		CompletedChecksum: "old-completed",
+		Message:           "stale message",
+		Conditions:        []metav1.Condition{{Type: "Ready"}},
+	}
+
+	resetTaskStatusForRun(taskRef, "new-checksum", 5)
+
+	assert.Equal(t, taskStatePending, taskRef.State)
+	assert.Nil(t, taskRef.StartedAt)
+	assert.Nil(t, taskRef.CompletedAt)
+	assert.Zero(t, taskRef.Attempts)
+	assert.Equal(t, int32(5), taskRef.MaxRetries)
+	assert.Nil(t, taskRef.NextAttemptAt)
+	assert.Equal(t, "new-checksum", taskRef.DesiredChecksum)
+	assert.Empty(t, taskRef.CompletedChecksum)
+	assert.Empty(t, taskRef.Message)
+	assert.Nil(t, taskRef.Conditions)
+}
+
+func TestJobComplete(t *testing.T) {
+	t.Run("succeeded count marks complete", func(t *testing.T) {
+		assert.True(t, jobComplete(&batchv1.Job{Status: batchv1.JobStatus{Succeeded: 1}}))
+	})
+	t.Run("complete condition marks complete", func(t *testing.T) {
+		job := &batchv1.Job{Status: batchv1.JobStatus{Conditions: []batchv1.JobCondition{{
+			Type: batchv1.JobComplete, Status: corev1.ConditionTrue,
+		}}}}
+		assert.True(t, jobComplete(job))
+	})
+	t.Run("complete condition that is false is not complete", func(t *testing.T) {
+		job := &batchv1.Job{Status: batchv1.JobStatus{Conditions: []batchv1.JobCondition{{
+			Type: batchv1.JobComplete, Status: corev1.ConditionFalse,
+		}}}}
+		assert.False(t, jobComplete(job))
+	})
+	t.Run("empty status is not complete", func(t *testing.T) {
+		assert.False(t, jobComplete(&batchv1.Job{}))
+	})
+}
+
+func TestJobConditionTransitionTime(t *testing.T) {
+	transition := metav1.NewTime(metav1.Now().Add(-time.Hour))
+	job := &batchv1.Job{Status: batchv1.JobStatus{Conditions: []batchv1.JobCondition{{
+		Type:               batchv1.JobComplete,
+		Status:             corev1.ConditionTrue,
+		LastTransitionTime: transition,
+	}}}}
+
+	got := jobConditionTransitionTime(job, batchv1.JobComplete)
+	if assert.NotNil(t, got) {
+		assert.Equal(t, transition, *got)
+	}
+	assert.Nil(t, jobConditionTransitionTime(job, batchv1.JobFailed), "absent condition returns nil")
+
+	falseCond := &batchv1.Job{Status: batchv1.JobStatus{Conditions: []batchv1.JobCondition{{
+		Type: batchv1.JobComplete, Status: corev1.ConditionFalse, LastTransitionTime: transition,
+	}}}}
+	assert.Nil(t, jobConditionTransitionTime(falseCond, batchv1.JobComplete), "false condition returns nil")
+}
+
+func TestLifecycleJobMainImage(t *testing.T) {
+	t.Run("nil job returns empty", func(t *testing.T) {
+		assert.Empty(t, lifecycleJobMainImage(nil))
+	})
+	t.Run("prefers the named superset container", func(t *testing.T) {
+		job := &batchv1.Job{Spec: batchv1.JobSpec{Template: corev1.PodTemplateSpec{Spec: corev1.PodSpec{
+			Containers: []corev1.Container{
+				{Name: "sidecar", Image: "sidecar:1"},
+				{Name: common.Container, Image: "apache/superset:2"},
+			},
+		}}}}
+		assert.Equal(t, "apache/superset:2", lifecycleJobMainImage(job))
+	})
+	t.Run("falls back to the first container", func(t *testing.T) {
+		job := &batchv1.Job{Spec: batchv1.JobSpec{Template: corev1.PodTemplateSpec{Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{Name: "other", Image: "first:1"}},
+		}}}}
+		assert.Equal(t, "first:1", lifecycleJobMainImage(job))
+	})
+	t.Run("empty containers returns empty", func(t *testing.T) {
+		assert.Empty(t, lifecycleJobMainImage(&batchv1.Job{}))
+	})
+}
+
+func TestTaskJobMatchesChecksum(t *testing.T) {
+	r := &SupersetReconciler{}
+	withChecksum := func(checksum string) *batchv1.Job {
+		return &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
+			common.AnnotationConfigChecksum: checksum,
+		}}}
+	}
+
+	t.Run("matching annotation matches", func(t *testing.T) {
+		assert.True(t, r.taskJobMatchesChecksum(withChecksum("sha:1"), "sha:1"))
+	})
+	t.Run("mismatched annotation does not match", func(t *testing.T) {
+		assert.False(t, r.taskJobMatchesChecksum(withChecksum("sha:1"), "sha:2"))
+	})
+	t.Run("unannotated in-flight job is treated as matching", func(t *testing.T) {
+		assert.True(t, r.taskJobMatchesChecksum(&batchv1.Job{}, "sha:1"))
+	})
+	t.Run("unannotated completed job does not match", func(t *testing.T) {
+		job := &batchv1.Job{Status: batchv1.JobStatus{Succeeded: 1}}
+		assert.False(t, r.taskJobMatchesChecksum(job, "sha:1"))
 	})
 }

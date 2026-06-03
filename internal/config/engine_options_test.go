@@ -132,6 +132,63 @@ func TestComputeEngineOptions_PerComponentOverridesTopLevel(t *testing.T) {
 	assert.Equal(t, int32(4), result.PoolSize) // performance: workers
 }
 
+func TestApplyExplicitOverrides_NilSpec(t *testing.T) {
+	// Nil spec must leave the result untouched (early return).
+	result := &EngineOptionsInput{PoolSize: 7, MaxOverflow: 2, PoolRecycle: 100, PoolPrePing: true, PoolTimeout: 9}
+	applyExplicitOverrides(result, nil)
+	assert.Equal(t, int32(7), result.PoolSize)
+	assert.Equal(t, int32(2), result.MaxOverflow)
+	assert.Equal(t, int32(100), result.PoolRecycle)
+	assert.True(t, result.PoolPrePing)
+	assert.Equal(t, int32(9), result.PoolTimeout)
+}
+
+func TestApplyExplicitOverrides_EachFieldSetVsNil(t *testing.T) {
+	t.Run("all fields set override the baseline", func(t *testing.T) {
+		result := &EngineOptionsInput{PoolSize: 1, MaxOverflow: -1, PoolRecycle: 3600}
+		spec := &v1alpha1.SQLAlchemyEngineOptionsSpec{
+			PoolSize:    ptr(int32(20)),
+			MaxOverflow: ptr(int32(5)),
+			PoolRecycle: ptr(int32(900)),
+			PoolPrePing: ptr(true),
+			PoolTimeout: ptr(int32(45)),
+		}
+		applyExplicitOverrides(result, spec)
+		assert.Equal(t, int32(20), result.PoolSize)
+		assert.Equal(t, int32(5), result.MaxOverflow)
+		assert.Equal(t, int32(900), result.PoolRecycle)
+		assert.True(t, result.PoolPrePing)
+		assert.Equal(t, int32(45), result.PoolTimeout)
+	})
+
+	t.Run("nil fields preserve the baseline", func(t *testing.T) {
+		// An empty spec (every field nil) must not change anything.
+		result := &EngineOptionsInput{PoolSize: 3, MaxOverflow: -1, PoolRecycle: 3600, PoolPrePing: false, PoolTimeout: 11}
+		applyExplicitOverrides(result, &v1alpha1.SQLAlchemyEngineOptionsSpec{})
+		assert.Equal(t, int32(3), result.PoolSize)
+		assert.Equal(t, int32(-1), result.MaxOverflow)
+		assert.Equal(t, int32(3600), result.PoolRecycle)
+		assert.False(t, result.PoolPrePing)
+		assert.Equal(t, int32(11), result.PoolTimeout)
+	})
+
+	t.Run("only PoolTimeout set leaves others at baseline", func(t *testing.T) {
+		result := &EngineOptionsInput{PoolSize: 3, MaxOverflow: -1, PoolRecycle: 3600}
+		applyExplicitOverrides(result, &v1alpha1.SQLAlchemyEngineOptionsSpec{PoolTimeout: ptr(int32(30))})
+		assert.Equal(t, int32(30), result.PoolTimeout)
+		assert.Equal(t, int32(3), result.PoolSize)
+		assert.Equal(t, int32(-1), result.MaxOverflow)
+		assert.Equal(t, int32(3600), result.PoolRecycle)
+	})
+
+	t.Run("only PoolPrePing set leaves others at baseline", func(t *testing.T) {
+		result := &EngineOptionsInput{PoolSize: 3}
+		applyExplicitOverrides(result, &v1alpha1.SQLAlchemyEngineOptionsSpec{PoolPrePing: ptr(true)})
+		assert.True(t, result.PoolPrePing)
+		assert.Equal(t, int32(3), result.PoolSize)
+	})
+}
+
 func TestFullPipeline_WebServerPerformance(t *testing.T) {
 	g := ResolveGunicorn(&v1alpha1.GunicornSpec{Preset: ptr(PresetPerformance)})
 	sqla := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: ptr(PresetAggressive)}

@@ -19,6 +19,7 @@ limitations under the License.
 package controller
 
 import (
+	"reflect"
 	"testing"
 	"time"
 
@@ -26,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
+	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
 func TestTaskMaxRetriesValue(t *testing.T) {
@@ -157,4 +159,76 @@ func TestSuffixForTaskType(t *testing.T) {
 			assert.Equal(t, tt.want, suffixForTaskType(tt.taskType))
 		})
 	}
+}
+
+func TestDefaultMigrateCommand(t *testing.T) {
+	t.Run("default db upgrade", func(t *testing.T) {
+		s := &supersetv1alpha1.Superset{}
+		got := defaultMigrateCommand(s)
+		assert.Equal(t, []string{"/bin/sh", "-c", "superset db upgrade"}, got)
+	})
+
+	t.Run("user override wins", func(t *testing.T) {
+		s := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Migrate: &supersetv1alpha1.MigrateTaskSpec{
+				BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Command: []string{"superset", "db", "stamp", "head"}},
+			}},
+		}}
+		got := defaultMigrateCommand(s)
+		assert.Equal(t, []string{"superset", "db", "stamp", "head"}, got)
+	})
+
+	t.Run("bootstrap script is prepended to the default", func(t *testing.T) {
+		script := "pip install foo"
+		s := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
+			BootstrapScript: &script,
+		}}
+		got := defaultMigrateCommand(s)
+		want := []string{"/bin/sh", "-c",
+			". '" + common.ConfigMountPath + "/" + bootstrapScriptKey + "'; superset db upgrade"}
+		assert.Equal(t, want, got)
+	})
+}
+
+func TestDefaultInitCommand(t *testing.T) {
+	t.Run("default superset init", func(t *testing.T) {
+		s := &supersetv1alpha1.Superset{}
+		got := defaultInitCommand(s)
+		assert.Equal(t, []string{"/bin/sh", "-c", "superset init"}, got)
+	})
+
+	t.Run("user override wins", func(t *testing.T) {
+		s := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Init: &supersetv1alpha1.InitTaskSpec{
+				BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Command: []string{"echo", "custom"}},
+			}},
+		}}
+		got := defaultInitCommand(s)
+		assert.Equal(t, []string{"echo", "custom"}, got)
+	})
+
+	t.Run("bootstrap script is prepended to the default", func(t *testing.T) {
+		script := "pip install foo"
+		s := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
+			BootstrapScript: &script,
+		}}
+		got := defaultInitCommand(s)
+		want := []string{"/bin/sh", "-c",
+			". '" + common.ConfigMountPath + "/" + bootstrapScriptKey + "'; superset init"}
+		assert.Equal(t, want, got)
+	})
+
+	t.Run("admin user is appended before bootstrap wrapping", func(t *testing.T) {
+		s := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Init: &supersetv1alpha1.InitTaskSpec{
+				AdminUser: &supersetv1alpha1.AdminUserSpec{},
+			}},
+		}}
+		got := defaultInitCommand(s)
+		// No bootstrap, so identical to buildInitCommand output.
+		want := buildInitCommand(s.Spec.Lifecycle.Init)
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("defaultInitCommand() = %#v, want %#v", got, want)
+		}
+	})
 }

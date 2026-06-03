@@ -22,6 +22,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -183,4 +185,168 @@ func markJobSucceeded(t *testing.T, c client.Client, job *batchv1.Job) {
 	if err := c.Status().Update(context.Background(), job); err != nil {
 		t.Fatalf("marking %s job succeeded: %v", job.Name, err)
 	}
+}
+
+func TestClearUpgradeApprovalAnnotation(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+
+	t.Run("no annotations is a no-op", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{
+			ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
+		r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+		assert.NoError(t, r.clearUpgradeApprovalAnnotation(ctx, superset))
+	})
+
+	t.Run("annotation present is removed via patch", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "default",
+				Annotations: map[string]string{
+					annotationApproveUpgrade: "token-123",
+					"keep":                   "me",
+				},
+			},
+		}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
+		r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+		require.NoError(t, r.clearUpgradeApprovalAnnotation(ctx, superset))
+
+		got := &supersetv1alpha1.Superset{}
+		require.NoError(t, c.Get(ctx, types.NamespacedName{Name: "test", Namespace: "default"}, got))
+		_, present := got.Annotations[annotationApproveUpgrade]
+		assert.False(t, present, "approval annotation should be removed")
+		assert.Equal(t, "me", got.Annotations["keep"], "other annotations are preserved")
+	})
+
+	t.Run("different annotations present, no approval key is a no-op", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test", Namespace: "default",
+				Annotations: map[string]string{"other": "v"},
+			},
+		}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
+		r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+		assert.NoError(t, r.clearUpgradeApprovalAnnotation(ctx, superset))
+	})
+}
+
+func TestDeleteLifecycleTaskResources(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Status: supersetv1alpha1.SupersetStatus{
+			Lifecycle: &supersetv1alpha1.LifecycleStatus{
+				Migrate:                &supersetv1alpha1.TaskRefStatus{State: taskStateComplete},
+				LastCompletedChecksums: map[string]string{taskTypeMigrate: "sum"},
+			},
+		},
+	}
+	taskName := "test" + suffixMigrate
+	job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{
+		Name:      taskName,
+		Namespace: "default",
+		Labels:    map[string]string{labelInitTask: taskName, labelInitInstance: "test"},
+	}}
+	cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "test-migrate-config", Namespace: "default"}}
+
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, job, cm).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	require.NoError(t, r.deleteLifecycleTaskResources(ctx, superset, taskTypeMigrate, suffixMigrate))
+
+	// Status slot cleared.
+	assert.Nil(t, superset.Status.Lifecycle.Migrate)
+	_, present := superset.Status.Lifecycle.LastCompletedChecksums[taskTypeMigrate]
+	assert.False(t, present, "completed checksum entry should be deleted")
+}
+
+func TestFinalizeLifecycle(t *testing.T) {
+	t.Run("with components enters Restoring", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{
+			Spec: supersetv1alpha1.SupersetSpec{WebServer: &supersetv1alpha1.WebServerComponentSpec{}},
+			Status: supersetv1alpha1.SupersetStatus{Lifecycle: &supersetv1alpha1.LifecycleStatus{
+				Upgrade: &supersetv1alpha1.UpgradeContext{FromVersion: "1", ToVersion: "2"},
+			}},
+		}
+		r := &SupersetReconciler{Recorder: events.NewFakeRecorder(10)}
+		r.finalizeLifecycle(superset, "apache/superset:2")
+		assert.Equal(t, lifecyclePhaseRestoring, superset.Status.Lifecycle.Phase)
+		assert.Equal(t, "apache/superset:2", superset.Status.LastLifecycleImage)
+		assert.Nil(t, superset.Status.Lifecycle.Upgrade, "settle clears the upgrade context")
+		assert.True(t, hasConditionReason(superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete, "LifecycleComplete"))
+	})
+
+	t.Run("without components enters Complete", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{
+			Status: supersetv1alpha1.SupersetStatus{Lifecycle: &supersetv1alpha1.LifecycleStatus{}},
+		}
+		r := &SupersetReconciler{Recorder: events.NewFakeRecorder(10)}
+		r.finalizeLifecycle(superset, "apache/superset:2")
+		assert.Equal(t, lifecyclePhaseComplete, superset.Status.Lifecycle.Phase)
+	})
+}
+
+func TestCheckUpgradeGates(t *testing.T) {
+	ctx := context.Background()
+	r := &SupersetReconciler{Recorder: events.NewFakeRecorder(10)}
+
+	t.Run("no image change is not gated", func(t *testing.T) {
+		s := &supersetv1alpha1.Superset{Status: supersetv1alpha1.SupersetStatus{Lifecycle: &supersetv1alpha1.LifecycleStatus{}}}
+		_, gated := r.checkUpgradeGates(ctx, s, false, "apache/superset:1", "apache/superset:1")
+		assert.False(t, gated)
+	})
+
+	t.Run("first install (empty lastImage) is not gated", func(t *testing.T) {
+		s := &supersetv1alpha1.Superset{Status: supersetv1alpha1.SupersetStatus{Lifecycle: &supersetv1alpha1.LifecycleStatus{}}}
+		_, gated := r.checkUpgradeGates(ctx, s, true, "", "apache/superset:1")
+		assert.False(t, gated)
+	})
+
+	t.Run("downgrade blocks with terminal result", func(t *testing.T) {
+		s := &supersetv1alpha1.Superset{
+			ObjectMeta: metav1.ObjectMeta{Name: "test"},
+			Status:     supersetv1alpha1.SupersetStatus{Lifecycle: &supersetv1alpha1.LifecycleStatus{}},
+		}
+		res, gated := r.checkUpgradeGates(ctx, s, true, "apache/superset:3.0.0", "apache/superset:2.0.0")
+		assert.True(t, gated)
+		assert.True(t, res.TerminalFailure)
+		assert.Equal(t, lifecyclePhaseBlocked, s.Status.Lifecycle.Phase)
+		assert.True(t, hasConditionReason(s.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete, "DowngradeBlocked"))
+	})
+
+	t.Run("supervised upgrade awaits approval", func(t *testing.T) {
+		mode := upgradeModeSupervised
+		s := &supersetv1alpha1.Superset{
+			ObjectMeta: metav1.ObjectMeta{Name: "test"},
+			Spec: supersetv1alpha1.SupersetSpec{
+				Lifecycle: &supersetv1alpha1.LifecycleSpec{UpgradeMode: &mode},
+			},
+			Status: supersetv1alpha1.SupersetStatus{Lifecycle: &supersetv1alpha1.LifecycleStatus{}},
+		}
+		res, gated := r.checkUpgradeGates(ctx, s, true, "apache/superset:2.0.0", "apache/superset:3.0.0")
+		assert.True(t, gated)
+		assert.False(t, res.TerminalFailure)
+		assert.Equal(t, lifecyclePhaseAwaitingApproval, s.Status.Lifecycle.Phase)
+		assert.Equal(t, phaseAwaitingApproval, s.Status.Phase)
+	})
+
+	t.Run("automatic upgrade proceeds past the gate", func(t *testing.T) {
+		s := &supersetv1alpha1.Superset{
+			ObjectMeta: metav1.ObjectMeta{Name: "test"},
+			Status:     supersetv1alpha1.SupersetStatus{Lifecycle: &supersetv1alpha1.LifecycleStatus{}},
+		}
+		_, gated := r.checkUpgradeGates(ctx, s, true, "apache/superset:2.0.0", "apache/superset:3.0.0")
+		assert.False(t, gated)
+		// Upgrade context recorded for the in-flight upgrade.
+		require.NotNil(t, s.Status.Lifecycle.Upgrade)
+		assert.Equal(t, "2.0.0", s.Status.Lifecycle.Upgrade.FromVersion)
+		assert.Equal(t, "3.0.0", s.Status.Lifecycle.Upgrade.ToVersion)
+	})
 }
