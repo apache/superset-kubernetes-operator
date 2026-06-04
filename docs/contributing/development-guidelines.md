@@ -463,7 +463,7 @@ The PR template (`PULL_REQUEST_TEMPLATE.md`) pre-fills these sections.
 ### Changelog entry
 
 Add a bullet under `## [Unreleased]` in
-[`CHANGELOG.md`](https://github.com/apache/superset-kubernetes-operator/blob/main/CHANGELOG.md)
+[`docs/reference/releases.md`](../reference/releases.md)
 for noteworthy changes — new features,
 new CRD fields, behavior changes, breaking changes, deprecations, and
 critical bug fixes. Skip the entry for routine work that a user wouldn't

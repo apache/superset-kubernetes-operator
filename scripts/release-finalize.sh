@@ -21,7 +21,7 @@
 #   scripts/release-finalize.sh <version>
 #
 # Example:
-#   scripts/release-finalize.sh 0.2.0    # creates tag v0.2.0
+#   scripts/release-finalize.sh 0.2.0    # from 0.2 branch, creates tag v0.2.0
 
 set -euo pipefail
 
@@ -40,7 +40,7 @@ VERSION="${1:-}"
 [[ -f Makefile ]] || die "must be run from the repository root"
 
 TAG="v${VERSION}"
-BRANCH="release/${VERSION}"
+BRANCH="${VERSION%.*}"
 
 # --- preflight checks ---
 if [[ -n "$(git status --porcelain)" ]]; then
@@ -55,6 +55,11 @@ fi
 LAST_RC=$(git tag -l "v${VERSION}-rc*" | sort -V | tail -1 || true)
 if [[ -z "$LAST_RC" ]]; then
   die "no RC tags found for v${VERSION} — run scripts/release-rc.sh first"
+fi
+LAST_RC_COMMIT=$(git rev-list -n 1 "${LAST_RC}")
+HEAD_COMMIT=$(git rev-parse HEAD)
+if [[ "$HEAD_COMMIT" != "$LAST_RC_COMMIT" ]]; then
+  die "HEAD is ${HEAD_COMMIT}, but ${LAST_RC} points to ${LAST_RC_COMMIT}; do not tag unvoted changes as the final release"
 fi
 
 if git rev-parse "${TAG}" >/dev/null 2>&1; then

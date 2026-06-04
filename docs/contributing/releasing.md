@@ -73,15 +73,18 @@ it. Review and merge these PRs promptly to stay current on security patches.
 
 ## Versioning
 
-The project follows [Semantic Versioning](https://semver.org/). Two versions are tracked:
+The project follows [Semantic Versioning](https://semver.org/). The operator
+and Helm chart versions are coupled for release artifacts:
 
 | Version | Location | Purpose |
 |---------|----------|---------|
 | **Operator version** | `VERSION` in `Makefile` | Operator image tag. Single source of truth. |
-| **Chart version** | `version` in `charts/superset-operator/Chart.yaml` | Helm chart version. Can diverge for chart-only fixes. |
+| **Chart version** | `version` in `charts/superset-operator/Chart.yaml` | Helm chart package version. |
+| **Chart app version** | `appVersion` in `charts/superset-operator/Chart.yaml` | Default operator image tag used by the chart. |
 
-The Chart.yaml `appVersion` is injected from the Makefile `VERSION` at package time
-(`make helm` passes `--app-version`), so it does not need to be updated manually.
+Release preparation sets all three to the same base release version, for example
+`0.1.0`. The tag-triggered release workflow packages RC convenience artifacts
+with the RC suffix, for example `0.1.0-rc1`.
 
 While the project is pre-1.0, all versions use `0.x.y` to signal instability per semver.
 
@@ -116,8 +119,8 @@ Before creating the first RC for a minor release, run or verify:
 
 ## Reviewing the Changelog
 
-Contributors add bullets to `## [Unreleased]` in `CHANGELOG.md` as PRs land
-(see the
+Contributors add bullets to `## [Unreleased]` in
+[`docs/reference/releases.md`](../reference/releases.md) as PRs land (see the
 [changelog convention](development-guidelines.md#changelog-entry)). Before
 tagging the RC, the release manager does one review pass to make sure the
 section accurately reflects the release:
@@ -133,37 +136,43 @@ section accurately reflects the release:
 4. Group bullets under the standard Keep a Changelog subheadings — `Added`,
    `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security` — dropping any
    that end up empty.
-5. Rename the section header from `## [Unreleased]` to
-   `## [<version>] — <YYYY-MM-DD>` and add a fresh empty `## [Unreleased]`
-   above it. Update the comparison links at the bottom of the file.
+5. Rename the section header from `## [Unreleased]` to `## [<version>]` and add
+   a fresh empty `## [Unreleased]` above it. Add the final release date after
+   the vote passes and the release has been promoted. Update the comparison
+   links at the bottom of the file.
 
-Two flows depending on whether the release branch already exists:
+Two flows depending on whether the minor release branch already exists:
 
-- **First RC of a minor release.** The `release/<version>` branch does not
-  exist yet, and `release-rc.sh` will create it from `main`. Land the
-  reviewed `CHANGELOG.md` on `main` first (a normal PR), then run
-  `release-rc.sh` so the new branch and RC tag pick it up.
-- **Subsequent RCs (`rc2`, `rc3`, …).** The `release/<version>` branch
-  already exists. Commit the `CHANGELOG.md` polish on that branch directly,
+- **First RC of a minor release.** The `<major>.<minor>` branch does not exist
+  yet. Create it from `main`, commit the reviewed changelog and any
+  release-only polish there, then run `release-rc.sh` so the RC tag picks it up.
+- **Subsequent RCs (`rc2`, `rc3`, …).** The `<major>.<minor>` branch already
+  exists. Commit changelog polish on that branch directly,
   then run `release-rc.sh` to bump the RC number.
 
 ## Creating a Release Candidate
 
 The `scripts/release-rc.sh` script automates the full RC preparation: creates
-the release branch (first RC only), bumps the operator and Helm chart
-versions, regenerates manifests, runs the lint/license/test/docs/helm-lint
-checks, commits, and tags.
+the minor release branch (first RC only), bumps the operator version and Helm
+chart `version`/`appVersion` metadata to the target release version, regenerates
+manifests, runs the lint/license/test/docs/helm-lint checks, commits, and tags.
+The tag-triggered release workflow packages and publishes the RC image and Helm
+chart with the RC version suffix. The script also verifies that
+`docs/reference/releases.md` contains a heading for the target release version.
 
 ```sh
-# First RC for 0.2.0 — creates release/0.2.0 branch and v0.2.0-rc1 tag.
-# Chart version defaults to the operator version unless overridden.
-scripts/release-rc.sh 0.2.0
+# First RC for 0.2.0 — create the 0.2 branch first, then tag v0.2.0-rc1.
+git checkout main
+git pull
+git checkout -b 0.2
+# Commit docs/reference/releases.md and any release-only polish here.
+scripts/release-rc.sh 0.2.0 --expect-rc 1
 
-# Pin the Helm chart to a different version (rare; only for chart-only fixes).
-scripts/release-rc.sh 0.2.0 --chart-version 0.2.1
+# Build and verify signed source artifacts before pushing anything.
+scripts/release-source.sh
 
-# Push branch + tag to trigger the release workflow
-git push origin release/0.2.0 v0.2.0-rc1
+# Push branch + tag to trigger the release workflow after source verification.
+git push origin 0.2 v0.2.0-rc1
 ```
 
 Running the script again from the same release branch increments the RC
@@ -181,9 +190,9 @@ A release candidate therefore needs three artifacts staged on
 
 | Artifact | Filename pattern | Notes |
 |---|---|---|
-| Source archive | `apache-superset-kubernetes-operator-<version>-source.tar.gz` | A `git archive` of the RC tag, prefixed with the project directory. |
-| Detached PGP signature | `apache-superset-kubernetes-operator-<version>-source.tar.gz.asc` | Generated with a key in [`KEYS`](https://dist.apache.org/repos/dist/release/superset/KEYS). |
-| SHA-512 checksum | `apache-superset-kubernetes-operator-<version>-source.tar.gz.sha512` | `shasum -a 512` output, with a bare filename so verifiers can run `shasum -c` after a plain download. |
+| Source archive | `apache-superset-kubernetes-operator-<version>-rc<n>-source.tar.gz` | A `git archive` of the RC tag, prefixed with the project directory. |
+| Detached PGP signature | `apache-superset-kubernetes-operator-<version>-rc<n>-source.tar.gz.asc` | Generated with a key in [`KEYS`](https://dist.apache.org/repos/dist/release/superset/KEYS). |
+| SHA-512 checksum | `apache-superset-kubernetes-operator-<version>-rc<n>-source.tar.gz.sha512` | `shasum -a 512` output, with a bare filename so verifiers can run `shasum -c` after a plain download. |
 
 ### Pre-requisites for the release manager
 
@@ -204,15 +213,17 @@ A release candidate therefore needs three artifacts staged on
 ### Producing the source tarball
 
 `scripts/release-source.sh` wraps `git archive`, `gpg`, and `shasum` and
-self-verifies before exiting:
+self-verifies before exiting. It infers the local RC tag from `HEAD`, writes to
+`dist/<version>-rc<n>/`, and signs with the newest usable local secret key that
+has an `@apache.org` UID:
 
 ```sh
-scripts/release-source.sh 0.2.0 --rc 1
-# → dist/apache-superset-kubernetes-operator-0.2.0-rc1-source.tar.gz{,.asc,.sha512}
+scripts/release-source.sh
+# → dist/0.2.0-rc1/apache-superset-kubernetes-operator-0.2.0-rc1-source.tar.gz{,.asc,.sha512}
 ```
 
-Pass `--gpg-key <id>` to pick a non-default signing key, and `--out-dir
-<path>` to write the artifacts somewhere other than `./dist/`.
+Pass `--gpg-key <id>` to pick a specific signing key, and `--out-dir <path>` to
+write the artifacts somewhere other than `dist/<version>-rc<n>/`.
 
 > **Why a script, not raw `git archive` + `gpg` + `shasum`.** The script
 > avoids a small set of subtle errors that are easy to make manually:
@@ -230,7 +241,7 @@ Pass `--gpg-key <id>` to pick a non-default signing key, and `--out-dir
 ```sh
 cd ~/asf/dev-superset
 mkdir kubernetes-operator-${VERSION}-rc${RC}
-cp /path/to/dist/apache-superset-kubernetes-operator-${VERSION}-rc${RC}-source.tar.gz{,.asc,.sha512} \
+cp /path/to/dist/${VERSION}-rc${RC}/apache-superset-kubernetes-operator-${VERSION}-rc${RC}-source.tar.gz{,.asc,.sha512} \
    kubernetes-operator-${VERSION}-rc${RC}/
 svn add kubernetes-operator-${VERSION}-rc${RC}
 svn commit -m "Stage Superset Kubernetes Operator ${VERSION}-rc${RC}"
@@ -241,63 +252,33 @@ After the commit lands, the artifacts appear at
 
 ### Vote email template
 
-Send the vote thread to `dev@superset.apache.org` with `[VOTE]` in the
-subject. The thread must stay open for **at least 72 hours** and pass with at
-least three `+1` votes from PMC members and no `-1` votes (per
-[ASF voting rules](https://www.apache.org/foundation/voting.html#ReleaseVotes)).
+Generate a vote email draft from the RC tag on `HEAD`, review it, then send the
+thread to `dev@superset.apache.org` with `[VOTE]` in the subject:
 
-```text
-Subject: [VOTE] Release Apache Superset Kubernetes Operator <version>-rc<n>
-
-Hello,
-
-This is a vote to release Apache Superset Kubernetes Operator <version> based
-on candidate rc<n>.
-
-The release candidate artifacts are staged at:
-  https://dist.apache.org/repos/dist/dev/superset/kubernetes-operator-<version>-rc<n>/
-
-The git tag is:
-  https://github.com/apache/superset-kubernetes-operator/releases/tag/v<version>-rc<n>
-
-PGP keys used for signing are listed in:
-  https://dist.apache.org/repos/dist/release/superset/KEYS
-
-To verify the candidate (Go 1.26+, Helm, and Apache Rat must be installed
-locally; `make` will fetch additional Go modules and tools on first use):
-
-  curl -O https://dist.apache.org/repos/dist/dev/superset/kubernetes-operator-<version>-rc<n>/apache-superset-kubernetes-operator-<version>-rc<n>-source.tar.gz{,.asc,.sha512}
-  curl -O https://dist.apache.org/repos/dist/release/superset/KEYS
-  gpg --import KEYS
-  gpg --verify apache-superset-kubernetes-operator-<version>-rc<n>-source.tar.gz{.asc,}
-  shasum -a 512 -c apache-superset-kubernetes-operator-<version>-rc<n>-source.tar.gz.sha512
-  tar -xzf apache-superset-kubernetes-operator-<version>-rc<n>-source.tar.gz
-  cd apache-superset-kubernetes-operator-<version>/
-  make test-unit helm-lint check-license
-
-Notable changes are documented in:
-  https://github.com/apache/superset-kubernetes-operator/blob/v<version>-rc<n>/CHANGELOG.md
-
-The vote will be open for at least 72 hours.
-
-[ ] +1 release this package
-[ ]  0 no opinion
-[ ] -1 do not release this package because ...
-
-Thanks,
-<release manager>
+```sh
+scripts/release-email.sh vote > dist/0.2.0-rc1/VOTE.txt
 ```
 
+The vote thread must stay open for **at least 72 hours** and pass with at least
+three `+1` votes from PMC members and no `-1` votes (per
+[ASF voting rules](https://www.apache.org/foundation/voting.html#ReleaseVotes)).
+
 After the vote thread closes, post a `[RESULT][VOTE]` summary to the same list
-with the tally and the binding/non-binding breakdown.
+with the tally and the binding/non-binding breakdown:
+
+```sh
+scripts/release-email.sh result > dist/0.2.0-rc1/RESULT.txt
+```
 
 ## Finalizing a Release
 
-After the ASF vote passes, the `scripts/release-finalize.sh` script tags the final
-release on the release branch:
+After the ASF vote passes, the `scripts/release-finalize.sh` script tags the
+final release on the same commit as the voted RC. Do not commit changelog date
+updates or other polish before finalizing; those changes were not part of the
+voted source release.
 
 ```sh
-# From the release/0.2.0 branch
+# From the 0.2 branch
 scripts/release-finalize.sh 0.2.0
 
 # Push the tag to trigger the release workflow
@@ -306,19 +287,22 @@ git push origin v0.2.0
 
 The release workflow pushes the `0.2.0` and `latest` images to GHCR.
 
+After the final tag is pushed, add the final release date to
+`docs/reference/releases.md` in a normal follow-up commit and merge or
+cherry-pick that release metadata back to `main`.
+
 After the binary release workflow finishes, promote the source artifacts.
-`release-source.sh --finalize` reuses the staged RC tarball bytes (so the
-detached signature stays valid) and regenerates the SHA-512 file under the
-final filename:
+`release-source.sh` sees the final tag on `HEAD`, requires a matching RC tag on
+the same commit, reuses the staged RC tarball bytes (so the detached signature
+stays valid), and regenerates the SHA-512 file under the final filename:
 
 ```sh
-scripts/release-source.sh 0.2.0 --finalize \
-  --rc-dir ~/asf/dev-superset/kubernetes-operator-0.2.0-rc${RC}
-# → dist/apache-superset-kubernetes-operator-0.2.0-source.tar.gz{,.asc,.sha512}
+scripts/release-source.sh
+# → dist/0.2.0/apache-superset-kubernetes-operator-0.2.0-source.tar.gz{,.asc,.sha512}
 
 cd ~/asf/release-superset
 mkdir kubernetes-operator-0.2.0
-cp /path/to/dist/apache-superset-kubernetes-operator-0.2.0-source.tar.gz{,.asc,.sha512} \
+cp /path/to/dist/0.2.0/apache-superset-kubernetes-operator-0.2.0-source.tar.gz{,.asc,.sha512} \
    kubernetes-operator-0.2.0/
 svn add kubernetes-operator-0.2.0
 svn commit -m "Release Apache Superset Kubernetes Operator 0.2.0"
@@ -329,6 +313,10 @@ svn rm kubernetes-operator-0.2.0-rc*
 svn commit -m "Clean up Superset Kubernetes Operator 0.2.0 release candidates"
 ```
 
-The release announcement should go to `announce@apache.org` and
-`dev@superset.apache.org` after the artifacts have propagated to the ASF
-mirror network (typically within 24 hours).
+Generate the release announcement after the artifacts have propagated to the ASF
+mirror network (typically within 24 hours), review it, then send it to
+`announce@apache.org` and `dev@superset.apache.org`:
+
+```sh
+scripts/release-email.sh announce > dist/0.2.0/ANNOUNCE.txt
+```

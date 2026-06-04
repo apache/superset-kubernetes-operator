@@ -18,12 +18,12 @@
 # regenerate manifests, run checks, commit, and tag.
 #
 # Usage:
-#   scripts/release-rc.sh <version> [--chart-version <chart-version>]
+#   scripts/release-rc.sh <version> [--expect-rc <n>]
 #
 # Examples:
-#   scripts/release-rc.sh 0.2.0               # first RC → v0.2.0-rc1
+#   scripts/release-rc.sh 0.2.0               # first RC on 0.2 → v0.2.0-rc1
 #   scripts/release-rc.sh 0.2.0               # again   → v0.2.0-rc2
-#   scripts/release-rc.sh 0.3.0 --chart-version 0.2.0
+#   scripts/release-rc.sh 0.2.0 --expect-rc 1
 
 set -euo pipefail
 
@@ -47,12 +47,12 @@ fi
 
 # --- parse args ---
 VERSION=""
-CHART_VERSION=""
+EXPECT_RC=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --chart-version) CHART_VERSION="$2"; shift 2 ;;
+    --expect-rc) EXPECT_RC="$2"; shift 2 ;;
     -h|--help)
-      echo "Usage: $0 <version> [--chart-version <chart-version>]"
+      echo "Usage: $0 <version> [--expect-rc <n>]"
       exit 0
       ;;
     -*)  die "unknown flag: $1" ;;
@@ -60,21 +60,25 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -n "$VERSION" ]] || die "usage: $0 <version> [--chart-version <chart-version>]"
+[[ -n "$VERSION" ]] || die "usage: $0 <version> [--expect-rc <n>]"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "version must be semver (e.g., 0.2.0), got: $VERSION"
-if [[ -n "$CHART_VERSION" ]]; then
-  [[ "$CHART_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "chart version must be semver, got: $CHART_VERSION"
+if [[ -n "$EXPECT_RC" ]]; then
+  [[ "$EXPECT_RC" =~ ^[1-9][0-9]*$ ]] || die "--expect-rc must be a positive integer, got: $EXPECT_RC"
 fi
 
 # --- preflight checks ---
 command -v helm >/dev/null 2>&1 || die "helm is required but not installed"
 [[ -f Makefile ]] || die "must be run from the repository root"
+CHANGELOG_FILE="docs/reference/releases.md"
+[[ -f "$CHANGELOG_FILE" ]] || die "release notes file is missing: ${CHANGELOG_FILE}"
+grep -Eq "^##[[:space:]]+\\[${VERSION//./\\.}\\]([[:space:]]|$)" "$CHANGELOG_FILE" \
+  || die "${CHANGELOG_FILE} must contain a release heading for ${VERSION} (expected: ## [${VERSION}])"
 
 if [[ -n "$(git status --porcelain)" ]]; then
   die "working tree is not clean — commit or stash changes first"
 fi
 
-BRANCH="release/${VERSION}"
+BRANCH="${VERSION%.*}"
 CURRENT_BRANCH=$(git branch --show-current)
 
 # --- create or switch to release branch ---
@@ -98,6 +102,9 @@ else
   RC_N=1
 fi
 TAG="v${VERSION}-rc${RC_N}"
+if [[ -n "$EXPECT_RC" && "$RC_N" -ne "$EXPECT_RC" ]]; then
+  die "next RC would be rc${RC_N}, but --expect-rc ${EXPECT_RC} was provided"
+fi
 info "Preparing ${TAG}"
 
 # --- bump operator version in Makefile ---
@@ -109,16 +116,20 @@ else
   info "Makefile VERSION already set to ${VERSION}"
 fi
 
-# --- bump chart version ---
-# Default to the operator version when not explicitly overridden, so the source
-# release archive does not capture a stale "0.0.0-dev" Chart.yaml.
-: "${CHART_VERSION:=${VERSION}}"
+# --- bump chart version metadata ---
 CURRENT_CHART_VERSION=$(grep -E '^version:' charts/superset-operator/Chart.yaml | head -1 | awk '{print $2}')
-if [[ "$CURRENT_CHART_VERSION" != "$CHART_VERSION" ]]; then
-  info "Updating Chart.yaml version: ${CURRENT_CHART_VERSION} → ${CHART_VERSION}"
-  sed_inplace "s/^version: .*/version: ${CHART_VERSION}/" charts/superset-operator/Chart.yaml
+if [[ "$CURRENT_CHART_VERSION" != "$VERSION" ]]; then
+  info "Updating Chart.yaml version: ${CURRENT_CHART_VERSION} → ${VERSION}"
+  sed_inplace "s/^version: .*/version: ${VERSION}/" charts/superset-operator/Chart.yaml
 else
-  info "Chart.yaml version already set to ${CHART_VERSION}"
+  info "Chart.yaml version already set to ${VERSION}"
+fi
+CURRENT_CHART_APP_VERSION=$(grep -E '^appVersion:' charts/superset-operator/Chart.yaml | head -1 | awk '{print $2}' | tr -d '"')
+if [[ "$CURRENT_CHART_APP_VERSION" != "$VERSION" ]]; then
+  info "Updating Chart.yaml appVersion: ${CURRENT_CHART_APP_VERSION} → ${VERSION}"
+  sed_inplace "s/^appVersion: .*/appVersion: \"${VERSION}\"/" charts/superset-operator/Chart.yaml
+else
+  info "Chart.yaml appVersion already set to ${VERSION}"
 fi
 
 # --- regenerate generated artifacts ---
@@ -140,10 +151,6 @@ make helm-lint
 
 info "Building docs"
 make docs-build
-
-# --- package Helm chart ---
-info "Packaging Helm chart"
-make helm
 
 # --- commit ---
 CHANGED_FILES=$(git diff --name-only)
@@ -170,6 +177,7 @@ echo -e "${BOLD}Release candidate ${TAG} is ready.${RESET}"
 echo ""
 echo "Next steps:"
 echo "  1. Review the commit:  git log --oneline -3"
-echo "  2. Push branch + tag:  git push origin ${BRANCH} ${TAG}"
+echo "  2. Build and verify source artifacts:  scripts/release-source.sh"
+echo "  3. Push branch + tag only after artifact verification:  git push origin ${BRANCH} ${TAG}"
 echo ""
 echo "The release workflow will build and push the ${VERSION}-rc${RC_N} image to GHCR."

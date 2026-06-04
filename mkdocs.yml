@@ -42,6 +42,7 @@ nav:
   - Reference:
     - API Reference: reference/api-reference.md
     - Downloads: reference/downloads.md
+    - Releases: reference/releases.md
     - Security: reference/security.md
   - Contributing:
     - Development Setup: contributing/development-setup.md

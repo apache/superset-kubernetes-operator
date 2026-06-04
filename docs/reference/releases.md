@@ -17,7 +17,18 @@ specific language governing permissions and limitations
 under the License.
 -->
 
-# Changelog
+# Releases
 
-The project changelog is maintained in
-[docs/reference/releases.md](docs/reference/releases.md).
+This page tracks notable changes in Apache Superset Kubernetes Operator
+releases.
+
+## [Unreleased]
+
+## [0.1.0]
+
+### Added
+
+- Initial release.
+
+[Unreleased]: https://github.com/apache/superset-kubernetes-operator/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/apache/superset-kubernetes-operator/releases/tag/v0.1.0
