@@ -20,8 +20,46 @@ under the License.
 # Downloads
 
 !!! note
-    There are no official releases yet. Only `dev` and `sha-<short>` image tags
-    and the `0.0.0-dev` Helm chart are currently available.
+    No official release has been cut yet. Development builds (`dev` /
+    `sha-<short>` image tags and the `0.0.0-dev` Helm chart) are available now;
+    release candidates are published as pre-release artifacts during voting.
+    The first official source release will be `0.1.0`. The source-release links
+    below are filled in once a release is staged.
+
+## Source Release
+
+Per the [ASF Release Policy](https://www.apache.org/legal/release-policy.html),
+the **signed source archive is the official Apache release**. The operator image
+and Helm chart below are convenience binaries built from this source.
+
+Released source archives are published to the ASF distribution mirrors:
+
+```
+https://downloads.apache.org/superset/kubernetes-operator-<version>/
+```
+
+Release candidates under vote are staged at
+`https://dist.apache.org/repos/dist/dev/superset/kubernetes-operator-<version>-rc<N>/`.
+
+### Artifacts
+
+| Artifact | Filename | Description |
+|----------|----------|-------------|
+| Source archive | `apache-superset-kubernetes-operator-<version>-source.tar.gz` | `git archive` of the release tag. |
+| PGP signature | `apache-superset-kubernetes-operator-<version>-source.tar.gz.asc` | Detached signature from a key in [`KEYS`](https://downloads.apache.org/superset/KEYS). |
+| SHA-512 checksum | `apache-superset-kubernetes-operator-<version>-source.tar.gz.sha512` | `shasum -a 512` output. |
+
+### Verify
+
+```bash
+# Replace <version> with the release you downloaded (e.g. 0.1.0).
+curl -O https://downloads.apache.org/superset/kubernetes-operator-<version>/apache-superset-kubernetes-operator-<version>-source.tar.gz{,.asc,.sha512}
+curl -O https://downloads.apache.org/superset/KEYS
+
+gpg --import KEYS
+gpg --verify apache-superset-kubernetes-operator-<version>-source.tar.gz{.asc,}
+shasum -a 512 -c apache-superset-kubernetes-operator-<version>-source.tar.gz.sha512
+```
 
 ## Operator Image
 

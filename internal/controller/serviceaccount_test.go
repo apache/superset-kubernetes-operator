@@ -59,7 +59,12 @@ func TestResolveServiceAccountName(t *testing.T) {
 			want: "external-sa",
 		},
 		{
-			name: "create=false without name yields empty (pod default SA)",
+			// CEL rejects create=false without a name at the apiserver
+			// (api/v1alpha1 ServiceAccountSpec XValidation), so this input never
+			// reaches the controller in practice. resolveServiceAccountName stays
+			// defensive about it and returns empty; we assert that fallback rather
+			// than implying create=false-without-name is a supported config.
+			name: "create=false without name (CEL-rejected; defensive empty fallback)",
 			sa:   &supersetv1alpha1.ServiceAccountSpec{Create: boolPtr(false)},
 			want: "",
 		},

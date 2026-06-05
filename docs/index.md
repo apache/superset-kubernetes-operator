@@ -36,7 +36,7 @@ The operator manages the full Superset lifecycle: database migrations, configura
 - **Lifecycle automation** — database cloning, schema migrations, secret key rotation, and application init run as sequenced tasks with automatic change detection and checksum-based re-execution
 - **Networking** — Gateway API (HTTPRoute) and Ingress support with per-component routing
 - **Scaling and resilience** — HPA with custom metrics, PodDisruptionBudgets, NetworkPolicies, Prometheus ServiceMonitor
-- **Flexible install scope** — cluster-scoped (default) or namespace-scoped; the namespace-scoped Helm install renders no manager `ClusterRole` at all, so it works on restricted clusters that forbid cluster-scoped RBAC
+- **Flexible install scope** — cluster-scoped (default) or namespace-scoped; the namespace-scoped Helm install renders no manager `ClusterRole`. CRD installation and, unless metrics are disabled, secure metrics auth still require cluster-scoped RBAC — see [installation](user-guide/installation.md#namespace-scoped-install) for the exact constraints
 
 ## Supported Kubernetes versions
 

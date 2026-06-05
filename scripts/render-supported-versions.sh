@@ -20,6 +20,11 @@
 #   <!-- BEGIN SUPPORTED-K8S -->
 #   ... generated block ...
 #   <!-- END SUPPORTED-K8S -->
+#
+# Prose files that need just the version list inline (not the full block) use a
+# same-line inline sentinel instead:
+#
+#   ... <!-- BEGIN SUPPORTED-K8S-INLINE -->1.36, 1.35<!-- END SUPPORTED-K8S-INLINE --> ...
 
 set -euo pipefail
 
@@ -29,6 +34,10 @@ TARGETS=(
   "${REPO_ROOT}/README.md"
   "${REPO_ROOT}/docs/index.md"
   "${REPO_ROOT}/docs/user-guide/installation.md"
+)
+# Files carrying the version list inline within prose (see SUPPORTED-K8S-INLINE).
+INLINE_TARGETS=(
+  "${REPO_ROOT}/docs/getting-started.md"
 )
 
 command -v jq >/dev/null || { echo "jq is required" >&2; exit 1; }
@@ -64,5 +73,19 @@ for file in "${TARGETS[@]}"; do
     }
     !skip { print }
   ' "${file}" > "${tmp}"
+  mv "${tmp}" "${file}"
+done
+
+# Inline targets: rewrite only the text between the same-line inline sentinels,
+# leaving the surrounding prose untouched.
+for file in "${INLINE_TARGETS[@]}"; do
+  if ! grep -q '<!-- BEGIN SUPPORTED-K8S-INLINE -->' "${file}"; then
+    echo "no inline sentinel found in ${file}" >&2
+    exit 1
+  fi
+  tmp="$(mktemp)"
+  # One inline sentinel pair per line; the greedy .* is safe because there is a
+  # single END marker on the line. Version minors contain no sed metacharacters.
+  sed -E "s|(<!-- BEGIN SUPPORTED-K8S-INLINE -->).*(<!-- END SUPPORTED-K8S-INLINE -->)|\\1${supported}\\2|g" "${file}" > "${tmp}"
   mv "${tmp}" "${file}"
 done

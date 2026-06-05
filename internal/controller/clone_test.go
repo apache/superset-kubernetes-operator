@@ -130,8 +130,32 @@ func TestBuildCloneScript(t *testing.T) {
 		if !strings.Contains(script, "| mysql") {
 			t.Error("expected pipe to mysql")
 		}
-		if strings.Contains(script, "`") {
-			t.Error("script must not contain backticks (shell command substitution)")
+		// Passwords must travel via MYSQL_PWD, never on the command line, so
+		// they don't leak into process argv (ps / /proc/<pid>/cmdline).
+		if strings.Contains(script, `-p"$`) {
+			t.Errorf("password must not be passed via -p (leaks into argv), got: %s", script)
+		}
+		if !strings.Contains(script, `export MYSQL_PWD="$SUPERSET_OPERATOR__DB_PASS"`) {
+			t.Errorf("expected target password via MYSQL_PWD, got: %s", script)
+		}
+		if !strings.Contains(script, `export MYSQL_PWD="$SUPERSET_OPERATOR__CLONE_SRC_PASS"`) {
+			t.Errorf("expected source password via MYSQL_PWD, got: %s", script)
+		}
+		// The destructive DROP/CREATE must use a backtick-quoted, escaped
+		// identifier rather than interpolating the raw name into SQL. The
+		// backticks are backslash-escaped so the shell passes them literally.
+		if !strings.Contains(script, "ESC_NAME=$(printf '%s' \"$SUPERSET_OPERATOR__DB_NAME\" | sed 's/`/``/g')") {
+			t.Errorf("expected DB identifier to be backtick-escaped, got: %s", script)
+		}
+		if !strings.Contains(script, "DROP DATABASE IF EXISTS \\`${ESC_NAME}\\`") {
+			t.Errorf("expected backtick-quoted identifier in DROP DATABASE, got: %s", script)
+		}
+		if !strings.Contains(script, "CREATE DATABASE \\`${ESC_NAME}\\`") {
+			t.Errorf("expected backtick-quoted identifier in CREATE DATABASE, got: %s", script)
+		}
+		// The raw, unquoted identifier must no longer reach the SQL statement.
+		if strings.Contains(script, "DROP DATABASE IF EXISTS $SUPERSET_OPERATOR__DB_NAME") {
+			t.Errorf("DB name must be backtick-quoted, not interpolated raw, got: %s", script)
 		}
 	})
 
