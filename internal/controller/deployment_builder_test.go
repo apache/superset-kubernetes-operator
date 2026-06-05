@@ -167,6 +167,16 @@ func TestBuildDeploymentSpec(t *testing.T) {
 				PullPolicy: corev1.PullIfNotPresent,
 			},
 			PodTemplate: &supersetv1alpha1.PodTemplate{
+				Volumes: []corev1.Volume{
+					{
+						Name: "superset-extensions",
+						VolumeSource: corev1.VolumeSource{
+							PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+								ClaimName: "superset-extensions",
+							},
+						},
+					},
+				},
 				Resources: &corev1.ResourceRequirements{
 					Requests: corev1.ResourceList{
 						corev1.ResourceCPU:    resource.MustParse("2"),
@@ -175,6 +185,11 @@ func TestBuildDeploymentSpec(t *testing.T) {
 					Limits: corev1.ResourceList{
 						corev1.ResourceCPU:    resource.MustParse("4"),
 						corev1.ResourceMemory: resource.MustParse("8Gi"),
+					},
+				},
+				Container: &supersetv1alpha1.ContainerTemplate{
+					VolumeMounts: []corev1.VolumeMount{
+						{Name: "superset-extensions", MountPath: "/app/extensions", ReadOnly: true},
 					},
 				},
 			},
@@ -196,6 +211,26 @@ func TestBuildDeploymentSpec(t *testing.T) {
 		}
 		if podResources.Limits.Memory().String() != "8Gi" {
 			t.Errorf("expected pod memory limit 8Gi, got %s", podResources.Limits.Memory())
+		}
+
+		if len(result.Template.Spec.Volumes) != 1 {
+			t.Fatalf("expected one pod volume, got %d", len(result.Template.Spec.Volumes))
+		}
+		volume := result.Template.Spec.Volumes[0]
+		if volume.Name != "superset-extensions" {
+			t.Fatalf("expected superset-extensions volume, got %q", volume.Name)
+		}
+		if volume.PersistentVolumeClaim == nil || volume.PersistentVolumeClaim.ClaimName != "superset-extensions" {
+			t.Fatalf("expected PVC-backed extension volume, got %+v", volume.VolumeSource)
+		}
+
+		container := result.Template.Spec.Containers[0]
+		if len(container.VolumeMounts) != 1 {
+			t.Fatalf("expected one volume mount on superset container, got %d", len(container.VolumeMounts))
+		}
+		mount := container.VolumeMounts[0]
+		if mount.Name != "superset-extensions" || mount.MountPath != "/app/extensions" || !mount.ReadOnly {
+			t.Fatalf("unexpected extension volume mount: %+v", mount)
 		}
 	})
 

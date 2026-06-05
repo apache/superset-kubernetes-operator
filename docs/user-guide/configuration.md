@@ -341,6 +341,70 @@ Both fields are **concatenated**, not mutually exclusive. In this example, the c
 
 See [Config Rendering Pipeline](../architecture/overview.md#config-rendering-pipeline) for the full rendering order and an example of the generated output.
 
+## Extensions
+
+Superset loads extension bundles (`.supx` files) from the directory configured
+by `EXTENSIONS_PATH` in `superset_config.py`. The operator does not currently
+provide a typed extension field. Use one of two deployment patterns.
+
+### Bake Extensions Into The Image
+
+Build a Superset image that already contains the extension bundles, then point
+`EXTENSIONS_PATH` at that directory:
+
+```yaml
+spec:
+  image:
+    repository: example.com/superset-with-extensions
+    tag: "6.1.0-extensions-v1"
+  config: |
+    EXTENSIONS_PATH = "/app/extensions"
+```
+
+This is the most repeatable path when extension contents should version with
+the Superset image.
+
+### Mount Extensions With PodTemplate
+
+Mount the extension directory with native Kubernetes volume fields, then point
+`EXTENSIONS_PATH` at the mount path:
+
+```yaml
+spec:
+  config: |
+    EXTENSIONS_PATH = "/app/extensions"
+
+  podTemplate:
+    volumes:
+      - name: superset-extensions
+        persistentVolumeClaim:
+          claimName: superset-extensions
+    container:
+      volumeMounts:
+        - name: superset-extensions
+          mountPath: /app/extensions
+          readOnly: true
+```
+
+Top-level `spec.podTemplate` is inherited by every operator-managed Superset
+workload Pod, so the extension volume is mounted consistently across the
+deployment and lifecycle workloads.
+
+Because `.supx` files are binary zip archives, use a storage source suited for
+binary artifacts.
+
+When you know mounted extension contents have changed, update
+`spec.forceReload` to roll the component pods:
+
+```yaml
+spec:
+  forceReload: "extensions-v2"
+```
+
+See Superset's
+[extension deployment documentation](https://superset.apache.org/developer-docs/extensions/deployment/)
+for up-to-date guidance on deploying extensions.
+
 ## Bootstrap Script
 
 `bootstrapScript` is an escape hatch for the default Python component and
@@ -1037,6 +1101,8 @@ useful for **secret rotation**: when you update a Kubernetes Secret's data, pods
 don't automatically restart because the operator references secrets via
 `valueFrom.secretKeyRef` (resolved at pod creation time). Changing `forceReload`
 forces new pods that pick up the updated secret values.
+
+Use the same mechanism when you know mounted extension contents have changed.
 
 ## Suspend Reconciliation
 
