@@ -349,4 +349,25 @@ func TestCheckUpgradeGates(t *testing.T) {
 		assert.Equal(t, "2.0.0", s.Status.Lifecycle.Upgrade.FromVersion)
 		assert.Equal(t, "3.0.0", s.Status.Lifecycle.Upgrade.ToVersion)
 	})
+
+	t.Run("non-semver tags proceed but emit a warning", func(t *testing.T) {
+		rec := events.NewFakeRecorder(10)
+		nr := &SupersetReconciler{Recorder: rec}
+		s := &supersetv1alpha1.Superset{
+			ObjectMeta: metav1.ObjectMeta{Name: "test"},
+			Status:     supersetv1alpha1.SupersetStatus{Lifecycle: &supersetv1alpha1.LifecycleStatus{}},
+		}
+		// "latest" → "main" cannot be ordered: not a downgrade, so not gated.
+		_, gated := nr.checkUpgradeGates(ctx, s, true, "apache/superset:latest", "apache/superset:main")
+		assert.False(t, gated)
+		assert.NotEqual(t, lifecyclePhaseBlocked, s.Status.Lifecycle.Phase)
+		require.NotNil(t, s.Status.Lifecycle.Upgrade)
+		assert.Equal(t, string(DirectionUnknown), s.Status.Lifecycle.Upgrade.Direction)
+		select {
+		case ev := <-rec.Events:
+			assert.Contains(t, ev, "VersionComparisonSkipped")
+		default:
+			t.Fatal("expected a VersionComparisonSkipped warning event")
+		}
+	})
 }

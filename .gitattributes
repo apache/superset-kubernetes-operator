@@ -1,0 +1,6 @@
+# Keep editor/agent context files in-tree for local development, but exclude
+# them from the `git archive` source release tarball. AGENTS.md is the canonical
+# (vendor-neutral) file and ships in the release; CLAUDE.md and GEMINI.md are
+# symlinks to it and are tool-specific clutter in an official ASF source release.
+CLAUDE.md export-ignore
+GEMINI.md export-ignore

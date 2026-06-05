@@ -19,6 +19,7 @@
 
 # Git
 .*\.gitignore
+.*\.gitattributes
 
 # Go
 .*go\.mod
@@ -45,6 +46,9 @@
 .*PULL_REQUEST_TEMPLATE\.md
 .*ISSUE_TEMPLATE/.*\.md
 .*\.claude.*
+# Editor/agent context symlinks → AGENTS.md (which carries the header itself)
+CLAUDE\.md
+GEMINI\.md
 .*rat-results\.txt
 .*Dockerfile\.cross
 .*codecov\.yml

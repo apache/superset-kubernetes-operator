@@ -414,8 +414,11 @@ The release pipeline produces signed multi-architecture artifacts:
   so its digest refreshes are inherently un-soaked. This residual exposure is accepted
   and bounded by the minimal distroless base and by keyless Cosign signing of the
   image this project itself publishes.
-- **Future work:** SBOM and SLSA build provenance generation are tracked as
-  enhancements for later releases.
+- **SBOM & provenance:** Each published image carries a per-platform Software
+  Bill of Materials (SPDX) and SLSA build provenance, attached as in-toto
+  attestations by BuildKit at build time. Inspect them with
+  `docker buildx imagetools inspect ghcr.io/apache/superset-kubernetes-operator:<tag> --format '{{ json .SBOM }}'`
+  (or `.Provenance`), or with `cosign download attestation`.
 
 ## What Is Generally Out of Scope
 

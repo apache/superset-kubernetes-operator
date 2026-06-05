@@ -30,5 +30,19 @@ releases.
 
 - Initial release.
 
+### Known limitations
+
+- **Websocket server is experimental.** The websocket server is not yet well
+  supported and is pending security hardening; it is not recommended for
+  production use.
+- **Downgrade protection requires semver image tags.** Downgrades are detected
+  and blocked only when both image tags are valid semver. Non-semver tags
+  (`latest`, date stamps, digest pins) cannot be ordered, so the operator emits a
+  `VersionComparisonSkipped` warning and proceeds without blocking. See
+  [Lifecycle](../user-guide/lifecycle.md).
+- **Task failure messages may include credential fragments.** Lifecycle task
+  failure output is truncated into `status` and could contain fragments of task
+  stdout, including credentials. See [security.md](security.md).
+
 [Unreleased]: https://github.com/apache/superset-kubernetes-operator/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/apache/superset-kubernetes-operator/releases/tag/v0.1.0

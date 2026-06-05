@@ -178,6 +178,13 @@ The operator also performs semver comparison on image tags and blocks downgrades
 to prevent accidental database corruption. A blocked downgrade sets
 `status.phase: Blocked` — revert the image tag to resolve.
 
+Downgrade protection requires semantically comparable (semver) image tags.
+Non-semver tags — such as `latest`, date stamps, or digest pins — cannot be
+ordered, so the operator cannot detect a downgrade and lifecycle tasks proceed
+normally. In that case it emits a `VersionComparisonSkipped` warning event
+rather than blocking. Use semver tags in Staging and Production if you rely on
+downgrade protection.
+
 ## Drain Behavior
 
 Each task declares whether it requires components to be drained (scaled to zero)

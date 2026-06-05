@@ -449,6 +449,19 @@ func (r *SupersetReconciler) checkUpgradeGates(
 	}
 
 	contextMatches := upgradeContextMatches(superset.Status.Lifecycle.Upgrade, oldTag, newTag, direction, approvalToken)
+
+	// Non-semver tags (e.g. "latest", date stamps, digest pins) cannot be
+	// ordered, so downgrade protection does not apply — a downgrade expressed
+	// with such tags would run forward-only migrations against an older image
+	// undetected. Surface this once per distinct image transition so operators
+	// can intervene; the !contextMatches guard prevents per-reconcile spam.
+	if direction == DirectionUnknown && !contextMatches {
+		log.Info("Image version change could not be compared (non-semver tags); downgrade protection skipped",
+			"from", oldTag, "to", newTag)
+		r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "VersionComparisonSkipped", "Lifecycle",
+			"Cannot compare image tags %q and %q (non-semver); downgrade protection does not apply", oldTag, newTag)
+	}
+
 	if !contextMatches {
 		superset.Status.Lifecycle.Upgrade = &supersetv1alpha1.UpgradeContext{
 			FromVersion:   oldTag,
