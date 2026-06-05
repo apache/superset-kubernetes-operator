@@ -42,7 +42,7 @@ to get started, or jump straight to the [quick start](#quick-start).
 - **Safe upgrades** — components drain, lifecycle tasks run, and traffic returns only once the new version is healthy, with an optional maintenance page for the window.
 - **Batteries included, never locked in** — tuned defaults and presets for Gunicorn, Celery, the metastore, and Valkey, with a raw Python escape hatch for anything not surfaced as a typed field.
 - **Production operations built in** — autoscaling, PodDisruptionBudgets, NetworkPolicies, Gateway API / Ingress routing, and a Prometheus ServiceMonitor.
-- **Fits your cluster** — cluster-scoped or namespace-scoped installs; the namespace-scoped Helm install needs no cluster-wide RBAC at all.
+- **Fits your cluster** — cluster-scoped or namespace-scoped installs; the namespace-scoped Helm install renders no manager `ClusterRole` (CRD installation and, unless disabled, secure metrics auth still need cluster-scoped RBAC — see [installation](https://apache.github.io/superset-kubernetes-operator/user-guide/installation/#namespace-scoped-install)).
 
 → See the [full feature overview](https://apache.github.io/superset-kubernetes-operator/) in the docs.
 

@@ -24,8 +24,8 @@ Superset instance using dev mode.
 
 ## Prerequisites
 
-- Kubernetes 1.25+ (1.34 is officially tested; 1.29+ recommended so CEL
-  validation is GA — see [supported versions](user-guide/installation.md#supported-kubernetes-versions))
+- Kubernetes 1.25+ (<!-- BEGIN SUPPORTED-K8S-INLINE -->1.36, 1.35<!-- END SUPPORTED-K8S-INLINE --> officially
+  tested; 1.29+ recommended so CEL validation is GA — see [supported versions](user-guide/installation.md#supported-kubernetes-versions))
 - Helm 3
 - A PostgreSQL database accessible from the cluster
 

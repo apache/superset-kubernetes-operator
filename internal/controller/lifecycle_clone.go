@@ -98,8 +98,23 @@ PGPASSWORD="$SUPERSET_OPERATOR__CLONE_SRC_PASS" pg_dump -h "$SUPERSET_OPERATOR__
 
 func buildMySQLCloneScript(clone *supersetv1alpha1.CloneTaskSpec) string {
 	var b strings.Builder
+	// Passwords are passed via the MYSQL_PWD environment variable rather than
+	// -p"$PASS" so they never appear in the process argv (visible via ps or
+	// /proc/<pid>/cmdline), mirroring lifecycle_create_db.go. The target
+	// password is exported once at the top; every target mysql invocation
+	// inherits it. The source mysqldump runs inside the pipeline subshell where
+	// MYSQL_PWD is re-exported to the source password, so the two passwords
+	// never collide. Empty passwords are left unset to support passwordless
+	// auth (trust/IAM), matching the create-database helper.
+	//
+	// The target database identifier is backtick-quoted with internal backticks
+	// doubled (MySQL's escape rule), and the backticks are backslash-escaped so
+	// they reach mysql literally instead of triggering shell command
+	// substitution inside the double-quoted -e argument.
 	b.WriteString(`set -e
-mysql -h "$SUPERSET_OPERATOR__DB_HOST" -P "$SUPERSET_OPERATOR__DB_PORT" -u "$SUPERSET_OPERATOR__DB_USER" -p"$SUPERSET_OPERATOR__DB_PASS" -e "DROP DATABASE IF EXISTS $SUPERSET_OPERATOR__DB_NAME; CREATE DATABASE $SUPERSET_OPERATOR__DB_NAME;"
+if [ -n "${SUPERSET_OPERATOR__DB_PASS:-}" ]; then export MYSQL_PWD="$SUPERSET_OPERATOR__DB_PASS"; fi
+ESC_NAME=$(printf '%s' "$SUPERSET_OPERATOR__DB_NAME" | sed 's/` + "`" + `/` + "``" + `/g')
+mysql -h "$SUPERSET_OPERATOR__DB_HOST" -P "$SUPERSET_OPERATOR__DB_PORT" -u "$SUPERSET_OPERATOR__DB_USER" -e "DROP DATABASE IF EXISTS \` + "`" + `${ESC_NAME}\` + "`" + `; CREATE DATABASE \` + "`" + `${ESC_NAME}\` + "`" + `;"
 `)
 
 	// mysqldump has no per-table --no-data flag, so emit two passes joined into
@@ -110,11 +125,13 @@ mysql -h "$SUPERSET_OPERATOR__DB_HOST" -P "$SUPERSET_OPERATOR__DB_PORT" -u "$SUP
 	// combined stdout is piped to the target mysql client. The schema pass is
 	// skipped when ExcludeTableData is empty so the existing single-pass
 	// behaviour is preserved.
-	mysqldumpHead := `mysqldump -h "$SUPERSET_OPERATOR__CLONE_SRC_HOST" -P "$SUPERSET_OPERATOR__CLONE_SRC_PORT" -u "$SUPERSET_OPERATOR__CLONE_SRC_USER" -p"$SUPERSET_OPERATOR__CLONE_SRC_PASS"`
+	mysqldumpHead := `mysqldump -h "$SUPERSET_OPERATOR__CLONE_SRC_HOST" -P "$SUPERSET_OPERATOR__CLONE_SRC_PORT" -u "$SUPERSET_OPERATOR__CLONE_SRC_USER"`
 
-	b.WriteString("(")
+	// Open the dump subshell and scope the source password to it only, so the
+	// downstream target mysql keeps the target password exported above.
+	b.WriteString(`( if [ -n "${SUPERSET_OPERATOR__CLONE_SRC_PASS:-}" ]; then export MYSQL_PWD="$SUPERSET_OPERATOR__CLONE_SRC_PASS"; fi ; `)
 	if len(clone.ExcludeTableData) > 0 {
-		fmt.Fprintf(&b, " %s --single-transaction --no-data", mysqldumpHead)
+		fmt.Fprintf(&b, "%s --single-transaction --no-data", mysqldumpHead)
 		b.WriteString(` "$SUPERSET_OPERATOR__CLONE_SRC_DB"`)
 		for _, t := range clone.ExcludeTableData {
 			fmt.Fprintf(&b, ` %q`, t)
@@ -129,10 +146,10 @@ mysql -h "$SUPERSET_OPERATOR__DB_HOST" -P "$SUPERSET_OPERATOR__DB_PORT" -u "$SUP
 	for _, t := range clone.ExcludeTableData {
 		fmt.Fprintf(&b, ` --ignore-table="$SUPERSET_OPERATOR__CLONE_SRC_DB".%q`, t)
 	}
-	b.WriteString(` "$SUPERSET_OPERATOR__CLONE_SRC_DB" ) | mysql -h "$SUPERSET_OPERATOR__DB_HOST" -P "$SUPERSET_OPERATOR__DB_PORT" -u "$SUPERSET_OPERATOR__DB_USER" -p"$SUPERSET_OPERATOR__DB_PASS" "$SUPERSET_OPERATOR__DB_NAME"`)
+	b.WriteString(` "$SUPERSET_OPERATOR__CLONE_SRC_DB" ) | mysql -h "$SUPERSET_OPERATOR__DB_HOST" -P "$SUPERSET_OPERATOR__DB_PORT" -u "$SUPERSET_OPERATOR__DB_USER" "$SUPERSET_OPERATOR__DB_NAME"`)
 
 	for _, sql := range clone.PostCloneSQL {
-		fmt.Fprintf(&b, "\nmysql -h \"$SUPERSET_OPERATOR__DB_HOST\" -P \"$SUPERSET_OPERATOR__DB_PORT\" -u \"$SUPERSET_OPERATOR__DB_USER\" -p\"$SUPERSET_OPERATOR__DB_PASS\" \"$SUPERSET_OPERATOR__DB_NAME\" -e %q", sql)
+		fmt.Fprintf(&b, "\nmysql -h \"$SUPERSET_OPERATOR__DB_HOST\" -P \"$SUPERSET_OPERATOR__DB_PORT\" -u \"$SUPERSET_OPERATOR__DB_USER\" \"$SUPERSET_OPERATOR__DB_NAME\" -e %q", sql)
 	}
 
 	return b.String()

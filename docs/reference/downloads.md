@@ -20,8 +20,17 @@ under the License.
 # Downloads
 
 !!! note
-    There are no official releases yet. Only `dev` and `sha-<short>` image tags
-    and the `0.0.0-dev` Helm chart are currently available.
+    No official release has been cut yet. Development builds (`dev` /
+    `sha-<short>` image tags and the `0.0.0-dev` Helm chart) are available now.
+
+## Source Release
+
+Per the [ASF Release Policy](https://www.apache.org/legal/release-policy.html),
+the **signed source archive is the official Apache release**; the operator image
+and Helm chart below are convenience binaries built from it.
+
+Source archives, signatures, and checksums — along with verification
+instructions — will be published here once the first release is staged.
 
 ## Operator Image
 
