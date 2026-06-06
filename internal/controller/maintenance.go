@@ -157,7 +157,7 @@ func (r *SupersetReconciler) reconcileMaintenancePageUp(
 		return false, fmt.Errorf("getting maintenance Deployment: %w", err)
 	}
 	if deploy.Status.ReadyReplicas < 1 {
-		log.Info("Waiting for maintenance page pod to become ready")
+		log.V(1).Info("Waiting for maintenance page pod to become ready")
 		return false, nil
 	}
 
@@ -193,14 +193,14 @@ func (r *SupersetReconciler) reconcileMaintenanceReturn(
 		r.Recorder.Eventf(superset, nil, corev1.EventTypeNormal, "MaintenanceEnded", "Lifecycle",
 			"Maintenance page disabled because webServer was removed")
 		superset.Status.Lifecycle.MaintenanceActive = false
-		log.Info("WebServer removed while maintenance active, clearing maintenance")
+		log.V(1).Info("WebServer removed while maintenance active, clearing maintenance")
 		return true, nil
 	}
 	if webServerDesiredReplicas(superset) == 0 {
 		r.Recorder.Eventf(superset, nil, corev1.EventTypeNormal, "MaintenanceEnded", "Lifecycle",
 			"Maintenance page disabled because webServer has zero desired replicas")
 		superset.Status.Lifecycle.MaintenanceActive = false
-		log.Info("WebServer scaled to zero while maintenance active, clearing maintenance")
+		log.V(1).Info("WebServer scaled to zero while maintenance active, clearing maintenance")
 		return true, nil
 	}
 
@@ -209,13 +209,13 @@ func (r *SupersetReconciler) reconcileMaintenanceReturn(
 	deploy := &appsv1.Deployment{}
 	if err := r.Get(ctx, client.ObjectKey{Namespace: superset.Namespace, Name: webDeployName}, deploy); err != nil {
 		if errors.IsNotFound(err) {
-			log.Info("Waiting for web-server Deployment to be created before clearing maintenance")
+			log.V(1).Info("Waiting for web-server Deployment to be created before clearing maintenance")
 			return false, nil
 		}
 		return false, fmt.Errorf("getting web-server Deployment: %w", err)
 	}
 	if deploy.Status.ReadyReplicas < 1 {
-		log.Info("Waiting for web-server pods to become ready before clearing maintenance")
+		log.V(1).Info("Waiting for web-server pods to become ready before clearing maintenance")
 		return false, nil
 	}
 
@@ -224,7 +224,7 @@ func (r *SupersetReconciler) reconcileMaintenanceReturn(
 	superset.Status.Lifecycle.MaintenanceActive = false
 	r.Recorder.Eventf(superset, nil, corev1.EventTypeNormal, "MaintenanceEnded", "Lifecycle",
 		"Web-server is ready; routing web-server Service back to Superset")
-	log.Info("Web-server ready, clearing maintenance page")
+	log.V(1).Info("Web-server ready, clearing maintenance page")
 	return true, nil
 }
 

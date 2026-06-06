@@ -555,7 +555,7 @@ func (r *SupersetReconciler) reconcileLifecycleTask(
 
 	if taskRef.State == taskStateComplete && taskRef.CompletedChecksum == taskChecksum {
 		rememberCompletedTaskChecksum(superset, taskType, taskChecksum)
-		log.Info("Task complete (checksum match, skipping)", "task", taskType)
+		log.V(1).Info("Task complete (checksum match, skipping)", "task", taskType)
 		return lifecycleComplete(), nil
 	}
 
@@ -571,7 +571,7 @@ func (r *SupersetReconciler) reconcileLifecycleTask(
 			return lifecycleResult{}, fmt.Errorf("checking pod spec for failed task %s: %w", taskName, err)
 		}
 		if !podSpecChanged {
-			log.Info("Task permanently failed", "task", taskType)
+			log.V(1).Info("Task permanently failed", "task", taskType)
 			setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 				metav1.ConditionFalse, "TaskFailed", fmt.Sprintf("%s: %s", taskType, taskRef.Message), superset.Generation)
 			return lifecycleTerminal(), nil

@@ -27,6 +27,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -279,8 +280,10 @@ func (r *SupersetReconciler) getComponentStatus(ctx context.Context, superset *s
 
 	deploy := &appsv1.Deployment{}
 	if err := r.Get(ctx, client.ObjectKey{Namespace: superset.Namespace, Name: resourceBaseName}, deploy); err != nil {
-		log := logf.FromContext(ctx)
-		log.Info("component Deployment not found for status", "component", desc.componentType, "name", resourceBaseName, "error", err)
+		if !apierrors.IsNotFound(err) {
+			log := logf.FromContext(ctx)
+			log.Info("failed to read component Deployment for status", "component", desc.componentType, "name", resourceBaseName, "error", err)
+		}
 		resources = append(resources, componentResourceStatus("Deployment", resourceBaseName, false))
 		resources = append(resources, r.expectedComponentResources(ctx, superset, desc, accessor, cfg, resourceBaseName)...)
 		return &supersetv1alpha1.ComponentRefStatus{

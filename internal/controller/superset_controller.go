@@ -85,7 +85,7 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 	// Handle suspend.
 	if superset.Spec.Suspend != nil && *superset.Spec.Suspend {
-		log.Info("Reconciliation suspended", "name", superset.Name)
+		log.V(1).Info("Reconciliation suspended", "name", superset.Name)
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeSuspended,
 			metav1.ConditionTrue, "Suspended", "Reconciliation is suspended", superset.Generation)
 		superset.Status.Phase = phaseSuspended
@@ -97,7 +97,7 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeSuspended,
 		metav1.ConditionFalse, "NotSuspended", "Reconciliation is not suspended", superset.Generation)
 
-	log.Info("Reconciling Superset", "name", superset.Name)
+	log.V(1).Info("Reconciling Superset", "name", superset.Name)
 
 	// Phase 1: Compute shared config checksum (per-component checksums are
 	// derived from this combined with each component's rendered config).

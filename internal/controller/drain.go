@@ -181,7 +181,7 @@ func (r *SupersetReconciler) drainComponents(ctx context.Context, superset *supe
 				return false, fmt.Errorf("deleting Service for drain %s: %w", desc.componentType, err)
 			}
 		}
-		log.Info("Deleted component resources for drain", "component", desc.componentType)
+		log.V(1).Info("Deleted component resources for drain", "component", desc.componentType)
 	}
 
 	// Verify all component pods are terminated. Pods are the last resource in
@@ -202,11 +202,11 @@ func (r *SupersetReconciler) drainComponents(ctx context.Context, superset *supe
 		}
 	}
 	if componentPods > 0 {
-		log.Info("Waiting for component pods to terminate", "remaining", componentPods)
+		log.V(1).Info("Waiting for component pods to terminate", "remaining", componentPods)
 		return false, nil
 	}
 
-	log.Info("All components drained")
+	log.V(1).Info("All components drained")
 	return true, nil
 }
 

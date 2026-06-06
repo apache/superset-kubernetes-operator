@@ -100,8 +100,8 @@ func (r *SupersetReconciler) reconcileServiceMonitor(ctx context.Context, supers
 	})
 
 	if meta.IsNoMatchError(err) {
-		// ServiceMonitor CRD not installed -- log and skip.
-		logf.FromContext(ctx).Info("ServiceMonitor CRD not installed, skipping monitoring setup")
+		// ServiceMonitor CRD not installed -- skip optional monitoring setup.
+		logf.FromContext(ctx).V(1).Info("ServiceMonitor CRD not installed, skipping monitoring setup")
 		return nil
 	}
 

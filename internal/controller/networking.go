@@ -200,7 +200,7 @@ func (r *SupersetReconciler) reconcileHTTPRoute(ctx context.Context, superset *s
 		return nil
 	})
 	if meta.IsNoMatchError(err) {
-		logf.FromContext(ctx).Info("Gateway API CRDs not installed, skipping HTTPRoute reconciliation")
+		logf.FromContext(ctx).V(1).Info("Gateway API CRDs not installed, skipping HTTPRoute reconciliation")
 		return nil
 	}
 	return err
