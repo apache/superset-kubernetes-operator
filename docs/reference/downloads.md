@@ -20,8 +20,11 @@ under the License.
 # Downloads
 
 !!! note
-    No official release has been cut yet. Development builds (`dev` /
-    `sha-<short>` image tags and the `0.0.0-dev` Helm chart) are available now.
+    No final release has been cut yet. Development builds (`dev` /
+    `sha-<commit>` image tags and the `0.0.0-dev` Helm chart) are always available,
+    and release candidates (`<version>-rc<N>` tags) may be published for testing
+    ahead of a vote. Signed final artifacts are published once a release passes
+    the ASF vote.
 
 ## Source Release
 
@@ -52,7 +55,7 @@ docker pull ghcr.io/apache/superset-kubernetes-operator:dev
 | Tag | Example | Description |
 |-----|---------|-------------|
 | `dev` | `dev` | Floating tag tracking the latest commit on `main`. Rebuilt on every merge. |
-| `sha-<short>` | `sha-abc1234` | Immutable tag for a specific commit. |
+| `sha-<commit>` | `sha-1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b` | Immutable tag for a specific commit (full Git SHA). |
 | `<version>` | `0.1.0` | Semver release. Published when a version tag is pushed. |
 | `<version>-rc<N>` | `0.1.0-rc1` | Release candidate. |
 | `latest` | `latest` | Points to the highest stable (non-prerelease) release. |

@@ -28,9 +28,9 @@ For lifecycle (migrations, upgrades), see [Lifecycle](lifecycle.md).
 The `environment` field controls validation strictness (enforced by
 [CEL](https://kubernetes.io/docs/reference/using-api/cel/) rules in the CRD schema):
 
-- **`Production`** (default) — inline `secretKey`, `metastore.uri`, `metastore.password`, and `valkey.password` are rejected by CRD validation. Use `secretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`, or `valkey.passwordFrom` to reference Kubernetes Secrets.
-- **`Staging`** — same secret restrictions as Production, but allows `lifecycle.clone` for database cloning from an external source.
-- **`Development`** — allows plain-text `secretKey`, `metastore.uri`, `metastore.password`, and `valkey.password` directly in the CR for quick local development. Also permits `lifecycle.clone`, `lifecycle.init.adminUser`, and `lifecycle.init.loadExamples`.
+- **`Production`** (default) — inline `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, and `websocketServer.config` are rejected by CRD validation. Use the corresponding `*From` fields (`secretKeyFrom`, `previousSecretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`, `valkey.passwordFrom`, `websocketServer.configFrom`) to reference Kubernetes Secrets.
+- **`Staging`** — same secret restrictions as Production, but allows `lifecycle.clone` for database cloning from an external source. `lifecycle.clone.source.password` must still be supplied via `passwordFrom`.
+- **`Development`** — allows plain-text `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, `websocketServer.config`, and `lifecycle.clone.source.password` directly in the CR for quick local development. Also permits `lifecycle.clone`, `lifecycle.init.adminUser`, and `lifecycle.init.loadExamples`.
 
 ### Dev Mode Example
 

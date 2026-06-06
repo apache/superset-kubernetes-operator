@@ -92,14 +92,14 @@ While the project is pre-1.0, all versions use `0.x.y` to signal instability per
 
 The release workflow (`.github/workflows/release.yml`) builds multi-platform
 images and pushes them to GHCR. It runs automatically on pushes to `main`
-(producing `dev` and `sha-<short>` tags) and on version tags (producing semver
+(producing `dev` and `sha-<commit>` tags) and on version tags (producing semver
 tags). It can also be triggered manually via `workflow_dispatch`.
 
 **Image tagging:**
 
 | Trigger | Image tag | Example |
 |---|---|---|
-| Push to `main` | `dev` + `sha-<short-sha>` | `dev`, `sha-abc1234` |
+| Push to `main` | `dev` + `sha-<commit>` | `dev`, `sha-1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b` |
 | RC tag | Semver without `v` prefix | `0.1.0-rc1` |
 | Release tag | Semver without `v` prefix + `latest` | `0.1.0`, `latest` |
 
