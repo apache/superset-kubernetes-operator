@@ -114,7 +114,7 @@ func (r *SupersetReconciler) reconcileComponentNetworkPolicy(
 	labels := componentLabels(component, instanceName)
 	npSpec := superset.Spec.NetworkPolicy
 
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, np, func() error {
+	_, err := createOrUpdateWithRetry(ctx, r.Client, np, func() error {
 		if err := controllerutil.SetControllerReference(superset, np, r.Scheme); err != nil {
 			return err
 		}

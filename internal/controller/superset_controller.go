@@ -271,7 +271,7 @@ func (r *SupersetReconciler) reconcileServiceAccount(ctx context.Context, supers
 		}
 	}
 
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, sa, func() error {
+	_, err := createOrUpdateWithRetry(ctx, r.Client, sa, func() error {
 		if err := controllerutil.SetControllerReference(superset, sa, r.Scheme); err != nil {
 			return err
 		}
@@ -454,7 +454,7 @@ func reconcileParentOwnedConfigMap(
 		},
 	}
 
-	_, err := controllerutil.CreateOrUpdate(ctx, c, cm, func() error {
+	_, err := createOrUpdateWithRetry(ctx, c, cm, func() error {
 		if err := controllerutil.SetControllerReference(parent, cm, scheme); err != nil {
 			return err
 		}

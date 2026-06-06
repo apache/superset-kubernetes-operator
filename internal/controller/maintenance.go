@@ -28,7 +28,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -224,7 +223,7 @@ func (r *SupersetReconciler) reconcileMaintenanceReturn(
 	superset.Status.Lifecycle.MaintenanceActive = false
 	r.Recorder.Eventf(superset, nil, corev1.EventTypeNormal, "MaintenanceEnded", "Lifecycle",
 		"Web-server is ready; routing web-server Service back to Superset")
-	log.V(1).Info("Web-server ready, clearing maintenance page")
+	log.Info("Web-server ready, clearing maintenance page")
 	return true, nil
 }
 
@@ -282,23 +281,21 @@ func (r *SupersetReconciler) reconcileMaintenanceDeployment(
 		{Name: naming.PortNameHTTP, ContainerPort: port, Protocol: corev1.ProtocolTCP},
 	}
 
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		deploy := &appsv1.Deployment{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      deployName,
-				Namespace: superset.Namespace,
-			},
+	deploy := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      deployName,
+			Namespace: superset.Namespace,
+		},
+	}
+	_, err := createOrUpdateWithRetry(ctx, r.Client, deploy, func() error {
+		if err := controllerutil.SetControllerReference(superset, deploy, r.Scheme); err != nil {
+			return err
 		}
-		_, err := controllerutil.CreateOrUpdate(ctx, r.Client, deploy, func() error {
-			if err := controllerutil.SetControllerReference(superset, deploy, r.Scheme); err != nil {
-				return err
-			}
-			deploy.Spec = buildDeploymentSpec(&flat, cfg, podAnnotations, selectorLabels)
-			deploy.Labels = mergeLabels(nil, componentLabels(string(naming.ComponentMaintenancePage), superset.Name))
-			return nil
-		})
-		return err
+		deploy.Spec = buildDeploymentSpec(&flat, cfg, podAnnotations, selectorLabels)
+		deploy.Labels = mergeLabels(nil, componentLabels(string(naming.ComponentMaintenancePage), superset.Name))
+		return nil
 	})
+	return err
 }
 
 // reconcileMaintenanceConfigMap creates or updates the ConfigMap containing
@@ -311,26 +308,24 @@ func (r *SupersetReconciler) reconcileMaintenanceConfigMap(
 ) error {
 	cmName := maintenanceConfigMapName(superset.Name)
 
-	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		cm := &corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      cmName,
-				Namespace: superset.Namespace,
-			},
+	cm := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      cmName,
+			Namespace: superset.Namespace,
+		},
+	}
+	_, err := createOrUpdateWithRetry(ctx, r.Client, cm, func() error {
+		if err := controllerutil.SetControllerReference(superset, cm, r.Scheme); err != nil {
+			return err
 		}
-		_, err := controllerutil.CreateOrUpdate(ctx, r.Client, cm, func() error {
-			if err := controllerutil.SetControllerReference(superset, cm, r.Scheme); err != nil {
-				return err
-			}
-			cm.Data = map[string]string{
-				"nginx.conf":   renderMaintenanceNginxMainConf(),
-				"default.conf": renderNginxConf(port),
-				"index.html":   renderMaintenanceHTML(spec),
-			}
-			return nil
-		})
-		return err
+		cm.Data = map[string]string{
+			"nginx.conf":   renderMaintenanceNginxMainConf(),
+			"default.conf": renderNginxConf(port),
+			"index.html":   renderMaintenanceHTML(spec),
+		}
+		return nil
 	})
+	return err
 }
 
 // buildMaintenanceFlatSpec constructs the FlatComponentSpec for the maintenance page.

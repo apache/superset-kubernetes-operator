@@ -142,6 +142,7 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 			taskRef.CompletedChecksum = taskChecksum
 			setCondition(&taskRef.Conditions, supersetv1alpha1.ConditionTypeTaskComplete,
 				metav1.ConditionTrue, "TaskComplete", "Task completed successfully", superset.Generation)
+			log.Info("Lifecycle task completed", "task", taskType)
 			return lifecycleCheckpoint(), nil
 		}
 
@@ -165,6 +166,8 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 					"%s task failed after %d attempts: %s", taskType, taskRef.Attempts, taskRef.Message)
 				setCondition(&taskRef.Conditions, supersetv1alpha1.ConditionTypeTaskComplete,
 					metav1.ConditionFalse, "TaskFailed", taskRef.Message, superset.Generation)
+				log.Info("Lifecycle task permanently failed", "task", taskType,
+					"attempts", taskRef.Attempts, "message", taskRef.Message)
 				return lifecycleTerminal(), nil
 			}
 

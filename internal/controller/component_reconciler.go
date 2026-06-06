@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
@@ -112,7 +113,7 @@ func reconcileComponentDeployment(
 
 	labels := componentLabels(componentName, owner.GetName())
 
-	_, err := controllerutil.CreateOrUpdate(ctx, c, deploy, func() error {
+	op, err := createOrUpdateWithRetry(ctx, c, deploy, func() error {
 		if err := controllerutil.SetControllerReference(owner, deploy, scheme); err != nil {
 			return err
 		}
@@ -124,7 +125,14 @@ func reconcileComponentDeployment(
 		deploy.Spec = buildDeploymentSpec(spec, cfg, checksumAnnotations, labels)
 		return nil
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	if op != controllerutil.OperationResultNone {
+		logf.FromContext(ctx).Info("Reconciled component",
+			"component", componentName, "name", resourceBaseName, "operation", op)
+	}
+	return nil
 }
 
 // reconcileComponentService creates or updates a Service for the component.
@@ -148,7 +156,7 @@ func reconcileComponentService(
 
 	labels := componentLabels(componentName, owner.GetName())
 
-	_, err := controllerutil.CreateOrUpdate(ctx, c, svc, func() error {
+	_, err := createOrUpdateWithRetry(ctx, c, svc, func() error {
 		if err := controllerutil.SetControllerReference(owner, svc, scheme); err != nil {
 			return err
 		}

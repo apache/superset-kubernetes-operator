@@ -64,7 +64,7 @@ func (r *SupersetReconciler) reconcileServiceMonitor(ctx context.Context, supers
 	obj.SetName(superset.Name)
 	obj.SetNamespace(superset.Namespace)
 
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, obj, func() error {
+	_, err := createOrUpdateWithRetry(ctx, r.Client, obj, func() error {
 		if err := controllerutil.SetControllerReference(superset, obj, r.Scheme); err != nil {
 			return err
 		}

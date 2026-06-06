@@ -19,9 +19,41 @@ limitations under the License.
 package controller
 
 import (
+	"context"
+
+	"k8s.io/client-go/util/retry"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+
 	"github.com/apache/superset-kubernetes-operator/internal/common"
 	"github.com/apache/superset-kubernetes-operator/internal/resolution"
 )
+
+// createOrUpdateWithRetry wraps controllerutil.CreateOrUpdate with automatic
+// retry on optimistic-lock conflicts. Such conflicts are routine rather than
+// exceptional: another actor (e.g. the built-in Deployment controller writing
+// rollout status) can bump an object's resourceVersion between our Get and
+// Update, which the API server then rejects with a Conflict. Without a retry
+// this surfaces as a noisy error-level "the object has been modified" reconcile
+// failure that self-heals on the next requeue. Retrying re-Gets the latest
+// version and re-applies the mutation inline, so the conflict stays invisible.
+//
+// Use this in place of controllerutil.CreateOrUpdate for every parent-owned
+// resource so the benefit applies uniformly.
+func createOrUpdateWithRetry(
+	ctx context.Context,
+	c client.Client,
+	obj client.Object,
+	mutate controllerutil.MutateFn,
+) (controllerutil.OperationResult, error) {
+	var op controllerutil.OperationResult
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var innerErr error
+		op, innerErr = controllerutil.CreateOrUpdate(ctx, c, obj, mutate)
+		return innerErr
+	})
+	return op, err
+}
 
 // parentLabels returns the operator-managed labels for parent-owned resources
 // (ServiceAccount, Ingress, HTTPRoute, ServiceMonitor). These labels enable

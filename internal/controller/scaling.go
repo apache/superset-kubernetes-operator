@@ -54,7 +54,7 @@ func reconcileHPA(
 		},
 	}
 
-	_, err := controllerutil.CreateOrUpdate(ctx, c, hpa, func() error {
+	_, err := createOrUpdateWithRetry(ctx, c, hpa, func() error {
 		if err := controllerutil.SetControllerReference(owner, hpa, scheme); err != nil {
 			return err
 		}
@@ -100,7 +100,7 @@ func reconcilePDB(
 		},
 	}
 
-	_, err := controllerutil.CreateOrUpdate(ctx, c, pdb, func() error {
+	_, err := createOrUpdateWithRetry(ctx, c, pdb, func() error {
 		if err := controllerutil.SetControllerReference(owner, pdb, scheme); err != nil {
 			return err
 		}

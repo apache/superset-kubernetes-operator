@@ -121,7 +121,7 @@ func (r *SupersetReconciler) reconcileWebServerService(ctx context.Context, supe
 	containerPort := resolveWebServerPort(superset)
 	webServerLabels := componentLabels(string(common.ComponentWebServer), superset.Name)
 
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, svc, func() error {
+	_, err := createOrUpdateWithRetry(ctx, r.Client, svc, func() error {
 		// Clear existing owner references to handle upgrades from earlier
 		// versions where the Service may have been owned by another controller.
 		svc.OwnerReferences = nil
@@ -175,7 +175,7 @@ func (r *SupersetReconciler) reconcileHTTPRoute(ctx context.Context, superset *s
 		},
 	}
 
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, route, func() error {
+	_, err := createOrUpdateWithRetry(ctx, r.Client, route, func() error {
 		if err := controllerutil.SetControllerReference(superset, route, r.Scheme); err != nil {
 			return err
 		}
@@ -331,7 +331,7 @@ func (r *SupersetReconciler) reconcileIngress(ctx context.Context, superset *sup
 
 	webServerSvcName, webServerPort := webServerServiceRef(superset)
 
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, ingress, func() error {
+	_, err := createOrUpdateWithRetry(ctx, r.Client, ingress, func() error {
 		if err := controllerutil.SetControllerReference(superset, ingress, r.Scheme); err != nil {
 			return err
 		}

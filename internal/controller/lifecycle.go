@@ -242,6 +242,7 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	}
 
 	// All tasks complete.
+	logf.FromContext(ctx).Info("Lifecycle tasks complete, reconciling components", "image", currentImage)
 	r.finalizeLifecycle(superset, currentImage)
 	return lifecycleComplete(), nil
 }
