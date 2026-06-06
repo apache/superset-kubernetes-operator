@@ -36,6 +36,7 @@
 # Helm chart metadata
 .*Chart\.yaml
 .*values\.yaml
+.*values\.schema\.json
 
 # Documentation
 .*api-reference\.md

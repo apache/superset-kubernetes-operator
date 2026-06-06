@@ -54,8 +54,8 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAME }}
           tags: |
-            # On push to main: sha-<short-sha>
-            type=sha,prefix=sha-,format=short,enable={{is_default_branch}}
+            # On every build (main + tags): full commit SHA, immutably pinnable
+            type=sha,prefix=sha-,format=long
             # On push to main: floating dev tag (latest main build)
             type=raw,value=dev,enable={{is_default_branch}}
             # On tag push: strip 'v' prefix (v0.1.0 -> 0.1.0, v0.1.0-rc1 -> 0.1.0-rc1)

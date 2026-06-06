@@ -419,6 +419,14 @@ The release pipeline produces signed multi-architecture artifacts:
   attestations by BuildKit at build time. Inspect them with
   `docker buildx imagetools inspect ghcr.io/apache/superset-kubernetes-operator:<tag> --format '{{ json .SBOM }}'`
   (or `.Provenance`), or with `cosign download attestation`.
+- **Vulnerability scanning:** CI runs [`govulncheck`](https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck)
+  against the Go source (reachable CVEs in dependencies and the standard library)
+  and [Trivy](https://github.com/aquasecurity/trivy) against the built image
+  (OS and shipped-binary CVEs), with results uploaded to GitHub code scanning.
+  [CodeQL](https://codeql.github.com/) provides static analysis of the Go code.
+- **Supply-chain posture:** An [OpenSSF Scorecard](https://securityscorecards.dev/)
+  workflow runs on a schedule and publishes the project's score (linked from the
+  README badge).
 
 ## What Is Generally Out of Scope
 

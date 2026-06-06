@@ -24,6 +24,7 @@ under the License.
 [![CI](https://github.com/apache/superset-kubernetes-operator/actions/workflows/ci.yaml/badge.svg)](https://github.com/apache/superset-kubernetes-operator/actions/workflows/ci.yaml)
 [![codecov](https://codecov.io/gh/apache/superset-kubernetes-operator/branch/main/graph/badge.svg)](https://codecov.io/gh/apache/superset-kubernetes-operator)
 [![Go Report Card](https://goreportcard.com/badge/github.com/apache/superset-kubernetes-operator)](https://goreportcard.com/report/github.com/apache/superset-kubernetes-operator)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/apache/superset-kubernetes-operator/badge)](https://scorecard.dev/viewer/?uri=github.com/apache/superset-kubernetes-operator)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Docs](https://img.shields.io/badge/docs-apache.github.io-blue)](https://apache.github.io/superset-kubernetes-operator/)
 

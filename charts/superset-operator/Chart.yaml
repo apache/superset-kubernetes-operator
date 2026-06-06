@@ -5,6 +5,7 @@ type: application
 version: 0.0.0-dev
 appVersion: "dev"
 home: https://github.com/apache/superset-kubernetes-operator
+icon: https://superset.apache.org/img/superset-logo-horiz.svg
 sources:
   - https://github.com/apache/superset-kubernetes-operator
 maintainers:
@@ -16,3 +17,11 @@ keywords:
   - kubernetes
   - analytics
   - bi
+annotations:
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/operator: "true"
+  artifacthub.io/links: |
+    - name: Documentation
+      url: https://apache.github.io/superset-kubernetes-operator/
+    - name: Source
+      url: https://github.com/apache/superset-kubernetes-operator
