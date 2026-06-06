@@ -14,7 +14,7 @@
 # limitations under the License.
 
 # Production-mode sample. Secrets are referenced via *From fields.
-# See docs/installation.md for full setup instructions.
+# See docs/user-guide/installation.md for full setup instructions.
 #
 # Prerequisites:
 #   kubectl create secret generic superset-secret \
