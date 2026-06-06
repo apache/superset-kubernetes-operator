@@ -14,6 +14,11 @@
 # limitations under the License.
 
 coverage:
+  # Badge/sunburst color gradient: red below 70%, gradient through 70–85%, solid
+  # green at >=85%. The controller package dominates the statement-weighted total
+  # and is intentionally exercised mostly via integration/e2e tests, so 85% is a
+  # realistic "healthy" bar with headroom above current coverage.
+  range: "70...85"
   status:
     project: off
     patch: off

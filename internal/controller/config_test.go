@@ -512,6 +512,102 @@ func TestResolveValkeyResults(t *testing.T) {
 	})
 }
 
+func TestResolveValkeyCache(t *testing.T) {
+	t.Run("nil spec applies defaults", func(t *testing.T) {
+		// Non-standard defaults prove all three arguments are honored, not hardcoded.
+		got := resolveValkeyCache(nil, 7, "custom_cache_", 600)
+		if got.Disabled {
+			t.Error("expected not disabled by default")
+		}
+		if got.Database != 7 {
+			t.Errorf("expected default database 7, got %d", got.Database)
+		}
+		if got.KeyPrefix != "custom_cache_" {
+			t.Errorf("expected default key prefix, got %q", got.KeyPrefix)
+		}
+		if got.DefaultTimeout != 600 {
+			t.Errorf("expected default timeout 600, got %d", got.DefaultTimeout)
+		}
+	})
+
+	t.Run("disabled true", func(t *testing.T) {
+		got := resolveValkeyCache(&supersetv1alpha1.ValkeyCacheSpec{Disabled: common.Ptr(true)}, 1, "superset_cache_", 300)
+		if !got.Disabled {
+			t.Error("expected disabled=true")
+		}
+		if got.Database != 1 {
+			t.Errorf("expected default database 1 preserved, got %d", got.Database)
+		}
+	})
+
+	t.Run("disabled false keeps defaults", func(t *testing.T) {
+		// An explicit false must not flip the (false) zero value or disturb defaults.
+		got := resolveValkeyCache(&supersetv1alpha1.ValkeyCacheSpec{Disabled: common.Ptr(false)}, 1, "superset_cache_", 300)
+		if got.Disabled {
+			t.Error("expected disabled=false")
+		}
+	})
+
+	t.Run("database override", func(t *testing.T) {
+		got := resolveValkeyCache(&supersetv1alpha1.ValkeyCacheSpec{Database: common.Ptr(int32(4))}, 1, "superset_cache_", 300)
+		if got.Database != 4 {
+			t.Errorf("expected database override 4, got %d", got.Database)
+		}
+		if got.KeyPrefix != "superset_cache_" {
+			t.Errorf("expected default key prefix preserved, got %q", got.KeyPrefix)
+		}
+		if got.DefaultTimeout != 300 {
+			t.Errorf("expected default timeout preserved, got %d", got.DefaultTimeout)
+		}
+	})
+
+	t.Run("key prefix override", func(t *testing.T) {
+		got := resolveValkeyCache(&supersetv1alpha1.ValkeyCacheSpec{KeyPrefix: common.Ptr("custom_cache_")}, 1, "superset_cache_", 300)
+		if got.KeyPrefix != "custom_cache_" {
+			t.Errorf("expected key prefix override, got %q", got.KeyPrefix)
+		}
+	})
+
+	t.Run("default timeout override", func(t *testing.T) {
+		got := resolveValkeyCache(&supersetv1alpha1.ValkeyCacheSpec{DefaultTimeout: common.Ptr(int32(900))}, 1, "superset_cache_", 300)
+		if got.DefaultTimeout != 900 {
+			t.Errorf("expected default timeout override 900, got %d", got.DefaultTimeout)
+		}
+		if got.Database != 1 {
+			t.Errorf("expected default database preserved, got %d", got.Database)
+		}
+	})
+}
+
+func TestResolveValkeyCelery(t *testing.T) {
+	t.Run("nil spec applies defaults", func(t *testing.T) {
+		got := resolveValkeyCelery(nil, 5)
+		if got.Disabled {
+			t.Error("expected not disabled by default")
+		}
+		if got.Database != 5 {
+			t.Errorf("expected default database 5, got %d", got.Database)
+		}
+	})
+
+	t.Run("disabled true", func(t *testing.T) {
+		got := resolveValkeyCelery(&supersetv1alpha1.ValkeyCelerySpec{Disabled: common.Ptr(true)}, 0)
+		if !got.Disabled {
+			t.Error("expected disabled=true")
+		}
+		if got.Database != 0 {
+			t.Errorf("expected default database 0 preserved, got %d", got.Database)
+		}
+	})
+
+	t.Run("database override", func(t *testing.T) {
+		got := resolveValkeyCelery(&supersetv1alpha1.ValkeyCelerySpec{Database: common.Ptr(int32(2))}, 0)
+		if got.Database != 2 {
+			t.Errorf("expected database override 2, got %d", got.Database)
+		}
+	})
+}
+
 func TestBuildConfigInput_Valkey(t *testing.T) {
 	t.Run("nil valkey", func(t *testing.T) {
 		input := buildConfigInput(&supersetv1alpha1.SupersetSpec{})

@@ -178,6 +178,62 @@ func TestBuildMaintenanceFlatSpec(t *testing.T) {
 			t.Errorf("expected user RunAsUser=2020 to be respected, got %v", sc.RunAsUser)
 		}
 	})
+
+	t.Run("replicas default and override", func(t *testing.T) {
+		// Default is a single replica; an explicit spec.Replicas overrides it.
+		def := buildMaintenanceFlatSpec("parent", &supersetv1alpha1.MaintenancePageSpec{})
+		if def.Replicas == nil || *def.Replicas != 1 {
+			t.Errorf("expected default replicas 1, got %v", def.Replicas)
+		}
+		over := buildMaintenanceFlatSpec("parent", &supersetv1alpha1.MaintenancePageSpec{Replicas: common.Ptr(int32(3))})
+		if over.Replicas == nil || *over.Replicas != 3 {
+			t.Errorf("expected replicas override 3, got %v", over.Replicas)
+		}
+	})
+
+	t.Run("content fields render env vars", func(t *testing.T) {
+		// Title/Message/Body each map to their MAINTENANCE_* env var; unset fields
+		// contribute nothing. Custom mode (user image, nil template) also exercises
+		// the env-block's PodTemplate/Container lazy initialization.
+		title, message, body := "T", "M", "<h1>B</h1>"
+		flat := buildMaintenanceFlatSpec("parent", &supersetv1alpha1.MaintenancePageSpec{
+			Image:   &supersetv1alpha1.ContainerImageSpec{Repository: "my/maint", Tag: "v1"},
+			Title:   &title,
+			Message: &message,
+			Body:    &body,
+		})
+		env := maintenanceEnvByName(flat)
+		assert.Equal(t, title, env[common.EnvMaintenanceTitle])
+		assert.Equal(t, message, env[common.EnvMaintenanceMessage])
+		assert.Equal(t, body, env[common.EnvMaintenanceBody])
+	})
+
+	t.Run("no content fields render no maintenance env vars", func(t *testing.T) {
+		// With no content fields and custom mode (user image, no managed mounts),
+		// the container template carries no maintenance env vars.
+		flat := buildMaintenanceFlatSpec("parent", &supersetv1alpha1.MaintenancePageSpec{
+			Image: &supersetv1alpha1.ContainerImageSpec{Repository: "my/maint", Tag: "v1"},
+		})
+		env := maintenanceEnvByName(flat)
+		for _, name := range []string{common.EnvMaintenanceTitle, common.EnvMaintenanceMessage, common.EnvMaintenanceBody} {
+			if _, ok := env[name]; ok {
+				t.Errorf("expected no %s env var, got one", name)
+			}
+		}
+	})
+}
+
+// maintenanceEnvByName indexes the maintenance container's env vars by name,
+// tolerating a nil pod/container template.
+func maintenanceEnvByName(flat supersetv1alpha1.FlatComponentSpec) map[string]string {
+	out := map[string]string{}
+	if flat.PodTemplate == nil || flat.PodTemplate.Container == nil {
+		return out
+	}
+	for _, e := range flat.PodTemplate.Container.Env {
+		out[e.Name] = e.Value
+	}
+	return out
 }
 
 func maintenanceMountsConf(flat supersetv1alpha1.FlatComponentSpec, path string) bool {
