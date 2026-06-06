@@ -114,6 +114,11 @@ check-license: ## Check Apache license headers using Apache Rat.
 ##@ Documentation
 
 MKDOCS ?= $(shell if [ -x venv/bin/mkdocs ]; then printf './venv/bin/mkdocs'; else printf 'mkdocs'; fi)
+UV ?= uv
+
+.PHONY: docs-lock
+docs-lock: ## Regenerate hash-pinned Python dependencies for documentation.
+	$(UV) pip compile --generate-hashes --python-version 3.13 docs-requirements.in -o docs-requirements.txt
 
 .PHONY: docs-serve
 docs-serve: ## Serve documentation locally with live reload.

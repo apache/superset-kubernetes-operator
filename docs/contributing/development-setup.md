@@ -141,6 +141,7 @@ kind delete cluster --name superset
 
 | Command | Description |
 |---|---|
+| `make docs-lock` | Regenerate hash-pinned Python dependencies for documentation. |
 | `make docs-serve` | Serve documentation locally with live reload. |
 | `make docs-build` | Build documentation site. |
 | `make docs-api` | Generate API reference documentation from Go types. |
@@ -221,11 +222,15 @@ The docs are built with [mkdocs-material](https://squidfunk.github.io/mkdocs-mat
 ```sh
 virtualenv venv
 source venv/bin/activate
-pip install -r docs-requirements.txt
+python -m pip install --require-hashes -r docs-requirements.txt
 make docs-serve
 ```
 
 This starts a live-reloading server at `http://localhost:8000`. Edit Markdown files in `docs/` and changes appear instantly.
+
+The documentation dependency lock is generated from `docs-requirements.in`.
+After changing documentation dependencies, run `make docs-lock` and commit the
+updated `docs-requirements.txt`.
 
 To verify the docs build cleanly (same check that runs in CI):
 
