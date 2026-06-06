@@ -171,6 +171,7 @@ kind delete cluster --name superset
 | `make test` | Run all tests (unit + integration + e2e). |
 | `make test-unit` | Run unit tests (no envtest or cluster required). |
 | `make test-integration` | Run integration tests (requires envtest). |
+| `make fuzz` | Run all fuzz targets for a bounded duration (FUZZTIME per target, default 30s). |
 | `make setup-test-e2e` | Set up a Kind cluster for e2e tests if it does not exist |
 | `make test-e2e` | Run the e2e tests. Expected an isolated environment using Kind. |
 | `make cleanup-test-e2e` | Tear down the Kind cluster used for e2e tests |
