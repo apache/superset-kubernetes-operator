@@ -211,6 +211,20 @@ test-unit: manifests generate fmt vet ## Run unit tests (no envtest or cluster r
 test-integration: manifests generate fmt vet setup-envtest ## Run integration tests (requires envtest).
 	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $$(go list ./... | grep -v /e2e) -tags integration -coverprofile cover.out
 
+# Fuzz targets live in *_fuzz_test.go beside the code they exercise. `go test
+# -fuzz` runs a single target per invocation, so we loop over them. FUZZTIME
+# bounds each target (override for longer scheduled runs, e.g. FUZZTIME=5m).
+# Seed corpora and any committed testdata/fuzz crashers also replay during the
+# normal `make test-unit` run.
+.PHONY: fuzz
+fuzz: ## Run all fuzz targets for a bounded duration (FUZZTIME per target, default 30s).
+	@FUZZTIME=$${FUZZTIME:-30s}; \
+	set -e; \
+	go test ./internal/controller/ -run '^$$' -fuzz '^FuzzCompareVersions$$' -fuzztime $$FUZZTIME; \
+	go test ./internal/config/     -run '^$$' -fuzz '^FuzzPyQuote$$'         -fuzztime $$FUZZTIME; \
+	go test ./internal/config/     -run '^$$' -fuzz '^FuzzRenderConfig$$'    -fuzztime $$FUZZTIME; \
+	go test ./internal/resolution/ -run '^$$' -fuzz '^FuzzMergeMaps$$'       -fuzztime $$FUZZTIME
+
 # E2E tests live under test/e2e/ and assume Kind is pre-installed; the manager
 # image is built and side-loaded into the cluster. CertManager is installed by
 # default; skip with CERT_MANAGER_INSTALL_SKIP=true.

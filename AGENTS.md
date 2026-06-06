@@ -119,6 +119,7 @@ The operator uses a **single public CRD architecture** where the parent `Superse
 - **CRD validation**: All validation uses CEL (`x-kubernetes-validations`) on CRD types — no admission webhooks. Rules cover: environment mode restrictions, secret mutual exclusivity, metastore/valkey validation, networking constraints, monitoring constraints. Defaults (repository, pullPolicy, environment) use kubebuilder default markers.
 - **Metrics**: Operator exposes controller-runtime default metrics (reconcile counts, durations, leader election) on HTTPS :8443 with Kubernetes auth/authz. No custom metrics — controller-runtime defaults are sufficient. Superset instance monitoring via optional `spec.monitoring.serviceMonitor` (creates a Prometheus ServiceMonitor targeting the web-server component using unstructured objects; gracefully skips if CRD is absent).
 - **Config mount path**: `/app/pythonpath` for superset_config.py.
+- **Fuzzing**: Go-native `go test -fuzz` targets in `*_fuzz_test.go` on pure string/codegen/merge functions (`CompareVersions`, `pyQuote`/`RenderConfig`, `MergeMaps`). `make fuzz` runs them bounded; seeds replay under `make test-unit`; scheduled `fuzz.yaml` runs them longer. Robustness, not a security boundary (CR input is trusted). See `docs/contributing/development-guidelines.md`.
 - **All Go files must have the Apache 2.0 copyright header** (see `hack/boilerplate.go.txt`)
 
 ## Naming Conventions

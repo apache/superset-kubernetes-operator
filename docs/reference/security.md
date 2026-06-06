@@ -106,7 +106,6 @@ and Staging) and Development:
 
 Development mode is intentionally less secure. It exists for local development
 with Kind or Minikube where secret management infrastructure is not available.
-This is not a vulnerability — it is a documented design decision.
 
 ### Secret Handling
 

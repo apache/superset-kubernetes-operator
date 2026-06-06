@@ -420,9 +420,8 @@ spec:
 
 The top-level value applies to web server, Celery worker, Celery Beat, Celery
 Flower, MCP server, and lifecycle `migrate`, `rotate`, and `init` task Jobs.
-The websocket server is a Node.js component and does not use this script. Clone
-tasks also do not use it because they run a database-tool image rather than the
-Superset image.
+The websocket server (Node.js) and clone tasks (which run a database-tool image)
+do not use this script.
 
 Components and lifecycle tasks can override the top-level script. Set the
 override to an empty string to disable inheritance:

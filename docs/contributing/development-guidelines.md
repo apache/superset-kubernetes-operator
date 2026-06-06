@@ -209,6 +209,41 @@ func TestMergeEnvVars_ConflictResolution(t *testing.T) {
 }
 ```
 
+### Fuzzing
+
+We fuzz a small set of pure functions with Go's built-in fuzzing
+(`go test -fuzz`).
+
+Fuzz targets live in `*_fuzz_test.go` files beside the code they exercise, in
+the same package and with no build tag (so they compile under the default
+`go test`). Run all of them, bounded, with:
+
+```sh
+make fuzz              # 30s per target
+make fuzz FUZZTIME=2m  # longer local run
+```
+
+Each target seeds a corpus with `f.Add(...)` cases and asserts an invariant
+beyond "does not panic" — e.g. `CompareVersions` is antisymmetric, `RenderConfig`
+is deterministic, `pyQuote` round-trips, `MergeMaps` is a last-writer-wins union.
+The seed corpus (plus any committed `testdata/fuzz/...` reproducers) replays as
+ordinary subtests during `make test-unit`, so regressions are caught on every PR;
+the scheduled `fuzz.yaml` workflow runs the targets for longer to explore new
+inputs.
+
+**When to add a target:** a pure, deterministic function that parses strings,
+generates code/config, or merges collections from CR-author-controlled input.
+Skip trivial scalar or preset math already covered by table tests.
+
+**Scope — robustness, not a security boundary.** As noted under
+[Security and the threat model](#security-and-the-threat-model), `Superset` CR
+input comes from a *trusted* namespace admin. Fuzzing here guards against panics
+and non-determinism on awkward-but-valid input; it is not defending a trust
+boundary. Frame findings accordingly.
+
+**On a finding:** `go test` writes a reproducer to `testdata/fuzz/<target>/<id>`.
+Commit it as a permanent regression seed, then fix the bug.
+
 ---
 
 ## License Headers
