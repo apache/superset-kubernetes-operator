@@ -40,6 +40,13 @@
         "enabled": { "type": "boolean" }
       }
     },
+    "logLevel": {
+      "description": "Operator log verbosity (--zap-log-level): empty = default (info). One of \"info\", \"debug\", \"error\", \"panic\", or an integer level (1 = debug/V1, 2 = V2 trace).",
+      "oneOf": [
+        { "type": "string", "enum": ["", "info", "debug", "error", "panic", "1", "2"] },
+        { "type": "integer", "enum": [1, 2] }
+      ]
+    },
     "metrics": {
       "type": "object",
       "additionalProperties": false,

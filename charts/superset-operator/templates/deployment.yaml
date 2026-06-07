@@ -53,6 +53,9 @@ spec:
           args:
             - --leader-elect={{ .Values.leaderElection.enabled }}
             - --health-probe-bind-address=:8081
+            {{- with .Values.logLevel }}
+            - --zap-log-level={{ . }}
+            {{- end }}
             {{- if .Values.metrics.enabled }}
             - --metrics-bind-address=:{{ .Values.metrics.service.port }}
             {{- if .Values.metrics.certSecretName }}

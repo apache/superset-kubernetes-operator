@@ -264,11 +264,28 @@ ConfigMaps automatically.
 
 ## Debugging the operator
 
-If a Superset isn't reconciling as expected, raise the operator's log verbosity
-by adding `--zap-log-level=debug` (or `=2` for trace-level internals) to the
-manager container args. See the
+If a Superset isn't reconciling as expected, raise the operator's log verbosity.
+The chart exposes a `logLevel` value mapped to the manager's `--zap-log-level`
+flag: `debug` (or `1`) adds V(1) per-reconcile progress logs, and `2` adds V(2)
+trace-level internals. See the
 [logging policy](../contributing/development-guidelines.md#logging) for what each
 level emits.
+
+Set it at install/upgrade time:
+
+```bash
+helm upgrade --install superset-operator <chart> \
+  --namespace superset-operator-system \
+  --set logLevel=debug
+```
+
+or in a values file:
+
+```yaml
+logLevel: debug   # "1" for V(1), "2" for V(2) trace
+```
+
+Revert to the default once you're done — V(2) is verbose.
 
 ## Next steps
 

@@ -185,7 +185,7 @@ kind delete cluster --name superset
 | Command | Description |
 |---|---|
 | `make build` | Build manager binary. |
-| `make run` | Run a controller from your host. |
+| `make run` | Run a controller from your host. Pass flags via ARGS, e.g. make run ARGS="--zap-log-level=2". |
 | `make docker-build` | Build docker image with the manager. |
 | `make docker-push` | Push docker image with the manager. |
 | `make build-installer` | Generate a consolidated YAML with CRDs and deployment. |

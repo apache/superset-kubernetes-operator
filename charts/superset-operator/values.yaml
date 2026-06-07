@@ -21,6 +21,13 @@ serviceAccount:
 leaderElection:
   enabled: true
 
+# logLevel controls the operator's log verbosity (the manager's --zap-log-level
+# flag). Leave empty for the default ("info"). Set to "debug" (alias "1") to
+# include V(1) per-reconcile progress logs, or "2" for V(2) trace-level
+# internals. See the logging policy in the developer guidelines for what each
+# level emits.
+logLevel: ""
+
 metrics:
   enabled: true
   service:

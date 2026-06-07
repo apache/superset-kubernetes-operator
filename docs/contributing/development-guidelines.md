@@ -485,9 +485,9 @@ V(0).
 ### Enabling verbose logs when debugging
 
 ```sh
-go run ./cmd/main.go --zap-log-level=debug   # V(1)
-go run ./cmd/main.go --zap-log-level=2       # V(1)+V(2)
-# in-cluster: append --zap-log-level=debug to the manager container args
+make run ARGS="--zap-log-level=debug"   # V(1)
+make run ARGS="--zap-log-level=2"        # V(1)+V(2)
+# in-cluster (Helm): --set logLevel=debug (or 2) — see Installation › Debugging the operator
 ```
 
 ---
