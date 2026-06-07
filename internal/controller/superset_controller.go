@@ -117,6 +117,7 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		gunicornSpecFrom(superset.Spec.WebServer),
 		celerySpecFrom(superset.Spec.CeleryWorker),
 	})
+	log.V(2).Info("Computed config checksum", "name", superset.Name, "checksum", configChecksum)
 
 	// Phase 2: Reconcile shared resources.
 	if err := r.reconcileServiceAccount(ctx, superset); err != nil {
@@ -136,6 +137,7 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 	if !lifecycleRes.Complete {
 		// Update status before returning.
+		log.V(1).Info("Lifecycle incomplete, requeueing", "name", superset.Name, "terminalFailure", lifecycleRes.TerminalFailure)
 		r.updateLifecycleComponentStatus(ctx, superset, configChecksum)
 		if statusErr := patchStatusIfChanged(ctx, r.Client, superset, origSuperset, origSuperset.Status, superset.Status); statusErr != nil {
 			return ctrl.Result{}, fmt.Errorf("updating status during lifecycle: %w", statusErr)
@@ -198,6 +200,7 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		_ = r.deleteMaintenanceResources(ctx, superset)
 	}
 	if !maintenanceCleared {
+		log.V(1).Info("Maintenance active, requeueing before component reconcile", "name", superset.Name)
 		r.updateLifecycleComponentStatus(ctx, superset, configChecksum)
 		if statusErr := patchStatusIfChanged(ctx, r.Client, superset, origSuperset, origSuperset.Status, superset.Status); statusErr != nil {
 			return ctrl.Result{}, fmt.Errorf("updating status during maintenance return: %w", statusErr)
@@ -229,6 +232,7 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 	// Phase 6: Schedule-based requeue for periodic lifecycle tasks.
 	if requeue := r.nextScheduleRequeue(superset); requeue > 0 {
+		log.V(1).Info("Scheduling next reconcile", "name", superset.Name, "after", requeue.String())
 		return ctrl.Result{RequeueAfter: requeue}, nil
 	}
 

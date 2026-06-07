@@ -429,6 +429,7 @@ func (r *SupersetReconciler) checkUpgradeGates(
 	newTag := tagFromImageRef(currentImage)
 	direction := CompareVersions(oldTag, newTag)
 	approvalToken := upgradeApprovalToken(lastImage, currentImage)
+	log.V(2).Info("Compared image versions", "from", oldTag, "to", newTag, "direction", direction)
 
 	if direction == DirectionDowngrade {
 		log.Info("Downgrade detected, blocking lifecycle", "from", oldTag, "to", newTag)

@@ -429,6 +429,69 @@ See `internal/controller/monitoring.go` for the implementation.
 
 ---
 
+## Logging
+
+The operator logs through `logf.FromContext(ctx)` (controller-runtime's
+logr/zap). Verbosity is a single knob, `--zap-log-level`, configured in
+`cmd/main.go`:
+
+| Flag | Levels emitted | Audience |
+|------|----------------|----------|
+| `--zap-log-level=info` (default) | V(0) | Operators in production |
+| `--zap-log-level=debug` (alias `=1`) | V(0)+V(1) | Debugging a reconcile |
+| `--zap-log-level=2` | V(0)+V(1)+V(2) | Deep tracing internals |
+
+### Three tiers
+
+- **Info / V(0)** — `log.Info(msg, kv...)`. Low-frequency, meaningful state
+  *transitions* an operator wants at default verbosity (lifecycle task
+  created/completed/failed, downgrade blocked, awaiting approval, maintenance
+  cleared, a component actually changed). **Must not fire on every reconcile.**
+- **V(1) / debug** — `log.V(1).Info(msg, kv...)`. Per-reconcile progress and
+  decisions: reconcile entry, phase markers, checksum-skip decisions,
+  "waiting for X" requeues, schedule next-requeue time, CRD-absent skips, no-op
+  results.
+- **V(2) / trace** — `log.V(2).Info(msg, kv...)`. Fine-grained internals:
+  rendered config size/checksum, version-comparison result, per-resource
+  CreateOrUpdate op even when unchanged.
+
+### Error logging
+
+`log.Error(err, msg, kv...)` is reserved for **non-fatal errors that are
+swallowed** — not returned up the stack and not surfaced as a Kubernetes Event —
+so they are not silently lost. Do **not** `log.Error` an error you also return:
+controller-runtime already logs returned reconcile errors at the top of the
+loop, and the code records a Warning Event via `r.Recorder.Eventf`. Double
+logging just creates noise.
+
+### Cross-cutting rule
+
+Anything that fires on **every** reconcile regardless of state change is V(1) or
+deeper. V(0) is for genuine transitions only. When in doubt, ask "would this line
+appear in a steady-state cluster where nothing is changing?" — if yes, it is not
+V(0).
+
+### Conventions
+
+- Structured keys are **camelCase**: `name`, `namespace`, `component`, `task`,
+  `image`, `from`, `to`, `operation`, `reason`, `phase`. Reuse these; don't
+  invent synonyms.
+- Never log secret values or rendered config bodies. Log sizes, counts, or
+  checksums instead (e.g. `configBytes`, `envVars`, `checksum`).
+- Pure packages (`internal/resolution/`, `internal/config/`, `internal/common/`,
+  `internal/schedule/`) do **zero** logging by design — they have no
+  controller-runtime dependency and return errors only. Keep it that way.
+
+### Enabling verbose logs when debugging
+
+```sh
+go run ./cmd/main.go --zap-log-level=debug   # V(1)
+go run ./cmd/main.go --zap-log-level=2       # V(1)+V(2)
+# in-cluster: append --zap-log-level=debug to the manager container args
+```
+
+---
+
 ## Pull Requests
 
 ### Title format

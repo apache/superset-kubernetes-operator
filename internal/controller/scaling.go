@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 )
@@ -43,6 +44,7 @@ func reconcileHPA(
 	namespace string,
 ) error {
 	if autoscaling == nil {
+		logf.FromContext(ctx).V(2).Info("Ensuring no HPA (autoscaling disabled)", "name", deploymentName)
 		return deleteByLabels(ctx, c, namespace, labels,
 			func() client.ObjectList { return &autoscalingv2.HorizontalPodAutoscalerList{} }, "")
 	}
@@ -54,7 +56,7 @@ func reconcileHPA(
 		},
 	}
 
-	_, err := createOrUpdateWithRetry(ctx, c, hpa, func() error {
+	op, err := createOrUpdateWithRetry(ctx, c, hpa, func() error {
 		if err := controllerutil.SetControllerReference(owner, hpa, scheme); err != nil {
 			return err
 		}
@@ -74,7 +76,11 @@ func reconcileHPA(
 
 		return nil
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	logf.FromContext(ctx).V(2).Info("Reconciled HPA", "name", deploymentName, "operation", op)
+	return nil
 }
 
 // reconcilePDB creates, updates, or deletes a PDB for the given component.
@@ -89,6 +95,7 @@ func reconcilePDB(
 	namespace string,
 ) error {
 	if pdbSpec == nil {
+		logf.FromContext(ctx).V(2).Info("Ensuring no PDB (disabled)", "name", name)
 		return deleteByLabels(ctx, c, namespace, labels,
 			func() client.ObjectList { return &policyv1.PodDisruptionBudgetList{} }, "")
 	}
@@ -100,7 +107,7 @@ func reconcilePDB(
 		},
 	}
 
-	_, err := createOrUpdateWithRetry(ctx, c, pdb, func() error {
+	op, err := createOrUpdateWithRetry(ctx, c, pdb, func() error {
 		if err := controllerutil.SetControllerReference(owner, pdb, scheme); err != nil {
 			return err
 		}
@@ -115,5 +122,9 @@ func reconcilePDB(
 
 		return nil
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	logf.FromContext(ctx).V(2).Info("Reconciled PDB", "name", name, "operation", op)
+	return nil
 }

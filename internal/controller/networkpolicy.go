@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
@@ -114,7 +115,7 @@ func (r *SupersetReconciler) reconcileComponentNetworkPolicy(
 	labels := componentLabels(component, instanceName)
 	npSpec := superset.Spec.NetworkPolicy
 
-	_, err := createOrUpdateWithRetry(ctx, r.Client, np, func() error {
+	op, err := createOrUpdateWithRetry(ctx, r.Client, np, func() error {
 		if err := controllerutil.SetControllerReference(superset, np, r.Scheme); err != nil {
 			return err
 		}
@@ -172,7 +173,11 @@ func (r *SupersetReconciler) reconcileComponentNetworkPolicy(
 
 		return nil
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	logf.FromContext(ctx).V(2).Info("Reconciled NetworkPolicy", "name", npName, "component", component, "operation", op)
+	return nil
 }
 
 // npContainerPort resolves the container port for NetworkPolicy rules using the

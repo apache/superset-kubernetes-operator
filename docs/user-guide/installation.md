@@ -262,6 +262,14 @@ EOF
 The operator will create the CeleryWorker and CeleryBeat Deployments and their
 ConfigMaps automatically.
 
+## Debugging the operator
+
+If a Superset isn't reconciling as expected, raise the operator's log verbosity
+by adding `--zap-log-level=debug` (or `=2` for trace-level internals) to the
+manager container args. See the
+[logging policy](../contributing/development-guidelines.md#logging) for what each
+level emits.
+
 ## Next steps
 
 - [Configuration](configuration.md) — full configuration reference

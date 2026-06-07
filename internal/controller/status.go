@@ -282,7 +282,7 @@ func (r *SupersetReconciler) getComponentStatus(ctx context.Context, superset *s
 	if err := r.Get(ctx, client.ObjectKey{Namespace: superset.Namespace, Name: resourceBaseName}, deploy); err != nil {
 		if !apierrors.IsNotFound(err) {
 			log := logf.FromContext(ctx)
-			log.Info("failed to read component Deployment for status", "component", desc.componentType, "name", resourceBaseName, "error", err)
+			log.Error(err, "Failed to read component Deployment for status", "component", desc.componentType, "name", resourceBaseName)
 		}
 		resources = append(resources, componentResourceStatus("Deployment", resourceBaseName, false))
 		resources = append(resources, r.expectedComponentResources(ctx, superset, desc, accessor, cfg, resourceBaseName)...)

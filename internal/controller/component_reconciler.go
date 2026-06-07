@@ -131,6 +131,9 @@ func reconcileComponentDeployment(
 	if op != controllerutil.OperationResultNone {
 		logf.FromContext(ctx).Info("Reconciled component",
 			"component", componentName, "name", resourceBaseName, "operation", op)
+	} else {
+		logf.FromContext(ctx).V(2).Info("Component unchanged",
+			"component", componentName, "name", resourceBaseName, "operation", op)
 	}
 	return nil
 }

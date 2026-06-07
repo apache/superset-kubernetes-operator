@@ -204,6 +204,8 @@ func (r *SupersetReconciler) reconcileComponent(
 		renderedConfig = supersetconfig.RenderConfig(desc.componentType, compConfigInput)
 		secretEnvVars = collectSecretEnvVars(&superset.Spec, superset.Name)
 		operatorInjected = buildOperatorInjected(renderedConfig, bootstrapScript, resourceBaseName, superset.Spec.ForceReload, secretEnvVars)
+		logf.FromContext(ctx).V(2).Info("Rendered component config",
+			"component", desc.componentType, "configBytes", len(renderedConfig), "envVars", len(secretEnvVars))
 
 		// Create/update the component ConfigMap.
 		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, renderedConfig, bootstrapScript, resourceBaseName, componentLabels(string(desc.componentType), superset.Name)); err != nil {
@@ -285,6 +287,7 @@ func (r *SupersetReconciler) reconcileComponent(
 	if desc.hasPythonConfig {
 		workloadChecksum = computeChecksum(configChecksum + renderedConfig + effectiveBootstrapScript(superset.Spec.BootstrapScript, accessor.bootstrapScript))
 	}
+	logf.FromContext(ctx).V(2).Info("Computed workload checksum", "component", desc.componentType, "checksum", workloadChecksum)
 
 	flatSpec := flatSpecFromResolution(flat, &superset.Spec.Image, accessor.image, saName)
 	if desc.adjustSpec != nil {
