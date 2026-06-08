@@ -102,7 +102,7 @@ PGP keys used for signing are listed in:
 To verify the candidate (Go 1.26+, Helm, and Apache Rat must be installed
 locally; make will fetch additional Go modules and tools on first use):
 
-  curl -O ${DIST_DEV_BASE}/kubernetes-operator-${VERSION}-rc${RC}/${PROJECT}-${VERSION}-rc${RC}-source.tar.gz{,.asc,.sha512}
+  curl --remote-name-all ${DIST_DEV_BASE}/kubernetes-operator-${VERSION}-rc${RC}/${PROJECT}-${VERSION}-rc${RC}-source.tar.gz{,.asc,.sha512}
   curl -O ${DIST_RELEASE_BASE}/KEYS
   gpg --import KEYS
   gpg --verify ${PROJECT}-${VERSION}-rc${RC}-source.tar.gz{.asc,}
