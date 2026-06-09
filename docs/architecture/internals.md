@@ -59,18 +59,24 @@ parent CR name. Owned by the parent CR and garbage-collected on parent deletion.
 ### Phase 3: Lifecycle Tasks
 
 The parent controller runs deterministic lifecycle task Jobs:
-`{parentName}-clone`, `{parentName}-migrate`, `{parentName}-rotate`, and
-`{parentName}-init`. Durable task state lives on the parent
-`status.lifecycle` field, so a completed task is still visible after successful
-Jobs and Pods are removed by retention policy.
+`{parentName}-seed`, `{parentName}-backup`, `{parentName}-migrate`,
+`{parentName}-rotate`, and `{parentName}-init`. Durable task state lives on the
+parent `status.lifecycle` field, so a completed task is still visible after
+successful Jobs and Pods are removed by retention policy.
 
-Tasks run sequentially: clone → migrate → rotate → init. Each task can be independently
-disabled via `disabled: true`. Clone also supports periodic re-execution via
-`cronSchedule`. Checksums cascade downstream: a re-clone forces re-migrate,
-which forces re-rotate, which forces re-init.
+Tasks run sequentially: seed → backup → migrate → rotate → init. Each task can be independently
+disabled via `disabled: true`. Seed also supports periodic re-execution via
+`cronSchedule`. Checksums cascade downstream: a re-seed forces re-backup,
+re-migrate, re-rotate, and re-init. The backup task captures a logical dump of
+the metastore before an upgrade and runs pre-upgrade only (skipped on first
+install). A separate **restore** task (`{parentName}-restore`) runs out-of-band,
+*before* the upgrade gate, when `spec.lifecycle.restore` is set: it waits for the
+`superset.apache.org/approve-restore` annotation, replays the selected backup
+into the metastore, and advances `LastLifecycleImage` on completion — which
+dissolves the downgrade-blocked state for that transition.
 
 When a pending task requires drain (`requiresDrain: true`, the default for
-clone, migrate, and rotate), the operator deletes component Deployments, HPAs,
+seed, backup, migrate, rotate, and restore), the operator deletes component Deployments, HPAs,
 PDBs, and routable Services before running that task, but only when at least one
 configured component has desired replicas greater than zero. Tasks whose current
 checksum is already complete do not contribute to the drain decision. The parent
@@ -192,10 +198,12 @@ changed.
 
 | Component | ConfigMap | Workload | Service | HPA | PDB |
 |---|---|---|---|---|---|
-| Clone (task) | — | Job (database tool) | — | — | — |
+| Seed (task) | — | Job (database tool) | — | — | — |
+| Backup (task) | — | Job (database tool) | — | — | — |
 | Migrate (task) | superset_config.py | Job | — | — | — |
 | Rotate (task) | superset_config.py | Job | — | — | — |
 | Init (task) | superset_config.py | Job | — | — | — |
+| Restore (task) | — | Job (database tool) | — | — | — |
 | WebServer | superset_config.py | Deployment (gunicorn) | port 8088 | if set | if set |
 | CeleryWorker | superset_config.py | Deployment (celery worker) | — | if set | if set |
 | CeleryBeat | superset_config.py | Deployment (celery beat) | — | — | — |
@@ -343,7 +351,7 @@ drain, the parent:
    labels, instantly routing traffic to maintenance pods.
 3. Drains all component workloads, but the Service is unaffected because it
    belongs to the parent.
-4. Runs lifecycle tasks (clone → migrate → rotate → init).
+4. Runs lifecycle tasks (seed → backup → migrate → rotate → init).
 5. After tasks complete and the web-server Deployment is recreated, waits for the
    web-server Deployment to become ready.
 6. Switches the Service selector back to the web-server pod labels.

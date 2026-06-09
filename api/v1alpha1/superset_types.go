@@ -38,9 +38,12 @@ import (
 // +kubebuilder:validation:XValidation:rule="!has(self.networking) || !has(self.networking.ingress) || has(self.webServer)",message="spec.networking.ingress requires spec.webServer to be set (it provides the catch-all '/' route; other components are routed by path)"
 // +kubebuilder:validation:XValidation:rule="!has(self.networking) || !has(self.networking.gateway) || has(self.webServer) || has(self.websocketServer) || has(self.mcpServer) || has(self.celeryFlower)",message="spec.networking.gateway requires at least one component with a routable service (webServer, websocketServer, mcpServer, or celeryFlower)"
 // +kubebuilder:validation:XValidation:rule="!has(self.monitoring) || !has(self.monitoring.serviceMonitor) || has(self.webServer)",message="spec.monitoring.serviceMonitor requires spec.webServer to be set (scrapes the web server service)"
-// +kubebuilder:validation:XValidation:rule="(has(self.environment) && (self.environment == 'Development' || self.environment == 'Staging')) || !has(self.lifecycle) || !has(self.lifecycle.clone) || (has(self.lifecycle.clone.disabled) && self.lifecycle.clone.disabled)",message="lifecycle.clone is only allowed when environment is Development or Staging; cloning performs a destructive DROP DATABASE on the target metastore"
-// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.lifecycle) || !has(self.lifecycle.clone) || !has(self.lifecycle.clone.source) || !has(self.lifecycle.clone.source.password)",message="lifecycle.clone.source.password is only allowed when environment is Development; use lifecycle.clone.source.passwordFrom in Staging"
-// +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.clone) || (has(self.lifecycle.clone.disabled) && self.lifecycle.clone.disabled) || (has(self.metastore) && has(self.metastore.host))",message="lifecycle.clone requires structured metastore configuration (host must be set)"
+// +kubebuilder:validation:XValidation:rule="(has(self.environment) && (self.environment == 'Development' || self.environment == 'Staging')) || !has(self.lifecycle) || !has(self.lifecycle.seed) || (has(self.lifecycle.seed.disabled) && self.lifecycle.seed.disabled)",message="lifecycle.seed is only allowed when environment is Development or Staging; seeding performs a destructive DROP DATABASE on the target metastore"
+// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.lifecycle) || !has(self.lifecycle.seed) || !has(self.lifecycle.seed.source) || !has(self.lifecycle.seed.source.password)",message="lifecycle.seed.source.password is only allowed when environment is Development; use lifecycle.seed.source.passwordFrom in Staging"
+// +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.seed) || (has(self.lifecycle.seed.disabled) && self.lifecycle.seed.disabled) || (has(self.metastore) && has(self.metastore.host))",message="lifecycle.seed requires structured metastore configuration (host must be set)"
+// +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.backup) || (has(self.lifecycle.backup.disabled) && self.lifecycle.backup.disabled) || (has(self.metastore) && has(self.metastore.host))",message="lifecycle.backup requires structured metastore configuration (host must be set)"
+// +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.restore) || (has(self.metastore) && has(self.metastore.host))",message="lifecycle.restore requires structured metastore configuration (host must be set)"
+// +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.restore) || has(self.lifecycle.backup)",message="lifecycle.restore requires lifecycle.backup to be configured (restore replays a backup artifact)"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.previousSecretKey)",message="previousSecretKey is only allowed when environment is Development; use previousSecretKeyFrom in Staging or Production"
 // +kubebuilder:validation:XValidation:rule="!has(self.previousSecretKey) || !has(self.previousSecretKeyFrom)",message="previousSecretKey and previousSecretKeyFrom are mutually exclusive"
 // +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.rotate) || (has(self.lifecycle.rotate.disabled) && self.lifecycle.rotate.disabled) || has(self.previousSecretKey) || has(self.previousSecretKeyFrom)",message="lifecycle.rotate requires previousSecretKey (dev) or previousSecretKeyFrom to be set"
@@ -65,9 +68,9 @@ type SupersetSpec struct {
 	PodDisruptionBudget *PDBSpec `json:"podDisruptionBudget,omitempty"`
 
 	// Environment mode: "Development", "Staging", or "Production". Controls validation strictness.
-	// In Production mode, CRD validation rejects plain text secrets and disallows cloning.
-	// In Staging mode, secrets are enforced (like Production) but cloning is allowed.
-	// In Development mode, plain text secrets, cloning, admin user, and load examples are all permitted.
+	// In Production mode, CRD validation rejects plain text secrets and disallows seeding.
+	// In Staging mode, secrets are enforced (like Production) but seeding is allowed.
+	// In Development mode, plain text secrets, seeding, admin user, and load examples are all permitted.
 	// +optional
 	// +kubebuilder:validation:Enum=Development;Staging;Production
 	// +kubebuilder:default=Production
@@ -334,7 +337,7 @@ type BaseTaskSpec struct {
 	// executing the task Job, preventing database connection conflicts. Drain is
 	// skipped when the task is already complete for the current checksum, or when
 	// no configured component has desired replicas greater than zero.
-	// Defaults vary per task type: true for clone, migrate, and rotate; false for init.
+	// Defaults vary per task type: true for seed, migrate, and rotate; false for init.
 	// +optional
 	RequiresDrain *bool `json:"requiresDrain,omitempty"`
 
@@ -382,7 +385,7 @@ type SchedulableBaseTaskSpec struct {
 // LifecycleSpec defines lifecycle management configuration for database migrations
 // and application initialization tasks.
 // +kubebuilder:validation:XValidation:rule="!has(self.init) || !has(self.init.command) || size(self.init.command) == 0 || (!has(self.init.adminUser) && !has(self.init.loadExamples))",message="init.command is mutually exclusive with init.adminUser and init.loadExamples"
-// +kubebuilder:validation:XValidation:rule="!has(self.clone) || !has(self.clone.source.password) || !has(self.clone.source.passwordFrom)",message="clone.source.password and clone.source.passwordFrom are mutually exclusive"
+// +kubebuilder:validation:XValidation:rule="!has(self.seed) || !has(self.seed.source.password) || !has(self.seed.source.passwordFrom)",message="seed.source.password and seed.source.passwordFrom are mutually exclusive"
 type LifecycleSpec struct {
 	// UpgradeMode controls whether upgrades require manual approval.
 	// Automatic runs immediately on image change; Supervised waits for an
@@ -431,11 +434,25 @@ type LifecycleSpec struct {
 	// +optional
 	MaintenancePage *MaintenancePageSpec `json:"maintenancePage,omitempty"`
 
-	// Clone configures database cloning from an external source before running
-	// migrations. The clone target is always spec.metastore. Only allowed in
+	// Seed configures database seeding from an external source before running
+	// migrations. The seed target is always spec.metastore. Only allowed in
 	// Development or Staging mode.
 	// +optional
-	Clone *CloneTaskSpec `json:"clone,omitempty"`
+	Seed *SeedTaskSpec `json:"seed,omitempty"`
+
+	// Backup configures a logical backup of the metastore taken before
+	// migrations during an upgrade. It runs after seed and before migrate, so
+	// the upgrade is gated on a successful backup. Presence enables the task.
+	// Serves as the recovery point for an approval-gated restore.
+	// +optional
+	Backup *BackupTaskSpec `json:"backup,omitempty"`
+
+	// Restore configures an approval-gated restore of a captured backup into the
+	// metastore. Restore is destructive and never runs automatically; the
+	// operator waits for the superset.apache.org/approve-restore annotation.
+	// Presence enables the restore flow.
+	// +optional
+	Restore *RestoreTaskSpec `json:"restore,omitempty"`
 
 	// Database migration task configuration.
 	// +optional
@@ -567,18 +584,18 @@ type MaintenancePageSpec struct {
 	PodTemplate *PodTemplate `json:"podTemplate,omitempty"`
 }
 
-// --- Clone spec ---
+// --- Seed spec ---
 
-// CloneTaskSpec configures database cloning from an external source into
-// this CR's metastore. Runs before migrate and init tasks. The clone target
+// SeedTaskSpec configures database seeding from an external source into
+// this CR's metastore. Runs before migrate and init tasks. The seed target
 // is always spec.metastore — the metastore user must have CREATEDB rights.
 // Only allowed in Development or Staging mode.
 // Triggers on source config changes and the trigger field (inherited from BaseTaskSpec).
-type CloneTaskSpec struct {
+type SeedTaskSpec struct {
 	SchedulableBaseTaskSpec `json:",inline"`
 
-	// Source database to clone from (typically production, read-only user).
-	Source CloneSourceSpec `json:"source"`
+	// Source database to seed from (typically production, read-only user).
+	Source SeedSourceSpec `json:"source"`
 
 	// Tables to exclude entirely from the dump (schema and data).
 	// +optional
@@ -589,31 +606,31 @@ type CloneTaskSpec struct {
 	// +optional
 	ExcludeTableData []string `json:"excludeTableData,omitempty"`
 
-	// SQL statements to execute against the target database after cloning.
-	// Useful for sanitizing cloned data (e.g., disabling alerts, deleting
+	// SQL statements to execute against the target database after seeding.
+	// Useful for sanitizing seedd data (e.g., disabling alerts, deleting
 	// OAuth tokens, masking PII).
 	// +optional
-	PostCloneSQL []string `json:"postCloneSQL,omitempty"`
+	PostSeedSQL []string `json:"postSeedSQL,omitempty"`
 
-	// Image for the clone Job. Defaults to postgres:17-alpine (PostgreSQL)
+	// Image for the seed Job. Defaults to postgres:17-alpine (PostgreSQL)
 	// or mysql:8-alpine (MySQL) based on source.type. Partial specs (e.g.,
 	// only `tag` set) inherit the type-appropriate default for omitted fields.
 	// +optional
 	Image *ContainerImageSpec `json:"image,omitempty"`
 
-	// Pod and container template for the clone task Job.
+	// Pod and container template for the seed task Job.
 	// +optional
 	PodTemplate *PodTemplate `json:"podTemplate,omitempty"`
 
-	// Retention policy for completed clone Jobs and their Pods.
+	// Retention policy for completed seed Jobs and their Pods.
 	// +optional
 	PodRetention *PodRetentionSpec `json:"podRetention,omitempty"`
 }
 
-// CloneSourceSpec defines the source database connection for cloning.
+// SeedSourceSpec defines the source database connection for seeding.
 // +kubebuilder:validation:XValidation:rule="has(self.password) || has(self.passwordFrom)",message="one of password or passwordFrom must be set"
 // +kubebuilder:validation:XValidation:rule="!has(self.password) || !has(self.passwordFrom)",message="password and passwordFrom are mutually exclusive"
-type CloneSourceSpec struct {
+type SeedSourceSpec struct {
 	// Database type: PostgreSQL (default) or MySQL.
 	// +optional
 	// +kubebuilder:validation:Enum=PostgreSQL;MySQL
@@ -641,6 +658,154 @@ type CloneSourceSpec struct {
 	// PasswordFrom references a Secret containing the source database password.
 	// +optional
 	PasswordFrom *corev1.SecretKeySelector `json:"passwordFrom,omitempty"`
+}
+
+// --- Backup spec ---
+
+// BackupTaskSpec configures a logical backup (pg_dump/mysqldump) of the
+// metastore taken before an upgrade's migrations run. The backup is the
+// recovery point for an approval-gated restore. It runs after seed and before
+// migrate in the lifecycle pipeline, so migrate (and the rest of the upgrade)
+// is gated on a successful backup. Presence enables the task. Requires a
+// structured metastore (spec.metastore.host) so the operator can construct the
+// dump connection from SUPERSET_OPERATOR__DB_* env vars.
+type BackupTaskSpec struct {
+	BaseTaskSpec `json:",inline"`
+
+	// Destination for the backup artifact.
+	Destination BackupDestinationSpec `json:"destination"`
+
+	// Retention controls how many backup artifacts are kept at the destination.
+	// When unset, no pruning is performed.
+	// +optional
+	Retention *BackupRetentionSpec `json:"retention,omitempty"`
+
+	// Image for the backup Job. Defaults to postgres:17-alpine (PostgreSQL) or
+	// mysql:8-alpine (MySQL) based on metastore.type. Partial specs (e.g., only
+	// tag set) inherit the type-appropriate default for omitted fields.
+	// +optional
+	Image *ContainerImageSpec `json:"image,omitempty"`
+
+	// Pod and container template for the backup task Job.
+	// +optional
+	PodTemplate *PodTemplate `json:"podTemplate,omitempty"`
+
+	// Retention policy for completed backup Jobs and their Pods.
+	// +optional
+	PodRetention *PodRetentionSpec `json:"podRetention,omitempty"`
+}
+
+// BackupDestinationSpec selects where backup artifacts are written. Exactly one
+// of volume or objectStore must be set and must match type. The discriminated
+// union leaves room for future backends (seed-to-database, CSI volume
+// snapshots) without breaking the API.
+// +kubebuilder:validation:XValidation:rule="self.type != 'Volume' || has(self.volume)",message="destination.volume is required when type is Volume"
+// +kubebuilder:validation:XValidation:rule="self.type != 'ObjectStore' || has(self.objectStore)",message="destination.objectStore is required when type is ObjectStore"
+// +kubebuilder:validation:XValidation:rule="!(has(self.volume) && has(self.objectStore))",message="volume and objectStore are mutually exclusive"
+type BackupDestinationSpec struct {
+	// Type of destination: Volume (a mounted PersistentVolumeClaim) or
+	// ObjectStore (an S3-compatible bucket).
+	// +kubebuilder:validation:Enum=Volume;ObjectStore
+	Type string `json:"type"`
+
+	// Volume writes the dump to a file on a mounted PersistentVolumeClaim.
+	// +optional
+	Volume *VolumeBackupSpec `json:"volume,omitempty"`
+
+	// ObjectStore streams the dump to an S3-compatible object store.
+	// +optional
+	ObjectStore *ObjectStoreBackupSpec `json:"objectStore,omitempty"`
+}
+
+// VolumeBackupSpec writes backups to a PersistentVolumeClaim mounted into the
+// backup and restore Job pods.
+type VolumeBackupSpec struct {
+	// ClaimName is the name of an existing PersistentVolumeClaim in the same
+	// namespace to mount for backup storage.
+	ClaimName string `json:"claimName"`
+
+	// Path is the directory within the volume where dump files are stored.
+	// +optional
+	// +kubebuilder:default="/backups"
+	Path *string `json:"path,omitempty"`
+}
+
+// ObjectStoreBackupSpec streams backups to an S3-compatible object store using
+// the AWS CLI bundled in the backup image.
+type ObjectStoreBackupSpec struct {
+	// URL is the destination prefix, e.g. s3://my-bucket/superset-backups.
+	// +kubebuilder:validation:Pattern=`^s3://.+`
+	URL string `json:"url"`
+
+	// Region of the bucket. Optional for some S3-compatible providers.
+	// +optional
+	Region *string `json:"region,omitempty"`
+
+	// Endpoint overrides the S3 endpoint for non-AWS providers (e.g. MinIO).
+	// +optional
+	Endpoint *string `json:"endpoint,omitempty"`
+
+	// AccessKeyFrom references a Secret key holding the access key ID.
+	// +optional
+	AccessKeyFrom *corev1.SecretKeySelector `json:"accessKeyFrom,omitempty"`
+
+	// SecretKeyFrom references a Secret key holding the secret access key.
+	// +optional
+	SecretKeyFrom *corev1.SecretKeySelector `json:"secretKeyFrom,omitempty"`
+}
+
+// BackupRetentionSpec controls pruning of old backup artifacts after a
+// successful backup.
+type BackupRetentionSpec struct {
+	// KeepLast retains only the N most recent backup artifacts at the
+	// destination; older artifacts are pruned after a successful backup.
+	// +optional
+	// +kubebuilder:validation:Minimum=1
+	KeepLast *int32 `json:"keepLast,omitempty"`
+}
+
+// --- Restore spec ---
+
+// RestoreTaskSpec configures an approval-gated restore of a previously captured
+// backup into the metastore. Restore is destructive — it overwrites the current
+// database — and never runs automatically: the operator gates it behind the
+// superset.apache.org/approve-restore annotation matching a token derived from
+// the selected backup. Presence enables the restore flow. An approved restore
+// is also what lifts the downgrade-blocked gate for its transition.
+type RestoreTaskSpec struct {
+	BaseTaskSpec `json:",inline"`
+
+	// Source selects which backup artifact to restore.
+	Source RestoreSourceSpec `json:"source"`
+
+	// SkipPreRestoreSnapshot disables the safety backup of the current database
+	// that the operator otherwise takes before overwriting it. Defaults to false
+	// (a pre-restore snapshot is taken), so an approved restore can itself be
+	// undone.
+	// +optional
+	SkipPreRestoreSnapshot *bool `json:"skipPreRestoreSnapshot,omitempty"`
+
+	// Image for the restore Job. Defaults like the backup task image.
+	// +optional
+	Image *ContainerImageSpec `json:"image,omitempty"`
+
+	// Pod and container template for the restore task Job.
+	// +optional
+	PodTemplate *PodTemplate `json:"podTemplate,omitempty"`
+}
+
+// RestoreSourceSpec selects the backup artifact to restore.
+// +kubebuilder:validation:XValidation:rule="self.type != 'BackupID' || has(self.backupID)",message="source.backupID is required when type is BackupID"
+type RestoreSourceSpec struct {
+	// Type selects the artifact: Latest (the most recent recorded backup) or
+	// BackupID (a specific artifact from status.lifecycle.backups).
+	// +kubebuilder:validation:Enum=Latest;BackupID
+	// +kubebuilder:default=Latest
+	Type string `json:"type"`
+
+	// BackupID names a specific backup artifact when type is BackupID.
+	// +optional
+	BackupID *string `json:"backupID,omitempty"`
 }
 
 // --- Networking spec ---
@@ -792,7 +957,7 @@ type SupersetStatus struct {
 
 // LifecycleStatus tracks the current lifecycle task execution state.
 type LifecycleStatus struct {
-	// Phase of the lifecycle: Cloning, Draining, Migrating, Rotating, Initializing, Restoring, Complete, Blocked, AwaitingApproval.
+	// Phase of the lifecycle: Seeding, BackingUp, Draining, Migrating, Rotating, Initializing, Restoring, Complete, Blocked, AwaitingApproval.
 	// +optional
 	Phase string `json:"phase,omitempty"`
 	// MaintenanceActive indicates the maintenance page is currently serving traffic
@@ -804,9 +969,12 @@ type LifecycleStatus struct {
 	// are absent.
 	// +optional
 	LastCompletedChecksums map[string]string `json:"lastCompletedChecksums,omitempty"`
-	// Clone task status summary.
+	// Seed task status summary.
 	// +optional
-	Clone *TaskRefStatus `json:"clone,omitempty"`
+	Seed *TaskRefStatus `json:"seed,omitempty"`
+	// Backup task status summary.
+	// +optional
+	Backup *TaskRefStatus `json:"backup,omitempty"`
 	// Migrate task status summary.
 	// +optional
 	Migrate *TaskRefStatus `json:"migrate,omitempty"`
@@ -816,9 +984,20 @@ type LifecycleStatus struct {
 	// Init task status summary.
 	// +optional
 	Init *TaskRefStatus `json:"init,omitempty"`
-	// Upgrade context (populated during active upgrade).
+	// Restore task status summary.
+	// +optional
+	Restore *TaskRefStatus `json:"restore,omitempty"`
+	// Upgrade context (seedd during active upgrade).
 	// +optional
 	Upgrade *UpgradeContext `json:"upgrade,omitempty"`
+	// RestoreApproval tracks an in-progress approval-gated restore.
+	// +optional
+	RestoreApproval *RestoreContext `json:"restoreApproval,omitempty"`
+	// Backups is the operator-recorded catalog of available backup artifacts,
+	// most recent first. It is the source of truth a restore selects from.
+	// +optional
+	// +listType=atomic
+	Backups []BackupArtifact `json:"backups,omitempty"`
 }
 
 // TaskRefStatus holds the projected status summary of a lifecycle task.
@@ -877,7 +1056,41 @@ type UpgradeContext struct {
 	StartedAt *metav1.Time `json:"startedAt,omitempty"`
 }
 
-// ComponentStatusMap holds status for each component.
+// RestoreContext tracks an in-progress approval-gated restore operation. It
+// mirrors UpgradeContext: the operator records the selected backup and a
+// deterministic approval token, and a restoreContextMatches check voids a stale
+// approval if the selected backup changes.
+type RestoreContext struct {
+	// BackupID identifies the backup artifact selected for restore.
+	// +optional
+	BackupID string `json:"backupID,omitempty"`
+	// FromImage is the Superset image the selected backup was captured at.
+	// +optional
+	FromImage string `json:"fromImage,omitempty"`
+	// ApprovalToken is the annotation value required to approve this exact restore.
+	// +optional
+	ApprovalToken string `json:"approvalToken,omitempty"`
+	// RequestedAt is when the restore was first detected.
+	// +optional
+	RequestedAt *metav1.Time `json:"requestedAt,omitempty"`
+}
+
+// BackupArtifact records one captured backup in the status catalog. The
+// operator appends an entry when a backup Job completes, so a restore can
+// select an artifact without the controller reading the storage backend.
+type BackupArtifact struct {
+	// ID is the unique backup identifier, used to select it for restore.
+	ID string `json:"id"`
+	// CreatedAt is when the backup completed.
+	// +optional
+	CreatedAt *metav1.Time `json:"createdAt,omitempty"`
+	// Image is the Superset image in use when the backup was taken.
+	// +optional
+	Image string `json:"image,omitempty"`
+	// Location is the destination path or URL of the artifact.
+	// +optional
+	Location string `json:"location,omitempty"`
+}
 type ComponentStatusMap struct {
 	// +optional
 	WebServer *ComponentRefStatus `json:"webServer,omitempty"`

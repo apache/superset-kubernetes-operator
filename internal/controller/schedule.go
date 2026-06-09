@@ -69,8 +69,8 @@ func (r *SupersetReconciler) nextScheduleRequeue(superset *supersetv1alpha1.Supe
 func (r *SupersetReconciler) activeSchedules(superset *supersetv1alpha1.Superset) []string {
 	lc := superset.Spec.Lifecycle
 	var out []string
-	if lc.Clone != nil && lc.Clone.CronSchedule != nil && !isDisabled(lc.Clone.Disabled) {
-		out = append(out, *lc.Clone.CronSchedule)
+	if lc.Seed != nil && lc.Seed.CronSchedule != nil && !isDisabled(lc.Seed.Disabled) {
+		out = append(out, *lc.Seed.CronSchedule)
 	}
 	return out
 }
@@ -85,9 +85,9 @@ func (r *SupersetReconciler) projectScheduleStatus(superset *supersetv1alpha1.Su
 	}
 	var cronSchedule *string
 	switch taskType {
-	case taskTypeClone:
-		if superset.Spec.Lifecycle.Clone != nil {
-			cronSchedule = superset.Spec.Lifecycle.Clone.CronSchedule
+	case taskTypeSeed:
+		if superset.Spec.Lifecycle.Seed != nil {
+			cronSchedule = superset.Spec.Lifecycle.Seed.CronSchedule
 		}
 	}
 	if cronSchedule == nil || *cronSchedule == "" {
@@ -117,16 +117,16 @@ func (r *SupersetReconciler) validateSchedules(superset *supersetv1alpha1.Supers
 		return
 	}
 	hasSchedule := false
-	if superset.Spec.Lifecycle.Clone != nil && superset.Spec.Lifecycle.Clone.CronSchedule != nil &&
-		*superset.Spec.Lifecycle.Clone.CronSchedule != "" &&
-		!isDisabled(superset.Spec.Lifecycle.Clone.Disabled) {
+	if superset.Spec.Lifecycle.Seed != nil && superset.Spec.Lifecycle.Seed.CronSchedule != nil &&
+		*superset.Spec.Lifecycle.Seed.CronSchedule != "" &&
+		!isDisabled(superset.Spec.Lifecycle.Seed.Disabled) {
 		hasSchedule = true
-		expr := *superset.Spec.Lifecycle.Clone.CronSchedule
+		expr := *superset.Spec.Lifecycle.Seed.CronSchedule
 		if err := schedule.Validate(expr); err != nil {
 			setCondition(&superset.Status.Conditions, conditionTypeScheduleValid,
 				metav1.ConditionFalse, "InvalidCronSchedule", err.Error(), superset.Generation)
 			r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "InvalidCronSchedule", "Lifecycle",
-				"Clone cron schedule is invalid: %v", err)
+				"Seed cron schedule is invalid: %v", err)
 			return
 		}
 	}
@@ -140,12 +140,12 @@ func (r *SupersetReconciler) validateSchedules(superset *supersetv1alpha1.Supers
 
 const conditionTypeScheduleValid = "ScheduleValid"
 
-// cloneScheduleIsValid returns true if cronSchedule is unset, empty, or a
+// seedScheduleIsValid returns true if cronSchedule is unset, empty, or a
 // valid cron expression. An invalid expression causes the caller to treat
-// the clone as disabled until the user corrects it. The matching user-facing
+// the seed as disabled until the user corrects it. The matching user-facing
 // signal (condition + event) is set by validateSchedules earlier in the
 // reconcile.
-func cloneScheduleIsValid(cronSchedule *string) bool {
+func seedScheduleIsValid(cronSchedule *string) bool {
 	if cronSchedule == nil || *cronSchedule == "" {
 		return true
 	}

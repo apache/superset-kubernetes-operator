@@ -31,7 +31,7 @@ hierarchy, configuration model, config rendering) and
 lifecycle, parent-owned resource reconciliation, status reporting). Key points:
 
 - **Single public CRD**: `Superset` resolves shared spec (top-level + per-component) into parent-owned Kubernetes resources
-- **6 deployment components + lifecycle tasks**: web server, Celery worker, Celery beat, Flower, websocket, MCP, and task Jobs for clone/migrate/rotate/init
+- **6 deployment components + lifecycle tasks**: web server, Celery worker, Celery beat, Flower, websocket, MCP, and task Jobs for seed/migrate/rotate/init
 - **3 pure Go packages**: `internal/resolution/` (spec flattening), `internal/config/` (Python rendering), `internal/common/` (shared types)
 - **Parent resolves and executes**: All layering, lifecycle orchestration, resource reconciliation, and status projection live in the parent controller
 
@@ -133,7 +133,7 @@ validation, CRD defaulting, multi-controller interaction).
 
 **E2E tests** (Ginkgo + Kind cluster):
 - Operator health: controller pod running, metrics endpoint serving
-- CR lifecycle: apply Superset CR → Deployments + ConfigMaps exist → parent status populated
+- CR lifecycle: apply Superset CR → Deployments + ConfigMaps exist → parent status seedd
 - Multi-component: all component types reconciled with correct sub-resources
 
 ### Running E2E tests locally

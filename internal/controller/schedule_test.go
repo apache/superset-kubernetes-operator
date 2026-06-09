@@ -42,7 +42,7 @@ func TestValidateSchedules_NoConditionWhenNoSchedules(t *testing.T) {
 		t.Fatalf("expected no ScheduleValid condition when lifecycle is nil, got %#v", superset.Status.Conditions)
 	}
 
-	// Case 2: lifecycle present but no clone (the only scheduled task).
+	// Case 2: lifecycle present but no seed (the only scheduled task).
 	superset = &supersetv1alpha1.Superset{
 		Spec: supersetv1alpha1.SupersetSpec{
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{},
@@ -50,20 +50,20 @@ func TestValidateSchedules_NoConditionWhenNoSchedules(t *testing.T) {
 	}
 	r.validateSchedules(superset)
 	if hasScheduleValidCondition(superset.Status.Conditions) {
-		t.Fatalf("expected no ScheduleValid condition when no clone task, got %#v", superset.Status.Conditions)
+		t.Fatalf("expected no ScheduleValid condition when no seed task, got %#v", superset.Status.Conditions)
 	}
 
-	// Case 3: clone present but no cron schedule set.
+	// Case 3: seed present but no cron schedule set.
 	superset = &supersetv1alpha1.Superset{
 		Spec: supersetv1alpha1.SupersetSpec{
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{
-				Clone: &supersetv1alpha1.CloneTaskSpec{},
+				Seed: &supersetv1alpha1.SeedTaskSpec{},
 			},
 		},
 	}
 	r.validateSchedules(superset)
 	if hasScheduleValidCondition(superset.Status.Conditions) {
-		t.Fatalf("expected no ScheduleValid condition when clone has no schedule, got %#v", superset.Status.Conditions)
+		t.Fatalf("expected no ScheduleValid condition when seed has no schedule, got %#v", superset.Status.Conditions)
 	}
 }
 
@@ -100,7 +100,7 @@ func TestValidateSchedules_SetsTrueWhenScheduleValid(t *testing.T) {
 	superset := &supersetv1alpha1.Superset{
 		Spec: supersetv1alpha1.SupersetSpec{
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{
-				Clone: &supersetv1alpha1.CloneTaskSpec{
+				Seed: &supersetv1alpha1.SeedTaskSpec{
 					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &schedule},
 				},
 			},
@@ -143,7 +143,7 @@ func TestNextScheduleRequeue(t *testing.T) {
 		r := &SupersetReconciler{Now: fixedNow(base)}
 		superset := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{Lifecycle: &supersetv1alpha1.LifecycleSpec{
-				Clone: &supersetv1alpha1.CloneTaskSpec{},
+				Seed: &supersetv1alpha1.SeedTaskSpec{},
 			}},
 		}
 		if d := r.nextScheduleRequeue(superset); d != 0 {
@@ -151,12 +151,12 @@ func TestNextScheduleRequeue(t *testing.T) {
 		}
 	})
 
-	t.Run("clone cron schedule produces a positive requeue", func(t *testing.T) {
+	t.Run("seed cron schedule produces a positive requeue", func(t *testing.T) {
 		r := &SupersetReconciler{Now: fixedNow(base)}
 		sched := "0 2 * * *"
 		superset := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{Lifecycle: &supersetv1alpha1.LifecycleSpec{
-				Clone: &supersetv1alpha1.CloneTaskSpec{
+				Seed: &supersetv1alpha1.SeedTaskSpec{
 					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &sched},
 				},
 			}},
@@ -169,12 +169,12 @@ func TestNextScheduleRequeue(t *testing.T) {
 		}
 	})
 
-	t.Run("disabled clone yields zero", func(t *testing.T) {
+	t.Run("disabled seed yields zero", func(t *testing.T) {
 		r := &SupersetReconciler{Now: fixedNow(base)}
 		sched := "0 2 * * *"
 		superset := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{Lifecycle: &supersetv1alpha1.LifecycleSpec{
-				Clone: &supersetv1alpha1.CloneTaskSpec{
+				Seed: &supersetv1alpha1.SeedTaskSpec{
 					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
 						BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: boolPtr(true)},
 						CronSchedule: &sched,
@@ -183,7 +183,7 @@ func TestNextScheduleRequeue(t *testing.T) {
 			}},
 		}
 		if d := r.nextScheduleRequeue(superset); d != 0 {
-			t.Fatalf("expected 0 for disabled clone, got %s", d)
+			t.Fatalf("expected 0 for disabled seed, got %s", d)
 		}
 	})
 
@@ -199,7 +199,7 @@ func TestNextScheduleRequeue(t *testing.T) {
 		sched := "* * * * *" // every minute
 		superset := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{Lifecycle: &supersetv1alpha1.LifecycleSpec{
-				Clone: &supersetv1alpha1.CloneTaskSpec{
+				Seed: &supersetv1alpha1.SeedTaskSpec{
 					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &sched},
 				},
 			}},
@@ -218,32 +218,32 @@ func TestProjectScheduleStatus(t *testing.T) {
 		r := &SupersetReconciler{Now: fixedNow(base)}
 		superset := &supersetv1alpha1.Superset{}
 		ref := &supersetv1alpha1.TaskRefStatus{}
-		r.projectScheduleStatus(superset, taskTypeClone, ref)
+		r.projectScheduleStatus(superset, taskTypeSeed, ref)
 		if ref.LastScheduledAt != nil || ref.NextScheduleAt != nil {
 			t.Fatalf("expected no projection for nil lifecycle, got %+v", ref)
 		}
 	})
 
-	t.Run("clone with no schedule is a no-op", func(t *testing.T) {
+	t.Run("seed with no schedule is a no-op", func(t *testing.T) {
 		r := &SupersetReconciler{Now: fixedNow(base)}
 		superset := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{Lifecycle: &supersetv1alpha1.LifecycleSpec{
-				Clone: &supersetv1alpha1.CloneTaskSpec{},
+				Seed: &supersetv1alpha1.SeedTaskSpec{},
 			}},
 		}
 		ref := &supersetv1alpha1.TaskRefStatus{}
-		r.projectScheduleStatus(superset, taskTypeClone, ref)
+		r.projectScheduleStatus(superset, taskTypeSeed, ref)
 		if ref.LastScheduledAt != nil || ref.NextScheduleAt != nil {
 			t.Fatalf("expected no projection without a cron schedule, got %+v", ref)
 		}
 	})
 
-	t.Run("non-clone task type is a no-op", func(t *testing.T) {
+	t.Run("non-seed task type is a no-op", func(t *testing.T) {
 		r := &SupersetReconciler{Now: fixedNow(base)}
 		sched := "0 2 * * *"
 		superset := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{Lifecycle: &supersetv1alpha1.LifecycleSpec{
-				Clone: &supersetv1alpha1.CloneTaskSpec{
+				Seed: &supersetv1alpha1.SeedTaskSpec{
 					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &sched},
 				},
 			}},
@@ -251,22 +251,22 @@ func TestProjectScheduleStatus(t *testing.T) {
 		ref := &supersetv1alpha1.TaskRefStatus{}
 		r.projectScheduleStatus(superset, taskTypeMigrate, ref)
 		if ref.LastScheduledAt != nil || ref.NextScheduleAt != nil {
-			t.Fatalf("expected no projection for non-clone task, got %+v", ref)
+			t.Fatalf("expected no projection for non-seed task, got %+v", ref)
 		}
 	})
 
-	t.Run("clone with cron projects last and next", func(t *testing.T) {
+	t.Run("seed with cron projects last and next", func(t *testing.T) {
 		r := &SupersetReconciler{Now: fixedNow(base)}
 		sched := "0 2 * * *"
 		superset := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{Lifecycle: &supersetv1alpha1.LifecycleSpec{
-				Clone: &supersetv1alpha1.CloneTaskSpec{
+				Seed: &supersetv1alpha1.SeedTaskSpec{
 					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &sched},
 				},
 			}},
 		}
 		ref := &supersetv1alpha1.TaskRefStatus{}
-		r.projectScheduleStatus(superset, taskTypeClone, ref)
+		r.projectScheduleStatus(superset, taskTypeSeed, ref)
 
 		if ref.LastScheduledAt == nil {
 			t.Fatal("expected LastScheduledAt to be set")

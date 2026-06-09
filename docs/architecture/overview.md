@@ -113,7 +113,7 @@ Components fall into two runtime categories:
 
 | Parent field | Suffix | Creates |
 |---|---|---|
-| `lifecycle` | `-clone`, `-migrate`, `-rotate`, `-init` | Jobs, ConfigMap for Superset-image tasks |
+| `lifecycle` | `-seed`, `-migrate`, `-rotate`, `-init` | Jobs, ConfigMap for Superset-image tasks |
 | `celeryBeat` | `-celery-beat` | Deployment, ConfigMap |
 
 **Presence = enabled**: Setting `celeryWorker: {}` deploys workers with
