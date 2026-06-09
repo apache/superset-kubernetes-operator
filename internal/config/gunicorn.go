@@ -92,36 +92,16 @@ func ResolveGunicorn(spec *v1alpha1.GunicornSpec) ResolvedGunicorn {
 		return r
 	}
 
-	if spec.Workers != nil {
-		r.Workers = *spec.Workers
-	}
-	if spec.Threads != nil {
-		r.Threads = *spec.Threads
-	}
-	if spec.WorkerClass != nil {
-		r.WorkerClass = *spec.WorkerClass
-	}
-	if spec.Timeout != nil {
-		r.Timeout = *spec.Timeout
-	}
-	if spec.KeepAlive != nil {
-		r.KeepAlive = *spec.KeepAlive
-	}
-	if spec.MaxRequests != nil {
-		r.MaxRequests = *spec.MaxRequests
-	}
-	if spec.MaxRequestsJitter != nil {
-		r.MaxRequestsJitter = *spec.MaxRequestsJitter
-	}
-	if spec.LimitRequestLine != nil {
-		r.LimitRequestLine = *spec.LimitRequestLine
-	}
-	if spec.LimitRequestFieldSize != nil {
-		r.LimitRequestFieldSize = *spec.LimitRequestFieldSize
-	}
-	if spec.LogLevel != nil {
-		r.LogLevel = *spec.LogLevel
-	}
+	setIf(&r.Workers, spec.Workers)
+	setIf(&r.Threads, spec.Threads)
+	setIf(&r.WorkerClass, spec.WorkerClass)
+	setIf(&r.Timeout, spec.Timeout)
+	setIf(&r.KeepAlive, spec.KeepAlive)
+	setIf(&r.MaxRequests, spec.MaxRequests)
+	setIf(&r.MaxRequestsJitter, spec.MaxRequestsJitter)
+	setIf(&r.LimitRequestLine, spec.LimitRequestLine)
+	setIf(&r.LimitRequestFieldSize, spec.LimitRequestFieldSize)
+	setIf(&r.LogLevel, spec.LogLevel)
 
 	return r
 }

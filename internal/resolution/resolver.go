@@ -86,9 +86,9 @@ func ResolveComponentSpec(
 	operatorLabels map[string]string,
 	operator *OperatorInjected,
 ) *FlatSpec {
-	tl := safeSharedInput(topLevel)
-	comp := safeComponentInput(component)
-	op := safeOperatorInjected(operator)
+	tl := orEmpty(topLevel)
+	comp := orEmpty(component)
+	op := orEmpty(operator)
 
 	result := &FlatSpec{}
 
@@ -104,28 +104,4 @@ func ResolveComponentSpec(
 	result.PodDisruptionBudget = ResolveOverridableValue(comp.PodDisruptionBudget, tl.PodDisruptionBudget)
 
 	return result
-}
-
-// safeSharedInput returns a non-nil SharedInput.
-func safeSharedInput(s *SharedInput) *SharedInput {
-	if s == nil {
-		return &SharedInput{}
-	}
-	return s
-}
-
-// safeComponentInput returns a non-nil ComponentInput.
-func safeComponentInput(c *ComponentInput) *ComponentInput {
-	if c == nil {
-		return &ComponentInput{}
-	}
-	return c
-}
-
-// safeOperatorInjected returns a non-nil OperatorInjected.
-func safeOperatorInjected(o *OperatorInjected) *OperatorInjected {
-	if o == nil {
-		return &OperatorInjected{}
-	}
-	return o
 }

@@ -129,19 +129,9 @@ func applyExplicitOverrides(result *EngineOptionsInput, spec *v1alpha1.SQLAlchem
 	if spec == nil {
 		return
 	}
-	if spec.PoolSize != nil {
-		result.PoolSize = *spec.PoolSize
-	}
-	if spec.MaxOverflow != nil {
-		result.MaxOverflow = *spec.MaxOverflow
-	}
-	if spec.PoolRecycle != nil {
-		result.PoolRecycle = *spec.PoolRecycle
-	}
-	if spec.PoolPrePing != nil {
-		result.PoolPrePing = *spec.PoolPrePing
-	}
-	if spec.PoolTimeout != nil {
-		result.PoolTimeout = *spec.PoolTimeout
-	}
+	setIf(&result.PoolSize, spec.PoolSize)
+	setIf(&result.MaxOverflow, spec.MaxOverflow)
+	setIf(&result.PoolRecycle, spec.PoolRecycle)
+	setIf(&result.PoolPrePing, spec.PoolPrePing)
+	setIf(&result.PoolTimeout, spec.PoolTimeout)
 }

@@ -67,30 +67,14 @@ func ResolveCelery(spec *v1alpha1.CeleryWorkerProcessSpec) ResolvedCelery {
 		return r
 	}
 
-	if spec.Concurrency != nil {
-		r.Concurrency = *spec.Concurrency
-	}
-	if spec.Pool != nil {
-		r.Pool = *spec.Pool
-	}
-	if spec.Optimization != nil {
-		r.Optimization = *spec.Optimization
-	}
-	if spec.MaxTasksPerChild != nil {
-		r.MaxTasksPerChild = *spec.MaxTasksPerChild
-	}
-	if spec.MaxMemoryPerChild != nil {
-		r.MaxMemoryPerChild = *spec.MaxMemoryPerChild
-	}
-	if spec.PrefetchMultiplier != nil {
-		r.PrefetchMultiplier = *spec.PrefetchMultiplier
-	}
-	if spec.SoftTimeLimit != nil {
-		r.SoftTimeLimit = *spec.SoftTimeLimit
-	}
-	if spec.TimeLimit != nil {
-		r.TimeLimit = *spec.TimeLimit
-	}
+	setIf(&r.Concurrency, spec.Concurrency)
+	setIf(&r.Pool, spec.Pool)
+	setIf(&r.Optimization, spec.Optimization)
+	setIf(&r.MaxTasksPerChild, spec.MaxTasksPerChild)
+	setIf(&r.MaxMemoryPerChild, spec.MaxMemoryPerChild)
+	setIf(&r.PrefetchMultiplier, spec.PrefetchMultiplier)
+	setIf(&r.SoftTimeLimit, spec.SoftTimeLimit)
+	setIf(&r.TimeLimit, spec.TimeLimit)
 
 	return r
 }
@@ -116,20 +100,18 @@ func (c *ResolvedCelery) Command() []string {
 		"-O", c.Optimization,
 		"-c", fmt.Sprintf("%d", c.Concurrency),
 	}
-	if c.MaxTasksPerChild > 0 {
-		cmd = append(cmd, fmt.Sprintf("--max-tasks-per-child=%d", c.MaxTasksPerChild))
-	}
-	if c.MaxMemoryPerChild > 0 {
-		cmd = append(cmd, fmt.Sprintf("--max-memory-per-child=%d", c.MaxMemoryPerChild))
-	}
-	if c.PrefetchMultiplier > 0 {
-		cmd = append(cmd, fmt.Sprintf("--prefetch-multiplier=%d", c.PrefetchMultiplier))
-	}
-	if c.SoftTimeLimit > 0 {
-		cmd = append(cmd, fmt.Sprintf("--soft-time-limit=%d", c.SoftTimeLimit))
-	}
-	if c.TimeLimit > 0 {
-		cmd = append(cmd, fmt.Sprintf("--time-limit=%d", c.TimeLimit))
+	cmd = appendIntFlag(cmd, "--max-tasks-per-child=%d", c.MaxTasksPerChild)
+	cmd = appendIntFlag(cmd, "--max-memory-per-child=%d", c.MaxMemoryPerChild)
+	cmd = appendIntFlag(cmd, "--prefetch-multiplier=%d", c.PrefetchMultiplier)
+	cmd = appendIntFlag(cmd, "--soft-time-limit=%d", c.SoftTimeLimit)
+	cmd = appendIntFlag(cmd, "--time-limit=%d", c.TimeLimit)
+	return cmd
+}
+
+// appendIntFlag appends a formatted flag to cmd only when val is positive.
+func appendIntFlag(cmd []string, format string, val int32) []string {
+	if val > 0 {
+		cmd = append(cmd, fmt.Sprintf(format, val))
 	}
 	return cmd
 }

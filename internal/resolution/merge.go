@@ -19,6 +19,8 @@ limitations under the License.
 package resolution
 
 import (
+	"maps"
+
 	corev1 "k8s.io/api/core/v1"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
@@ -26,9 +28,9 @@ import (
 
 // MergeMaps merges multiple string maps. Later maps take precedence on key conflict.
 // Returns nil if the result is empty.
-func MergeMaps(maps ...map[string]string) map[string]string {
+func MergeMaps(inputs ...map[string]string) map[string]string {
 	size := 0
-	for _, m := range maps {
+	for _, m := range inputs {
 		size += len(m)
 	}
 	if size == 0 {
@@ -36,13 +38,27 @@ func MergeMaps(maps ...map[string]string) map[string]string {
 	}
 
 	result := make(map[string]string, size)
-	for _, m := range maps {
-		for k, v := range m {
-			result[k] = v
-		}
+	for _, m := range inputs {
+		maps.Copy(result, m)
 	}
-	if len(result) == 0 {
-		return nil
+	return result
+}
+
+// mergeByKey merges multiple slices, deduplicating by the key returned by key.
+// Later entries with the same key replace earlier entries in place to preserve
+// ordering.
+func mergeByKey[T any](key func(T) string, slices ...[]T) []T {
+	seen := make(map[string]int) // key -> index in result
+	var result []T
+	for _, slice := range slices {
+		for _, item := range slice {
+			if idx, exists := seen[key(item)]; exists {
+				result[idx] = item
+			} else {
+				seen[key(item)] = len(result)
+				result = append(result, item)
+			}
+		}
 	}
 	return result
 }
@@ -50,91 +66,31 @@ func MergeMaps(maps ...map[string]string) map[string]string {
 // MergeEnvVars merges multiple env var slices. Later entries with the same Name
 // replace earlier entries in place to preserve ordering.
 func MergeEnvVars(slices ...[]corev1.EnvVar) []corev1.EnvVar {
-	seen := make(map[string]int) // name -> index in result
-	var result []corev1.EnvVar
-	for _, slice := range slices {
-		for _, env := range slice {
-			if idx, exists := seen[env.Name]; exists {
-				result[idx] = env
-			} else {
-				seen[env.Name] = len(result)
-				result = append(result, env)
-			}
-		}
-	}
-	return result
+	return mergeByKey(func(e corev1.EnvVar) string { return e.Name }, slices...)
 }
 
 // MergeVolumes merges multiple volume slices. Later entries with the same Name
 // replace earlier entries in place to preserve ordering.
 func MergeVolumes(slices ...[]corev1.Volume) []corev1.Volume {
-	seen := make(map[string]int)
-	var result []corev1.Volume
-	for _, slice := range slices {
-		for _, vol := range slice {
-			if idx, exists := seen[vol.Name]; exists {
-				result[idx] = vol
-			} else {
-				seen[vol.Name] = len(result)
-				result = append(result, vol)
-			}
-		}
-	}
-	return result
+	return mergeByKey(func(v corev1.Volume) string { return v.Name }, slices...)
 }
 
 // MergeVolumeMounts merges multiple volume mount slices. Later entries with the
 // same Name replace earlier entries in place to preserve ordering.
 func MergeVolumeMounts(slices ...[]corev1.VolumeMount) []corev1.VolumeMount {
-	seen := make(map[string]int)
-	var result []corev1.VolumeMount
-	for _, slice := range slices {
-		for _, mount := range slice {
-			if idx, exists := seen[mount.Name]; exists {
-				result[idx] = mount
-			} else {
-				seen[mount.Name] = len(result)
-				result = append(result, mount)
-			}
-		}
-	}
-	return result
+	return mergeByKey(func(m corev1.VolumeMount) string { return m.Name }, slices...)
 }
 
 // MergeHostAliases merges multiple host alias slices. Later entries with the
 // same IP replace earlier entries in place to preserve ordering.
 func MergeHostAliases(slices ...[]corev1.HostAlias) []corev1.HostAlias {
-	seen := make(map[string]int)
-	var result []corev1.HostAlias
-	for _, slice := range slices {
-		for _, alias := range slice {
-			if idx, exists := seen[alias.IP]; exists {
-				result[idx] = alias
-			} else {
-				seen[alias.IP] = len(result)
-				result = append(result, alias)
-			}
-		}
-	}
-	return result
+	return mergeByKey(func(a corev1.HostAlias) string { return a.IP }, slices...)
 }
 
 // MergeContainerPorts merges multiple container port slices. Later entries with
 // the same Name replace earlier entries in place to preserve ordering.
 func MergeContainerPorts(slices ...[]corev1.ContainerPort) []corev1.ContainerPort {
-	seen := make(map[string]int)
-	var result []corev1.ContainerPort
-	for _, slice := range slices {
-		for _, port := range slice {
-			if idx, exists := seen[port.Name]; exists {
-				result[idx] = port
-			} else {
-				seen[port.Name] = len(result)
-				result = append(result, port)
-			}
-		}
-	}
-	return result
+	return mergeByKey(func(p corev1.ContainerPort) string { return p.Name }, slices...)
 }
 
 // MergeEnvFromSources concatenates multiple EnvFromSource slices.
@@ -154,26 +110,14 @@ func MergeEnvFromSources(slices ...[]corev1.EnvFromSource) []corev1.EnvFromSourc
 // MergeContainers concatenates multiple container slices (for sidecars/initContainers).
 // Later entries with the same Name replace earlier entries.
 func MergeContainers(slices ...[]corev1.Container) []corev1.Container {
-	seen := make(map[string]int)
-	var result []corev1.Container
-	for _, slice := range slices {
-		for _, c := range slice {
-			if idx, exists := seen[c.Name]; exists {
-				result[idx] = c
-			} else {
-				seen[c.Name] = len(result)
-				result = append(result, c)
-			}
-		}
-	}
-	return result
+	return mergeByKey(func(c corev1.Container) string { return c.Name }, slices...)
 }
 
 // MergeDeploymentTemplate field-level merges two DeploymentTemplates.
 // Only contains Deployment-level fields (no nested PodTemplate).
 func MergeDeploymentTemplate(comp, tl *supersetv1alpha1.DeploymentTemplate) *supersetv1alpha1.DeploymentTemplate {
-	c := safeDeploymentTemplate(comp)
-	t := safeDeploymentTemplate(tl)
+	c := orEmpty(comp)
+	t := orEmpty(tl)
 	result := &supersetv1alpha1.DeploymentTemplate{
 		RevisionHistoryLimit:    ResolveOverridableValue(c.RevisionHistoryLimit, t.RevisionHistoryLimit),
 		MinReadySeconds:         ResolveOverridableValue(c.MinReadySeconds, t.MinReadySeconds),
@@ -193,8 +137,8 @@ func MergeDeploymentTemplate(comp, tl *supersetv1alpha1.DeploymentTemplate) *sup
 // MergePodTemplate field-level merges two PodTemplates and folds in
 // operator-injected values (volumes, init containers, labels).
 func MergePodTemplate(comp, tl *supersetv1alpha1.PodTemplate, operatorLabels map[string]string, op *OperatorInjected) *supersetv1alpha1.PodTemplate {
-	c := safePodTemplate(comp)
-	t := safePodTemplate(tl)
+	c := orEmpty(comp)
+	t := orEmpty(tl)
 
 	return &supersetv1alpha1.PodTemplate{
 		Annotations:                   MergeMaps(t.Annotations, c.Annotations),
@@ -223,8 +167,8 @@ func MergePodTemplate(comp, tl *supersetv1alpha1.PodTemplate, operatorLabels map
 // MergeContainerTemplate field-level merges two ContainerTemplates and folds
 // in operator-injected env vars and volume mounts.
 func MergeContainerTemplate(comp, tl *supersetv1alpha1.ContainerTemplate, op *OperatorInjected) *supersetv1alpha1.ContainerTemplate {
-	c := safeContainerTemplate(comp)
-	t := safeContainerTemplate(tl)
+	c := orEmpty(comp)
+	t := orEmpty(tl)
 
 	result := &supersetv1alpha1.ContainerTemplate{
 		Resources:       ResolveOverridableValue(c.Resources, t.Resources),
@@ -250,23 +194,12 @@ func MergeContainerTemplate(comp, tl *supersetv1alpha1.ContainerTemplate, op *Op
 	return result
 }
 
-func safeDeploymentTemplate(d *supersetv1alpha1.DeploymentTemplate) *supersetv1alpha1.DeploymentTemplate {
-	if d == nil {
-		return &supersetv1alpha1.DeploymentTemplate{}
-	}
-	return d
-}
-
-func safePodTemplate(p *supersetv1alpha1.PodTemplate) *supersetv1alpha1.PodTemplate {
+// orEmpty returns p when non-nil, otherwise a pointer to a zero value of T.
+// It lets merge logic dereference optional template pointers without per-type
+// nil guards.
+func orEmpty[T any](p *T) *T {
 	if p == nil {
-		return &supersetv1alpha1.PodTemplate{}
+		return new(T)
 	}
 	return p
-}
-
-func safeContainerTemplate(ct *supersetv1alpha1.ContainerTemplate) *supersetv1alpha1.ContainerTemplate {
-	if ct == nil {
-		return &supersetv1alpha1.ContainerTemplate{}
-	}
-	return ct
 }

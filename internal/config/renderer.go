@@ -212,26 +212,26 @@ func RenderConfig(componentType ComponentType, input *ConfigInput) string {
 	}
 
 	// [4] Base config (spec.config)
-	if input.Config != "" {
-		b.WriteString("# Base config (spec.config)\n")
-		b.WriteString(input.Config)
-		if !strings.HasSuffix(input.Config, "\n") {
-			b.WriteString("\n")
-		}
-		b.WriteString("\n")
-	}
+	writeConfigSection(&b, "Base config (spec.config)", input.Config)
 
 	// [5] Component config
-	if input.ComponentConfig != "" {
-		b.WriteString("# Component config\n")
-		b.WriteString(input.ComponentConfig)
-		if !strings.HasSuffix(input.ComponentConfig, "\n") {
-			b.WriteString("\n")
-		}
-		b.WriteString("\n")
-	}
+	writeConfigSection(&b, "Component config", input.ComponentConfig)
 
 	return b.String()
+}
+
+// writeConfigSection appends a labeled block of raw Python config, ensuring it
+// ends with a blank line. It is a no-op when content is empty.
+func writeConfigSection(b *strings.Builder, label, content string) {
+	if content == "" {
+		return
+	}
+	b.WriteString("# " + label + "\n")
+	b.WriteString(content)
+	if !strings.HasSuffix(content, "\n") {
+		b.WriteString("\n")
+	}
+	b.WriteString("\n")
 }
 
 // renderValkey writes the Valkey cache/broker/results Python configuration.
@@ -338,20 +338,22 @@ func renderEngineOptions(b *strings.Builder, opts *EngineOptionsInput) {
 	b.WriteString("SQLALCHEMY_ENGINE_OPTIONS = {\n")
 	if opts.UseNullPool {
 		b.WriteString("    \"poolclass\": NullPool,\n")
-	} else {
-		fmt.Fprintf(b, "    \"pool_size\": %d,\n", opts.PoolSize)
-		fmt.Fprintf(b, "    \"max_overflow\": %d,\n", opts.MaxOverflow)
-		if opts.PoolRecycle > 0 {
-			fmt.Fprintf(b, "    \"pool_recycle\": %d,\n", opts.PoolRecycle)
-		}
-		if opts.PoolPrePing {
-			b.WriteString("    \"pool_pre_ping\": True,\n")
-		} else {
-			b.WriteString("    \"pool_pre_ping\": False,\n")
-		}
-		if opts.PoolTimeout > 0 {
-			fmt.Fprintf(b, "    \"pool_timeout\": %d,\n", opts.PoolTimeout)
-		}
+		b.WriteString("}\n\n")
+		return
+	}
+
+	fmt.Fprintf(b, "    \"pool_size\": %d,\n", opts.PoolSize)
+	fmt.Fprintf(b, "    \"max_overflow\": %d,\n", opts.MaxOverflow)
+	if opts.PoolRecycle > 0 {
+		fmt.Fprintf(b, "    \"pool_recycle\": %d,\n", opts.PoolRecycle)
+	}
+	prePing := "False"
+	if opts.PoolPrePing {
+		prePing = "True"
+	}
+	fmt.Fprintf(b, "    \"pool_pre_ping\": %s,\n", prePing)
+	if opts.PoolTimeout > 0 {
+		fmt.Fprintf(b, "    \"pool_timeout\": %d,\n", opts.PoolTimeout)
 	}
 	b.WriteString("}\n\n")
 }
