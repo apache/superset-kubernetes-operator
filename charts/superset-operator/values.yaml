@@ -1,6 +1,6 @@
 image:
   repository: ghcr.io/apache/superset-kubernetes-operator
-  tag: ""  # defaults to .Chart.AppVersion
+  tag: "@sha256:be2897db11b807f4e31a1ba7df74aaabefaa9687fa5a7eea3ba50288e071ff02"  # defaults to .Chart.AppVersion
   pullPolicy: IfNotPresent
 
 replicas: 1

@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: ghcr.io/apache/superset-kubernetes-operator
   newName: ghcr.io/apache/superset-kubernetes-operator
-  newTag: latest
+  newTag: latest@sha256:be2897db11b807f4e31a1ba7df74aaabefaa9687fa5a7eea3ba50288e071ff02
