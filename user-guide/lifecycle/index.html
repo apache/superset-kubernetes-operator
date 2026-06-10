@@ -1,0 +1,2678 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Kubernetes operator for deploying and managing Apache Superset">
+      
+      
+      
+        <link rel="canonical" href="https://apache.github.io/superset-kubernetes-operator/user-guide/lifecycle/">
+      
+      
+        <link rel="prev" href="../configuration/">
+      
+      
+        <link rel="next" href="../networking-and-monitoring/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Lifecycle - Apache Superset Kubernetes Operator</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#lifecycle" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Apache Superset Kubernetes Operator" class="md-header__button md-logo" aria-label="Apache Superset Kubernetes Operator" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Apache Superset Kubernetes Operator
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Lifecycle
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/apache/superset-kubernetes-operator" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    apache/superset-kubernetes-operator
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Apache Superset Kubernetes Operator" class="md-nav__button md-logo" aria-label="Apache Superset Kubernetes Operator" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Apache Superset Kubernetes Operator
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/apache/superset-kubernetes-operator" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    apache/superset-kubernetes-operator
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lifecycle
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lifecycle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#task-triggers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task Triggers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Task Triggers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#manual-trigger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manual Trigger
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#disabling-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Disabling Tasks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scheduled-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scheduled Execution
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#upgrade-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrade Mode
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#drain-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Drain Behavior
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Drain Behavior">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#maintenance-page" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Maintenance Page
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Maintenance Page">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#customizing-the-message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Customizing the message
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#custom-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom image
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lifecycle-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lifecycle Flow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#custom-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom Commands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#auto-creating-the-metastore-database" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Auto-Creating the Metastore Database
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timeout-retries-and-pod-retention" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timeout, Retries, and Pod Retention
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#admin-user-development-mode-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Admin User (Development Mode Only)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#load-examples-development-mode-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Load Examples (Development Mode Only)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lifecycle-pod-template" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lifecycle Pod Template
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#secret-key-rotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Secret Key Rotation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Secret Key Rotation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rotation-triggers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rotation Triggers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#drain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Drain
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cleanup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cleanup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clone-development-and-staging-mode-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clone (Development and Staging Mode Only)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Clone (Development and Staging Mode Only)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#staging-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Staging Workflow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#clone-trigger-and-scheduling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clone Trigger and Scheduling
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#table-exclusion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Table Exclusion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#custom-clone-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom Clone Command
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#clone-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clone Image
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#requirements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Requirements
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works-under-the-hood" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How It Works Under the Hood
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How It Works Under the Hood">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pipeline-checksum-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline Checksum Model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-jobs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why Jobs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#job-state-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Job State Machine
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#job-naming-and-discovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Job Naming and Discovery
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-job-pod-spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task Job Pod Spec
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#status-reporting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status Reporting
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../networking-and-monitoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Networking & Monitoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migration from Helm Chart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/internals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/downloads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Downloads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/releases/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releases
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/development-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/development-guidelines/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/releasing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releasing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#task-triggers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task Triggers
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Task Triggers">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#manual-trigger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manual Trigger
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#disabling-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Disabling Tasks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scheduled-execution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scheduled Execution
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#upgrade-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Upgrade Mode
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#drain-behavior" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Drain Behavior
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Drain Behavior">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#maintenance-page" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Maintenance Page
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Maintenance Page">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#customizing-the-message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Customizing the message
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#custom-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom image
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lifecycle-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lifecycle Flow
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#custom-commands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom Commands
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#auto-creating-the-metastore-database" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Auto-Creating the Metastore Database
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timeout-retries-and-pod-retention" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timeout, Retries, and Pod Retention
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#admin-user-development-mode-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Admin User (Development Mode Only)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#load-examples-development-mode-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Load Examples (Development Mode Only)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#lifecycle-pod-template" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Lifecycle Pod Template
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#secret-key-rotation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Secret Key Rotation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Secret Key Rotation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rotation-triggers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rotation Triggers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#drain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Drain
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cleanup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cleanup
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#clone-development-and-staging-mode-only" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clone (Development and Staging Mode Only)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Clone (Development and Staging Mode Only)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#staging-workflow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Staging Workflow
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#clone-trigger-and-scheduling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clone Trigger and Scheduling
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#table-exclusion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Table Exclusion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#custom-clone-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Custom Clone Command
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#clone-image" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Clone Image
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#requirements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Requirements
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works-under-the-hood" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How It Works Under the Hood
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How It Works Under the Hood">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pipeline-checksum-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline Checksum Model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-jobs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why Jobs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#job-state-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Job State Machine
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#job-naming-and-discovery" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Job Naming and Discovery
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#task-job-pod-spec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task Job Pod Spec
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#status-reporting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status Reporting
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<!--
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+-->
+
+<h1 id="lifecycle">Lifecycle<a class="headerlink" href="#lifecycle" title="Permanent link">&para;</a></h1>
+<p>The operator manages database migrations and application initialization through
+dedicated lifecycle tasks. This page covers configuration, behavior, and
+troubleshooting.</p>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>The <code>spec.lifecycle</code> section controls up to four sequential tasks:</p>
+<ol>
+<li><strong>clone</strong> — database snapshot from an external source (staging workflows)</li>
+<li><strong>migrate</strong> — <code>superset db upgrade</code> (database schema migration)</li>
+<li><strong>rotate</strong> — <code>superset re-encrypt-secrets</code> (secret key rotation)</li>
+<li><strong>init</strong> — <code>superset init</code> (application initialization: roles, permissions)</li>
+</ol>
+<p>Tasks run as parent-owned Jobs. The parent
+Superset controller orchestrates sequencing, gating, re-runs, Job lifecycle,
+retries, and timeouts, and stores durable task state in
+<code>status.lifecycle</code>.</p>
+<p>Lifecycle is enabled by default even when <code>spec.lifecycle</code> is nil; disable it
+explicitly with <code>spec.lifecycle.disabled: true</code>.</p>
+<p><strong>Key behaviors:</strong></p>
+<ul>
+<li>Clone must complete before migrate starts; migrate before rotate; rotate before init</li>
+<li>Components are not created or updated until all enabled tasks complete</li>
+<li>When config or image changes require a re-run, the parent deletes the old task Job and creates a fresh one</li>
+</ul>
+<h2 id="task-triggers">Task Triggers<a class="headerlink" href="#task-triggers" title="Permanent link">&para;</a></h2>
+<p>Each task has hardcoded trigger inputs — what it watches for changes:</p>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Watches</th>
+<th>Re-runs when...</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Clone</td>
+<td><code>trigger</code> field, <code>cronSchedule</code> tick, source config, excludes, target Superset image</td>
+<td>Trigger value changes, schedule tick boundary crossed, source DB config changes, or target image changes (so a downgrade triggers a fresh clone before migrate sees the older schema)</td>
+</tr>
+<tr>
+<td>Migrate</td>
+<td>Image (resolved lifecycle image), <code>metastore.createDatabase</code> flag</td>
+<td>Image tag or repository changes, or <code>createDatabase</code> is toggled</td>
+</tr>
+<tr>
+<td>Rotate</td>
+<td><code>trigger</code> field, <code>secretKeyFrom</code> ref, <code>previousSecretKeyFrom</code> ref</td>
+<td>Secret key references change or trigger value changes</td>
+</tr>
+<tr>
+<td>Init</td>
+<td>Config checksum (rendered Python config)</td>
+<td>Any config-affecting field changes</td>
+</tr>
+</tbody>
+</table>
+<p>All tasks also re-run when an upstream task re-executes (automatic propagation).</p>
+<h3 id="manual-trigger">Manual Trigger<a class="headerlink" href="#manual-trigger" title="Permanent link">&para;</a></h3>
+<p>Every task has a <code>trigger</code> field (on <code>BaseTaskSpec</code>) — an opaque string that
+forces a re-run when changed. Changing a trigger also cascades to all downstream
+tasks:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">lifecycle</span><span class="p">:</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">migrate</span><span class="p">:</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">      </span><span class="nt">trigger</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;force-2026-05-10&quot;</span><span class="w">  </span><span class="c1"># forces migrate + init to re-run</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="nt">init</span><span class="p">:</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">      </span><span class="nt">trigger</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;reset-roles&quot;</span><span class="w">       </span><span class="c1"># forces only init to re-run</span>
+</code></pre></div>
+<h3 id="disabling-tasks">Disabling Tasks<a class="headerlink" href="#disabling-tasks" title="Permanent link">&para;</a></h3>
+<p>Set <code>disabled: true</code> to skip a task entirely:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">lifecycle</span><span class="p">:</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">    </span><span class="nt">migrate</span><span class="p">:</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">      </span><span class="nt">disabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">  </span><span class="c1"># user manages migrations externally</span>
+</code></pre></div>
+<h3 id="scheduled-execution">Scheduled Execution<a class="headerlink" href="#scheduled-execution" title="Permanent link">&para;</a></h3>
+<p>Tasks that support scheduling (currently clone) accept a <code>cronSchedule</code> field —
+a standard 5-field cron expression that triggers periodic re-execution:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">  </span><span class="nt">environment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Staging</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="nt">lifecycle</span><span class="p">:</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="nt">clone</span><span class="p">:</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">      </span><span class="nt">cronSchedule</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0</span><span class="nv"> </span><span class="s">2</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">*&quot;</span><span class="w">  </span><span class="c1"># daily at 2 AM UTC</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">      </span><span class="nt">source</span><span class="p">:</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">        </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-prod.db.svc</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">        </span><span class="nt">database</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset_prod</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">        </span><span class="nt">username</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">prod_reader</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">        </span><span class="nt">passwordFrom</span><span class="p">:</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">prod-reader-creds</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">          </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">password</span>
+</code></pre></div>
+<p>When a schedule is configured, the operator automatically re-runs the full
+lifecycle pipeline (clone → migrate → rotate → init) each time a cron tick boundary is
+crossed. The <code>trigger</code> field remains functional for manual overrides on top of
+the schedule — both contribute independently.</p>
+<p><strong>How it works:</strong></p>
+<ul>
+<li>The operator computes the "current tick" (most recent past time matching the
+  expression) and includes it in the task checksum</li>
+<li>When the clock crosses a cron boundary, the tick changes, the checksum changes,
+  and the pipeline re-runs</li>
+<li>The operator requeues itself to wake at the next cron tick</li>
+<li>If the operator is down during a scheduled tick, it catches up on the next
+  reconcile</li>
+<li>If the pipeline is still running when a tick fires, it completes normally; the
+  new tick is detected afterward and triggers one re-run (no backlog accumulation)</li>
+</ul>
+<p><strong>Status reporting:</strong></p>
+<p>The clone task status includes <code>lastScheduledAt</code> (the tick that triggered the
+most recent run) and <code>nextScheduleAt</code> (the next future tick).</p>
+<p><strong>Alternative — external CronJob:</strong></p>
+<p>For teams that prefer external scheduling, a Kubernetes CronJob can patch
+the <code>trigger</code> field on a cron schedule. This requires a CronJob resource,
+ServiceAccount, RoleBinding, and a kubectl image, but keeps the scheduling
+logic outside the operator.</p>
+<p>When disabled, the task's Job and ConfigMap are deleted, its projected status
+is cleared from the parent, and it does not participate in the pipeline.
+Downstream tasks still run but don't receive propagation from the disabled task.</p>
+<h2 id="upgrade-mode">Upgrade Mode<a class="headerlink" href="#upgrade-mode" title="Permanent link">&para;</a></h2>
+<p>The <code>upgradeMode</code> field controls how image upgrades are handled:</p>
+<ul>
+<li><strong>Automatic</strong> (default) — tasks run immediately when an image change is detected</li>
+<li><strong>Supervised</strong> — tasks wait for an annotation-based approval before running</li>
+</ul>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">lifecycle</span><span class="p">:</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">    </span><span class="nt">upgradeMode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Supervised</span>
+</code></pre></div>
+<p>When an image change is detected in supervised mode, the operator sets
+<code>status.phase: AwaitingApproval</code> and records the upgrade context in
+<code>status.lifecycle.upgrade</code>. Approve the upgrade by annotating the CR with the
+recorded approval token:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nv">TOKEN</span><span class="o">=</span><span class="k">$(</span>kubectl<span class="w"> </span>get<span class="w"> </span>superset<span class="w"> </span>my-superset<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">&#39;{.status.lifecycle.upgrade.approvalToken}&#39;</span><span class="k">)</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>kubectl<span class="w"> </span>annotate<span class="w"> </span>superset<span class="w"> </span>my-superset<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span>superset.apache.org/approve-upgrade<span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">TOKEN</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>--overwrite
+</code></pre></div>
+<p>The approval is consumed once: the operator clears the annotation automatically
+after lifecycle tasks complete or the image change is otherwise settled. This
+prevents a stale approval annotation from approving a later image change. If the
+target image changes while an upgrade is awaiting approval, the approval token
+changes and the new transition must be approved separately.
+You can monitor the upgrade status with:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>kubectl<span class="w"> </span>get<span class="w"> </span>superset<span class="w"> </span>my-superset<span class="w"> </span>-o<span class="w"> </span><span class="nv">jsonpath</span><span class="o">=</span><span class="s1">&#39;{.status.lifecycle}&#39;</span>
+</code></pre></div>
+<p>The operator also performs semver comparison on image tags and blocks downgrades
+to prevent accidental database corruption. A blocked downgrade sets
+<code>status.phase: Blocked</code> — revert the image tag to resolve.</p>
+<p>Downgrade protection requires semantically comparable (semver) image tags.
+Non-semver tags — such as <code>latest</code>, date stamps, or digest pins — cannot be
+ordered, so the operator cannot detect a downgrade and lifecycle tasks proceed
+normally. In that case it emits a <code>VersionComparisonSkipped</code> warning event
+rather than blocking. Use semver tags in Staging and Production if you rely on
+downgrade protection.</p>
+<h2 id="drain-behavior">Drain Behavior<a class="headerlink" href="#drain-behavior" title="Permanent link">&para;</a></h2>
+<p>Each task declares whether it requires components to be drained (scaled to zero)
+before execution. The operator drains once before the first pending task that
+requires it when at least one configured component has desired replicas greater
+than zero, and recreates components after the pipeline completes. A config-only
+change that only re-runs the default init task does not drain components.</p>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Default <code>requiresDrain</code></th>
+<th>Rationale</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Clone</td>
+<td><code>true</code></td>
+<td>DROP DATABASE fails with active connections</td>
+</tr>
+<tr>
+<td>Migrate</td>
+<td><code>true</code></td>
+<td>Schema changes risk deadlocks and version/schema inconsistencies</td>
+</tr>
+<tr>
+<td>Rotate</td>
+<td><code>true</code></td>
+<td>After re-encryption, stored secrets use the new key — components with the old key would fail to decrypt</td>
+</tr>
+<tr>
+<td>Init</td>
+<td><code>false</code></td>
+<td>Role/permission operations are safe with components running</td>
+</tr>
+</tbody>
+</table>
+<p>Override per-task when needed:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">lifecycle</span><span class="p">:</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="w">    </span><span class="nt">migrate</span><span class="p">:</span>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">      </span><span class="nt">requiresDrain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">  </span><span class="c1"># opt-in to rolling migrations (additive changes only)</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">    </span><span class="nt">init</span><span class="p">:</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">      </span><span class="nt">requiresDrain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">   </span><span class="c1"># force drain before init (rare)</span>
+</code></pre></div>
+<p>During a drain, Ingress/HTTPRoute and NetworkPolicy resources are preserved
+because they are owned by the parent CR. Once all lifecycle tasks complete,
+components are recreated and traffic resumes automatically.</p>
+<h3 id="maintenance-page">Maintenance Page<a class="headerlink" href="#maintenance-page" title="Permanent link">&para;</a></h3>
+<p>By default, the web UI is unreachable while components are drained. To avoid user
+confusion during upgrades, enable the maintenance page:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">lifecycle</span><span class="p">:</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">    </span><span class="nt">maintenancePage</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+</code></pre></div>
+<p>When enabled, the operator spins up a lightweight maintenance page <strong>before</strong>
+draining components and redirects all traffic from the web-server Service to it.
+The maintenance page is only started when a drain will actually run and the
+web-server component already has an existing workload. Initial installs skip the
+maintenance page because there is no existing web traffic to preserve. The
+Service name and ClusterIP are preserved, so Ingress, HTTPRoute, and direct
+Service consumers continue working without interruption. After lifecycle tasks
+complete, traffic is returned to the web-server pods automatically.</p>
+<p>Parent Superset events report operator-level lifecycle milestones such as
+maintenance routing, drain start/completion, task starts, retries, and failures.
+Kubernetes-native Deployment, ReplicaSet, Job, and Pod events remain the source
+for lower-level workload creation and scaling details.</p>
+<p>All paths return a 302 redirect to <code>/</code>, which serves the maintenance HTML page
+with a 30-second auto-refresh.</p>
+<h4 id="customizing-the-message">Customizing the message<a class="headerlink" href="#customizing-the-message" title="Permanent link">&para;</a></h4>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">lifecycle</span><span class="p">:</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="w">    </span><span class="nt">maintenancePage</span><span class="p">:</span>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">      </span><span class="nt">title</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Upgrade</span><span class="nv"> </span><span class="s">in</span><span class="nv"> </span><span class="s">Progress&quot;</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">      </span><span class="nt">message</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Superset</span><span class="nv"> </span><span class="s">is</span><span class="nv"> </span><span class="s">being</span><span class="nv"> </span><span class="s">upgraded</span><span class="nv"> </span><span class="s">to</span><span class="nv"> </span><span class="s">v4.1.</span><span class="nv"> </span><span class="s">Expected</span><span class="nv"> </span><span class="s">downtime:</span><span class="nv"> </span><span class="s">10</span><span class="nv"> </span><span class="s">minutes.&quot;</span>
+</code></pre></div>
+<p>For complete control over the HTML page, use <code>body</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">lifecycle</span><span class="p">:</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">    </span><span class="nt">maintenancePage</span><span class="p">:</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">      </span><span class="nt">body</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">        </span><span class="no">&lt;!DOCTYPE html&gt;</span>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">        </span><span class="no">&lt;html&gt;</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">        </span><span class="no">&lt;head&gt;&lt;title&gt;Maintenance&lt;/title&gt;&lt;meta http-equiv=&quot;refresh&quot; content=&quot;30&quot;&gt;&lt;/head&gt;</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">        </span><span class="no">&lt;body&gt;&lt;h1&gt;We&#39;ll be right back&lt;/h1&gt;&lt;p&gt;02:00–03:00 UTC&lt;/p&gt;&lt;/body&gt;</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">        </span><span class="no">&lt;/html&gt;</span>
+</code></pre></div>
+<h4 id="custom-image">Custom image<a class="headerlink" href="#custom-image" title="Permanent link">&para;</a></h4>
+<p>For advanced use cases (custom branding, dynamic status pages, HA), provide your
+own image. It must serve HTTP on the web-server port (default 8088):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">lifecycle</span><span class="p">:</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">    </span><span class="nt">maintenancePage</span><span class="p">:</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">      </span><span class="nt">message</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Back</span><span class="nv"> </span><span class="s">in</span><span class="nv"> </span><span class="s">30</span><span class="nv"> </span><span class="s">minutes&quot;</span>
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">      </span><span class="nt">image</span><span class="p">:</span>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">        </span><span class="nt">repository</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-org/maintenance-server</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">        </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v2</span>
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">      </span><span class="nt">replicas</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="w">      </span><span class="nt">podTemplate</span><span class="p">:</span>
+<a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="w">        </span><span class="nt">container</span><span class="p">:</span>
+<a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a><span class="w">          </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;/serve&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;--port=8088&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;--redirect-all=/&quot;</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a><span class="w">          </span><span class="nt">resources</span><span class="p">:</span>
+<a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a><span class="w">            </span><span class="nt">requests</span><span class="p">:</span>
+<a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="w">              </span><span class="nt">cpu</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50m</span>
+<a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a><span class="w">              </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64Mi</span>
+</code></pre></div>
+<p>In custom mode, <code>title</code>, <code>message</code>, and <code>body</code> are passed as environment variables
+(<code>SUPERSET_OPERATOR__MAINTENANCE_TITLE</code>, <code>SUPERSET_OPERATOR__MAINTENANCE_MESSAGE</code>,
+<code>SUPERSET_OPERATOR__MAINTENANCE_BODY</code>) — your image can use them for dynamic content.</p>
+<h2 id="lifecycle-flow">Lifecycle Flow<a class="headerlink" href="#lifecycle-flow" title="Permanent link">&para;</a></h2>
+<p>The following diagram shows the lifecycle pipeline. Tasks execute sequentially;
+components are drained before the first task that requires it, and recreated
+after the pipeline completes.</p>
+<pre class="mermaid"><code>%%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '12px'}}}%%
+flowchart TD
+    A[Reconcile] --&gt; B{Lifecycle disabled?}
+    B --&gt;|Yes| Z[Components reconcile normally]
+    B --&gt;|No| C{upgradeMode}
+    C --&gt;|Automatic| E
+    C --&gt;|Supervised| D[Await approval]
+    D --&gt; E{Any task requires drain?}
+    E --&gt;|Yes| MP{Maintenance page configured?}
+    E --&gt;|No| G
+    MP --&gt;|Yes| MP1[Deploy maintenance page, switch Service selector]
+    MP --&gt;|No| F
+    MP1 --&gt; F[Drain: delete component resources, wait for pod termination]
+    F --&gt; G[Clone task]
+    G --&gt;|checksum match| H[Skip]
+    G --&gt;|checksum mismatch| G1[Execute clone job]
+    G1 --&gt; H
+    H --&gt; I[Migrate task]
+    I --&gt;|checksum match| J[Skip]
+    I --&gt;|checksum mismatch| I1[Execute migrate job]
+    I1 --&gt; J
+    J --&gt; R[Rotate task]
+    R --&gt;|checksum match| S[Skip]
+    R --&gt;|checksum mismatch| R1[Execute rotate job]
+    R1 --&gt; S
+    S --&gt; K[Init task]
+    K --&gt;|checksum match| L[Skip]
+    K --&gt;|checksum mismatch| K1[Execute init job]
+    K1 --&gt; L
+    L --&gt; M[Pipeline complete]
+    M --&gt; N[Recreate component resources]
+    N --&gt; Z</code></pre>
+<p>Disabled tasks are removed from the pipeline entirely (not shown as "skip").</p>
+<h2 id="custom-commands">Custom Commands<a class="headerlink" href="#custom-commands" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">lifecycle</span><span class="p">:</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">    </span><span class="nt">migrate</span><span class="p">:</span>
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">      </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;/bin/sh&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;-c&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;superset</span><span class="nv"> </span><span class="s">db</span><span class="nv"> </span><span class="s">upgrade</span><span class="nv"> </span><span class="s">&amp;&amp;</span><span class="nv"> </span><span class="s">custom-migrate&quot;</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">    </span><span class="nt">init</span><span class="p">:</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">      </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;/bin/sh&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;-c&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;superset</span><span class="nv"> </span><span class="s">init</span><span class="nv"> </span><span class="s">&amp;&amp;</span><span class="nv"> </span><span class="s">custom-seed&quot;</span><span class="p p-Indicator">]</span>
+</code></pre></div>
+<p>Both <code>adminUser</code> and <code>loadExamples</code> (see below) are mutually exclusive with a
+custom <code>lifecycle.init.command</code> — when using these fields, the operator
+constructs the full init command automatically.</p>
+<h2 id="auto-creating-the-metastore-database">Auto-Creating the Metastore Database<a class="headerlink" href="#auto-creating-the-metastore-database" title="Permanent link">&para;</a></h2>
+<p>Setting <code>metastore.createDatabase: true</code> attaches an idempotent init container to the migrate Job that runs <code>CREATE DATABASE</code> against the server before <code>superset db upgrade</code>. This avoids a chicken-and-egg pre-install step on fresh PostgreSQL/MySQL servers. See <a href="../configuration/#auto-creating-the-database">Auto-creating the database</a> for full details, including the privilege requirement on the metastore user. The flag is redundant alongside <code>lifecycle.clone</code> (which already drops and re-creates the target database) but harmless.</p>
+<h2 id="timeout-retries-and-pod-retention">Timeout, Retries, and Pod Retention<a class="headerlink" href="#timeout-retries-and-pod-retention" title="Permanent link">&para;</a></h2>
+<p>Each task has configurable timeout and retry behavior:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="nt">lifecycle</span><span class="p">:</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">    </span><span class="nt">podRetention</span><span class="p">:</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">      </span><span class="nt">policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Retain</span><span class="w">                </span><span class="c1"># Delete | Retain | RetainOnFailure (default)</span>
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">    </span><span class="nt">migrate</span><span class="p">:</span>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">      </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10m</span><span class="w">               </span><span class="c1"># max time per attempt (default: 5m)</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">      </span><span class="nt">maxRetries</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span><span class="w">              </span><span class="c1"># attempts before permanent failure (default: 3)</span>
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a><span class="w">    </span><span class="nt">init</span><span class="p">:</span>
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="w">      </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5m</span>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="w">      </span><span class="nt">maxRetries</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+</code></pre></div>
+<p>On failure, the operator retries with exponential backoff (<code>10s * 2^(attempt-1)</code>,
+capped at 5m). If a Job exceeds the timeout while Running or Pending, it counts
+as a failed attempt.</p>
+<p>If a task pod cannot start at all — a <code>CreateContainerConfigError</code> (for example a
+<code>runAsNonRoot</code> policy the image can't satisfy), an image pull failure, or an
+unschedulable pod — the operator surfaces the reason on the <code>Superset</code> status and
+events rather than silently waiting. Once you change the task's pod
+configuration (<code>securityContext</code>, resources, image, etc.), the operator
+recreates the task Job from the corrected spec automatically. This also rescues a
+task that has already exhausted its retries: editing how the pod runs lets it run
+again, with no need to delete the Job by hand. A purely application-level failure
+(unchanged pod, e.g. a broken migration) stays terminal so it does not loop.</p>
+<p><strong>Task retention policies:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Policy</th>
+<th>On Success</th>
+<th>On Failure</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Delete</code></td>
+<td>Job and Pods deleted</td>
+<td>Job and Pods deleted</td>
+</tr>
+<tr>
+<td><code>Retain</code></td>
+<td>Job and Pods kept</td>
+<td>Job and Pods kept</td>
+</tr>
+<tr>
+<td><code>RetainOnFailure</code> (default)</td>
+<td>Job and Pods deleted</td>
+<td>Job and Pods kept for debugging</td>
+</tr>
+</tbody>
+</table>
+<p>The default keeps only failed task Jobs and Pods so you can inspect logs without
+cluttering the namespace with completed-success Jobs. Override to <code>Retain</code>
+if you want the full history, or <code>Delete</code> to garbage-collect everything.</p>
+<p>To inspect logs of a retained failed Job:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a>kubectl<span class="w"> </span>logs<span class="w"> </span>job/&lt;job-name&gt;<span class="w"> </span>-c<span class="w"> </span>superset
+</code></pre></div>
+<h2 id="admin-user-development-mode-only">Admin User (Development Mode Only)<a class="headerlink" href="#admin-user-development-mode-only" title="Permanent link">&para;</a></h2>
+<p>In Development mode, the operator can create an admin user during initialization:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="nt">environment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Development</span>
+<a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">  </span><span class="nt">lifecycle</span><span class="p">:</span>
+<a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">    </span><span class="nt">init</span><span class="p">:</span>
+<a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">      </span><span class="nt">adminUser</span><span class="p">:</span>
+<a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">        </span><span class="nt">username</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">admin</span><span class="w">           </span><span class="c1"># default</span>
+<a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="w">        </span><span class="nt">password</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">admin</span><span class="w">           </span><span class="c1"># default</span>
+<a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a><span class="w">        </span><span class="nt">firstName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Superset</span><span class="w">       </span><span class="c1"># default</span>
+<a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="w">        </span><span class="nt">lastName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Admin</span><span class="w">           </span><span class="c1"># default</span>
+<a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="w">        </span><span class="nt">email</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">admin@example.com</span><span class="w">  </span><span class="c1"># default</span>
+</code></pre></div>
+<p>All fields have defaults, so <code>adminUser: {}</code> creates a user with
+username/password <code>admin</code>/<code>admin</code>. The operator passes credentials as env vars
+and appends a <code>superset fab create-admin</code> step to the init command. This field
+is rejected in Production and Staging modes by CRD validation.</p>
+<h2 id="load-examples-development-mode-only">Load Examples (Development Mode Only)<a class="headerlink" href="#load-examples-development-mode-only" title="Permanent link">&para;</a></h2>
+<p>Load Superset's example dashboards and datasets during initialization:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="nt">environment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Development</span>
+<a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">  </span><span class="nt">lifecycle</span><span class="p">:</span>
+<a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">    </span><span class="nt">init</span><span class="p">:</span>
+<a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">      </span><span class="nt">loadExamples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</code></pre></div>
+<p>The operator appends a <code>superset load-examples</code> step to the init command. This
+field is rejected in Production and Staging modes by CRD validation. Note that Superset's built-in
+examples require an admin user with username <code>admin</code> — if you customize
+<code>adminUser.username</code>, example loading may fail.</p>
+<h2 id="lifecycle-pod-template">Lifecycle Pod Template<a class="headerlink" href="#lifecycle-pod-template" title="Permanent link">&para;</a></h2>
+<p>The <code>spec.lifecycle</code> section supports <code>podTemplate</code> with the same Pod and
+container fields as other components (tolerations, nodeSelector, volumes, etc.
+on <code>podTemplate</code>; env, resources, securityContext, etc. on
+<code>podTemplate.container</code>), so task Job Pods inherit top-level scheduling and security
+settings and can be customized independently:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="nt">lifecycle</span><span class="p">:</span>
+<a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">    </span><span class="nt">podTemplate</span><span class="p">:</span>
+<a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">      </span><span class="nt">container</span><span class="p">:</span>
+<a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">        </span><span class="nt">resources</span><span class="p">:</span>
+<a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="w">          </span><span class="nt">limits</span><span class="p">:</span>
+<a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a><span class="w">            </span><span class="nt">memory</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2Gi&quot;</span>
+<a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="w">    </span><span class="nt">migrate</span><span class="p">:</span>
+<a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="w">      </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;/bin/sh&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;-c&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;superset</span><span class="nv"> </span><span class="s">db</span><span class="nv"> </span><span class="s">upgrade&quot;</span><span class="p p-Indicator">]</span>
+</code></pre></div>
+<h2 id="secret-key-rotation">Secret Key Rotation<a class="headerlink" href="#secret-key-rotation" title="Permanent link">&para;</a></h2>
+<p>The rotate task runs <code>superset re-encrypt-secrets</code> to re-encrypt stored secrets
+when the application secret key is rotated. It runs after migrate and before init.</p>
+<p>To enable secret key rotation, set <code>previousSecretKey</code> (dev mode) or
+<code>previousSecretKeyFrom</code> (staging/production) on the parent spec, and add
+<code>lifecycle.rotate: {}</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset.apache.org/v1alpha1</span>
+<a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Superset</span>
+<a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="nt">metadata</span><span class="p">:</span>
+<a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-superset</span>
+<a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="w">  </span><span class="nt">secretKeyFrom</span><span class="p">:</span>
+<a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset-secret-v2</span>
+<a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="w">    </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">secret-key</span>
+<a id="__codelineno-17-9" name="__codelineno-17-9" href="#__codelineno-17-9"></a><span class="w">  </span><span class="nt">previousSecretKeyFrom</span><span class="p">:</span>
+<a id="__codelineno-17-10" name="__codelineno-17-10" href="#__codelineno-17-10"></a><span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset-secret-v1</span>
+<a id="__codelineno-17-11" name="__codelineno-17-11" href="#__codelineno-17-11"></a><span class="w">    </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">secret-key</span>
+<a id="__codelineno-17-12" name="__codelineno-17-12" href="#__codelineno-17-12"></a><span class="w">  </span><span class="nt">lifecycle</span><span class="p">:</span>
+<a id="__codelineno-17-13" name="__codelineno-17-13" href="#__codelineno-17-13"></a><span class="w">    </span><span class="nt">rotate</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+</code></pre></div>
+<p>The operator injects both <code>SECRET_KEY</code> and <code>PREVIOUS_SECRET_KEY</code> into all Python
+components. The rotate task Job uses both to decrypt stored secrets with the old
+key and re-encrypt with the new one. After rotation completes, components restart
+with the new key and can use <code>PREVIOUS_SECRET_KEY</code> for fallback decryption during
+the transition.</p>
+<p>The command is idempotent: re-running it skips already-converted values. If no
+<code>PREVIOUS_SECRET_KEY</code> is set, it exits cleanly. If decryption fails for any entry,
+the entire transaction rolls back.</p>
+<h3 id="rotation-triggers">Rotation Triggers<a class="headerlink" href="#rotation-triggers" title="Permanent link">&para;</a></h3>
+<p>The task re-runs when:</p>
+<ul>
+<li>The <code>secretKeyFrom</code> or <code>previousSecretKeyFrom</code> references change (different
+  Secret name or key)</li>
+<li>The <code>trigger</code> field changes (use this for in-place Secret content updates where
+  the reference stays the same)</li>
+</ul>
+<h3 id="drain">Drain<a class="headerlink" href="#drain" title="Permanent link">&para;</a></h3>
+<p>By default, the rotate task requires drain (<code>requiresDrain: true</code>). After
+re-encryption commits, stored secrets are encrypted with the new key — components
+still running with the old key would fail to decrypt them. Override with
+<code>requiresDrain: false</code> only if you understand the implications.</p>
+<h3 id="cleanup">Cleanup<a class="headerlink" href="#cleanup" title="Permanent link">&para;</a></h3>
+<p>After confirming rotation succeeded, remove <code>previousSecretKeyFrom</code> and the
+<code>lifecycle.rotate</code> section. The previous secret key is no longer needed once all
+components have restarted with the new key.</p>
+<h2 id="clone-development-and-staging-mode-only">Clone (Development and Staging Mode Only)<a class="headerlink" href="#clone-development-and-staging-mode-only" title="Permanent link">&para;</a></h2>
+<p>The clone task creates a database snapshot from an external source into the CR's
+metastore before running migrations. This enables staging workflows where you
+test version upgrades against a copy of production data.</p>
+<p>Clone is only allowed when <code>environment: Development</code> or <code>environment: Staging</code>
+— it performs a destructive DROP DATABASE on the target metastore and must never
+run against a production instance. Staging mode enforces secrets (like
+Production) while still permitting clone operations.</p>
+<h3 id="staging-workflow">Staging Workflow<a class="headerlink" href="#staging-workflow" title="Permanent link">&para;</a></h3>
+<p>The recommended pattern is a separate <code>Superset</code> CR for staging:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset.apache.org/v1alpha1</span>
+<a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Superset</span>
+<a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="nt">metadata</span><span class="p">:</span>
+<a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset-staging</span>
+<a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="w">  </span><span class="nt">environment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Staging</span>
+<a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="w">  </span><span class="nt">image</span><span class="p">:</span>
+<a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="w">    </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;6.0.0&quot;</span><span class="w">                     </span><span class="c1"># version to test</span>
+<a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="w">  </span><span class="nt">secretKeyFrom</span><span class="p">:</span>
+<a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="w">    </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">staging-secret</span>
+<a id="__codelineno-18-11" name="__codelineno-18-11" href="#__codelineno-18-11"></a><span class="w">    </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">secret-key</span>
+<a id="__codelineno-18-12" name="__codelineno-18-12" href="#__codelineno-18-12"></a><span class="w">  </span><span class="nt">metastore</span><span class="p">:</span>
+<a id="__codelineno-18-13" name="__codelineno-18-13" href="#__codelineno-18-13"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PostgreSQL</span>
+<a id="__codelineno-18-14" name="__codelineno-18-14" href="#__codelineno-18-14"></a><span class="w">    </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-staging.db.svc</span>
+<a id="__codelineno-18-15" name="__codelineno-18-15" href="#__codelineno-18-15"></a><span class="w">    </span><span class="nt">database</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset_staging</span>
+<a id="__codelineno-18-16" name="__codelineno-18-16" href="#__codelineno-18-16"></a><span class="w">    </span><span class="nt">username</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset_admin</span><span class="w">         </span><span class="c1"># needs CREATEDB rights</span>
+<a id="__codelineno-18-17" name="__codelineno-18-17" href="#__codelineno-18-17"></a><span class="w">    </span><span class="nt">passwordFrom</span><span class="p">:</span>
+<a id="__codelineno-18-18" name="__codelineno-18-18" href="#__codelineno-18-18"></a><span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">staging-db-creds</span>
+<a id="__codelineno-18-19" name="__codelineno-18-19" href="#__codelineno-18-19"></a><span class="w">      </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">password</span>
+<a id="__codelineno-18-20" name="__codelineno-18-20" href="#__codelineno-18-20"></a><span class="w">  </span><span class="nt">lifecycle</span><span class="p">:</span>
+<a id="__codelineno-18-21" name="__codelineno-18-21" href="#__codelineno-18-21"></a><span class="w">    </span><span class="nt">clone</span><span class="p">:</span>
+<a id="__codelineno-18-22" name="__codelineno-18-22" href="#__codelineno-18-22"></a><span class="w">      </span><span class="nt">trigger</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2026-05-09-v1&quot;</span><span class="w">       </span><span class="c1"># change to re-clone</span>
+<a id="__codelineno-18-23" name="__codelineno-18-23" href="#__codelineno-18-23"></a><span class="w">      </span><span class="nt">source</span><span class="p">:</span>
+<a id="__codelineno-18-24" name="__codelineno-18-24" href="#__codelineno-18-24"></a><span class="w">        </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-prod.db.svc</span>
+<a id="__codelineno-18-25" name="__codelineno-18-25" href="#__codelineno-18-25"></a><span class="w">        </span><span class="nt">database</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset_prod</span>
+<a id="__codelineno-18-26" name="__codelineno-18-26" href="#__codelineno-18-26"></a><span class="w">        </span><span class="nt">username</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">prod_reader</span><span class="w">        </span><span class="c1"># read-only on production</span>
+<a id="__codelineno-18-27" name="__codelineno-18-27" href="#__codelineno-18-27"></a><span class="w">        </span><span class="nt">passwordFrom</span><span class="p">:</span>
+<a id="__codelineno-18-28" name="__codelineno-18-28" href="#__codelineno-18-28"></a><span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">prod-reader-creds</span>
+<a id="__codelineno-18-29" name="__codelineno-18-29" href="#__codelineno-18-29"></a><span class="w">          </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">password</span>
+<a id="__codelineno-18-30" name="__codelineno-18-30" href="#__codelineno-18-30"></a><span class="w">      </span><span class="nt">excludeTables</span><span class="p">:</span>
+<a id="__codelineno-18-31" name="__codelineno-18-31" href="#__codelineno-18-31"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tab_state</span>
+<a id="__codelineno-18-32" name="__codelineno-18-32" href="#__codelineno-18-32"></a><span class="w">      </span><span class="nt">excludeTableData</span><span class="p">:</span>
+<a id="__codelineno-18-33" name="__codelineno-18-33" href="#__codelineno-18-33"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">logs</span>
+<a id="__codelineno-18-34" name="__codelineno-18-34" href="#__codelineno-18-34"></a><span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">query</span>
+<a id="__codelineno-18-35" name="__codelineno-18-35" href="#__codelineno-18-35"></a><span class="w">      </span><span class="nt">timeout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30m</span>
+<a id="__codelineno-18-36" name="__codelineno-18-36" href="#__codelineno-18-36"></a><span class="w">    </span><span class="nt">migrate</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+<a id="__codelineno-18-37" name="__codelineno-18-37" href="#__codelineno-18-37"></a><span class="w">    </span><span class="nt">init</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+<a id="__codelineno-18-38" name="__codelineno-18-38" href="#__codelineno-18-38"></a><span class="w">  </span><span class="nt">webServer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+<a id="__codelineno-18-39" name="__codelineno-18-39" href="#__codelineno-18-39"></a><span class="w">  </span><span class="nt">celeryWorker</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+<a id="__codelineno-18-40" name="__codelineno-18-40" href="#__codelineno-18-40"></a><span class="w">  </span><span class="c1"># celeryBeat intentionally omitted — prevents alert double-triggers</span>
+</code></pre></div>
+<p>The lifecycle pipeline runs: <strong>clone → migrate → rotate → init → components</strong>. Components
+are not deployed until all enabled tasks complete, and clone always drains existing
+components before running (DROP DATABASE fails with active connections). Only
+the tasks you configure run; <code>rotate</code>, for example, is skipped when no
+<code>lifecycle.rotate</code> spec is set.</p>
+<h3 id="clone-trigger-and-scheduling">Clone Trigger and Scheduling<a class="headerlink" href="#clone-trigger-and-scheduling" title="Permanent link">&para;</a></h3>
+<p>The clone task runs when its checksum changes. Two mechanisms trigger re-execution:</p>
+<ul>
+<li><strong><code>trigger</code> field</strong> — an opaque string (date, UUID, CI build ID). Changing it
+  causes a re-clone. Use this for manual or CI-driven refreshes.</li>
+<li><strong><code>cronSchedule</code> field</strong> — a 5-field cron expression for periodic re-execution.
+  When the clock crosses a cron boundary, the task checksum changes automatically.</li>
+</ul>
+<p>To disable clone without removing its configuration, set <code>disabled: true</code>.</p>
+<h3 id="table-exclusion">Table Exclusion<a class="headerlink" href="#table-exclusion" title="Permanent link">&para;</a></h3>
+<ul>
+<li><code>excludeTables</code> — tables excluded entirely (schema and data). Use for tables
+  that are not needed and can be recreated by migrations (e.g., <code>tab_state</code>).</li>
+<li><code>excludeTableData</code> — schema is dumped but data is not. Use for large tables
+  where migrations expect the schema to exist but the data is not needed for
+  testing (e.g., <code>logs</code>, <code>query</code>).</li>
+</ul>
+<h3 id="custom-clone-command">Custom Clone Command<a class="headerlink" href="#custom-clone-command" title="Permanent link">&para;</a></h3>
+<p>By default the operator constructs a streaming <code>pg_dump | psql</code> (or
+<code>mysqldump | mysql</code>) command. Override it for custom workflows (anonymization,
+database-native snapshots, etc.):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nt">spec</span><span class="p">:</span>
+<a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="w">  </span><span class="nt">lifecycle</span><span class="p">:</span>
+<a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="w">    </span><span class="nt">clone</span><span class="p">:</span>
+<a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="w">      </span><span class="nt">command</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;/bin/sh&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;-c&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;custom-clone-script.sh&quot;</span><span class="p p-Indicator">]</span>
+<a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="w">      </span><span class="nt">image</span><span class="p">:</span>
+<a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="w">        </span><span class="nt">repository</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-registry/custom-tools</span>
+<a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="w">        </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;v1&quot;</span>
+<a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a><span class="w">      </span><span class="nt">source</span><span class="p">:</span>
+<a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a><span class="w">        </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgres-prod.db.svc</span>
+<a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="w">        </span><span class="nt">database</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset_prod</span>
+<a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="w">        </span><span class="nt">username</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">prod_reader</span>
+<a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a><span class="w">        </span><span class="nt">passwordFrom</span><span class="p">:</span>
+<a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a><span class="w">          </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">prod-reader-creds</span>
+<a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a><span class="w">          </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">password</span>
+</code></pre></div>
+<p>When a custom command is set, the operator still injects all env vars
+(<code>SUPERSET_OPERATOR__CLONE_SRC_*</code> and <code>SUPERSET_OPERATOR__DB_*</code>) so your script
+can use them.</p>
+<h3 id="clone-image">Clone Image<a class="headerlink" href="#clone-image" title="Permanent link">&para;</a></h3>
+<p>The clone pod uses a database-tool image (not the Superset image):</p>
+<table>
+<thead>
+<tr>
+<th>Source type</th>
+<th>Default image</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>postgresql</code></td>
+<td><code>postgres:17-alpine</code></td>
+</tr>
+<tr>
+<td><code>mysql</code></td>
+<td><code>mysql:8-alpine</code></td>
+</tr>
+</tbody>
+</table>
+<p>Override with <code>clone.image</code> if you need additional tools.</p>
+<h3 id="requirements">Requirements<a class="headerlink" href="#requirements" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Metastore must use structured mode</strong> (host, database, username) — passthrough
+  URI mode is not supported for clone.</li>
+<li><strong>Metastore user must have CREATEDB rights</strong> — the clone drops and recreates
+  the target database.</li>
+<li><strong>Source user should be read-only</strong> — the clone only reads from production.</li>
+<li><strong>Network access</strong> — the clone pod needs egress to both source and target
+  databases. Configure NetworkPolicy accordingly.</li>
+</ul>
+<h2 id="how-it-works-under-the-hood">How It Works Under the Hood<a class="headerlink" href="#how-it-works-under-the-hood" title="Permanent link">&para;</a></h2>
+<h3 id="pipeline-checksum-model">Pipeline Checksum Model<a class="headerlink" href="#pipeline-checksum-model" title="Permanent link">&para;</a></h3>
+<p>The lifecycle uses a <strong>checksum chain</strong> to determine which tasks execute and
+which skip. Each task receives an incoming checksum from the previous stage,
+adds its own unique inputs, and produces a task checksum. On completion, that
+checksum is stored in the parent <code>status.lifecycle</code> field and becomes the
+incoming checksum for the next task.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>                     parentUID (stable anchor)
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>                         ↓
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>clone.checksum   = hash(parentUID, &quot;Clone&quot;, command, trigger, scheduleTick, source, excludes, postCloneSQL, cloneImage, targetImage)
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>                         ↓ (stored in parent status on completion)
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>migrate.checksum = hash(clone.status.checksum, &quot;Migrate&quot;, command, trigger, image)
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a>                         ↓ (stored in parent status on completion)
+<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a>rotate.checksum  = hash(migrate.status.checksum, &quot;Rotate&quot;, command, trigger, image, secretKey, secretKeyFrom, previousSecretKey, previousSecretKeyFrom)
+<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>                         ↓ (stored in parent status on completion)
+<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a>init.checksum    = hash(rotate.status.checksum, &quot;Init&quot;, command, trigger, image, configChecksum)
+</code></pre></div>
+<p><strong>The universal rule:</strong> a task executes when its computed checksum differs from
+the completed checksum stored in parent status. If they match, the task skips.</p>
+<p><strong>Upstream propagation is automatic:</strong> when clone re-runs (e.g., trigger
+changed), its status checksum changes. That new value flows into migrate's
+checksum computation, making it differ from its stored value — so migrate
+re-runs too. The chain continues transitively through rotate to init.</p>
+<p><strong>Isolation by design:</strong> each task watches only its own relevant inputs.
+Migrate is image/schema-version driven and intentionally ignores feature/config
+changes — a config tweak does not re-run migrations. Init is the
+config-sensitive task: rendered <code>superset_config.py</code> changes propagate here.
+Clone tracks both the source connection identity and the <em>target</em> Superset
+image, so a staging image change (including a downgrade) triggers a fresh clone
+before migrations re-run. Rotate fires on secret-key transitions.</p>
+<p><strong>What checksums do NOT cover:</strong> checksums hash <em>task-semantic</em> inputs only.
+Pod-level fields like resource requests/limits, node selectors, tolerations,
+affinity, and other <code>podTemplate</code> knobs are not part of the task checksum and
+do not by themselves trigger a re-run. Such changes apply on the next execution
+that <em>is</em> triggered by a semantic input change. This is intentional: a pure
+scheduling tweak should not, for example, re-run a destructive <code>clone</code>.</p>
+<h3 id="why-jobs">Why Jobs<a class="headerlink" href="#why-jobs" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Idempotent creation</strong> — Each task uses a deterministic Job name, so repeated
+  reconciles cannot create duplicate clone/migrate/init executions.</li>
+<li><strong>Controlled retries</strong> — Jobs use <code>backoffLimit: 0</code>; the operator decides when
+  and how to retry with configurable max attempts and exponential backoff.</li>
+<li><strong>Durable checkpoints</strong> — Task completion is stored on the parent status
+  before the operator advances to the next task or deletes completed Jobs.</li>
+</ul>
+<h3 id="job-state-machine">Job State Machine<a class="headerlink" href="#job-state-machine" title="Permanent link">&para;</a></h3>
+<p>Task Jobs transition through these states:</p>
+<ul>
+<li><strong>Pending</strong> — No Job exists yet. The operator creates one.</li>
+<li><strong>Running</strong> — Job is executing. If it exceeds the timeout, Kubernetes marks the Job failed through <code>activeDeadlineSeconds</code>.</li>
+<li><strong>Succeeded</strong> → <strong>Complete</strong> — Task is done; the next task (or components) can proceed.</li>
+<li><strong>Failed</strong> — If <code>attempts &lt; maxRetries</code>, the operator waits for exponential backoff, deletes the failed Job, and creates a replacement. If <code>attempts &gt;= maxRetries</code>, the task is permanently failed.</li>
+</ul>
+<h3 id="job-naming-and-discovery">Job Naming and Discovery<a class="headerlink" href="#job-naming-and-discovery" title="Permanent link">&para;</a></h3>
+<p>Jobs use deterministic names (<code>{parent}-{task}</code>, e.g. <code>my-superset-migrate</code>).
+The operator reads Jobs by name and also labels them with
+<code>superset.apache.org/instance</code> and <code>superset.apache.org/init-task</code> for querying.</p>
+<h3 id="task-job-pod-spec">Task Job Pod Spec<a class="headerlink" href="#task-job-pod-spec" title="Permanent link">&para;</a></h3>
+<p>Task Job Pods inherit scheduling, security, volumes, and env from the top-level
+<code>podTemplate</code>, just like other components. Key fields:</p>
+<ul>
+<li><strong>Image</strong>: From <code>spec.image</code></li>
+<li><strong>Command</strong>: From <code>spec.lifecycle.migrate.command</code> or <code>spec.lifecycle.init.command</code> (defaults: <code>superset db upgrade</code> and <code>superset init</code>)</li>
+<li><strong>Config</strong>: Mounted from the task ConfigMap (<code>{parent}-{task}-config</code>)</li>
+<li><strong>Env vars</strong>: Database credentials, secret key (via plain env vars in dev mode, or <code>valueFrom.secretKeyRef</code> when <code>*From</code> fields are used)</li>
+<li><strong>Resources</strong>: From <code>spec.lifecycle.podTemplate.container.resources</code> if set</li>
+<li><strong>Service account</strong>: Inherited from parent spec</li>
+<li><strong>Restart policy</strong>: Always <code>Never</code> — the operator handles retries</li>
+</ul>
+<h2 id="status-reporting">Status Reporting<a class="headerlink" href="#status-reporting" title="Permanent link">&para;</a></h2>
+<p>Lifecycle task progress is tracked per-task in the parent status:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="nt">status</span><span class="p">:</span>
+<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">  </span><span class="nt">lifecycle</span><span class="p">:</span>
+<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="w">    </span><span class="nt">phase</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Complete</span><span class="w">        </span><span class="c1"># Cloning | Draining | Migrating | Rotating | Initializing | Restoring | Complete | Blocked | AwaitingApproval</span>
+<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="w">    </span><span class="nt">clone</span><span class="p">:</span>
+<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="w">      </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Complete</span><span class="w">      </span><span class="c1"># Pending | Running | Complete | Failed (only present when clone is enabled)</span>
+<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="w">      </span><span class="nt">attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="w">    </span><span class="nt">migrate</span><span class="p">:</span>
+<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a><span class="w">      </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Complete</span><span class="w">      </span><span class="c1"># Pending | Running | Complete | Failed</span>
+<a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a><span class="w">      </span><span class="nt">startedAt</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2026-03-16T10:00:00Z&quot;</span>
+<a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a><span class="w">      </span><span class="nt">completedAt</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2026-03-16T10:00:12Z&quot;</span>
+<a id="__codelineno-21-11" name="__codelineno-21-11" href="#__codelineno-21-11"></a><span class="w">      </span><span class="nt">attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-21-12" name="__codelineno-21-12" href="#__codelineno-21-12"></a><span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apache/superset:latest</span>
+<a id="__codelineno-21-13" name="__codelineno-21-13" href="#__codelineno-21-13"></a><span class="w">    </span><span class="nt">init</span><span class="p">:</span>
+<a id="__codelineno-21-14" name="__codelineno-21-14" href="#__codelineno-21-14"></a><span class="w">      </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Complete</span>
+<a id="__codelineno-21-15" name="__codelineno-21-15" href="#__codelineno-21-15"></a><span class="w">      </span><span class="nt">startedAt</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2026-03-16T10:00:13Z&quot;</span>
+<a id="__codelineno-21-16" name="__codelineno-21-16" href="#__codelineno-21-16"></a><span class="w">      </span><span class="nt">completedAt</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2026-03-16T10:00:22Z&quot;</span>
+<a id="__codelineno-21-17" name="__codelineno-21-17" href="#__codelineno-21-17"></a><span class="w">      </span><span class="nt">attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-21-18" name="__codelineno-21-18" href="#__codelineno-21-18"></a><span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apache/superset:latest</span>
+</code></pre></div>
+<p>Task Job names are deterministic: <code>{parentName}-{taskType}</code> (e.g. <code>my-superset-migrate</code>). Inspect the Job directly with <code>kubectl get job my-superset-migrate</code>.</p>
+<p><strong>Parent phase values related to lifecycle:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Initializing</code></td>
+<td>First deployment — lifecycle tasks running for the first time</td>
+</tr>
+<tr>
+<td><code>Upgrading</code></td>
+<td>Image change detected — lifecycle tasks running against new version</td>
+</tr>
+<tr>
+<td><code>Blocked</code></td>
+<td>Downgrade detected — lifecycle tasks will not run (manual intervention required)</td>
+</tr>
+<tr>
+<td><code>AwaitingApproval</code></td>
+<td>Supervised upgrade mode — waiting for the target-bound approval annotation before proceeding</td>
+</tr>
+</tbody>
+</table>
+<p>Drain progress appears in the <code>Lifecycle</code> column and
+<code>status.lifecycle.phase=Draining</code>, while the top-level phase remains
+<code>Initializing</code> or <code>Upgrading</code>.</p>
+<p>After lifecycle tasks finish, <code>status.lifecycle.phase=Restoring</code> while the
+operator recreates component workloads and waits for them to become ready. It
+switches to <code>Complete</code> once the enabled components are available.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "navigation.sections", "navigation.expand", "navigation.top", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="https://unpkg.com/mermaid@11/dist/mermaid.min.js"></script>
+      
+    
+  </body>
+</html>
