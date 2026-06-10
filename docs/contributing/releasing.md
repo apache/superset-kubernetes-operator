@@ -119,7 +119,7 @@ Before creating the first RC for a minor release, run or verify:
 
 ## Reviewing the Changelog
 
-Contributors add bullets to `## [Unreleased]` in
+Contributors add bullets to `## Unreleased` in
 [`docs/reference/releases.md`](../reference/releases.md) as PRs land (see the
 [changelog convention](development-guidelines.md#changelog-entry)). Before
 tagging the RC, the release manager does one review pass to make sure the
@@ -136,10 +136,9 @@ section accurately reflects the release:
 4. Group bullets under the standard Keep a Changelog subheadings — `Added`,
    `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security` — dropping any
    that end up empty.
-5. Rename the section header from `## [Unreleased]` to `## [<version>]` and add
-   a fresh empty `## [Unreleased]` above it. Add the final release date after
-   the vote passes and the release has been promoted. Update the comparison
-   links at the bottom of the file.
+5. Rename the section header from `## Unreleased` to `## <version>` and add
+   a fresh empty `## Unreleased` above it. Add the final release date after
+   the vote passes and the release has been promoted (`## <version> - <date>`).
 
 Two flows depending on whether the minor release branch already exists:
 
@@ -190,9 +189,9 @@ A release candidate therefore needs three artifacts staged on
 
 | Artifact | Filename pattern | Notes |
 |---|---|---|
-| Source archive | `apache-superset-kubernetes-operator-<version>-rc<n>-source.tar.gz` | A `git archive` of the RC tag, prefixed with the project directory. |
-| Detached PGP signature | `apache-superset-kubernetes-operator-<version>-rc<n>-source.tar.gz.asc` | Generated with a key in [`KEYS`](https://dist.apache.org/repos/dist/release/superset/KEYS). |
-| SHA-512 checksum | `apache-superset-kubernetes-operator-<version>-rc<n>-source.tar.gz.sha512` | `shasum -a 512` output, with a bare filename so verifiers can run `shasum -c` after a plain download. |
+| Source archive | `apache-superset-kubernetes-operator-<version>-rc<n>.tar.gz` | A `git archive` of the RC tag, prefixed with the project directory. |
+| Detached PGP signature | `apache-superset-kubernetes-operator-<version>-rc<n>.tar.gz.asc` | Generated with a key in [`KEYS`](https://dist.apache.org/repos/dist/release/superset/KEYS). |
+| SHA-512 checksum | `apache-superset-kubernetes-operator-<version>-rc<n>.tar.gz.sha512` | `shasum -a 512` output, with a bare filename so verifiers can run `shasum -c` after a plain download. |
 
 ### Pre-requisites for the release manager
 
@@ -219,7 +218,7 @@ has an `@apache.org` UID:
 
 ```sh
 scripts/release-source.sh
-# → dist/0.2.0-rc1/apache-superset-kubernetes-operator-0.2.0-rc1-source.tar.gz{,.asc,.sha512}
+# → dist/0.2.0-rc1/apache-superset-kubernetes-operator-0.2.0-rc1.tar.gz{,.asc,.sha512}
 ```
 
 Pass `--gpg-key <id>` to pick a specific signing key, and `--out-dir <path>` to
@@ -241,7 +240,7 @@ write the artifacts somewhere other than `dist/<version>-rc<n>/`.
 ```sh
 cd ~/asf/dev-superset
 mkdir kubernetes-operator-${VERSION}-rc${RC}
-cp /path/to/dist/${VERSION}-rc${RC}/apache-superset-kubernetes-operator-${VERSION}-rc${RC}-source.tar.gz{,.asc,.sha512} \
+cp /path/to/dist/${VERSION}-rc${RC}/apache-superset-kubernetes-operator-${VERSION}-rc${RC}.tar.gz{,.asc,.sha512} \
    kubernetes-operator-${VERSION}-rc${RC}/
 svn add kubernetes-operator-${VERSION}-rc${RC}
 svn commit -m "Stage Superset Kubernetes Operator ${VERSION}-rc${RC}"
@@ -288,8 +287,9 @@ git push origin v0.2.0
 The release workflow pushes the `0.2.0` and `latest` images to GHCR.
 
 After the final tag is pushed, add the final release date to
-`docs/reference/releases.md` in a normal follow-up commit and merge or
-cherry-pick that release metadata back to `main`.
+`docs/reference/releases.md` on `main` only (the docs site builds from `main`).
+Leave the release-branch changelog undated so it continues to match the voted
+source.
 
 After the binary release workflow finishes, promote the source artifacts.
 `release-source.sh` sees the final tag on `HEAD`, requires a matching RC tag on
@@ -298,19 +298,14 @@ stays valid), and regenerates the SHA-512 file under the final filename:
 
 ```sh
 scripts/release-source.sh
-# → dist/0.2.0/apache-superset-kubernetes-operator-0.2.0-source.tar.gz{,.asc,.sha512}
+# → dist/0.2.0/apache-superset-kubernetes-operator-0.2.0.tar.gz{,.asc,.sha512}
 
 cd ~/asf/release-superset
 mkdir kubernetes-operator-0.2.0
-cp /path/to/dist/0.2.0/apache-superset-kubernetes-operator-0.2.0-source.tar.gz{,.asc,.sha512} \
+cp /path/to/dist/0.2.0/apache-superset-kubernetes-operator-0.2.0.tar.gz{,.asc,.sha512} \
    kubernetes-operator-0.2.0/
 svn add kubernetes-operator-0.2.0
 svn commit -m "Release Apache Superset Kubernetes Operator 0.2.0"
-
-# Clean up the dev/ staging area (and any earlier RCs).
-cd ~/asf/dev-superset
-svn rm kubernetes-operator-0.2.0-rc*
-svn commit -m "Clean up Superset Kubernetes Operator 0.2.0 release candidates"
 ```
 
 Generate the release announcement after the artifacts have propagated to the ASF

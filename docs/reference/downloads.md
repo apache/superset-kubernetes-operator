@@ -20,11 +20,11 @@ under the License.
 # Downloads
 
 !!! note
-    No final release has been cut yet. Development builds (`dev` /
-    `sha-<commit>` image tags and the `0.0.0-dev` Helm chart) are always available,
-    and release candidates (`<version>-rc<N>` tags) may be published for testing
-    ahead of a vote. Signed final artifacts are published once a release passes
-    the ASF vote.
+    The **signed source archive is the official Apache release**. The operator
+    image and Helm chart are convenience binaries published to the GitHub
+    Container Registry: `dev` / `sha-<commit>` tags and the `0.0.0-dev` chart on
+    every merge to `main`, `<version>-rc<N>` tags for release candidates, and
+    `<version>` + `latest` for final releases.
 
 ## Source Release
 
@@ -32,8 +32,28 @@ Per the [ASF Release Policy](https://www.apache.org/legal/release-policy.html),
 the **signed source archive is the official Apache release**; the operator image
 and Helm chart below are convenience binaries built from it.
 
-Source archives, signatures, and checksums — along with verification
-instructions — will be published here once the first release is staged.
+Signed source archives, detached PGP signatures, and SHA-512 checksums are
+published to the ASF distribution site under
+`https://downloads.apache.org/superset/kubernetes-operator-<version>/`, for
+example `kubernetes-operator-0.1.0/`:
+
+| File | Description |
+|------|-------------|
+| `apache-superset-kubernetes-operator-<version>.tar.gz` | Source archive (a `git archive` of the release tag). |
+| `apache-superset-kubernetes-operator-<version>.tar.gz.asc` | Detached PGP signature. |
+| `apache-superset-kubernetes-operator-<version>.tar.gz.sha512` | SHA-512 checksum. |
+
+### Verifying the Source Release
+
+```bash
+VERSION=0.1.0
+BASE=https://downloads.apache.org/superset/kubernetes-operator-${VERSION}
+curl -O ${BASE}/apache-superset-kubernetes-operator-${VERSION}.tar.gz{,.asc,.sha512}
+curl -O https://downloads.apache.org/superset/KEYS
+gpg --import KEYS
+gpg --verify apache-superset-kubernetes-operator-${VERSION}.tar.gz{.asc,}
+shasum -a 512 -c apache-superset-kubernetes-operator-${VERSION}.tar.gz.sha512
+```
 
 ## Operator Image
 

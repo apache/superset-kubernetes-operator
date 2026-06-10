@@ -24,7 +24,7 @@
 #
 # In RC mode the script:
 #   1. Archives the v<version>-rc<n> git tag into
-#      apache-superset-kubernetes-operator-<version>-rc<n>-source.tar.gz
+#      apache-superset-kubernetes-operator-<version>-rc<n>.tar.gz
 #   2. Detached-signs it with the newest usable local apache.org secret key
 #      (override with --gpg-key <id>)
 #   3. Writes a SHA-512 checksum file with a *bare* filename so verifiers can
@@ -236,7 +236,7 @@ case "$MODE" in
     [[ "$RC" =~ ^[1-9][0-9]*$ ]] || die "rc must be a positive integer"
 
     TAG="v${VERSION}-rc${RC}"
-    BASE="${PROJECT}-${VERSION}-rc${RC}-source.tar.gz"
+    BASE="${PROJECT}-${VERSION}-rc${RC}.tar.gz"
     : "${OUT_DIR:=dist/${VERSION}-rc${RC}}"
     mkdir -p "$OUT_DIR"
     OUT="${OUT_DIR}/${BASE}"
@@ -282,14 +282,17 @@ case "$MODE" in
     mkdir -p "$OUT_DIR"
 
     # Locate the RC tarball and derive the final filename from the version arg.
+    # The glob matches both the current naming (`-rc<n>.tar.gz`) and the legacy
+    # `-rc<n>-source.tar.gz` used before the `-source` suffix was dropped, so a
+    # final can still be promoted from a pre-existing RC artifact.
     RC_TARBALL=$(find "$RC_DIR" -maxdepth 1 -type f \
-                  -name "${PROJECT}-${VERSION}-rc*-source.tar.gz" | head -1)
+                  -name "${PROJECT}-${VERSION}-rc*.tar.gz" | head -1)
     [[ -n "$RC_TARBALL" ]] || die "no RC tarball found in ${RC_DIR}"
     RC_BASE=$(basename "$RC_TARBALL")
     [[ -f "${RC_TARBALL}.asc" ]]    || die "missing detached signature: ${RC_BASE}.asc"
     [[ -f "${RC_TARBALL}.sha512" ]] || die "missing checksum file: ${RC_BASE}.sha512"
 
-    FINAL_BASE="${PROJECT}-${VERSION}-source.tar.gz"
+    FINAL_BASE="${PROJECT}-${VERSION}.tar.gz"
     FINAL_OUT="${OUT_DIR}/${FINAL_BASE}"
 
     info "Copying ${RC_BASE} → ${FINAL_BASE} (bytes preserved)"

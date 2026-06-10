@@ -43,7 +43,8 @@ DISPLAY_NAME="Apache Superset Kubernetes Operator"
 DIST_DEV_BASE="https://dist.apache.org/repos/dist/dev/superset"
 DIST_RELEASE_BASE="https://dist.apache.org/repos/dist/release/superset"
 GITHUB_BASE="https://github.com/apache/superset-kubernetes-operator"
-DOWNLOADS_BASE="https://superset.apache.org/downloads/"
+DOCS_BASE="https://apache.github.io/superset-kubernetes-operator"
+DOWNLOADS_URL="${DOCS_BASE}/reference/downloads/"
 
 version_re() {
   printf "%s" "$1" | sed 's/[.]/\\./g'
@@ -102,12 +103,12 @@ PGP keys used for signing are listed in:
 To verify the candidate (Go 1.26+, Helm, and Apache Rat must be installed
 locally; make will fetch additional Go modules and tools on first use):
 
-  curl --remote-name-all ${DIST_DEV_BASE}/kubernetes-operator-${VERSION}-rc${RC}/${PROJECT}-${VERSION}-rc${RC}-source.tar.gz{,.asc,.sha512}
+  curl --remote-name-all ${DIST_DEV_BASE}/kubernetes-operator-${VERSION}-rc${RC}/${PROJECT}-${VERSION}-rc${RC}.tar.gz{,.asc,.sha512}
   curl -O ${DIST_RELEASE_BASE}/KEYS
   gpg --import KEYS
-  gpg --verify ${PROJECT}-${VERSION}-rc${RC}-source.tar.gz{.asc,}
-  shasum -a 512 -c ${PROJECT}-${VERSION}-rc${RC}-source.tar.gz.sha512
-  tar -xzf ${PROJECT}-${VERSION}-rc${RC}-source.tar.gz
+  gpg --verify ${PROJECT}-${VERSION}-rc${RC}.tar.gz{.asc,}
+  shasum -a 512 -c ${PROJECT}-${VERSION}-rc${RC}.tar.gz.sha512
+  tar -xzf ${PROJECT}-${VERSION}-rc${RC}.tar.gz
   cd ${PROJECT}-${VERSION}/
   make test-unit helm-lint check-license
 
@@ -170,10 +171,10 @@ The signed source release is available at:
   ${DIST_RELEASE_BASE}/kubernetes-operator-${VERSION}/
 
 Downloads and verification instructions are available at:
-  ${DOWNLOADS_BASE}
+  ${DOWNLOADS_URL}
 
 Release notes are available at:
-  ${GITHUB_BASE}/blob/v${VERSION}/docs/reference/releases.md
+  ${DOCS_BASE}/reference/releases/
 
 Thanks to everyone who contributed to this release.
 

@@ -71,8 +71,8 @@ command -v helm >/dev/null 2>&1 || die "helm is required but not installed"
 [[ -f Makefile ]] || die "must be run from the repository root"
 CHANGELOG_FILE="docs/reference/releases.md"
 [[ -f "$CHANGELOG_FILE" ]] || die "release notes file is missing: ${CHANGELOG_FILE}"
-grep -Eq "^##[[:space:]]+\\[${VERSION//./\\.}\\]([[:space:]]|$)" "$CHANGELOG_FILE" \
-  || die "${CHANGELOG_FILE} must contain a release heading for ${VERSION} (expected: ## [${VERSION}])"
+grep -Eq "^##[[:space:]]+${VERSION//./\\.}([[:space:]]|$)" "$CHANGELOG_FILE" \
+  || die "${CHANGELOG_FILE} must contain a release heading for ${VERSION} (expected: ## ${VERSION})"
 
 if [[ -n "$(git status --porcelain)" ]]; then
   die "working tree is not clean — commit or stash changes first"

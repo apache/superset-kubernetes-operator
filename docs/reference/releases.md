@@ -22,9 +22,9 @@ under the License.
 This page tracks notable changes in Apache Superset Kubernetes Operator
 releases.
 
-## [Unreleased]
+## Unreleased
 
-## [0.1.0]
+## 0.1.0 - 2026-06-10
 
 ### Added
 
@@ -43,6 +43,3 @@ releases.
 - **Task failure messages may include credential fragments.** Lifecycle task
   failure output is truncated into `status` and could contain fragments of task
   stdout, including credentials. See [security.md](security.md).
-
-[Unreleased]: https://github.com/apache/superset-kubernetes-operator/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/apache/superset-kubernetes-operator/releases/tag/v0.1.0

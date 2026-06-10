@@ -560,7 +560,7 @@ The PR template (`PULL_REQUEST_TEMPLATE.md`) pre-fills these sections.
 
 ### Changelog entry
 
-Add a bullet under `## [Unreleased]` in
+Add a bullet under `## Unreleased` in
 [`docs/reference/releases.md`](../reference/releases.md)
 for noteworthy changes — new features,
 new CRD fields, behavior changes, breaking changes, deprecations, and
@@ -574,7 +574,7 @@ create the subheading on first use. Lead each bullet with the user-facing
 effect, not the implementation:
 
 ```markdown
-## [Unreleased]
+## Unreleased
 
 ### Added
 - New `webServer.gunicorn.keepAlive` field for tuning Gunicorn keepalive timeouts.
@@ -584,7 +584,7 @@ effect, not the implementation:
   rejects credentials; the parent surfaces an `AuthenticationFailed` reason.
 ```
 
-The release manager does a final review pass over `## [Unreleased]` before
+The release manager does a final review pass over `## Unreleased` before
 tagging — see [Releasing](releasing.md#reviewing-the-changelog) — so it's
 fine to err on the side of including an entry; missing or duplicate ones can
 be cleaned up there.
