@@ -157,6 +157,7 @@ kind delete cluster --name superset
 | `make helm-sync-crds` | Sync generated CRDs into the Helm chart. |
 | `make helm` | Sync CRDs into Helm chart and package it. The chart `appVersion` is derived from VERSION at package time. |
 | `make helm-lint` | Lint the Helm chart (syncs CRDs first). |
+| `make verify-install-image-defaults` | Verify Helm/Kustomize operator image defaults stay release-managed. |
 
 ### Development
 

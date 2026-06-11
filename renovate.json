@@ -20,6 +20,12 @@
       "prBodyNotes": [
         ":warning: After bumping kind, run `make sync-supported-versions && make codegen` and commit the result to update `.github/supported-k8s.json` (and the generated docs). The script recomputes both `supported` (newest two kind-published minors) and `next` (newest Kubernetes release not yet covered by kind). The `Verify supported-versions table` CI check will fail until this is done."
       ]
+    },
+    {
+      "description": "The operator self-image in source install manifests is a release-managed placeholder, not a dependency Renovate should pin.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/apache/superset-kubernetes-operator"],
+      "enabled": false
     }
   ],
   "customManagers": [
