@@ -173,10 +173,6 @@ helm: manifests helm-sync-crds ## Sync CRDs into Helm chart and package it. The 
 helm-lint: helm-sync-crds ## Lint the Helm chart (syncs CRDs first).
 	helm lint $(HELM_CHART_DIR)
 
-.PHONY: verify-install-image-defaults
-verify-install-image-defaults: ## Verify Helm/Kustomize operator image defaults stay release-managed.
-	go test ./internal/packaging -run '^TestInstallImageDefaults$$'
-
 ##@ Development
 
 .PHONY: codegen

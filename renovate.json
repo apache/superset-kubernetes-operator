@@ -23,8 +23,11 @@
     },
     {
       "description": "The operator self-image in source install manifests is a release-managed placeholder, not a dependency Renovate should pin.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["ghcr.io/apache/superset-kubernetes-operator"],
+      "matchFileNames": [
+        "charts/superset-operator/values.yaml",
+        "config/manager/kustomization.yaml",
+        "config/manager/manager.yaml"
+      ],
       "enabled": false
     }
   ],
