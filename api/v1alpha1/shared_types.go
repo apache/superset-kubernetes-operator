@@ -78,7 +78,7 @@ type ImageOverrideSpec struct {
 // has no Superset-specific repository default — the operator selects a
 // context-appropriate default at reconcile time when fields are omitted (e.g.,
 // `nginx:alpine` for the maintenance page, `postgres:17-alpine` /
-// `mysql:8-alpine` for the clone Job). Use this type for non-Superset images.
+// `mysql:8-alpine` for the seed Job). Use this type for non-Superset images.
 type ContainerImageSpec struct {
 	// Container image repository.
 	// +optional

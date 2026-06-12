@@ -107,18 +107,18 @@ func TestTaskRetentionPolicyValue(t *testing.T) {
 		assert.Equal(t, retentionDelete, r.taskRetentionPolicyValue(superset, taskTypeInit))
 	})
 
-	t.Run("clone-specific policy overrides lifecycle-level", func(t *testing.T) {
+	t.Run("seed-specific policy overrides lifecycle-level", func(t *testing.T) {
 		lifecyclePolicy := retentionRetain
-		clonePolicy := retentionDelete
+		seedPolicy := retentionDelete
 		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{
 				PodRetention: &supersetv1alpha1.PodRetentionSpec{Policy: &lifecyclePolicy},
-				Clone: &supersetv1alpha1.CloneTaskSpec{
-					PodRetention: &supersetv1alpha1.PodRetentionSpec{Policy: &clonePolicy},
+				Seed: &supersetv1alpha1.SeedTaskSpec{
+					PodRetention: &supersetv1alpha1.PodRetentionSpec{Policy: &seedPolicy},
 				},
 			},
 		}}
-		assert.Equal(t, retentionDelete, r.taskRetentionPolicyValue(superset, taskTypeClone))
+		assert.Equal(t, retentionDelete, r.taskRetentionPolicyValue(superset, taskTypeSeed))
 	})
 }
 
@@ -148,7 +148,7 @@ func TestSuffixForTaskType(t *testing.T) {
 		taskType string
 		want     string
 	}{
-		{taskTypeClone, suffixClone},
+		{taskTypeSeed, suffixSeed},
 		{taskTypeMigrate, suffixMigrate},
 		{taskTypeRotate, suffixRotate},
 		{taskTypeInit, suffixInit},

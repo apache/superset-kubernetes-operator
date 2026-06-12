@@ -65,12 +65,12 @@ func TestConvertComponent(t *testing.T) {
 	})
 }
 
-func TestConvertCloneComponent(t *testing.T) {
-	cmd := []string{"/bin/sh", "-c", "echo clone"}
+func TestConvertSeedComponent(t *testing.T) {
+	cmd := []string{"/bin/sh", "-c", "echo seed"}
 
 	t.Run("nil pod template builds a container-only template", func(t *testing.T) {
-		clone := &supersetv1alpha1.CloneTaskSpec{}
-		comp := convertCloneComponent(clone, cmd)
+		seed := &supersetv1alpha1.SeedTaskSpec{}
+		comp := convertSeedComponent(seed, cmd)
 		require.NotNil(t, comp)
 		require.NotNil(t, comp.PodTemplate)
 		require.NotNil(t, comp.PodTemplate.Container)
@@ -79,23 +79,23 @@ func TestConvertCloneComponent(t *testing.T) {
 
 	t.Run("existing pod template is copied, command injected", func(t *testing.T) {
 		origCmd := []string{"old"}
-		clone := &supersetv1alpha1.CloneTaskSpec{
+		seed := &supersetv1alpha1.SeedTaskSpec{
 			PodTemplate: &supersetv1alpha1.PodTemplate{
 				Container: &supersetv1alpha1.ContainerTemplate{Command: origCmd},
 			},
 		}
-		comp := convertCloneComponent(clone, cmd)
+		comp := convertSeedComponent(seed, cmd)
 		assert.Equal(t, cmd, comp.PodTemplate.Container.Command)
 		// Source spec must not be mutated (copy semantics).
-		assert.Equal(t, origCmd, clone.PodTemplate.Container.Command)
-		assert.NotSame(t, clone.PodTemplate, comp.PodTemplate)
+		assert.Equal(t, origCmd, seed.PodTemplate.Container.Command)
+		assert.NotSame(t, seed.PodTemplate, comp.PodTemplate)
 	})
 
 	t.Run("pod template without container gets a fresh container", func(t *testing.T) {
-		clone := &supersetv1alpha1.CloneTaskSpec{
+		seed := &supersetv1alpha1.SeedTaskSpec{
 			PodTemplate: &supersetv1alpha1.PodTemplate{},
 		}
-		comp := convertCloneComponent(clone, cmd)
+		comp := convertSeedComponent(seed, cmd)
 		require.NotNil(t, comp.PodTemplate.Container)
 		assert.Equal(t, cmd, comp.PodTemplate.Container.Command)
 	})

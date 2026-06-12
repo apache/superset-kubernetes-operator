@@ -86,13 +86,13 @@ The operator enforces a strict separation between hardened modes (Production
 and Staging) and Development:
 
 - **Production/Staging** (`environment: Production` is the default; `Staging`
-  keeps the same secret rules but allows the destructive `clone` task):
+  keeps the same secret rules but allows the destructive `seed` task):
   Inline `secretKey`, `previousSecretKey`, `metastore.uri`,
   `metastore.password`, `valkey.password`, websocket `config`, and
-  `lifecycle.clone.source.password` are rejected by CRD CEL validation rules.
+  `lifecycle.seed.source.password` are rejected by CRD CEL validation rules.
   Users reference secrets via `secretKeyFrom`, `previousSecretKeyFrom`,
   `metastore.uriFrom`, `metastore.passwordFrom`, `valkey.passwordFrom`,
-  websocket `configFrom`, and `lifecycle.clone.source.passwordFrom` — the
+  websocket `configFrom`, and `lifecycle.seed.source.passwordFrom` — the
   operator wires each of these as `valueFrom.secretKeyRef` env vars (or, for
   websocket `configFrom`, mounts the referenced Secret key as a file).
 - **Development** (`environment: Development`): Inline secrets are allowed for
@@ -115,7 +115,7 @@ In Staging and Production modes, secrets follow this path:
    credentials
 2. User references the Secret via `secretKeyFrom`, `previousSecretKeyFrom`,
    `metastore.uriFrom`, `metastore.passwordFrom`, `valkey.passwordFrom`,
-   `lifecycle.clone.source.passwordFrom`, or `websocketServer.configFrom` on
+   `lifecycle.seed.source.passwordFrom`, or `websocketServer.configFrom` on
    the Superset CR. For env-var references the operator injects
    `valueFrom.secretKeyRef`; for `websocketServer.configFrom` the operator
    mounts the referenced Secret key as a file. In every case the secret value
@@ -138,7 +138,7 @@ to operator-managed secret references.
 **Scope of this guarantee:** The above applies to operator-managed secret
 references (`secretKeyFrom`, `previousSecretKeyFrom`, `metastore.uriFrom`,
 `metastore.passwordFrom`, `valkey.passwordFrom`,
-`lifecycle.clone.source.passwordFrom`, and `websocketServer.configFrom`).
+`lifecycle.seed.source.passwordFrom`, and `websocketServer.configFrom`).
 User-authored fields — raw Python in `spec.config`, component-level `config`,
 `bootstrapScript`, and `podTemplate.container.env` — are trusted input and may
 contain arbitrary values including secrets. Users with read access to Superset
@@ -173,7 +173,7 @@ Key rules:
 - **Production/Staging secret rejection:** Inline `secretKey`,
   `metastore.uri`, `metastore.password`, `valkey.password`, and websocket
   `config` are rejected outside Development mode
-- **Staging clone boundary:** `lifecycle.clone` is allowed only in Development
+- **Staging seed boundary:** `lifecycle.seed` is allowed only in Development
   or Staging because it performs a destructive target database drop
 - **Mutual exclusivity:** `secretKey`/`secretKeyFrom`, metastore URI vs
   structured fields, Valkey password inline vs Secret reference, websocket
@@ -451,11 +451,11 @@ one of these conditions materially worse:
 - **Arbitrary Python via `spec.config`** — this field accepts raw Python by
   design; CR creators can already deploy arbitrary containers, so Python
   configuration does not expand the attack surface
-- **Lifecycle clone task command is trusted input** — the `lifecycle.clone`
+- **Lifecycle seed task command is trusted input** — the `lifecycle.seed`
   task runs whatever image and command the CR author configures, so shell
   and SQL content embedded in that command is trusted input. CR authors
-  already deploy arbitrary containers, so the clone task does not expand the
-  attack surface. Review clone commands as part of CR review, not as a
+  already deploy arbitrary containers, so the seed task does not expand the
+  attack surface. Review seed commands as part of CR review, not as a
   separable vulnerability class.
 - **Container image vulnerabilities** — the operator does not control the
   contents of the Superset container image
