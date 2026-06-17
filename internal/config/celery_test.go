@@ -98,3 +98,22 @@ func TestResolveCelery_CommandWithOptionalFlags(t *testing.T) {
 	assert.Contains(t, cmd, "--soft-time-limit=300")
 	assert.Contains(t, cmd, "--time-limit=600")
 }
+
+// TestAppendIntFlag documents that appendIntFlag formats and appends a flag only
+// when the value is positive, leaving the command untouched otherwise.
+func TestAppendIntFlag(t *testing.T) {
+	t.Run("positive value appends formatted flag", func(t *testing.T) {
+		got := appendIntFlag([]string{"worker"}, "--time-limit=%d", 600)
+		assert.Equal(t, []string{"worker", "--time-limit=600"}, got)
+	})
+
+	t.Run("zero value is a no-op", func(t *testing.T) {
+		got := appendIntFlag([]string{"worker"}, "--time-limit=%d", 0)
+		assert.Equal(t, []string{"worker"}, got)
+	})
+
+	t.Run("negative value is a no-op", func(t *testing.T) {
+		got := appendIntFlag([]string{"worker"}, "--time-limit=%d", -1)
+		assert.Equal(t, []string{"worker"}, got)
+	})
+}

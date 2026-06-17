@@ -19,6 +19,7 @@ limitations under the License.
 package resolution
 
 import (
+	"reflect"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -531,6 +532,94 @@ func TestMergeDeploymentTemplate(t *testing.T) {
 		got := MergeDeploymentTemplate(&supersetv1alpha1.DeploymentTemplate{}, &supersetv1alpha1.DeploymentTemplate{})
 		if got != nil {
 			t.Errorf("expected nil for empty inputs, got %+v", got)
+		}
+	})
+}
+
+// TestMergeByKey exercises the generic merge directly with a plain struct so the
+// type-agnostic dedup/ordering contract is documented independently of the
+// corev1-typed Merge* wrappers that delegate to it.
+func TestMergeByKey(t *testing.T) {
+	type kv struct {
+		k string
+		v string
+	}
+	key := func(x kv) string { return x.k }
+
+	tests := []struct {
+		name   string
+		slices [][]kv
+		expect []kv
+	}{
+		{
+			name:   "no slices",
+			slices: nil,
+			expect: nil,
+		},
+		{
+			name:   "all empty",
+			slices: [][]kv{nil, {}},
+			expect: nil,
+		},
+		{
+			name:   "single slice preserves order",
+			slices: [][]kv{{{"a", "1"}, {"b", "2"}}},
+			expect: []kv{{"a", "1"}, {"b", "2"}},
+		},
+		{
+			name:   "duplicate within one slice replaces in place",
+			slices: [][]kv{{{"a", "1"}, {"b", "2"}, {"a", "3"}}},
+			expect: []kv{{"a", "3"}, {"b", "2"}},
+		},
+		{
+			name:   "duplicate across slices later wins keeping position",
+			slices: [][]kv{{{"a", "1"}, {"b", "2"}}, {{"a", "9"}}},
+			expect: []kv{{"a", "9"}, {"b", "2"}},
+		},
+		{
+			name:   "distinct keys across slices append in order",
+			slices: [][]kv{{{"a", "1"}}, {{"b", "2"}}, {{"c", "3"}}},
+			expect: []kv{{"a", "1"}, {"b", "2"}, {"c", "3"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := mergeByKey(key, tt.slices...)
+			if !reflect.DeepEqual(got, tt.expect) {
+				t.Errorf("mergeByKey() = %v, want %v", got, tt.expect)
+			}
+		})
+	}
+}
+
+// TestOrEmpty documents that orEmpty returns the input pointer unchanged when
+// non-nil and a fresh pointer to a zero value when nil, for any type.
+func TestOrEmpty(t *testing.T) {
+	t.Run("nil returns non-nil zero value", func(t *testing.T) {
+		got := orEmpty[supersetv1alpha1.PodTemplate](nil)
+		if got == nil {
+			t.Fatal("orEmpty(nil) returned nil pointer")
+		}
+		if !reflect.DeepEqual(*got, supersetv1alpha1.PodTemplate{}) {
+			t.Errorf("orEmpty(nil) = %+v, want zero value", *got)
+		}
+	})
+
+	t.Run("non-nil returns same pointer", func(t *testing.T) {
+		in := &supersetv1alpha1.PodTemplate{Labels: map[string]string{"a": "b"}}
+		if got := orEmpty(in); got != in {
+			t.Errorf("orEmpty(in) returned a different pointer; want identity")
+		}
+	})
+
+	t.Run("generic over other types", func(t *testing.T) {
+		if got := orEmpty[int](nil); got == nil || *got != 0 {
+			t.Errorf("orEmpty[int](nil) = %v, want pointer to 0", got)
+		}
+		n := 42
+		if got := orEmpty(&n); got != &n {
+			t.Errorf("orEmpty(&n) returned a different pointer; want identity")
 		}
 	})
 }

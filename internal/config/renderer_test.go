@@ -466,6 +466,47 @@ func assertContains(t *testing.T, s, substr string) {
 	}
 }
 
+// TestWriteConfigSection documents that writeConfigSection skips empty content
+// and otherwise emits a labeled comment followed by the content with exactly one
+// trailing blank line, regardless of whether the content already ends in "\n".
+func TestWriteConfigSection(t *testing.T) {
+	tests := []struct {
+		name    string
+		label   string
+		content string
+		expect  string
+	}{
+		{
+			name:    "empty content is a no-op",
+			label:   "Base config",
+			content: "",
+			expect:  "",
+		},
+		{
+			name:    "content without trailing newline",
+			label:   "Base config",
+			content: "X = 1",
+			expect:  "# Base config\nX = 1\n\n",
+		},
+		{
+			name:    "content with trailing newline is not double-padded",
+			label:   "Component config",
+			content: "Y = 2\n",
+			expect:  "# Component config\nY = 2\n\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var b strings.Builder
+			writeConfigSection(&b, tt.label, tt.content)
+			if got := b.String(); got != tt.expect {
+				t.Errorf("writeConfigSection() = %q, want %q", got, tt.expect)
+			}
+		})
+	}
+}
+
 func assertNotContains(t *testing.T, s, substr string) {
 	t.Helper()
 	if strings.Contains(s, substr) {
