@@ -330,8 +330,8 @@ func TestDrainIfNeededSkipsWhenOnlyNonDrainInitWillRun(t *testing.T) {
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "6.1.0-dev"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{
-				Clone: &supersetv1alpha1.CloneTaskSpec{
-					Source: supersetv1alpha1.CloneSourceSpec{Host: "postgres", Database: "prod", Username: "superset"},
+				Seed: &supersetv1alpha1.SeedTaskSpec{
+					Source: supersetv1alpha1.SeedSourceSpec{Host: "postgres", Database: "prod", Username: "superset"},
 				},
 			},
 		},
@@ -373,9 +373,9 @@ func completedLifecycleChecksums(r *SupersetReconciler, superset *supersetv1alph
 	checksums := make(map[string]string)
 	incomingChecksum := string(superset.UID)
 
-	cloneCmd := r.buildCloneCommand(superset)
-	checksums[taskTypeClone] = r.computeStepChecksum(incomingChecksum, taskTypeClone, cloneCmd, r.cloneInputs(superset))
-	incomingChecksum = checksums[taskTypeClone]
+	seedCmd := r.buildSeedCommand(superset)
+	checksums[taskTypeSeed] = r.computeStepChecksum(incomingChecksum, taskTypeSeed, seedCmd, r.seedInputs(superset))
+	incomingChecksum = checksums[taskTypeSeed]
 
 	migrateCmd := defaultMigrateCommand(superset)
 	checksums[taskTypeMigrate] = r.computeStepChecksum(incomingChecksum, taskTypeMigrate, migrateCmd, r.migrateInputs(superset))

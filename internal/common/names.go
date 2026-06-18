@@ -41,7 +41,7 @@ const (
 	SuffixMcpServer       = "-mcp-server"       // matches ComponentMcpServer
 	SuffixMaintenancePage = "-maintenance"      // matches ComponentMaintenancePage
 	SuffixInit            = "-init"             // matches ComponentInit
-	SuffixClone           = "-clone"
+	SuffixSeed            = "-seed"
 	SuffixRotate          = "-rotate"
 	SuffixConfig          = "-config"
 	SuffixNetworkPolicy   = "-netpol"
@@ -93,10 +93,11 @@ const (
 	InitTaskInit = "init"
 )
 
-// Clone default images.
+// Database tool images. Used by lifecycle tasks that run native DB clients
+// (seed, backup, restore) and the create-database init container.
 const (
-	CloneImagePostgres = "postgres:17-alpine"
-	CloneImageMySQL    = "mysql:8-alpine"
+	DatabaseToolImagePostgres = "postgres:17-alpine"
+	DatabaseToolImageMySQL    = "mysql:8-alpine"
 )
 
 // Env var names for operator-managed environment variables.
@@ -129,12 +130,30 @@ const (
 	EnvAdminLastName  = "SUPERSET_OPERATOR__ADMIN_LAST_NAME"
 	EnvAdminEmail     = "SUPERSET_OPERATOR__ADMIN_EMAIL"
 
-	// Clone source operator-internal transport vars.
-	EnvCloneSrcHost = "SUPERSET_OPERATOR__CLONE_SRC_HOST"
-	EnvCloneSrcPort = "SUPERSET_OPERATOR__CLONE_SRC_PORT"
-	EnvCloneSrcDB   = "SUPERSET_OPERATOR__CLONE_SRC_DB"
-	EnvCloneSrcUser = "SUPERSET_OPERATOR__CLONE_SRC_USER"
-	EnvCloneSrcPass = "SUPERSET_OPERATOR__CLONE_SRC_PASS"
+	// Seed source operator-internal transport vars.
+	EnvSeedSrcHost = "SUPERSET_OPERATOR__SEED_SRC_HOST"
+	EnvSeedSrcPort = "SUPERSET_OPERATOR__SEED_SRC_PORT"
+	EnvSeedSrcDB   = "SUPERSET_OPERATOR__SEED_SRC_DB"
+	EnvSeedSrcUser = "SUPERSET_OPERATOR__SEED_SRC_USER"
+	EnvSeedSrcPass = "SUPERSET_OPERATOR__SEED_SRC_PASS"
+
+	// Backup/restore operator-internal transport vars. The backup and restore
+	// Jobs reuse the SUPERSET_OPERATOR__DB_* target vars for the metastore
+	// connection; these carry the destination and artifact selection.
+	EnvBackupID          = "SUPERSET_OPERATOR__BACKUP_ID"
+	EnvBackupKeepLast    = "SUPERSET_OPERATOR__BACKUP_KEEP_LAST"
+	EnvBackupVolumePath  = "SUPERSET_OPERATOR__BACKUP_VOLUME_PATH"
+	EnvBackupS3URL       = "SUPERSET_OPERATOR__BACKUP_S3_URL"
+	EnvBackupS3Region    = "SUPERSET_OPERATOR__BACKUP_S3_REGION"
+	EnvBackupS3Endpoint  = "SUPERSET_OPERATOR__BACKUP_S3_ENDPOINT"
+	EnvBackupS3AccessKey = "AWS_ACCESS_KEY_ID"
+	// #nosec G101 -- this is the well-known AWS env var name, not a credential value
+	EnvBackupS3SecretKey = "AWS_SECRET_ACCESS_KEY"
+	// EnvRestoreID names the artifact the restore Job loads. Empty means "latest".
+	EnvRestoreID = "SUPERSET_OPERATOR__RESTORE_ID"
+	// EnvSkipPreRestoreSnapshot, when set to a non-empty value, tells the restore
+	// Job to skip the safety snapshot of the current database before overwriting.
+	EnvSkipPreRestoreSnapshot = "SUPERSET_OPERATOR__SKIP_PRE_RESTORE_SNAPSHOT"
 
 	// Maintenance page content transport vars.
 	EnvMaintenanceTitle   = "SUPERSET_OPERATOR__MAINTENANCE_TITLE"

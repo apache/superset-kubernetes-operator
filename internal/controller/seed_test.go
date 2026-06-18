@@ -37,20 +37,20 @@ import (
 	"github.com/apache/superset-kubernetes-operator/internal/resolution"
 )
 
-// TestBuildCloneScript covers the clone-script builders (buildPostgresCloneScript /
-// buildMySQLCloneScript): base dump+restore pipelines, table and table-data
-// exclusions, single- vs two-pass mysqldump, and postCloneSQL injection.
-func TestBuildCloneScript(t *testing.T) {
+// TestBuildSeedScript covers the seed-script builders (buildPostgresSeedScript /
+// buildMySQLSeedScript): base dump+restore pipelines, table and table-data
+// exclusions, single- vs two-pass mysqldump, and postSeedSQL injection.
+func TestBuildSeedScript(t *testing.T) {
 	t.Run("postgres base", func(t *testing.T) {
-		clone := &supersetv1alpha1.CloneTaskSpec{
-			Source: supersetv1alpha1.CloneSourceSpec{
+		seed := &supersetv1alpha1.SeedTaskSpec{
+			Source: supersetv1alpha1.SeedSourceSpec{
 				Host:     "pg-prod.svc",
 				Database: "superset_prod",
 				Username: "reader",
 			},
 		}
 
-		script := buildPostgresCloneScript(clone)
+		script := buildPostgresSeedScript(seed)
 
 		if !strings.Contains(script, "set -e") {
 			t.Error("expected set -e")
@@ -73,8 +73,8 @@ func TestBuildCloneScript(t *testing.T) {
 	})
 
 	t.Run("postgres exclude tables", func(t *testing.T) {
-		clone := &supersetv1alpha1.CloneTaskSpec{
-			Source: supersetv1alpha1.CloneSourceSpec{
+		seed := &supersetv1alpha1.SeedTaskSpec{
+			Source: supersetv1alpha1.SeedSourceSpec{
 				Host:     "pg-prod.svc",
 				Database: "superset_prod",
 				Username: "reader",
@@ -83,7 +83,7 @@ func TestBuildCloneScript(t *testing.T) {
 			ExcludeTableData: []string{"query", "saved_query"},
 		}
 
-		script := buildPostgresCloneScript(clone)
+		script := buildPostgresSeedScript(seed)
 
 		if !strings.Contains(script, `--exclude-table="logs"`) {
 			t.Errorf("expected --exclude-table for logs, got: %s", script)
@@ -101,8 +101,8 @@ func TestBuildCloneScript(t *testing.T) {
 
 	t.Run("mysql base", func(t *testing.T) {
 		mysqlType := "MySQL"
-		clone := &supersetv1alpha1.CloneTaskSpec{
-			Source: supersetv1alpha1.CloneSourceSpec{
+		seed := &supersetv1alpha1.SeedTaskSpec{
+			Source: supersetv1alpha1.SeedSourceSpec{
 				Type:     &mysqlType,
 				Host:     "mysql-prod.svc",
 				Database: "superset_prod",
@@ -110,7 +110,7 @@ func TestBuildCloneScript(t *testing.T) {
 			},
 		}
 
-		script := buildMySQLCloneScript(clone)
+		script := buildMySQLSeedScript(seed)
 
 		if !strings.Contains(script, "set -e") {
 			t.Error("expected set -e")
@@ -138,7 +138,7 @@ func TestBuildCloneScript(t *testing.T) {
 		if !strings.Contains(script, `export MYSQL_PWD="$SUPERSET_OPERATOR__DB_PASS"`) {
 			t.Errorf("expected target password via MYSQL_PWD, got: %s", script)
 		}
-		if !strings.Contains(script, `export MYSQL_PWD="$SUPERSET_OPERATOR__CLONE_SRC_PASS"`) {
+		if !strings.Contains(script, `export MYSQL_PWD="$SUPERSET_OPERATOR__SEED_SRC_PASS"`) {
 			t.Errorf("expected source password via MYSQL_PWD, got: %s", script)
 		}
 		// The destructive DROP/CREATE must use a backtick-quoted, escaped
@@ -161,8 +161,8 @@ func TestBuildCloneScript(t *testing.T) {
 
 	t.Run("mysql exclude tables", func(t *testing.T) {
 		mysqlType := "MySQL"
-		clone := &supersetv1alpha1.CloneTaskSpec{
-			Source: supersetv1alpha1.CloneSourceSpec{
+		seed := &supersetv1alpha1.SeedTaskSpec{
+			Source: supersetv1alpha1.SeedSourceSpec{
 				Type:     &mysqlType,
 				Host:     "mysql-prod.svc",
 				Database: "superset_prod",
@@ -171,20 +171,20 @@ func TestBuildCloneScript(t *testing.T) {
 			ExcludeTables: []string{"logs", "tab_state"},
 		}
 
-		script := buildMySQLCloneScript(clone)
+		script := buildMySQLSeedScript(seed)
 
-		if !strings.Contains(script, `--ignore-table="$SUPERSET_OPERATOR__CLONE_SRC_DB"."logs"`) {
+		if !strings.Contains(script, `--ignore-table="$SUPERSET_OPERATOR__SEED_SRC_DB"."logs"`) {
 			t.Errorf("expected --ignore-table for logs, got: %s", script)
 		}
-		if !strings.Contains(script, `--ignore-table="$SUPERSET_OPERATOR__CLONE_SRC_DB"."tab_state"`) {
+		if !strings.Contains(script, `--ignore-table="$SUPERSET_OPERATOR__SEED_SRC_DB"."tab_state"`) {
 			t.Errorf("expected --ignore-table for tab_state, got: %s", script)
 		}
 	})
 
 	t.Run("mysql exclude table data", func(t *testing.T) {
 		mysqlType := "MySQL"
-		clone := &supersetv1alpha1.CloneTaskSpec{
-			Source: supersetv1alpha1.CloneSourceSpec{
+		seed := &supersetv1alpha1.SeedTaskSpec{
+			Source: supersetv1alpha1.SeedSourceSpec{
 				Type:     &mysqlType,
 				Host:     "mysql-prod.svc",
 				Database: "superset_prod",
@@ -194,7 +194,7 @@ func TestBuildCloneScript(t *testing.T) {
 			ExcludeTableData: []string{"logs", "query"},
 		}
 
-		script := buildMySQLCloneScript(clone)
+		script := buildMySQLSeedScript(seed)
 
 		// Schema-only pass for ExcludeTableData tables.
 		if !strings.Contains(script, `--no-data`) {
@@ -203,13 +203,13 @@ func TestBuildCloneScript(t *testing.T) {
 		if strings.Contains(script, "--skip-triggers") {
 			t.Errorf("schema-only pass must preserve triggers (mirrors Postgres --exclude-table-data which keeps schema objects), got: %s", script)
 		}
-		if !strings.Contains(script, `"$SUPERSET_OPERATOR__CLONE_SRC_DB" "logs" "query"`) {
+		if !strings.Contains(script, `"$SUPERSET_OPERATOR__SEED_SRC_DB" "logs" "query"`) {
 			t.Errorf("expected schema-only dump to list logs and query tables, got: %s", script)
 		}
 
 		// Data pass should --ignore-table both ExcludeTables and ExcludeTableData.
 		for _, table := range []string{"tab_state", "logs", "query"} {
-			needle := `--ignore-table="$SUPERSET_OPERATOR__CLONE_SRC_DB".` + fmt.Sprintf("%q", table)
+			needle := `--ignore-table="$SUPERSET_OPERATOR__SEED_SRC_DB".` + fmt.Sprintf("%q", table)
 			if !strings.Contains(script, needle) {
 				t.Errorf("expected --ignore-table for %q in data pass, got: %s", table, script)
 			}
@@ -223,8 +223,8 @@ func TestBuildCloneScript(t *testing.T) {
 
 	t.Run("mysql no exclude table data keeps single pass", func(t *testing.T) {
 		mysqlType := "MySQL"
-		clone := &supersetv1alpha1.CloneTaskSpec{
-			Source: supersetv1alpha1.CloneSourceSpec{
+		seed := &supersetv1alpha1.SeedTaskSpec{
+			Source: supersetv1alpha1.SeedSourceSpec{
 				Type:     &mysqlType,
 				Host:     "mysql-prod.svc",
 				Database: "superset_prod",
@@ -232,70 +232,70 @@ func TestBuildCloneScript(t *testing.T) {
 			},
 		}
 
-		script := buildMySQLCloneScript(clone)
+		script := buildMySQLSeedScript(seed)
 
 		if strings.Contains(script, "--no-data") {
 			t.Errorf("did not expect --no-data pass when ExcludeTableData is empty, got: %s", script)
 		}
 	})
 
-	t.Run("postCloneSQL", func(t *testing.T) {
+	t.Run("postSeedSQL", func(t *testing.T) {
 		t.Run("postgres", func(t *testing.T) {
-			clone := &supersetv1alpha1.CloneTaskSpec{
-				Source: supersetv1alpha1.CloneSourceSpec{
+			seed := &supersetv1alpha1.SeedTaskSpec{
+				Source: supersetv1alpha1.SeedSourceSpec{
 					Host: "pg-prod.svc", Database: "superset_prod", Username: "reader",
 				},
-				PostCloneSQL: []string{
+				PostSeedSQL: []string{
 					"UPDATE report_schedule SET active = false",
 					"DELETE FROM oauth2_token",
 				},
 			}
 
-			script := buildPostgresCloneScript(clone)
+			script := buildPostgresSeedScript(seed)
 
 			if !strings.Contains(script, `psql`) {
 				t.Fatal("expected psql in script")
 			}
 			if !strings.Contains(script, `-c "UPDATE report_schedule SET active = false"`) {
-				t.Errorf("expected first postCloneSQL statement, got: %s", script)
+				t.Errorf("expected first postSeedSQL statement, got: %s", script)
 			}
 			if !strings.Contains(script, `-c "DELETE FROM oauth2_token"`) {
-				t.Errorf("expected second postCloneSQL statement, got: %s", script)
+				t.Errorf("expected second postSeedSQL statement, got: %s", script)
 			}
 		})
 
 		t.Run("mysql", func(t *testing.T) {
 			mysqlType := "MySQL"
-			clone := &supersetv1alpha1.CloneTaskSpec{
-				Source: supersetv1alpha1.CloneSourceSpec{
+			seed := &supersetv1alpha1.SeedTaskSpec{
+				Source: supersetv1alpha1.SeedSourceSpec{
 					Type: &mysqlType, Host: "mysql-prod.svc", Database: "superset_prod", Username: "reader",
 				},
-				PostCloneSQL: []string{"UPDATE report_schedule SET active = 0"},
+				PostSeedSQL: []string{"UPDATE report_schedule SET active = 0"},
 			}
 
-			script := buildMySQLCloneScript(clone)
+			script := buildMySQLSeedScript(seed)
 
 			if !strings.Contains(script, `-e "UPDATE report_schedule SET active = 0"`) {
-				t.Errorf("expected postCloneSQL statement in mysql script, got: %s", script)
+				t.Errorf("expected postSeedSQL statement in mysql script, got: %s", script)
 			}
 		})
 	})
 }
 
-// TestBuildCloneCommand covers buildCloneCommand: honoring a user command override
+// TestBuildSeedCommand covers buildSeedCommand: honoring a user command override
 // and constructing the default /bin/sh dump pipeline for PostgreSQL and MySQL sources.
-func TestBuildCloneCommand(t *testing.T) {
+func TestBuildSeedCommand(t *testing.T) {
 	t.Run("custom command", func(t *testing.T) {
 		r := &SupersetReconciler{}
 		superset := &supersetv1alpha1.Superset{}
 		superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-			Clone: &supersetv1alpha1.CloneTaskSpec{
+			Seed: &supersetv1alpha1.SeedTaskSpec{
 				SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
 					BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{
-						Command: []string{"/bin/sh", "-c", "custom-clone-script.sh"},
+						Command: []string{"/bin/sh", "-c", "custom-seed-script.sh"},
 					},
 				},
-				Source: supersetv1alpha1.CloneSourceSpec{
+				Source: supersetv1alpha1.SeedSourceSpec{
 					Host:     "pg-prod.svc",
 					Database: "superset_prod",
 					Username: "reader",
@@ -303,9 +303,9 @@ func TestBuildCloneCommand(t *testing.T) {
 			},
 		}
 
-		cmd := r.buildCloneCommand(superset)
+		cmd := r.buildSeedCommand(superset)
 
-		if len(cmd) != 3 || cmd[2] != "custom-clone-script.sh" {
+		if len(cmd) != 3 || cmd[2] != "custom-seed-script.sh" {
 			t.Errorf("expected custom command, got: %v", cmd)
 		}
 	})
@@ -314,8 +314,8 @@ func TestBuildCloneCommand(t *testing.T) {
 		r := &SupersetReconciler{}
 		superset := &supersetv1alpha1.Superset{}
 		superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-			Clone: &supersetv1alpha1.CloneTaskSpec{
-				Source: supersetv1alpha1.CloneSourceSpec{
+			Seed: &supersetv1alpha1.SeedTaskSpec{
+				Source: supersetv1alpha1.SeedSourceSpec{
 					Host:     "pg-prod.svc",
 					Database: "superset_prod",
 					Username: "reader",
@@ -323,7 +323,7 @@ func TestBuildCloneCommand(t *testing.T) {
 			},
 		}
 
-		cmd := r.buildCloneCommand(superset)
+		cmd := r.buildSeedCommand(superset)
 
 		if len(cmd) != 3 || cmd[0] != "/bin/sh" || cmd[1] != "-c" {
 			t.Fatalf("expected shell command, got: %v", cmd)
@@ -338,8 +338,8 @@ func TestBuildCloneCommand(t *testing.T) {
 		mysqlType := "MySQL"
 		superset := &supersetv1alpha1.Superset{}
 		superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-			Clone: &supersetv1alpha1.CloneTaskSpec{
-				Source: supersetv1alpha1.CloneSourceSpec{
+			Seed: &supersetv1alpha1.SeedTaskSpec{
+				Source: supersetv1alpha1.SeedSourceSpec{
 					Type:     &mysqlType,
 					Host:     "mysql-prod.svc",
 					Database: "superset_prod",
@@ -348,7 +348,7 @@ func TestBuildCloneCommand(t *testing.T) {
 			},
 		}
 
-		cmd := r.buildCloneCommand(superset)
+		cmd := r.buildSeedCommand(superset)
 
 		if len(cmd) != 3 || cmd[0] != "/bin/sh" || cmd[1] != "-c" {
 			t.Fatalf("expected shell command, got: %v", cmd)
@@ -359,12 +359,12 @@ func TestBuildCloneCommand(t *testing.T) {
 	})
 }
 
-func TestBuildCloneTaskFlatSpec_CommandOnContainer(t *testing.T) {
+func TestBuildSeedTaskFlatSpec_CommandOnContainer(t *testing.T) {
 	r := &SupersetReconciler{}
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Clone: &supersetv1alpha1.CloneTaskSpec{
-			Source: supersetv1alpha1.CloneSourceSpec{
+		Seed: &supersetv1alpha1.SeedTaskSpec{
+			Source: supersetv1alpha1.SeedSourceSpec{
 				Host:     "pg-prod.svc",
 				Database: "superset_prod",
 				Username: "reader",
@@ -379,7 +379,7 @@ func TestBuildCloneTaskFlatSpec_CommandOnContainer(t *testing.T) {
 		Password: common.Ptr("pass"),
 	}
 
-	flatSpec := r.buildCloneTaskFlatSpec(superset, "default", &resolution.SharedInput{})
+	flatSpec := r.buildSeedTaskFlatSpec(superset, "default", &resolution.SharedInput{})
 	podSpec := buildInitPod(&flatSpec)
 
 	if len(podSpec.Containers) == 0 {
@@ -387,14 +387,14 @@ func TestBuildCloneTaskFlatSpec_CommandOnContainer(t *testing.T) {
 	}
 	cmd := podSpec.Containers[0].Command
 	if len(cmd) == 0 {
-		t.Fatal("expected command on clone pod container, got nil")
+		t.Fatal("expected command on seed pod container, got nil")
 	}
 	if cmd[0] != "/bin/sh" || !strings.Contains(cmd[2], "pg_dump") {
 		t.Errorf("expected pg_dump shell command, got: %v", cmd)
 	}
 }
 
-func TestReconcileLifecycleTask_CloneIgnoresBootstrapScript(t *testing.T) {
+func TestReconcileLifecycleTask_SeedIgnoresBootstrapScript(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	bootstrapScript := "echo bootstrap"
@@ -408,8 +408,8 @@ func TestReconcileLifecycleTask_CloneIgnoresBootstrapScript(t *testing.T) {
 		Spec: supersetv1alpha1.SupersetSpec{
 			BootstrapScript: &bootstrapScript,
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{
-				Clone: &supersetv1alpha1.CloneTaskSpec{
-					Source: supersetv1alpha1.CloneSourceSpec{
+				Seed: &supersetv1alpha1.SeedTaskSpec{
+					Source: supersetv1alpha1.SeedSourceSpec{
 						Host:     "pg-prod.svc",
 						Database: "superset_prod",
 						Username: "reader",
@@ -432,10 +432,10 @@ func TestReconcileLifecycleTask_CloneIgnoresBootstrapScript(t *testing.T) {
 	if _, err := r.reconcileLifecycleTask(
 		ctx,
 		superset,
-		taskTypeClone,
-		suffixClone,
+		taskTypeSeed,
+		suffixSeed,
 		nil,
-		"sha256:clone",
+		"sha256:seed",
 		"sha256:config",
 		&resolution.SharedInput{},
 		"default",
@@ -444,13 +444,13 @@ func TestReconcileLifecycleTask_CloneIgnoresBootstrapScript(t *testing.T) {
 	}
 
 	cm := &corev1.ConfigMap{}
-	err := c.Get(ctx, types.NamespacedName{Name: common.ConfigMapName("test-clone"), Namespace: "default"}, cm)
+	err := c.Get(ctx, types.NamespacedName{Name: common.ConfigMapName("test-seed"), Namespace: "default"}, cm)
 	if !apierrors.IsNotFound(err) {
-		t.Fatalf("expected clone task to skip bootstrap ConfigMap, got %v", err)
+		t.Fatalf("expected seed task to skip bootstrap ConfigMap, got %v", err)
 	}
 }
 
-func TestCollectCloneEnvVars(t *testing.T) {
+func TestCollectSeedEnvVars(t *testing.T) {
 	pw := "secret123"
 	host := "pg-staging.svc"
 	db := "superset_staging"
@@ -459,8 +459,8 @@ func TestCollectCloneEnvVars(t *testing.T) {
 
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Clone: &supersetv1alpha1.CloneTaskSpec{
-			Source: supersetv1alpha1.CloneSourceSpec{
+		Seed: &supersetv1alpha1.SeedTaskSpec{
+			Source: supersetv1alpha1.SeedSourceSpec{
 				Host:     "pg-prod.svc",
 				Port:     common.Ptr(int32(5433)),
 				Database: "superset_prod",
@@ -477,27 +477,27 @@ func TestCollectCloneEnvVars(t *testing.T) {
 		Password: &pw,
 	}
 
-	envs := collectCloneEnvVars(superset)
+	envs := collectSeedEnvVars(superset)
 
 	envMap := make(map[string]string)
 	for _, e := range envs {
 		envMap[e.Name] = e.Value
 	}
 
-	if envMap[common.EnvCloneSrcHost] != "pg-prod.svc" {
-		t.Errorf("expected source host pg-prod.svc, got: %s", envMap[common.EnvCloneSrcHost])
+	if envMap[common.EnvSeedSrcHost] != "pg-prod.svc" {
+		t.Errorf("expected source host pg-prod.svc, got: %s", envMap[common.EnvSeedSrcHost])
 	}
-	if envMap[common.EnvCloneSrcPort] != "5433" {
-		t.Errorf("expected source port 5433, got: %s", envMap[common.EnvCloneSrcPort])
+	if envMap[common.EnvSeedSrcPort] != "5433" {
+		t.Errorf("expected source port 5433, got: %s", envMap[common.EnvSeedSrcPort])
 	}
-	if envMap[common.EnvCloneSrcDB] != "superset_prod" {
-		t.Errorf("expected source db superset_prod, got: %s", envMap[common.EnvCloneSrcDB])
+	if envMap[common.EnvSeedSrcDB] != "superset_prod" {
+		t.Errorf("expected source db superset_prod, got: %s", envMap[common.EnvSeedSrcDB])
 	}
-	if envMap[common.EnvCloneSrcUser] != "reader" {
-		t.Errorf("expected source user reader, got: %s", envMap[common.EnvCloneSrcUser])
+	if envMap[common.EnvSeedSrcUser] != "reader" {
+		t.Errorf("expected source user reader, got: %s", envMap[common.EnvSeedSrcUser])
 	}
-	if envMap[common.EnvCloneSrcPass] != "secret123" {
-		t.Errorf("expected source pass secret123, got: %s", envMap[common.EnvCloneSrcPass])
+	if envMap[common.EnvSeedSrcPass] != "secret123" {
+		t.Errorf("expected source pass secret123, got: %s", envMap[common.EnvSeedSrcPass])
 	}
 	if envMap[common.EnvDBHost] != "pg-staging.svc" {
 		t.Errorf("expected target host pg-staging.svc, got: %s", envMap[common.EnvDBHost])
@@ -507,15 +507,15 @@ func TestCollectCloneEnvVars(t *testing.T) {
 	}
 }
 
-func TestCollectCloneEnvVars_SecretRef(t *testing.T) {
+func TestCollectSeedEnvVars_SecretRef(t *testing.T) {
 	host := "pg-staging.svc"
 	db := "superset_staging"
 	user := "admin"
 
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Clone: &supersetv1alpha1.CloneTaskSpec{
-			Source: supersetv1alpha1.CloneSourceSpec{
+		Seed: &supersetv1alpha1.SeedTaskSpec{
+			Source: supersetv1alpha1.SeedSourceSpec{
 				Host:     "pg-prod.svc",
 				Database: "superset_prod",
 				Username: "reader",
@@ -536,10 +536,10 @@ func TestCollectCloneEnvVars_SecretRef(t *testing.T) {
 		},
 	}
 
-	envs := collectCloneEnvVars(superset)
+	envs := collectSeedEnvVars(superset)
 
 	for _, e := range envs {
-		if e.Name == common.EnvCloneSrcPass {
+		if e.Name == common.EnvSeedSrcPass {
 			if e.ValueFrom == nil || e.ValueFrom.SecretKeyRef == nil {
 				t.Fatal("expected SecretKeyRef for source password")
 			}
@@ -549,23 +549,23 @@ func TestCollectCloneEnvVars_SecretRef(t *testing.T) {
 			return
 		}
 	}
-	t.Error("SUPERSET_OPERATOR__CLONE_SRC_PASS not found in env vars")
+	t.Error("SUPERSET_OPERATOR__SEED_SRC_PASS not found in env vars")
 }
 
-// TestResolveCloneImage covers resolveCloneImage: type-appropriate defaults
+// TestResolveSeedImage covers resolveSeedImage: type-appropriate defaults
 // (postgres/mysql), full custom overrides, and partial overrides that inherit the
 // database tooling repository or tag rather than the Superset image.
-func TestResolveCloneImage(t *testing.T) {
+func TestResolveSeedImage(t *testing.T) {
 	t.Run("default postgres", func(t *testing.T) {
-		clone := &supersetv1alpha1.CloneTaskSpec{
-			Source: supersetv1alpha1.CloneSourceSpec{
+		seed := &supersetv1alpha1.SeedTaskSpec{
+			Source: supersetv1alpha1.SeedSourceSpec{
 				Host:     "pg-prod.svc",
 				Database: "superset_prod",
 				Username: "reader",
 			},
 		}
 
-		img := resolveCloneImage(clone)
+		img := resolveSeedImage(seed)
 
 		if img.Repository != "postgres" || img.Tag != "17-alpine" {
 			t.Errorf("expected postgres:17-alpine, got: %s:%s", img.Repository, img.Tag)
@@ -574,8 +574,8 @@ func TestResolveCloneImage(t *testing.T) {
 
 	t.Run("default mysql", func(t *testing.T) {
 		mysqlType := "MySQL"
-		clone := &supersetv1alpha1.CloneTaskSpec{
-			Source: supersetv1alpha1.CloneSourceSpec{
+		seed := &supersetv1alpha1.SeedTaskSpec{
+			Source: supersetv1alpha1.SeedSourceSpec{
 				Type:     &mysqlType,
 				Host:     "mysql-prod.svc",
 				Database: "superset_prod",
@@ -583,7 +583,7 @@ func TestResolveCloneImage(t *testing.T) {
 			},
 		}
 
-		img := resolveCloneImage(clone)
+		img := resolveSeedImage(seed)
 
 		if img.Repository != "mysql" || img.Tag != "8-alpine" {
 			t.Errorf("expected mysql:8-alpine, got: %s:%s", img.Repository, img.Tag)
@@ -591,8 +591,8 @@ func TestResolveCloneImage(t *testing.T) {
 	})
 
 	t.Run("custom override", func(t *testing.T) {
-		clone := &supersetv1alpha1.CloneTaskSpec{
-			Source: supersetv1alpha1.CloneSourceSpec{
+		seed := &supersetv1alpha1.SeedTaskSpec{
+			Source: supersetv1alpha1.SeedSourceSpec{
 				Host:     "pg-prod.svc",
 				Database: "superset_prod",
 				Username: "reader",
@@ -603,7 +603,7 @@ func TestResolveCloneImage(t *testing.T) {
 			},
 		}
 
-		img := resolveCloneImage(clone)
+		img := resolveSeedImage(seed)
 
 		if img.Repository != "my-registry/custom-tools" || img.Tag != "v2" {
 			t.Errorf("expected my-registry/custom-tools:v2, got: %s:%s", img.Repository, img.Tag)
@@ -647,8 +647,8 @@ func TestResolveCloneImage(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
 				srcType := tt.srcType
-				clone := &supersetv1alpha1.CloneTaskSpec{
-					Source: supersetv1alpha1.CloneSourceSpec{
+				seed := &supersetv1alpha1.SeedTaskSpec{
+					Source: supersetv1alpha1.SeedSourceSpec{
 						Host:     "src.svc",
 						Database: "src",
 						Username: "reader",
@@ -656,7 +656,7 @@ func TestResolveCloneImage(t *testing.T) {
 					},
 					Image: tt.image,
 				}
-				img := resolveCloneImage(clone)
+				img := resolveSeedImage(seed)
 				if img.Repository != tt.expectedRepo || img.Tag != tt.expectedTag {
 					t.Errorf("expected %s:%s, got %s:%s", tt.expectedRepo, tt.expectedTag, img.Repository, img.Tag)
 				}
@@ -675,9 +675,9 @@ func TestIsTaskEnabled(t *testing.T) {
 		expected bool
 	}{
 		{
-			name:     "nil lifecycle: clone disabled",
+			name:     "nil lifecycle: seed disabled",
 			spec:     nil,
-			taskType: taskTypeClone,
+			taskType: taskTypeSeed,
 			expected: false,
 		},
 		{
@@ -699,24 +699,24 @@ func TestIsTaskEnabled(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "clone present and not disabled",
+			name: "seed present and not disabled",
 			spec: &supersetv1alpha1.LifecycleSpec{
-				Clone: &supersetv1alpha1.CloneTaskSpec{
-					Source: supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"},
+				Seed: &supersetv1alpha1.SeedTaskSpec{
+					Source: supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"},
 				},
 			},
-			taskType: taskTypeClone,
+			taskType: taskTypeSeed,
 			expected: true,
 		},
 		{
-			name: "clone explicitly disabled",
+			name: "seed explicitly disabled",
 			spec: &supersetv1alpha1.LifecycleSpec{
-				Clone: &supersetv1alpha1.CloneTaskSpec{
+				Seed: &supersetv1alpha1.SeedTaskSpec{
 					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: common.Ptr(true)}},
-					Source:                  supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"},
+					Source:                  supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"},
 				},
 			},
-			taskType: taskTypeClone,
+			taskType: taskTypeSeed,
 			expected: false,
 		},
 		{
@@ -820,8 +820,8 @@ func TestTaskRequiresDrain_Defaults(t *testing.T) {
 
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Clone: &supersetv1alpha1.CloneTaskSpec{
-			Source: supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"},
+		Seed: &supersetv1alpha1.SeedTaskSpec{
+			Source: supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"},
 		},
 	}
 
@@ -829,7 +829,7 @@ func TestTaskRequiresDrain_Defaults(t *testing.T) {
 		taskType string
 		want     bool
 	}{
-		{taskTypeClone, true},
+		{taskTypeSeed, true},
 		{taskTypeMigrate, true},
 		{taskTypeRotate, true},
 		{taskTypeInit, false},
@@ -909,10 +909,10 @@ func TestComputeStepChecksum_ChangesOnCommandChange(t *testing.T) {
 func TestComputeStepChecksum_ChangesOnExtraInputs(t *testing.T) {
 	r := &SupersetReconciler{}
 
-	cmd := []string{"/bin/sh", "-c", "clone"}
+	cmd := []string{"/bin/sh", "-c", "seed"}
 
-	step1 := r.computeStepChecksum("seed", taskTypeClone, cmd, struct{ Trigger string }{"v1"})
-	step2 := r.computeStepChecksum("seed", taskTypeClone, cmd, struct{ Trigger string }{"v2"})
+	step1 := r.computeStepChecksum("seed", taskTypeSeed, cmd, struct{ Trigger string }{"v1"})
+	step2 := r.computeStepChecksum("seed", taskTypeSeed, cmd, struct{ Trigger string }{"v2"})
 
 	if step1 == step2 {
 		t.Error("step checksum should change when extra inputs change (e.g., trigger)")
@@ -935,28 +935,28 @@ func TestComputeStepChecksum_DiffersByTaskType(t *testing.T) {
 func TestPipelineChain_UpstreamChangeInvalidatesDownstream(t *testing.T) {
 	r := &SupersetReconciler{}
 
-	// Simulate a full pipeline with trigger change on clone.
-	cloneCmd := []string{"/bin/sh", "-c", "pg_dump | psql"}
+	// Simulate a full pipeline with trigger change on seed.
+	seedCmd := []string{"/bin/sh", "-c", "pg_dump | psql"}
 	migrateCmd := []string{"/bin/sh", "-c", "superset db upgrade"}
 	initCmd := []string{"/bin/sh", "-c", "superset init"}
 
 	parentUID := "test-uid"
 
 	// Run 1: trigger=v1
-	cloneChecksum1 := r.computeStepChecksum(parentUID, taskTypeClone, cloneCmd, struct{ Trigger string }{"v1"})
-	migrateChecksum1 := r.computeStepChecksum(cloneChecksum1, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
+	seedChecksum1 := r.computeStepChecksum(parentUID, taskTypeSeed, seedCmd, struct{ Trigger string }{"v1"})
+	migrateChecksum1 := r.computeStepChecksum(seedChecksum1, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
 	initChecksum1 := r.computeStepChecksum(migrateChecksum1, taskTypeInit, initCmd, struct{ Config string }{"cfg-v1"})
 
-	// Run 2: trigger=v2 (clone re-runs, propagates downstream)
-	cloneChecksum2 := r.computeStepChecksum(parentUID, taskTypeClone, cloneCmd, struct{ Trigger string }{"v2"})
-	migrateChecksum2 := r.computeStepChecksum(cloneChecksum2, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
+	// Run 2: trigger=v2 (seed re-runs, propagates downstream)
+	seedChecksum2 := r.computeStepChecksum(parentUID, taskTypeSeed, seedCmd, struct{ Trigger string }{"v2"})
+	migrateChecksum2 := r.computeStepChecksum(seedChecksum2, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
 	initChecksum2 := r.computeStepChecksum(migrateChecksum2, taskTypeInit, initCmd, struct{ Config string }{"cfg-v1"})
 
-	if cloneChecksum1 == cloneChecksum2 {
-		t.Error("clone checksum should change when trigger changes")
+	if seedChecksum1 == seedChecksum2 {
+		t.Error("seed checksum should change when trigger changes")
 	}
 	if migrateChecksum1 == migrateChecksum2 {
-		t.Error("migrate checksum should change when clone's checksum changes (upstream propagation)")
+		t.Error("migrate checksum should change when seed's checksum changes (upstream propagation)")
 	}
 	if initChecksum1 == initChecksum2 {
 		t.Error("init checksum should change when migrate's checksum changes (chain propagation)")
@@ -965,34 +965,34 @@ func TestPipelineChain_UpstreamChangeInvalidatesDownstream(t *testing.T) {
 
 // TestPipelineChain_DownstreamInputChangesDoNotRippleUpstream verifies that
 // the cascade only flows in the pipeline direction: changing a migrate-only
-// hashed input does not affect clone's checksum. Production clone inputs
-// include the target Superset image (see cloneInputs); this test exercises
+// hashed input does not affect seed's checksum. Production seed inputs
+// include the target Superset image (see seedInputs); this test exercises
 // the cascade math with synthetic inputs that intentionally omit it.
 func TestPipelineChain_DownstreamInputChangesDoNotRippleUpstream(t *testing.T) {
 	r := &SupersetReconciler{}
 
-	cloneCmd := []string{"/bin/sh", "-c", "pg_dump | psql"}
+	seedCmd := []string{"/bin/sh", "-c", "pg_dump | psql"}
 	migrateCmd := []string{"/bin/sh", "-c", "superset db upgrade"}
 
 	parentUID := "test-uid"
 
-	// Synthetic clone inputs (Trigger only) — in production cloneInputs also
+	// Synthetic seed inputs (Trigger only) — in production seedInputs also
 	// includes target image, but here we want to isolate cascade direction.
-	cloneChecksum := r.computeStepChecksum(parentUID, taskTypeClone, cloneCmd, struct{ Trigger string }{"v1"})
+	seedChecksum := r.computeStepChecksum(parentUID, taskTypeSeed, seedCmd, struct{ Trigger string }{"v1"})
 
 	// Migrate with different image versions.
-	migrate1 := r.computeStepChecksum(cloneChecksum, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
-	migrate2 := r.computeStepChecksum(cloneChecksum, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:5.0"})
+	migrate1 := r.computeStepChecksum(seedChecksum, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
+	migrate2 := r.computeStepChecksum(seedChecksum, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:5.0"})
 
 	if migrate1 == migrate2 {
 		t.Error("migrate checksum should change when its hashed Image input changes")
 	}
 
-	// Re-computing clone with identical synthetic inputs yields the same
+	// Re-computing seed with identical synthetic inputs yields the same
 	// checksum: cascade does not ripple upstream from migrate.
-	clone2 := r.computeStepChecksum(parentUID, taskTypeClone, cloneCmd, struct{ Trigger string }{"v1"})
-	if cloneChecksum != clone2 {
-		t.Error("clone checksum should not change when only migrate's hashed input changed (cascade is downstream-only)")
+	seed2 := r.computeStepChecksum(parentUID, taskTypeSeed, seedCmd, struct{ Trigger string }{"v1"})
+	if seedChecksum != seed2 {
+		t.Error("seed checksum should not change when only migrate's hashed input changed (cascade is downstream-only)")
 	}
 }
 
@@ -1054,21 +1054,21 @@ func TestPipelineChain_ManualTriggerForcesRerun(t *testing.T) {
 func TestPipelineChain_UnchangedInputsProduceStableChecksums(t *testing.T) {
 	r := &SupersetReconciler{}
 
-	cloneCmd := []string{"/bin/sh", "-c", "pg_dump | psql"}
+	seedCmd := []string{"/bin/sh", "-c", "pg_dump | psql"}
 	migrateCmd := []string{"/bin/sh", "-c", "superset db upgrade"}
 	initCmd := []string{"/bin/sh", "-c", "superset init"}
 
 	parentUID := "test-uid"
-	cloneChecksum := r.computeStepChecksum(parentUID, taskTypeClone, cloneCmd, struct{ Trigger string }{"v1"})
-	migrateChecksum := r.computeStepChecksum(cloneChecksum, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
+	seedChecksum := r.computeStepChecksum(parentUID, taskTypeSeed, seedCmd, struct{ Trigger string }{"v1"})
+	migrateChecksum := r.computeStepChecksum(seedChecksum, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
 	initChecksum := r.computeStepChecksum(migrateChecksum, taskTypeInit, initCmd, struct{ Config string }{"cfg-v1"})
 
 	// Re-compute with identical inputs.
-	cloneChecksum2 := r.computeStepChecksum(parentUID, taskTypeClone, cloneCmd, struct{ Trigger string }{"v1"})
-	migrateChecksum2 := r.computeStepChecksum(cloneChecksum2, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
+	seedChecksum2 := r.computeStepChecksum(parentUID, taskTypeSeed, seedCmd, struct{ Trigger string }{"v1"})
+	migrateChecksum2 := r.computeStepChecksum(seedChecksum2, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
 	initChecksum2 := r.computeStepChecksum(migrateChecksum2, taskTypeInit, initCmd, struct{ Config string }{"cfg-v1"})
 
-	if cloneChecksum != cloneChecksum2 || migrateChecksum != migrateChecksum2 || initChecksum != initChecksum2 {
+	if seedChecksum != seedChecksum2 || migrateChecksum != migrateChecksum2 || initChecksum != initChecksum2 {
 		t.Error("pipeline should produce identical checksums when all inputs are unchanged")
 	}
 }
@@ -1079,17 +1079,17 @@ func TestPipelineChain_CustomTaskSlotsBetweenStages(t *testing.T) {
 	r := &SupersetReconciler{}
 
 	parentUID := "test-uid"
-	cloneCmd := []string{"/bin/sh", "-c", "pg_dump | psql"}
+	seedCmd := []string{"/bin/sh", "-c", "pg_dump | psql"}
 	customCmd := []string{"/bin/sh", "-c", "run-data-masking.sh"}
 	migrateCmd := []string{"/bin/sh", "-c", "superset db upgrade"}
 
-	// Pipeline: clone → custom("PostClone") → migrate
-	cloneChecksum := r.computeStepChecksum(parentUID, taskTypeClone, cloneCmd, struct{ Trigger string }{"v1"})
-	customChecksum := r.computeStepChecksum(cloneChecksum, "PostClone", customCmd, struct{ Script string }{"mask-pii-v3"})
+	// Pipeline: seed → custom("PostSeed") → migrate
+	seedChecksum := r.computeStepChecksum(parentUID, taskTypeSeed, seedCmd, struct{ Trigger string }{"v1"})
+	customChecksum := r.computeStepChecksum(seedChecksum, "PostSeed", customCmd, struct{ Script string }{"mask-pii-v3"})
 	migrateChecksum := r.computeStepChecksum(customChecksum, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
 
 	// Custom task changes its script input → propagates to migrate.
-	customChecksum2 := r.computeStepChecksum(cloneChecksum, "PostClone", customCmd, struct{ Script string }{"mask-pii-v4"})
+	customChecksum2 := r.computeStepChecksum(seedChecksum, "PostSeed", customCmd, struct{ Script string }{"mask-pii-v4"})
 	migrateChecksum2 := r.computeStepChecksum(customChecksum2, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
 
 	if customChecksum == customChecksum2 {
@@ -1099,8 +1099,8 @@ func TestPipelineChain_CustomTaskSlotsBetweenStages(t *testing.T) {
 		t.Error("migrate should re-run when custom task upstream changes")
 	}
 
-	// Clone unchanged → custom unchanged → migrate unchanged.
-	customChecksum3 := r.computeStepChecksum(cloneChecksum, "PostClone", customCmd, struct{ Script string }{"mask-pii-v3"})
+	// Seed unchanged → custom unchanged → migrate unchanged.
+	customChecksum3 := r.computeStepChecksum(seedChecksum, "PostSeed", customCmd, struct{ Script string }{"mask-pii-v3"})
 	migrateChecksum3 := r.computeStepChecksum(customChecksum3, taskTypeMigrate, migrateCmd, struct{ Image string }{"img:4.0"})
 
 	if migrateChecksum != migrateChecksum3 {
@@ -1108,48 +1108,48 @@ func TestPipelineChain_CustomTaskSlotsBetweenStages(t *testing.T) {
 	}
 }
 
-func TestCloneInputs_ScheduleTickChangesChecksum(t *testing.T) {
-	// When the clock crosses a cron boundary, the clone checksum should change.
+func TestSeedInputs_ScheduleTickChangesChecksum(t *testing.T) {
+	// When the clock crosses a cron boundary, the seed checksum should change.
 	before := time.Date(2026, 5, 11, 1, 59, 0, 0, time.UTC)
 	after := time.Date(2026, 5, 11, 2, 1, 0, 0, time.UTC)
 
 	cronExpr := "0 2 * * *"
-	source := supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"}
+	source := supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"}
 
 	r1 := &SupersetReconciler{Now: func() time.Time { return before }}
 	r2 := &SupersetReconciler{Now: func() time.Time { return after }}
 
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Clone: &supersetv1alpha1.CloneTaskSpec{
+		Seed: &supersetv1alpha1.SeedTaskSpec{
 			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &cronExpr},
 			Source:                  source,
 		},
 	}
 
-	inputs1 := r1.cloneInputs(superset)
-	inputs2 := r2.cloneInputs(superset)
+	inputs1 := r1.seedInputs(superset)
+	inputs2 := r2.seedInputs(superset)
 
-	checksum1 := r1.computeStepChecksum("uid", taskTypeClone, []string{"cmd"}, inputs1)
-	checksum2 := r2.computeStepChecksum("uid", taskTypeClone, []string{"cmd"}, inputs2)
+	checksum1 := r1.computeStepChecksum("uid", taskTypeSeed, []string{"cmd"}, inputs1)
+	checksum2 := r2.computeStepChecksum("uid", taskTypeSeed, []string{"cmd"}, inputs2)
 
 	if checksum1 == checksum2 {
-		t.Error("clone checksum should change when crossing a cron boundary")
+		t.Error("seed checksum should change when crossing a cron boundary")
 	}
 }
 
-func TestCloneInputs_ScheduleAndTrigger_BothContribute(t *testing.T) {
+func TestSeedInputs_ScheduleAndTrigger_BothContribute(t *testing.T) {
 	now := time.Date(2026, 5, 11, 14, 0, 0, 0, time.UTC)
 	r := &SupersetReconciler{Now: func() time.Time { return now }}
 
 	cronExpr := "0 * * * *"
-	source := supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"}
+	source := supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"}
 	trigger1 := "v1"
 	trigger2 := "v2"
 
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Clone: &supersetv1alpha1.CloneTaskSpec{
+		Seed: &supersetv1alpha1.SeedTaskSpec{
 			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
 				BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Trigger: &trigger1},
 				CronSchedule: &cronExpr,
@@ -1158,75 +1158,75 @@ func TestCloneInputs_ScheduleAndTrigger_BothContribute(t *testing.T) {
 		},
 	}
 
-	inputs1 := r.cloneInputs(superset)
-	checksum1 := r.computeStepChecksum("uid", taskTypeClone, []string{"cmd"}, inputs1)
+	inputs1 := r.seedInputs(superset)
+	checksum1 := r.computeStepChecksum("uid", taskTypeSeed, []string{"cmd"}, inputs1)
 
 	// Change trigger only.
-	superset.Spec.Lifecycle.Clone.Trigger = &trigger2
-	inputs2 := r.cloneInputs(superset)
-	checksum2 := r.computeStepChecksum("uid", taskTypeClone, []string{"cmd"}, inputs2)
+	superset.Spec.Lifecycle.Seed.Trigger = &trigger2
+	inputs2 := r.seedInputs(superset)
+	checksum2 := r.computeStepChecksum("uid", taskTypeSeed, []string{"cmd"}, inputs2)
 
 	if checksum1 == checksum2 {
 		t.Error("changing trigger should change checksum even with same schedule tick")
 	}
 }
 
-func TestCloneInputs_TargetImageChangesChecksum(t *testing.T) {
+func TestSeedInputs_TargetImageChangesChecksum(t *testing.T) {
 	r := &SupersetReconciler{}
-	source := supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"}
+	source := supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"}
 
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Image = supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "6.1.0rc3-dev"}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Clone: &supersetv1alpha1.CloneTaskSpec{
+		Seed: &supersetv1alpha1.SeedTaskSpec{
 			Source: source,
 		},
 	}
 
-	checksum1 := r.computeStepChecksum("uid", taskTypeClone, []string{"cmd"}, r.cloneInputs(superset))
+	checksum1 := r.computeStepChecksum("uid", taskTypeSeed, []string{"cmd"}, r.seedInputs(superset))
 
 	superset.Spec.Image.Tag = "6.1.0-dev"
-	checksum2 := r.computeStepChecksum("uid", taskTypeClone, []string{"cmd"}, r.cloneInputs(superset))
+	checksum2 := r.computeStepChecksum("uid", taskTypeSeed, []string{"cmd"}, r.seedInputs(superset))
 
 	if checksum1 == checksum2 {
-		t.Error("clone checksum should change when the target Superset image changes")
+		t.Error("seed checksum should change when the target Superset image changes")
 	}
 }
 
-func TestCloneInputs_NoSchedule_StableChecksum(t *testing.T) {
+func TestSeedInputs_NoSchedule_StableChecksum(t *testing.T) {
 	now := time.Date(2026, 5, 11, 14, 0, 0, 0, time.UTC)
 	r := &SupersetReconciler{Now: func() time.Time { return now }}
 
-	source := supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"}
+	source := supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"}
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Clone: &supersetv1alpha1.CloneTaskSpec{
+		Seed: &supersetv1alpha1.SeedTaskSpec{
 			Source: source,
 		},
 	}
 
-	inputs1 := r.cloneInputs(superset)
-	inputs2 := r.cloneInputs(superset)
+	inputs1 := r.seedInputs(superset)
+	inputs2 := r.seedInputs(superset)
 
-	checksum1 := r.computeStepChecksum("uid", taskTypeClone, []string{"cmd"}, inputs1)
-	checksum2 := r.computeStepChecksum("uid", taskTypeClone, []string{"cmd"}, inputs2)
+	checksum1 := r.computeStepChecksum("uid", taskTypeSeed, []string{"cmd"}, inputs1)
+	checksum2 := r.computeStepChecksum("uid", taskTypeSeed, []string{"cmd"}, inputs2)
 
 	if checksum1 != checksum2 {
 		t.Error("checksum should be stable when no schedule is set")
 	}
 }
 
-func TestCloneInputs_ScheduleStableWithinWindow(t *testing.T) {
+func TestSeedInputs_ScheduleStableWithinWindow(t *testing.T) {
 	// Two reconciles within the same cron window produce the same checksum.
 	t1 := time.Date(2026, 5, 11, 14, 10, 0, 0, time.UTC)
 	t2 := time.Date(2026, 5, 11, 14, 50, 0, 0, time.UTC)
 
 	cronExpr := "0 * * * *"
-	source := supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"}
+	source := supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"}
 
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Clone: &supersetv1alpha1.CloneTaskSpec{
+		Seed: &supersetv1alpha1.SeedTaskSpec{
 			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &cronExpr},
 			Source:                  source,
 		},
@@ -1235,8 +1235,8 @@ func TestCloneInputs_ScheduleStableWithinWindow(t *testing.T) {
 	r1 := &SupersetReconciler{Now: func() time.Time { return t1 }}
 	r2 := &SupersetReconciler{Now: func() time.Time { return t2 }}
 
-	checksum1 := r1.computeStepChecksum("uid", taskTypeClone, []string{"cmd"}, r1.cloneInputs(superset))
-	checksum2 := r2.computeStepChecksum("uid", taskTypeClone, []string{"cmd"}, r2.cloneInputs(superset))
+	checksum1 := r1.computeStepChecksum("uid", taskTypeSeed, []string{"cmd"}, r1.seedInputs(superset))
+	checksum2 := r2.computeStepChecksum("uid", taskTypeSeed, []string{"cmd"}, r2.seedInputs(superset))
 
 	if checksum1 != checksum2 {
 		t.Error("checksum should be stable within the same cron window")
@@ -1248,25 +1248,25 @@ func TestPipelineChain_ScheduleTickPropagatesDownstream(t *testing.T) {
 	after := time.Date(2026, 5, 11, 2, 1, 0, 0, time.UTC)
 
 	cronExpr := "0 2 * * *"
-	source := supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"}
+	source := supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"}
 
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Clone: &supersetv1alpha1.CloneTaskSpec{
+		Seed: &supersetv1alpha1.SeedTaskSpec{
 			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &cronExpr},
 			Source:                  source,
 		},
 	}
 
-	cloneCmd := []string{"/bin/sh", "-c", "pg_dump | psql"}
+	seedCmd := []string{"/bin/sh", "-c", "pg_dump | psql"}
 	migrateCmd := []string{"/bin/sh", "-c", "superset db upgrade"}
 	initCmd := []string{"/bin/sh", "-c", "superset init"}
 	parentUID := "test-uid"
 
 	// Before boundary.
 	r1 := &SupersetReconciler{Now: func() time.Time { return before }}
-	cloneChecksum1 := r1.computeStepChecksum(parentUID, taskTypeClone, cloneCmd, r1.cloneInputs(superset))
-	migrateChecksum1 := r1.computeStepChecksum(cloneChecksum1, taskTypeMigrate, migrateCmd, struct {
+	seedChecksum1 := r1.computeStepChecksum(parentUID, taskTypeSeed, seedCmd, r1.seedInputs(superset))
+	migrateChecksum1 := r1.computeStepChecksum(seedChecksum1, taskTypeMigrate, migrateCmd, struct {
 		Image   string
 		Trigger string
 	}{"img:4.0", ""})
@@ -1277,8 +1277,8 @@ func TestPipelineChain_ScheduleTickPropagatesDownstream(t *testing.T) {
 
 	// After boundary.
 	r2 := &SupersetReconciler{Now: func() time.Time { return after }}
-	cloneChecksum2 := r2.computeStepChecksum(parentUID, taskTypeClone, cloneCmd, r2.cloneInputs(superset))
-	migrateChecksum2 := r2.computeStepChecksum(cloneChecksum2, taskTypeMigrate, migrateCmd, struct {
+	seedChecksum2 := r2.computeStepChecksum(parentUID, taskTypeSeed, seedCmd, r2.seedInputs(superset))
+	migrateChecksum2 := r2.computeStepChecksum(seedChecksum2, taskTypeMigrate, migrateCmd, struct {
 		Image   string
 		Trigger string
 	}{"img:4.0", ""})
@@ -1287,14 +1287,14 @@ func TestPipelineChain_ScheduleTickPropagatesDownstream(t *testing.T) {
 		Trigger        string
 	}{"cfg", ""})
 
-	if cloneChecksum1 == cloneChecksum2 {
-		t.Error("clone checksum should change after boundary")
+	if seedChecksum1 == seedChecksum2 {
+		t.Error("seed checksum should change after boundary")
 	}
 	if migrateChecksum1 == migrateChecksum2 {
-		t.Error("migrate should cascade from clone schedule tick change")
+		t.Error("migrate should cascade from seed schedule tick change")
 	}
 	if initChecksum1 == initChecksum2 {
-		t.Error("init should cascade from clone schedule tick change")
+		t.Error("init should cascade from seed schedule tick change")
 	}
 }
 
@@ -1305,9 +1305,9 @@ func TestScheduleRequeue_ComputesCorrectDuration(t *testing.T) {
 	cronExpr := "0 * * * *" // hourly at :00
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Clone: &supersetv1alpha1.CloneTaskSpec{
+		Seed: &supersetv1alpha1.SeedTaskSpec{
 			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &cronExpr},
-			Source:                  supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"},
+			Source:                  supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"},
 		},
 	}
 
@@ -1324,8 +1324,8 @@ func TestScheduleRequeue_NoSchedule(t *testing.T) {
 
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Clone: &supersetv1alpha1.CloneTaskSpec{
-			Source: supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"},
+		Seed: &supersetv1alpha1.SeedTaskSpec{
+			Source: supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"},
 		},
 	}
 
@@ -1335,25 +1335,25 @@ func TestScheduleRequeue_NoSchedule(t *testing.T) {
 	}
 }
 
-func TestScheduleRequeue_DisabledClone(t *testing.T) {
+func TestScheduleRequeue_DisabledSeed(t *testing.T) {
 	now := time.Date(2026, 5, 11, 14, 30, 0, 0, time.UTC)
 	r := &SupersetReconciler{Now: func() time.Time { return now }}
 
 	cronExpr := "0 * * * *"
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Clone: &supersetv1alpha1.CloneTaskSpec{
+		Seed: &supersetv1alpha1.SeedTaskSpec{
 			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
 				BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: common.Ptr(true)},
 				CronSchedule: &cronExpr,
 			},
-			Source: supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"},
+			Source: supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"},
 		},
 	}
 
 	requeue := r.nextScheduleRequeue(superset)
 	if requeue != 0 {
-		t.Errorf("expected 0 requeue with disabled clone, got %v", requeue)
+		t.Errorf("expected 0 requeue with disabled seed, got %v", requeue)
 	}
 }
 
@@ -1426,7 +1426,7 @@ func TestAllTasksStillComplete_SkipsDrainWhenNothingChanged(t *testing.T) {
 	})
 }
 
-func TestAllTasksStillComplete_WithCloneSchedule(t *testing.T) {
+func TestAllTasksStillComplete_WithSeedSchedule(t *testing.T) {
 	now := time.Date(2026, 5, 11, 14, 30, 0, 0, time.UTC)
 	r := &SupersetReconciler{Now: func() time.Time { return now }}
 
@@ -1435,11 +1435,11 @@ func TestAllTasksStillComplete_WithCloneSchedule(t *testing.T) {
 	superset.UID = "test-uid"
 	superset.Spec.Image = supersetv1alpha1.ImageSpec{Tag: "4.1.4"}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Clone: &supersetv1alpha1.CloneTaskSpec{
+		Seed: &supersetv1alpha1.SeedTaskSpec{
 			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
 				CronSchedule: &cronExpr,
 			},
-			Source: supersetv1alpha1.CloneSourceSpec{Host: "prod-db", Database: "superset", Username: "reader"},
+			Source: supersetv1alpha1.SeedSourceSpec{Host: "prod-db", Database: "superset", Username: "reader"},
 		},
 		Migrate: &supersetv1alpha1.MigrateTaskSpec{},
 		Init:    &supersetv1alpha1.InitTaskSpec{},
@@ -1449,16 +1449,16 @@ func TestAllTasksStillComplete_WithCloneSchedule(t *testing.T) {
 
 	// Compute and store checksums as if lifecycle already completed at :30.
 	incomingChecksum := string(superset.UID)
-	cloneCmd := r.buildCloneCommand(superset)
-	cloneChecksum := r.computeStepChecksum(incomingChecksum, taskTypeClone, cloneCmd, r.cloneInputs(superset))
+	seedCmd := r.buildSeedCommand(superset)
+	seedChecksum := r.computeStepChecksum(incomingChecksum, taskTypeSeed, seedCmd, r.seedInputs(superset))
 	migrateCmd := defaultMigrateCommand(superset)
-	migrateChecksum := r.computeStepChecksum(cloneChecksum, taskTypeMigrate, migrateCmd, r.migrateInputs(superset))
+	migrateChecksum := r.computeStepChecksum(seedChecksum, taskTypeMigrate, migrateCmd, r.migrateInputs(superset))
 	initCmd := defaultInitCommand(superset)
 	initChecksum := r.computeStepChecksum(migrateChecksum, taskTypeInit, initCmd, r.initInputs(superset))
 
 	superset.Status.Lifecycle = &supersetv1alpha1.LifecycleStatus{
 		LastCompletedChecksums: map[string]string{
-			taskTypeClone:   cloneChecksum,
+			taskTypeSeed:    seedChecksum,
 			taskTypeMigrate: migrateChecksum,
 			taskTypeInit:    initChecksum,
 		},
@@ -1709,38 +1709,38 @@ func TestAllTasksStillComplete_WithRotate(t *testing.T) {
 	})
 }
 
-// TestIsTaskEnabled_InvalidCronScheduleGatesClone verifies that an invalid
-// cron expression causes clone to be treated as disabled — the user's
+// TestIsTaskEnabled_InvalidCronScheduleGatesSeed verifies that an invalid
+// cron expression causes seed to be treated as disabled — the user's
 // malformed schedule surfaces as a ScheduleValid=False condition (set by
-// validateSchedules) and does not trigger an opportunistic one-shot clone.
-func TestIsTaskEnabled_InvalidCronScheduleGatesClone(t *testing.T) {
+// validateSchedules) and does not trigger an opportunistic one-shot seed.
+func TestIsTaskEnabled_InvalidCronScheduleGatesSeed(t *testing.T) {
 	r := &SupersetReconciler{}
 
 	badExpr := "not a cron expression"
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-		Clone: &supersetv1alpha1.CloneTaskSpec{
+		Seed: &supersetv1alpha1.SeedTaskSpec{
 			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
 				CronSchedule: &badExpr,
 			},
-			Source: supersetv1alpha1.CloneSourceSpec{Host: "h", Database: "d", Username: "u"},
+			Source: supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"},
 		},
 	}
 
-	if r.isTaskEnabled(superset, taskTypeClone) {
-		t.Fatal("expected clone to be disabled when CronSchedule is invalid")
+	if r.isTaskEnabled(superset, taskTypeSeed) {
+		t.Fatal("expected seed to be disabled when CronSchedule is invalid")
 	}
 
-	// A valid schedule re-enables clone.
+	// A valid schedule re-enables seed.
 	validExpr := "0 * * * *"
-	superset.Spec.Lifecycle.Clone.CronSchedule = &validExpr
-	if !r.isTaskEnabled(superset, taskTypeClone) {
-		t.Fatal("expected clone to be enabled for a valid CronSchedule")
+	superset.Spec.Lifecycle.Seed.CronSchedule = &validExpr
+	if !r.isTaskEnabled(superset, taskTypeSeed) {
+		t.Fatal("expected seed to be enabled for a valid CronSchedule")
 	}
 
-	// No schedule at all — clone remains enabled (legacy on-demand path).
-	superset.Spec.Lifecycle.Clone.CronSchedule = nil
-	if !r.isTaskEnabled(superset, taskTypeClone) {
-		t.Fatal("expected clone to be enabled when no CronSchedule is set")
+	// No schedule at all — seed remains enabled (legacy on-demand path).
+	superset.Spec.Lifecycle.Seed.CronSchedule = nil
+	if !r.isTaskEnabled(superset, taskTypeSeed) {
+		t.Fatal("expected seed to be enabled when no CronSchedule is set")
 	}
 }

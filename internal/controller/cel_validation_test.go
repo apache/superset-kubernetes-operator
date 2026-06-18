@@ -366,19 +366,19 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		})
 	})
 
-	// --- Lifecycle clone constraints ---
+	// --- Lifecycle seed constraints ---
 
-	Describe("Clone", func() {
-		It("rejects clone in Production mode", func() {
-			cr := validProdSuperset("clone-prod")
+	Describe("Seed", func() {
+		It("rejects seed in Production mode", func() {
+			cr := validProdSuperset("seed-prod")
 			cr.Spec.Metastore = structuredProdMetastore()
 			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-				Clone: &supersetv1alpha1.CloneTaskSpec{
-					Source: supersetv1alpha1.CloneSourceSpec{
+				Seed: &supersetv1alpha1.SeedTaskSpec{
+					Source: supersetv1alpha1.SeedSourceSpec{
 						Host:         "prod-db",
 						Database:     "superset",
 						Username:     "readonly",
-						PasswordFrom: secretRef("clone-src", "password"),
+						PasswordFrom: secretRef("seed-src", "password"),
 					},
 				},
 			}
@@ -387,14 +387,14 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			Expect(err.Error()).To(ContainSubstring("Development or Staging"))
 		})
 
-		It("rejects inline clone source password outside Development", func() {
+		It("rejects inline seed source password outside Development", func() {
 			staging := common.EnvironmentStaging
-			cr := validProdSuperset("clone-staging-pw")
+			cr := validProdSuperset("seed-staging-pw")
 			cr.Spec.Environment = &staging
 			cr.Spec.Metastore = structuredProdMetastore()
 			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-				Clone: &supersetv1alpha1.CloneTaskSpec{
-					Source: supersetv1alpha1.CloneSourceSpec{
+				Seed: &supersetv1alpha1.SeedTaskSpec{
+					Source: supersetv1alpha1.SeedSourceSpec{
 						Host:     "prod-db",
 						Database: "superset",
 						Username: "readonly",
@@ -404,15 +404,15 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			}
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("lifecycle.clone.source.password is only allowed when environment is Development"))
+			Expect(err.Error()).To(ContainSubstring("lifecycle.seed.source.password is only allowed when environment is Development"))
 		})
 
-		It("rejects clone without a structured metastore", func() {
-			cr := validDevSuperset("clone-no-struct")
+		It("rejects seed without a structured metastore", func() {
+			cr := validDevSuperset("seed-no-struct")
 			// baseline metastore is a plain URI (not structured)
 			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-				Clone: &supersetv1alpha1.CloneTaskSpec{
-					Source: supersetv1alpha1.CloneSourceSpec{
+				Seed: &supersetv1alpha1.SeedTaskSpec{
+					Source: supersetv1alpha1.SeedSourceSpec{
 						Host:     "prod-db",
 						Database: "superset",
 						Username: "readonly",
@@ -425,21 +425,21 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			Expect(err.Error()).To(ContainSubstring("requires structured metastore"))
 		})
 
-		It("rejects clone source with both password and passwordFrom", func() {
-			cr := validDevSuperset("clone-pw-both")
+		It("rejects seed source with both password and passwordFrom", func() {
+			cr := validDevSuperset("seed-pw-both")
 			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
 				Host:     strPtr("db.example.com"),
 				Database: strPtr("superset"),
 				Username: strPtr("admin"),
 			}
 			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-				Clone: &supersetv1alpha1.CloneTaskSpec{
-					Source: supersetv1alpha1.CloneSourceSpec{
+				Seed: &supersetv1alpha1.SeedTaskSpec{
+					Source: supersetv1alpha1.SeedSourceSpec{
 						Host:         "prod-db",
 						Database:     "superset",
 						Username:     "readonly",
 						Password:     strPtr("plain"),
-						PasswordFrom: secretRef("clone-src", "password"),
+						PasswordFrom: secretRef("seed-src", "password"),
 					},
 				},
 			}
@@ -448,16 +448,16 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			Expect(err.Error()).To(ContainSubstring("mutually exclusive"))
 		})
 
-		It("rejects clone source with neither password nor passwordFrom", func() {
-			cr := validDevSuperset("clone-pw-none")
+		It("rejects seed source with neither password nor passwordFrom", func() {
+			cr := validDevSuperset("seed-pw-none")
 			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
 				Host:     strPtr("db.example.com"),
 				Database: strPtr("superset"),
 				Username: strPtr("admin"),
 			}
 			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-				Clone: &supersetv1alpha1.CloneTaskSpec{
-					Source: supersetv1alpha1.CloneSourceSpec{
+				Seed: &supersetv1alpha1.SeedTaskSpec{
+					Source: supersetv1alpha1.SeedSourceSpec{
 						Host:     "prod-db",
 						Database: "superset",
 						Username: "readonly",

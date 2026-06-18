@@ -125,7 +125,7 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{}, fmt.Errorf("reconciling ServiceAccount: %w", err)
 	}
 
-	// Phase 2.5: Lifecycle tasks (clone + migrate + rotate + init) via
+	// Phase 2.5: Lifecycle tasks (seed + migrate + rotate + init) via
 	// parent-owned Jobs. Gates component deployment on lifecycle completion.
 	topLevel := convertTopLevelSpec(&superset.Spec)
 	saName := resolveServiceAccountName(superset)
@@ -144,7 +144,7 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		}
 		if lifecycleRes.TerminalFailure {
 			// Even on terminal failure, wake up for the next scheduled run
-			// (e.g., cron-driven clone) if one is configured.
+			// (e.g., cron-driven seed) if one is configured.
 			if next := r.nextScheduleRequeue(superset); next > 0 {
 				return ctrl.Result{RequeueAfter: next}, nil
 			}
