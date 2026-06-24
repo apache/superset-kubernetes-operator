@@ -166,6 +166,93 @@ func TestReconcileComponentResources_CreatesDeploymentAndService(t *testing.T) {
 	assert.Equal(t, common.PortCeleryFlower, svc.Spec.Ports[0].Port)
 }
 
+func TestPreserveDeploymentReplicasWhenUnmanaged(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		desiredReplicas  *int32
+		existingReplicas *int32
+		wantReplicas     *int32
+	}{
+		{
+			name:             "unmanaged desired preserves existing replicas",
+			desiredReplicas:  nil,
+			existingReplicas: int32Ptr(3),
+			wantReplicas:     int32Ptr(3),
+		},
+		{
+			name:             "unmanaged desired remains nil on create path",
+			desiredReplicas:  nil,
+			existingReplicas: nil,
+			wantReplicas:     nil,
+		},
+		{
+			name:             "managed desired ignores existing drift",
+			desiredReplicas:  int32Ptr(2),
+			existingReplicas: int32Ptr(3),
+			wantReplicas:     int32Ptr(2),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			desired := appsv1.DeploymentSpec{Replicas: tt.desiredReplicas}
+			existing := appsv1.DeploymentSpec{Replicas: tt.existingReplicas}
+
+			preserveDeploymentReplicasWhenUnmanaged(&desired, existing)
+
+			if tt.wantReplicas == nil {
+				assert.Nil(t, desired.Replicas)
+				return
+			}
+			require.NotNil(t, desired.Replicas)
+			assert.Equal(t, *tt.wantReplicas, *desired.Replicas)
+		})
+	}
+}
+
+func TestReconcileComponentDeployment_PreservesReplicasWhenAutoscaling(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+	owner := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner).Build()
+	recorder := events.NewFakeRecorder(20)
+
+	one := int32(1)
+	minReplicas := int32(2)
+	autoscaling := &supersetv1alpha1.AutoscalingSpec{
+		MinReplicas: &minReplicas,
+		MaxReplicas: 5,
+	}
+	spec := &supersetv1alpha1.FlatComponentSpec{
+		Image:       supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+		Replicas:    &one,
+		Autoscaling: autoscaling,
+	}
+	cfg, ok := componentResourceConfig(common.ComponentWebServer)
+	require.True(t, ok)
+
+	resourceBaseName := common.ResourceBaseName("test", common.ComponentWebServer)
+	require.NoError(t, reconcileComponentResources(ctx, c, scheme, recorder, owner, spec, cfg, "", nil, autoscaling, nil))
+
+	deploy := &appsv1.Deployment{}
+	require.NoError(t, c.Get(ctx, client.ObjectKey{Name: resourceBaseName, Namespace: "default"}, deploy))
+
+	// Simulate the HPA scaling the target Deployment above the CR's replica value.
+	three := int32(3)
+	deploy.Spec.Replicas = &three
+	require.NoError(t, c.Update(ctx, deploy))
+
+	require.NoError(t, reconcileComponentResources(ctx, c, scheme, recorder, owner, spec, cfg, "", nil, autoscaling, nil))
+
+	require.NoError(t, c.Get(ctx, client.ObjectKey{Name: resourceBaseName, Namespace: "default"}, deploy))
+	require.NotNil(t, deploy.Spec.Replicas)
+	assert.Equal(t, int32(3), *deploy.Spec.Replicas)
+}
+
 func TestDeleteByLabels_KeepsNamedAndDeletesRest(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)

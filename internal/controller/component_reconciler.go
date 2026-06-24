@@ -122,7 +122,9 @@ func reconcileComponentDeployment(
 		// cannot be overridden by user-supplied deployment labels.
 		deploy.Labels = mergeLabels(dt.Labels, labels)
 		deploy.Annotations = mergeAnnotations(deploy.Annotations, dt.Annotations)
-		deploy.Spec = buildDeploymentSpec(spec, cfg, checksumAnnotations, labels)
+		desiredSpec := buildDeploymentSpec(spec, cfg, checksumAnnotations, labels)
+		preserveDeploymentReplicasWhenUnmanaged(&desiredSpec, deploy.Spec)
+		deploy.Spec = desiredSpec
 		return nil
 	})
 	if err != nil {
@@ -136,6 +138,22 @@ func reconcileComponentDeployment(
 			"component", componentName, "name", resourceBaseName, "operation", op)
 	}
 	return nil
+}
+
+// preserveDeploymentReplicasWhenUnmanaged keeps Deployment.spec.replicas out of
+// the operator's control when buildDeploymentSpec decides replicas are
+// unmanaged. The API server defaults an omitted Deployment replicas field to 1
+// on update, so a full-spec update with Replicas=nil would otherwise fight the
+// HPA and continuously scale down.
+func preserveDeploymentReplicasWhenUnmanaged(
+	desired *appsv1.DeploymentSpec,
+	existing appsv1.DeploymentSpec,
+) {
+	if desired.Replicas != nil || existing.Replicas == nil {
+		return
+	}
+	replicas := *existing.Replicas
+	desired.Replicas = &replicas
 }
 
 // reconcileComponentService creates or updates a Service for the component.
