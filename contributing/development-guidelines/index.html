@@ -1,0 +1,2577 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Kubernetes operator for deploying and managing Apache Superset">
+      
+      
+      
+        <link rel="canonical" href="https://apache.github.io/superset-kubernetes-operator/contributing/development-guidelines/">
+      
+      
+        <link rel="prev" href="../development-setup/">
+      
+      
+        <link rel="next" href="../releasing/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Development Guidelines - Apache Superset Kubernetes Operator</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#development-guidelines" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Apache Superset Kubernetes Operator" class="md-header__button md-logo" aria-label="Apache Superset Kubernetes Operator" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Apache Superset Kubernetes Operator
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Development Guidelines
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/apache/superset-kubernetes-operator" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    apache/superset-kubernetes-operator
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Apache Superset Kubernetes Operator" class="md-nav__button md-logo" aria-label="Apache Superset Kubernetes Operator" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Apache Superset Kubernetes Operator
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/apache/superset-kubernetes-operator" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    apache/superset-kubernetes-operator
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/lifecycle/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lifecycle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/networking-and-monitoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Networking & Monitoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migration from Helm Chart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/internals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/downloads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Downloads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/releases/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releases
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Guidelines
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-philosophy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing Philosophy
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Testing Philosophy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#guiding-principle-assert-on-observable-outputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Guiding principle: assert on observable outputs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#security-and-the-threat-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security and the threat model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#test-pyramid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test pyramid
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#test-granularity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test granularity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-goes-where" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What goes where
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#running-e2e-tests-locally" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running E2E tests locally
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#writing-a-new-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Writing a new unit test
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#testing-pure-packages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing pure packages
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fuzzing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fuzzing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#license-headers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        License Headers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dos-and-donts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Do's and Don'ts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Do&#39;s and Don&#39;ts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#do" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Do
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dont" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Don't
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-add-a-new-field" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Add a New Field
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-add-a-new-component" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Add a New Component
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#package-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Package Structure
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-files-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Files Reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metrics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Metrics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#operator-metrics-own-process" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operator metrics (own process)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#superset-instance-monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Superset instance monitoring
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logging
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Logging">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#three-tiers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three tiers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error-logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error logging
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cross-cutting-rule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-cutting rule
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#conventions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conventions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#enabling-verbose-logs-when-debugging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enabling verbose logs when debugging
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pull-requests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pull Requests
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pull Requests">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#title-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Title format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#description" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Description
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changelog-entry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changelog entry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#code-coverage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code coverage
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../releasing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releasing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Architecture
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing-philosophy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing Philosophy
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Testing Philosophy">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#guiding-principle-assert-on-observable-outputs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Guiding principle: assert on observable outputs
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#security-and-the-threat-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security and the threat model
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#test-pyramid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test pyramid
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#test-granularity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Test granularity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-goes-where" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What goes where
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#running-e2e-tests-locally" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running E2E tests locally
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#writing-a-new-unit-test" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Writing a new unit test
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#testing-pure-packages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing pure packages
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fuzzing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fuzzing
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#license-headers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        License Headers
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dos-and-donts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Do's and Don'ts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Do&#39;s and Don&#39;ts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#do" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Do
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dont" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Don't
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-add-a-new-field" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Add a New Field
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-to-add-a-new-component" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How to Add a New Component
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#package-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Package Structure
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-files-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Files Reference
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metrics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Metrics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#operator-metrics-own-process" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Operator metrics (own process)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#superset-instance-monitoring" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Superset instance monitoring
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logging
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Logging">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#three-tiers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three tiers
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#error-logging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Error logging
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cross-cutting-rule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Cross-cutting rule
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#conventions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conventions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#enabling-verbose-logs-when-debugging" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Enabling verbose logs when debugging
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pull-requests" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pull Requests
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Pull Requests">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#title-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Title format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#description" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Description
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changelog-entry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changelog entry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#code-coverage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code coverage
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<!--
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+-->
+
+<h1 id="development-guidelines">Development Guidelines<a class="headerlink" href="#development-guidelines" title="Permanent link">&para;</a></h1>
+<p>This guide covers the patterns, conventions, and testing philosophy that govern
+contributions to the operator. For environment setup, see
+<a href="../development-setup/">Development Setup</a>.</p>
+<h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h2>
+<p>See <a href="../../architecture/overview/">Architecture</a> for the structural overview (CRD
+hierarchy, configuration model, config rendering) and
+<a href="../../architecture/internals/">Internals</a> for runtime behavior (reconciliation
+lifecycle, parent-owned resource reconciliation, status reporting). Key points:</p>
+<ul>
+<li><strong>Single public CRD</strong>: <code>Superset</code> resolves shared spec (top-level + per-component) into parent-owned Kubernetes resources</li>
+<li><strong>6 deployment components + lifecycle tasks</strong>: web server, Celery worker, Celery beat, Flower, websocket, MCP, and task Jobs for clone/migrate/rotate/init</li>
+<li><strong>3 pure Go packages</strong>: <code>internal/resolution/</code> (spec flattening), <code>internal/config/</code> (Python rendering), <code>internal/common/</code> (shared types)</li>
+<li><strong>Parent resolves and executes</strong>: All layering, lifecycle orchestration, resource reconciliation, and status projection live in the parent controller</li>
+</ul>
+<hr />
+<h2 id="testing-philosophy">Testing Philosophy<a class="headerlink" href="#testing-philosophy" title="Permanent link">&para;</a></h2>
+<h3 id="guiding-principle-assert-on-observable-outputs">Guiding principle: assert on observable outputs<a class="headerlink" href="#guiding-principle-assert-on-observable-outputs" title="Permanent link">&para;</a></h3>
+<p>For a Kubernetes operator, the "user" is the person writing a CR and
+<code>kubectl apply</code>-ing it. <strong>Integration and e2e tests</strong> should mirror this
+directly: apply a CR and assert on what the user observes — Deployments,
+Services, ConfigMaps, lifecycle task Jobs, and parent status conditions.</p>
+<p><strong>Unit tests</strong> serve a different purpose: they provide rich permutation
+coverage of business logic (merge semantics, config rendering, preset
+resolution) that would be too slow or combinatorially expensive to exercise
+at higher tiers. They are inherently non-user-facing, but the same principle
+applies — assert on the <em>output</em> of a function (the resolved spec, the
+rendered config) rather than on <em>how</em> the function arrived at that output.</p>
+<p>Across all tiers:</p>
+<ul>
+<li><strong>Avoid testing private functions in isolation</strong> unless they contain
+  genuinely complex logic (merge semantics, backoff math). If a behavior is
+  only meaningful through reconciliation, test it through reconciliation.</li>
+<li><strong>Refactor freely without rewriting tests.</strong> If renaming an internal
+  helper or restructuring a package breaks tests, those tests were coupled
+  to implementation, not behavior, and should be rewritten to assert on
+  observable outputs or removed entirely.</li>
+</ul>
+<h3 id="security-and-the-threat-model">Security and the threat model<a class="headerlink" href="#security-and-the-threat-model" title="Permanent link">&para;</a></h3>
+<p>The <a href="../../reference/security/">security reference</a> is the source of truth for the
+operator's security guarantees. Keep it and the tests that guard it in lockstep:</p>
+<ul>
+<li><strong>When you change the threat model</strong>, update the corresponding security
+  regression tests in the same PR (e.g. the ConfigMap no-leak guard, the RBAC
+  scope guard, and the CEL secret-gating specs) so the guarantees and their
+  guards never drift apart.</li>
+<li><strong>When you add a feature</strong>, confirm the threat model still holds — update it
+  if the change introduces a new trust boundary, secret, or risk surface — and
+  add tests covering that new security surface.</li>
+</ul>
+<h3 id="test-pyramid">Test pyramid<a class="headerlink" href="#test-pyramid" title="Permanent link">&para;</a></h3>
+<p>We use a <strong>pyramid testing strategy</strong> where the vast majority of logic is
+covered by fast, deterministic unit tests. Integration and e2e tests are
+reserved for verifying the system works end-to-end, not for testing
+individual behaviors.</p>
+<ul>
+<li><strong>Unit tests</strong> — Fast, deterministic, fake client or pure functions. Cover all business logic and permutations.</li>
+<li><strong>Integration tests</strong> — Minimal envtest tests (real API server). Verify CRD registration, CEL validation, reconciler lifecycle.</li>
+<li><strong>E2E tests</strong> — 1-2 comprehensive scenarios on a Kind cluster. Verify full operator lifecycle.</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>Unit test</th>
+<th>Integration test</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Speed</td>
+<td>&lt;1 second</td>
+<td>10-30 seconds (envtest startup)</td>
+</tr>
+<tr>
+<td>Reliability</td>
+<td>Deterministic</td>
+<td>Flaky (port binding, timing)</td>
+</tr>
+<tr>
+<td>Dependencies</td>
+<td>None (fake client)</td>
+<td>envtest binaries</td>
+</tr>
+<tr>
+<td>IDE support</td>
+<td>Works everywhere</td>
+<td>Needs KUBEBUILDER_ASSETS</td>
+</tr>
+<tr>
+<td>CI cost</td>
+<td>Negligible</td>
+<td>Moderate</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Rule of thumb</strong>: If you can test it with a fake client, do. Reserve
+envtest/e2e for things that genuinely need a real API server (CEL
+validation, CRD defaulting, multi-controller interaction).</p>
+<blockquote>
+<p><strong>Why CEL/schema tests can't move down.</strong> The controller-runtime fake client
+does <strong>not</strong> enforce CRD OpenAPI schema or CEL (<code>x-kubernetes-validations</code>)
+rules — those only fire on a real API server. So tests for schema/CEL
+validation must live at the integration tier (envtest) and cannot be rewritten
+as fake-client unit tests, even though they look like "just" a create call.
+Conversely, anything that only builds or reconciles objects and asserts on the
+result belongs at the unit tier. (envtest/Kind cost is dominated by fixed suite
+startup, not per-spec, so moving a spec between tiers rarely changes CI time.)</p>
+</blockquote>
+<h3 id="test-granularity">Test granularity<a class="headerlink" href="#test-granularity" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Prefer broad happy-path tests</strong> that cover critical assertions in a single test function. For example, one comprehensive test that creates all components and verifies config, env vars, and status is better than 10 separate tests each checking one field.</li>
+<li><strong>Use granular table tests for helpers with their own semantic contract</strong> (e.g., merge functions, backoff calculation, condition management, field-preservation helpers). When a regression spans both reconciliation flow and helper semantics, pair one behavior-level happy-path test with a focused helper table. Keep simple glue covered through the behavior it supports.</li>
+<li><strong>Every assertion should protect against a plausible regression.</strong> If you can't name the scenario where removing it would let a bug through, it doesn't belong. Avoid adding narrow standalone tests when the assertion fits naturally in an existing comprehensive test.</li>
+<li><strong>When fixing a regression, always add a test that would have caught it.</strong> Regressions that broke silently indicate a gap in test coverage — close the gap as part of the fix.</li>
+<li><strong>Use subtests (<code>t.Run</code>)</strong> to group related scenarios within a single test function instead of creating separate top-level tests.</li>
+</ul>
+<h3 id="what-goes-where">What goes where<a class="headerlink" href="#what-goes-where" title="Permanent link">&para;</a></h3>
+<p><strong>Unit tests</strong> (<code>*_test.go</code> with <code>testing</code> package + <code>fake.NewClientBuilder</code>):
+- Resolution engine: merge semantics, override behavior, beat singleton
+- Config rendering: per-component Python output, metastore URI, config
+- Parent controller: reconciliation logic, parent-owned resource creation/deletion,
+  config env var injection, image overrides, status aggregation, suspend
+- Component resource helpers: ConfigMap, Deployment, Service reconciliation
+- Lifecycle task Jobs: PodSpec building, retention policy, backoff calculation</p>
+<p><strong>Integration tests</strong> (Ginkgo + envtest):
+- CRD schema validation works (kubebuilder markers produce correct OpenAPI)
+- CEL validation rules reject invalid CRs
+- Controller manager starts and registers all controllers</p>
+<p><strong>E2E tests</strong> (Ginkgo + Kind cluster):
+- Operator health: controller pod running, metrics endpoint serving
+- CR lifecycle: apply Superset CR → Deployments + ConfigMaps exist → parent status populated
+- Multi-component: all component types reconciled with correct sub-resources</p>
+<h3 id="running-e2e-tests-locally">Running E2E tests locally<a class="headerlink" href="#running-e2e-tests-locally" title="Permanent link">&para;</a></h3>
+<p><code>make test-e2e</code> creates a throwaway Kind cluster (<code>superset-kubernetes-operator-test-e2e</code>), builds the operator image, loads it into the cluster, runs the Ginkgo specs, and tears the cluster down.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>make<span class="w"> </span>test-e2e
+</code></pre></div>
+<p>The Kind node image is pinned in the Makefile (<code>KIND_NODE_IMAGE</code>) and matches the Kind binary version used in CI. Override <code>E2E_PROJECT_IMAGE</code> or <code>E2E_CURL_IMAGE</code> if your environment requires a mirror registry, or set <code>E2E_SKIP_BUILD_LOAD=1</code> to reuse an image you've already loaded into Kind during iteration.</p>
+<h3 id="writing-a-new-unit-test">Writing a new unit test<a class="headerlink" href="#writing-a-new-unit-test" title="Permanent link">&para;</a></h3>
+<p>Use the standard pattern from <code>superset_controller_test.go</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">TestReconcile_MyScenario</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="nx">scheme</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">testScheme</span><span class="p">(</span><span class="nx">t</span><span class="p">)</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="nx">superset</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">supersetv1alpha1</span><span class="p">.</span><span class="nx">Superset</span><span class="p">{</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">        </span><span class="nx">ObjectMeta</span><span class="p">:</span><span class="w"> </span><span class="nx">metav1</span><span class="p">.</span><span class="nx">ObjectMeta</span><span class="p">{</span><span class="nx">Name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;test&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">Namespace</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;default&quot;</span><span class="p">},</span>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">        </span><span class="nx">Spec</span><span class="p">:</span><span class="w"> </span><span class="nx">supersetv1alpha1</span><span class="p">.</span><span class="nx">SupersetSpec</span><span class="p">{</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">            </span><span class="nx">Image</span><span class="p">:</span><span class="w">       </span><span class="nx">supersetv1alpha1</span><span class="p">.</span><span class="nx">ImageSpec</span><span class="p">{</span><span class="nx">Repository</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;apache/superset&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">Tag</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;latest&quot;</span><span class="p">},</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">            </span><span class="nx">Environment</span><span class="p">:</span><span class="w"> </span><span class="nx">strPtr</span><span class="p">(</span><span class="s">&quot;dev&quot;</span><span class="p">),</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">            </span><span class="nx">SecretKey</span><span class="p">:</span><span class="w">   </span><span class="nx">strPtr</span><span class="p">(</span><span class="s">&quot;test-secret-key&quot;</span><span class="p">),</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">            </span><span class="nx">Lifecycle</span><span class="p">:</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">supersetv1alpha1</span><span class="p">.</span><span class="nx">LifecycleSpec</span><span class="p">{</span>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">                </span><span class="nx">Disabled</span><span class="p">:</span><span class="w"> </span><span class="nx">boolPtr</span><span class="p">(</span><span class="kc">true</span><span class="p">),</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">            </span><span class="p">},</span>
+<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">        </span><span class="p">},</span>
+<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a>
+<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">    </span><span class="nx">c</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">fake</span><span class="p">.</span><span class="nx">NewClientBuilder</span><span class="p">().</span>
+<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">        </span><span class="nx">WithScheme</span><span class="p">(</span><span class="nx">scheme</span><span class="p">).</span>
+<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">        </span><span class="nx">WithObjects</span><span class="p">(</span><span class="nx">superset</span><span class="p">).</span>
+<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">        </span><span class="nx">WithStatusSubresource</span><span class="p">(</span><span class="nx">superset</span><span class="p">).</span>
+<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">        </span><span class="nx">Build</span><span class="p">()</span>
+<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a>
+<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="w">    </span><span class="nx">r</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">SupersetReconciler</span><span class="p">{</span>
+<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="w">        </span><span class="nx">Client</span><span class="p">:</span><span class="w"> </span><span class="nx">c</span><span class="p">,</span><span class="w"> </span><span class="nx">Scheme</span><span class="p">:</span><span class="w"> </span><span class="nx">scheme</span><span class="p">,</span><span class="w"> </span><span class="nx">Recorder</span><span class="p">:</span><span class="w"> </span><span class="nx">record</span><span class="p">.</span><span class="nx">NewFakeRecorder</span><span class="p">(</span><span class="mi">10</span><span class="p">),</span>
+<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a>
+<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a><span class="w">    </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">r</span><span class="p">.</span><span class="nx">Reconcile</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">Background</span><span class="p">(),</span><span class="w"> </span><span class="nx">reconcile</span><span class="p">.</span><span class="nx">Request</span><span class="p">{</span>
+<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a><span class="w">        </span><span class="nx">NamespacedName</span><span class="p">:</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">NamespacedName</span><span class="p">{</span><span class="nx">Name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;test&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">Namespace</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;default&quot;</span><span class="p">},</span>
+<a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a><span class="w">    </span><span class="p">})</span>
+<a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a><span class="w">        </span><span class="nx">t</span><span class="p">.</span><span class="nx">Fatalf</span><span class="p">(</span><span class="s">&quot;reconcile: %v&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a>
+<a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a><span class="w">    </span><span class="c1">// Assert on the result...</span>
+<a id="__codelineno-1-34" name="__codelineno-1-34" href="#__codelineno-1-34"></a><span class="p">}</span>
+</code></pre></div>
+<p>Key patterns:
+- Use <code>boolPtr(true)</code> for <code>Lifecycle.Disabled</code> to bypass lifecycle task execution
+- Register all types in the scheme via <code>testScheme(t)</code> helper
+- Use <code>WithStatusSubresource</code> for objects whose status is updated
+- Assert on parent-owned resources and parent status, not on internal helper state</p>
+<h3 id="testing-pure-packages">Testing pure packages<a class="headerlink" href="#testing-pure-packages" title="Permanent link">&para;</a></h3>
+<p><code>internal/resolution/</code> and <code>internal/config/</code> are pure Go with zero
+controller-runtime dependencies. Test them directly:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">TestMergeEnvVars_ConflictResolution</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="nx">result</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">resolution</span><span class="p">.</span><span class="nx">MergeEnvVars</span><span class="p">(</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">        </span><span class="p">[]</span><span class="nx">corev1</span><span class="p">.</span><span class="nx">EnvVar</span><span class="p">{{</span><span class="nx">Name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;A&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">Value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1&quot;</span><span class="p">}},</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">        </span><span class="p">[]</span><span class="nx">corev1</span><span class="p">.</span><span class="nx">EnvVar</span><span class="p">{{</span><span class="nx">Name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;A&quot;</span><span class="p">,</span><span class="w"> </span><span class="nx">Value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;2&quot;</span><span class="p">}},</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="p">)</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="c1">// Later slice wins on name conflict.</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">result</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="nx">Value</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="s">&quot;2&quot;</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="o">...</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="p">}</span>
+</code></pre></div>
+<h3 id="fuzzing">Fuzzing<a class="headerlink" href="#fuzzing" title="Permanent link">&para;</a></h3>
+<p>We fuzz a small set of pure functions with Go's built-in fuzzing
+(<code>go test -fuzz</code>).</p>
+<p>Fuzz targets live in <code>*_fuzz_test.go</code> files beside the code they exercise, in
+the same package and with no build tag (so they compile under the default
+<code>go test</code>). Run all of them, bounded, with:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>make<span class="w"> </span>fuzz<span class="w">              </span><span class="c1"># 30s per target</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>make<span class="w"> </span>fuzz<span class="w"> </span><span class="nv">FUZZTIME</span><span class="o">=</span>2m<span class="w">  </span><span class="c1"># longer local run</span>
+</code></pre></div>
+<p>Each target seeds a corpus with <code>f.Add(...)</code> cases and asserts an invariant
+beyond "does not panic" — e.g. <code>CompareVersions</code> is antisymmetric, <code>RenderConfig</code>
+is deterministic, <code>pyQuote</code> round-trips, <code>MergeMaps</code> is a last-writer-wins union.
+The seed corpus (plus any committed <code>testdata/fuzz/...</code> reproducers) replays as
+ordinary subtests during <code>make test-unit</code>, so regressions are caught on every PR;
+the scheduled <code>fuzz.yaml</code> workflow runs the targets for longer to explore new
+inputs.</p>
+<p><strong>When to add a target:</strong> a pure, deterministic function that parses strings,
+generates code/config, or merges collections from CR-author-controlled input.
+Skip trivial scalar or preset math already covered by table tests.</p>
+<p><strong>Scope — robustness, not a security boundary.</strong> As noted under
+<a href="#security-and-the-threat-model">Security and the threat model</a>, <code>Superset</code> CR
+input comes from a <em>trusted</em> namespace admin. Fuzzing here guards against panics
+and non-determinism on awkward-but-valid input; it is not defending a trust
+boundary. Frame findings accordingly.</p>
+<p><strong>On a finding:</strong> <code>go test</code> writes a reproducer to <code>testdata/fuzz/&lt;target&gt;/&lt;id&gt;</code>.
+Commit it as a permanent regression seed, then fix the bug.</p>
+<hr />
+<h2 id="license-headers">License Headers<a class="headerlink" href="#license-headers" title="Permanent link">&para;</a></h2>
+<p>All source files must carry the Apache License 2.0 header. This is enforced in CI
+by <a href="https://creadur.apache.org/rat/">Apache Rat</a>.</p>
+<p>To check locally (requires Java):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>make<span class="w"> </span>check-license
+</code></pre></div>
+<p>The script downloads the Rat jar to <code>/tmp/lib/</code> on first run. Files that are
+generated, scaffolded by Operator SDK, or not user-authored are excluded via
+<code>.rat-excludes</code>.</p>
+<p>When adding new source files (<code>.go</code>, <code>.yaml</code>, <code>.sh</code>, <code>Dockerfile</code>, etc.), include
+the appropriate license header. Go files get this automatically from
+<code>hack/boilerplate.go.txt</code> when using <code>make generate</code>. For other file types, use
+the <code>#</code>-comment form:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a># Licensed to the Apache Software Foundation (ASF) under one or more
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a># contributor license agreements.  See the NOTICE file distributed with
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a># this work for additional information regarding copyright ownership.
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a># The ASF licenses this file to You under the Apache License, Version 2.0
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a># (the &quot;License&quot;); you may not use this file except in compliance with
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a># the License.  You may obtain a copy of the License at
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>#
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a>#    http://www.apache.org/licenses/LICENSE-2.0
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a>#
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a># Unless required by applicable law or agreed to in writing, software
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a># distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a># WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+<a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a># See the License for the specific language governing permissions and
+<a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a># limitations under the License.
+</code></pre></div>
+<hr />
+<h2 id="dos-and-donts">Do's and Don'ts<a class="headerlink" href="#dos-and-donts" title="Permanent link">&para;</a></h2>
+<h3 id="do">Do<a class="headerlink" href="#do" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Use shared helpers</strong> from <code>component_reconciler.go</code> (<code>reconcileComponentDeployment</code>, <code>reconcileComponentService</code>, <code>reconcileScaling</code>, <code>buildChecksumAnnotations</code>). ConfigMaps are owned by the parent — use <code>reconcileParentOwnedConfigMap</code> from <code>superset_controller.go</code>.</li>
+<li><strong>Use <code>componentLabels(component, instance)</code></strong> for consistent label generation</li>
+<li><strong>Stamp <code>parentLabels(parentName)</code> on all parent-owned resources</strong> (ServiceAccount, Ingress, HTTPRoute, ServiceMonitor) — this enables label-based cleanup</li>
+<li><strong>Use <code>controllerutil.CreateOrUpdate</code> as the live-object boundary</strong>: keep <code>build*Spec</code> helpers pure, build desired specs from resolved CR/operator inputs, then preserve API-server/defaulted or other-controller-owned fields before assignment. Examples include Service <code>ClusterIP</code>/<code>HealthCheckNodePort</code> and HPA-managed Deployment <code>replicas</code>.</li>
+<li><strong>Set OwnerReferences</strong> via <code>controllerutil.SetControllerReference</code></li>
+<li><strong>Record events</strong> via <code>r.Recorder.Eventf()</code> for errors and state changes</li>
+<li><strong>Add Go doc comments</strong> to all exported types — they become CRD descriptions</li>
+<li><strong>Run <code>make manifests generate</code></strong> after any change to <code>api/v1alpha1/</code></li>
+<li><strong>Write unit tests first</strong> — every new feature should have tests before integration</li>
+<li><strong>Test with fake client</strong> — only use envtest when you genuinely need a real API server</li>
+</ul>
+<h3 id="dont">Don't<a class="headerlink" href="#dont" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Don't hardcode resource names</strong> — use <code>componentDescriptor.resourceBaseName()</code> and naming helpers. Component resources are named <code>{parentName}-{componentType}</code>.</li>
+<li><strong>Don't fetch resources by name for cleanup</strong> — use <code>deleteByLabels</code> with parent/component labels to discover and clean up. Name-based <code>CreateOrUpdate</code> and status reads are fine — those address resources whose names the operator controls.</li>
+<li><strong>Don't hardcode commands/ports</strong> — use <code>DeploymentConfig</code> defaults</li>
+<li><strong>Don't duplicate controller logic</strong> — use <code>component_reconciler.go</code> helpers</li>
+<li><strong>Don't copy derived facts between docs</strong> — values defined in code or in one canonical doc (e.g. the per-component routing paths in <a href="../../user-guide/networking-and-monitoring/"><code>networking-and-monitoring.md</code></a>) should be stated once and cross-linked from elsewhere, not re-listed on other pages where they silently go stale. Same spirit as the Automation Principle: one source of truth.</li>
+<li><strong>Don't add fields without doc comments</strong> — they become CRD descriptions</li>
+<li><strong>Don't use <code>bool</code> with <code>omitempty</code></strong> — use <code>*bool</code> to distinguish false from unset</li>
+<li><strong>Don't write integration tests for unit-testable logic</strong> — use fake client</li>
+<li><strong>Don't put secret values in ConfigMaps</strong> — in prod mode, secrets are mounted via env vars from Kubernetes Secrets</li>
+<li><strong>Don't use admission webhooks for validation</strong> — use <a href="https://kubernetes.io/docs/reference/using-api/cel/">CEL</a> (<code>x-kubernetes-validations</code>) on CRD types instead. Webhooks add operational complexity (cert-manager dependency, TLS setup) and are not installed by default. All validation rules should be expressed as CEL where feasible.</li>
+<li><strong>Cross-reference security docs</strong> — any change that affects trust boundaries, secret handling, RBAC, CRD validation, or the operator's attack surface must be reflected in <a href="../../reference/security/"><code>docs/reference/security.md</code></a>. Review the threat model, design decisions, and in-scope/out-of-scope sections to ensure they stay accurate.</li>
+</ul>
+<h2 id="how-to-add-a-new-field">How to Add a New Field<a class="headerlink" href="#how-to-add-a-new-field" title="Permanent link">&para;</a></h2>
+<p>New Deployment/Pod/Container fields go into the template hierarchy:</p>
+<ol>
+<li>Determine the Kubernetes level: <code>DeploymentTemplate</code> (Deployment-level),
+   <code>PodTemplate</code> (PodSpec-level), or <code>ContainerTemplate</code> (Container-level)</li>
+<li>Add the field to the appropriate template type in <code>api/v1alpha1/shared_types.go</code></li>
+<li>Add the merge logic in <code>internal/resolution/merge.go</code> (<code>MergeDeploymentTemplate</code>,
+   <code>MergePodTemplate</code>, or <code>MergeContainerTemplate</code>) using the field's natural
+   semantics (scalar → <code>ResolveOverridableValue</code>, named slice → <code>Merge*ByName</code>,
+   map → <code>MergeMaps</code>, unnamed slice → <code>append</code>). All merge functions follow the
+   convention <code>Merge*(topLevel, component[, operatorInjected])</code>: the top-level
+   value establishes ordering, the component value overrides by name in place,
+   and where applicable (env vars, volume mounts, labels) operator-injected
+   values are applied last so they cannot be overridden by user configuration.
+   Any code consuming resolved ports, env vars, or other merged collections
+   must respect this same ordering.</li>
+<li>Wire the field in <code>internal/controller/deployment_builder.go</code> (<code>buildDeploymentSpec</code>)</li>
+<li>Run <code>make manifests generate</code></li>
+<li>Add assertions to existing comprehensive tests</li>
+<li>Update sample CRs if helpful</li>
+</ol>
+<h2 id="how-to-add-a-new-component">How to Add a New Component<a class="headerlink" href="#how-to-add-a-new-component" title="Permanent link">&para;</a></h2>
+<ol>
+<li>Add the component spec to the parent <code>SupersetSpec</code> in <code>superset_types.go</code>.</li>
+<li>Add resource defaults in <code>internal/controller/component_resources.go</code> via
+   <code>ComponentResourceDefs()</code> with component name, <code>DeploymentConfig</code>
+   (container name, default command, ports), <code>hasConfig</code>, and <code>hasScaling</code>.</li>
+<li>Register the component in <code>internal/controller/component_descriptors.go</code>:</li>
+<li>Add a <code>componentDescriptor</code> entry with <code>extract</code>, optional <code>adjustSpec</code>,
+     and <code>statusAccessor</code> functions.</li>
+<li>Add the descriptor to the <code>componentDescriptors</code> slice.</li>
+<li>Add status fields if the component needs a dedicated slot under
+   <code>ComponentStatusMap</code>.</li>
+<li>Run <code>make codegen</code>.</li>
+<li>Add sample CR coverage, focused unit tests, and e2e assertions for the
+   parent-owned resources.</li>
+</ol>
+<h2 id="package-structure">Package Structure<a class="headerlink" href="#package-structure" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>internal/
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>├── resolution/       # Pure Go — spec flattening engine
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>│                     # Zero controller-runtime deps, fully unit-testable
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a>│                     # MergeMaps, MergeEnvVars, ResolveComponentSpec(), etc.
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>├── config/           # Pure Go — Python config renderer
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a>│                     # Per-component rendering, metastore URI,
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a>│                     # config appending
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a>├── common/           # Shared types (ComponentType, Ptr helper)
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a>└── controller/       # controller-runtime — reconcilers
+<a id="__codelineno-6-10" name="__codelineno-6-10" href="#__codelineno-6-10"></a>                      # Parent controller, component resources,
+<a id="__codelineno-6-11" name="__codelineno-6-11" href="#__codelineno-6-11"></a>                      # task job lifecycle, status, scaling, networking
+</code></pre></div>
+<hr />
+<h2 id="key-files-reference">Key Files Reference<a class="headerlink" href="#key-files-reference" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>api/v1alpha1/shared_types.go</code></td>
+<td>ImageSpec, MetastoreSpec, DeploymentTemplate, PodTemplate, ContainerTemplate, FlatComponentSpec</td>
+</tr>
+<tr>
+<td><code>api/v1alpha1/superset_types.go</code></td>
+<td>Parent SupersetSpec, component specs, InitSpec, CEL validation rules, status</td>
+</tr>
+<tr>
+<td><code>internal/common/types.go</code></td>
+<td>Shared ComponentType, Ptr helper</td>
+</tr>
+<tr>
+<td><code>internal/resolution/resolver.go</code></td>
+<td>ResolveComponentSpec — core flattening engine</td>
+</tr>
+<tr>
+<td><code>internal/config/renderer.go</code></td>
+<td>RenderConfig — per-component Python generation</td>
+</tr>
+<tr>
+<td><code>internal/controller/component_reconciler.go</code></td>
+<td>Shared helpers for component resources</td>
+</tr>
+<tr>
+<td><code>internal/controller/component_resources.go</code></td>
+<td><code>ComponentResourceDefs()</code> — table-driven component resource defaults</td>
+</tr>
+<tr>
+<td><code>internal/controller/component_descriptors.go</code></td>
+<td>Parent-side component descriptors for resource reconciliation and status</td>
+</tr>
+<tr>
+<td><code>internal/controller/superset_controller.go</code></td>
+<td>Parent reconciler (orchestrates everything)</td>
+</tr>
+<tr>
+<td><code>internal/controller/deployment_builder.go</code></td>
+<td>Deployment construction from flat spec</td>
+</tr>
+<tr>
+<td><code>internal/controller/initpod.go</code></td>
+<td>Lifecycle task Job PodSpec building, retention, backoff</td>
+</tr>
+<tr>
+<td><code>internal/controller/reconcile_parent_resources_test.go</code></td>
+<td>Parent controller resource tests (fake client)</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="metrics">Metrics<a class="headerlink" href="#metrics" title="Permanent link">&para;</a></h2>
+<p>The operator exposes metrics at two levels:</p>
+<h3 id="operator-metrics-own-process">Operator metrics (own process)<a class="headerlink" href="#operator-metrics-own-process" title="Permanent link">&para;</a></h3>
+<p>Controller-runtime provides default metrics (reconcile counts/durations, leader
+election, work queue depth) on HTTPS port 8443. The metrics endpoint is
+protected by Kubernetes authentication and authorization — only clients with
+the <code>metrics-reader</code> ClusterRole can scrape.</p>
+<p>Key files:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>config/default/metrics_service.yaml</code></td>
+<td>Service exposing :8443</td>
+</tr>
+<tr>
+<td><code>config/default/manager_metrics_patch.yaml</code></td>
+<td>Injects <code>--metrics-bind-address</code></td>
+</tr>
+<tr>
+<td><code>config/rbac/metrics_auth_role.yaml</code></td>
+<td>TokenReview/SubjectAccessReview for auth</td>
+</tr>
+<tr>
+<td><code>config/rbac/metrics_reader_role.yaml</code></td>
+<td>Grants GET on <code>/metrics</code></td>
+</tr>
+<tr>
+<td><code>config/prometheus/monitor.yaml</code></td>
+<td>ServiceMonitor for operator metrics (optional)</td>
+</tr>
+<tr>
+<td><code>config/network-policy/allow-metrics-traffic.yaml</code></td>
+<td>NetworkPolicy restricting scrape access (optional)</td>
+</tr>
+</tbody>
+</table>
+<p>The Helm chart enables metrics by default (<code>metrics.enabled: true</code>, port 8443).</p>
+<p><strong>No custom metrics.</strong> Controller-runtime defaults are sufficient for operator
+health. Don't add custom metrics unless there's a concrete alerting or
+dashboarding need that can't be met by the defaults.</p>
+<h3 id="superset-instance-monitoring">Superset instance monitoring<a class="headerlink" href="#superset-instance-monitoring" title="Permanent link">&para;</a></h3>
+<p>When <code>spec.monitoring.serviceMonitor</code> is set on a Superset CR, the parent
+controller creates a Prometheus ServiceMonitor targeting the web-server
+component (port 8088). This uses unstructured objects because the
+ServiceMonitor CRD is external (<code>monitoring.coreos.com/v1</code>). If the CRD is
+not installed, the controller logs an info message and continues.</p>
+<p>See <code>internal/controller/monitoring.go</code> for the implementation.</p>
+<hr />
+<h2 id="logging">Logging<a class="headerlink" href="#logging" title="Permanent link">&para;</a></h2>
+<p>The operator logs through <code>logf.FromContext(ctx)</code> (controller-runtime's
+logr/zap). Verbosity is a single knob, <code>--zap-log-level</code>, configured in
+<code>cmd/main.go</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Levels emitted</th>
+<th>Audience</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--zap-log-level=info</code> (default)</td>
+<td>V(0)</td>
+<td>Operators in production</td>
+</tr>
+<tr>
+<td><code>--zap-log-level=debug</code> (alias <code>=1</code>)</td>
+<td>V(0)+V(1)</td>
+<td>Debugging a reconcile</td>
+</tr>
+<tr>
+<td><code>--zap-log-level=2</code></td>
+<td>V(0)+V(1)+V(2)</td>
+<td>Deep tracing internals</td>
+</tr>
+</tbody>
+</table>
+<h3 id="three-tiers">Three tiers<a class="headerlink" href="#three-tiers" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Info / V(0)</strong> — <code>log.Info(msg, kv...)</code>. Low-frequency, meaningful state
+  <em>transitions</em> an operator wants at default verbosity (lifecycle task
+  created/completed/failed, downgrade blocked, awaiting approval, maintenance
+  cleared, a component actually changed). <strong>Must not fire on every reconcile.</strong></li>
+<li><strong>V(1) / debug</strong> — <code>log.V(1).Info(msg, kv...)</code>. Per-reconcile progress and
+  decisions: reconcile entry, phase markers, checksum-skip decisions,
+  "waiting for X" requeues, schedule next-requeue time, CRD-absent skips, no-op
+  results.</li>
+<li><strong>V(2) / trace</strong> — <code>log.V(2).Info(msg, kv...)</code>. Fine-grained internals:
+  rendered config size/checksum, version-comparison result, per-resource
+  CreateOrUpdate op even when unchanged.</li>
+</ul>
+<h3 id="error-logging">Error logging<a class="headerlink" href="#error-logging" title="Permanent link">&para;</a></h3>
+<p><code>log.Error(err, msg, kv...)</code> is reserved for <strong>non-fatal errors that are
+swallowed</strong> — not returned up the stack and not surfaced as a Kubernetes Event —
+so they are not silently lost. Do <strong>not</strong> <code>log.Error</code> an error you also return:
+controller-runtime already logs returned reconcile errors at the top of the
+loop, and the code records a Warning Event via <code>r.Recorder.Eventf</code>. Double
+logging just creates noise.</p>
+<h3 id="cross-cutting-rule">Cross-cutting rule<a class="headerlink" href="#cross-cutting-rule" title="Permanent link">&para;</a></h3>
+<p>Anything that fires on <strong>every</strong> reconcile regardless of state change is V(1) or
+deeper. V(0) is for genuine transitions only. When in doubt, ask "would this line
+appear in a steady-state cluster where nothing is changing?" — if yes, it is not
+V(0).</p>
+<h3 id="conventions">Conventions<a class="headerlink" href="#conventions" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Structured keys are <strong>camelCase</strong>: <code>name</code>, <code>namespace</code>, <code>component</code>, <code>task</code>,
+  <code>image</code>, <code>from</code>, <code>to</code>, <code>operation</code>, <code>reason</code>, <code>phase</code>. Reuse these; don't
+  invent synonyms.</li>
+<li>Never log secret values or rendered config bodies. Log sizes, counts, or
+  checksums instead (e.g. <code>configBytes</code>, <code>envVars</code>, <code>checksum</code>).</li>
+<li>Pure packages (<code>internal/resolution/</code>, <code>internal/config/</code>, <code>internal/common/</code>,
+  <code>internal/schedule/</code>) do <strong>zero</strong> logging by design — they have no
+  controller-runtime dependency and return errors only. Keep it that way.</li>
+</ul>
+<h3 id="enabling-verbose-logs-when-debugging">Enabling verbose logs when debugging<a class="headerlink" href="#enabling-verbose-logs-when-debugging" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>make<span class="w"> </span>run<span class="w"> </span><span class="nv">ARGS</span><span class="o">=</span><span class="s2">&quot;--zap-log-level=debug&quot;</span><span class="w">   </span><span class="c1"># V(1)</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>make<span class="w"> </span>run<span class="w"> </span><span class="nv">ARGS</span><span class="o">=</span><span class="s2">&quot;--zap-log-level=2&quot;</span><span class="w">        </span><span class="c1"># V(1)+V(2)</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="c1"># in-cluster (Helm): --set logLevel=debug (or 2) — see Installation › Debugging the operator</span>
+</code></pre></div>
+<hr />
+<h2 id="pull-requests">Pull Requests<a class="headerlink" href="#pull-requests" title="Permanent link">&para;</a></h2>
+<h3 id="title-format">Title format<a class="headerlink" href="#title-format" title="Permanent link">&para;</a></h3>
+<p>PR titles must follow the conventional commits format:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>type(scope): description
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>type: description
+</code></pre></div>
+<p>Scope is optional but encouraged when the change is scoped to a single area.
+Keep titles concise: aim for 50 characters when practical, and avoid exceeding
+72 characters because GitHub wraps longer titles in common views.</p>
+<p>CI validates this on every PR via the <code>PR / Validate PR title</code> check.</p>
+<p><strong>Allowed types:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Type</th>
+<th>Use for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>feat</code></td>
+<td>New functionality</td>
+</tr>
+<tr>
+<td><code>fix</code></td>
+<td>Bug fixes</td>
+</tr>
+<tr>
+<td><code>refactor</code></td>
+<td>Code restructuring without behavior change</td>
+</tr>
+<tr>
+<td><code>docs</code></td>
+<td>Documentation only</td>
+</tr>
+<tr>
+<td><code>test</code></td>
+<td>Adding or updating tests</td>
+</tr>
+<tr>
+<td><code>chore</code></td>
+<td>Maintenance (config, tooling, dependencies)</td>
+</tr>
+<tr>
+<td><code>ci</code></td>
+<td>CI/CD workflow changes</td>
+</tr>
+<tr>
+<td><code>build</code></td>
+<td>Build system or external dependency changes</td>
+</tr>
+<tr>
+<td><code>perf</code></td>
+<td>Performance improvements</td>
+</tr>
+<tr>
+<td><code>style</code></td>
+<td>Formatting, whitespace, linting</td>
+</tr>
+<tr>
+<td><code>revert</code></td>
+<td>Reverting a previous commit</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Allowed scopes:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Scope</th>
+<th>Covers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>api</code></td>
+<td>CRD type definitions (<code>api/v1alpha1/</code>)</td>
+</tr>
+<tr>
+<td><code>controller</code></td>
+<td>Reconciler logic (<code>internal/controller/</code>)</td>
+</tr>
+<tr>
+<td><code>resolution</code></td>
+<td>Spec resolution/merge engine (<code>internal/resolution/</code>)</td>
+</tr>
+<tr>
+<td><code>config</code></td>
+<td>Config rendering (<code>internal/config/</code>)</td>
+</tr>
+<tr>
+<td><code>helm</code></td>
+<td>Helm chart (<code>charts/</code>)</td>
+</tr>
+<tr>
+<td><code>ci</code></td>
+<td>CI workflows, tooling (<code>.github/</code>, <code>Makefile</code>)</td>
+</tr>
+<tr>
+<td><code>docs</code></td>
+<td>Documentation (<code>docs/</code>)</td>
+</tr>
+<tr>
+<td><code>deps</code></td>
+<td>Dependency updates</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Examples:</strong></p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>feat(api): add tolerations field to PodTemplate
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>fix(controller): handle nil deployment template in scaling reconciler
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>docs: add valkey configuration examples to user guide
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>chore(deps): bump controller-runtime to v0.20.0
+</code></pre></div>
+<h3 id="description">Description<a class="headerlink" href="#description" title="Permanent link">&para;</a></h3>
+<p>Every PR must include a <strong>Summary</strong> section with at least one paragraph
+explaining what the change does and why. A reviewer should understand the
+motivation and scope from the summary alone, without reading the diff.</p>
+<p>Use the optional <strong>Details</strong> section for implementation notes, design decisions,
+alternatives considered, or migration steps.</p>
+<p>The PR template (<code>PULL_REQUEST_TEMPLATE.md</code>) pre-fills these sections.</p>
+<h3 id="changelog-entry">Changelog entry<a class="headerlink" href="#changelog-entry" title="Permanent link">&para;</a></h3>
+<p>Add a bullet under <code>## Unreleased</code> in
+<a href="../../reference/releases/"><code>docs/reference/releases.md</code></a>
+for noteworthy changes — new features,
+new CRD fields, behavior changes, breaking changes, deprecations, and
+critical bug fixes. Skip the entry for routine work that a user wouldn't
+care about: dependency bumps, CI tweaks, internal refactors, test-only
+changes, and documentation-only updates.</p>
+<p>Group entries under <code>Added</code>, <code>Changed</code>, <code>Deprecated</code>, <code>Removed</code>, <code>Fixed</code>, or
+<code>Security</code> (per <a href="https://keepachangelog.com/en/1.1.0/">Keep a Changelog</a>);
+create the subheading on first use. Lead each bullet with the user-facing
+effect, not the implementation:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="gu">## Unreleased</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="gu">### Added</span>
+<a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="k">-</span><span class="w"> </span>New <span class="sb">`webServer.gunicorn.keepAlive`</span> field for tuning Gunicorn keepalive timeouts.
+<a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>
+<a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="gu">### Fixed</span>
+<a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="k">-</span><span class="w"> </span>Lifecycle <span class="sb">`migrate`</span> task no longer retries indefinitely when the metastore
+<a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>  rejects credentials; the parent surfaces an <span class="sb">`AuthenticationFailed`</span> reason.
+</code></pre></div>
+<p>The release manager does a final review pass over <code>## Unreleased</code> before
+tagging — see <a href="../releasing/#reviewing-the-changelog">Releasing</a> — so it's
+fine to err on the side of including an entry; missing or duplicate ones can
+be cleaned up there.</p>
+<h3 id="code-coverage">Code coverage<a class="headerlink" href="#code-coverage" title="Permanent link">&para;</a></h3>
+<p>CI uploads test coverage to <a href="https://codecov.io">Codecov</a> on every PR. The
+Codecov bot posts a comment showing:</p>
+<ul>
+<li><strong>Patch coverage</strong> — what percentage of new/changed lines are covered by tests</li>
+<li><strong>Project coverage delta</strong> — how overall coverage changed</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "navigation.sections", "navigation.expand", "navigation.top", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="https://unpkg.com/mermaid@11/dist/mermaid.min.js"></script>
+      
+    
+  </body>
+</html>
