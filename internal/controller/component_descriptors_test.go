@@ -163,6 +163,56 @@ func TestWarnEnvVarOverrides(t *testing.T) {
 	})
 }
 
+func TestInjectCeleryCommand(t *testing.T) {
+	cmd := []string{"celery", "worker"}
+
+	t.Run("nil component is a no-op", func(t *testing.T) {
+		assert.NotPanics(t, func() {
+			injectCeleryCommand(nil, cmd)
+		})
+	})
+
+	t.Run("creates missing pod and container templates", func(t *testing.T) {
+		comp := &resolution.ComponentInput{}
+
+		injectCeleryCommand(comp, cmd)
+
+		require.NotNil(t, comp.PodTemplate)
+		require.NotNil(t, comp.PodTemplate.Container)
+		assert.Equal(t, cmd, comp.PodTemplate.Container.Command)
+	})
+
+	t.Run("creates missing container template", func(t *testing.T) {
+		comp := &resolution.ComponentInput{
+			SharedInput: resolution.SharedInput{
+				PodTemplate: &supersetv1alpha1.PodTemplate{},
+			},
+		}
+
+		injectCeleryCommand(comp, cmd)
+
+		require.NotNil(t, comp.PodTemplate.Container)
+		assert.Equal(t, cmd, comp.PodTemplate.Container.Command)
+	})
+
+	t.Run("preserves explicit command", func(t *testing.T) {
+		existing := []string{"custom", "worker"}
+		comp := &resolution.ComponentInput{
+			SharedInput: resolution.SharedInput{
+				PodTemplate: &supersetv1alpha1.PodTemplate{
+					Container: &supersetv1alpha1.ContainerTemplate{
+						Command: existing,
+					},
+				},
+			},
+		}
+
+		injectCeleryCommand(comp, cmd)
+
+		assert.Equal(t, existing, comp.PodTemplate.Container.Command)
+	})
+}
+
 func TestDeleteComponentResources(t *testing.T) {
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
