@@ -24,6 +24,15 @@ releases.
 
 ## [Unreleased]
 
+## [0.1.1]
+
+### Fixed
+
+- Honor HPA-managed replica counts: the operator no longer overwrites the
+  replica count on Deployments whose scaling is owned by a
+  HorizontalPodAutoscaler ([#152](https://github.com/apache/superset-kubernetes-operator/pull/152),
+  [@pashtet04](https://github.com/pashtet04)).
+
 ## [0.1.0]
 
 ### Added
@@ -44,5 +53,6 @@ releases.
   failure output is truncated into `status` and could contain fragments of task
   stdout, including credentials. See [security.md](security.md).
 
-[Unreleased]: https://github.com/apache/superset-kubernetes-operator/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/apache/superset-kubernetes-operator/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/apache/superset-kubernetes-operator/releases/tag/v0.1.1
 [0.1.0]: https://github.com/apache/superset-kubernetes-operator/releases/tag/v0.1.0
