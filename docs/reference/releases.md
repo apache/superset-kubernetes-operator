@@ -24,11 +24,19 @@ releases.
 
 ## Unreleased
 
+## 0.1.1 - 2026-06-29
+
+### Fixed
+
+- Honor HPA-managed replica counts: the operator no longer overwrites the
+  replica count on Deployments whose scaling is owned by a
+  HorizontalPodAutoscaler ([#152](https://github.com/apache/superset-kubernetes-operator/pull/152), [@pashtet04](https://github.com/pashtet04)).
+
 ## 0.1.0 - 2026-06-10
 
 ### Added
 
-- Initial release.
+- Initial release ([@villebro](https://github.com/villebro)).
 
 ### Known limitations
 
