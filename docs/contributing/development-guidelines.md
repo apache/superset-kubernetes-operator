@@ -111,7 +111,7 @@ validation, CRD defaulting, multi-controller interaction).
 ### Test granularity
 
 - **Prefer broad happy-path tests** that cover critical assertions in a single test function. For example, one comprehensive test that creates all components and verifies config, env vars, and status is better than 10 separate tests each checking one field.
-- **Use granular tests only for complex utilities** with many edge cases (e.g., merge functions, backoff calculation, condition management). These benefit from table-driven tests covering boundary conditions.
+- **Use granular table tests for helpers with their own semantic contract** (e.g., merge functions, backoff calculation, condition management, field-preservation helpers). When a regression spans both reconciliation flow and helper semantics, pair one behavior-level happy-path test with a focused helper table. Keep simple glue covered through the behavior it supports.
 - **Every assertion should protect against a plausible regression.** If you can't name the scenario where removing it would let a bug through, it doesn't belong. Avoid adding narrow standalone tests when the assertion fits naturally in an existing comprehensive test.
 - **When fixing a regression, always add a test that would have caught it.** Regressions that broke silently indicate a gap in test coverage — close the gap as part of the fix.
 - **Use subtests (`t.Run`)** to group related scenarios within a single test function instead of creating separate top-level tests.
@@ -292,7 +292,7 @@ the `#`-comment form:
 - **Use shared helpers** from `component_reconciler.go` (`reconcileComponentDeployment`, `reconcileComponentService`, `reconcileScaling`, `buildChecksumAnnotations`). ConfigMaps are owned by the parent — use `reconcileParentOwnedConfigMap` from `superset_controller.go`.
 - **Use `componentLabels(component, instance)`** for consistent label generation
 - **Stamp `parentLabels(parentName)` on all parent-owned resources** (ServiceAccount, Ingress, HTTPRoute, ServiceMonitor) — this enables label-based cleanup
-- **Use `controllerutil.CreateOrUpdate`** for idempotent reconciliation
+- **Use `controllerutil.CreateOrUpdate` as the live-object boundary**: keep `build*Spec` helpers pure, build desired specs from resolved CR/operator inputs, then preserve API-server/defaulted or other-controller-owned fields before assignment. Examples include Service `ClusterIP`/`HealthCheckNodePort` and HPA-managed Deployment `replicas`.
 - **Set OwnerReferences** via `controllerutil.SetControllerReference`
 - **Record events** via `r.Recorder.Eventf()` for errors and state changes
 - **Add Go doc comments** to all exported types — they become CRD descriptions

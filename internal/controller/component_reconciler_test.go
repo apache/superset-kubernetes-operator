@@ -36,24 +36,75 @@ import (
 	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
-func TestPreserveServiceAllocatedFields_ExternalNameAndHealthCheck(t *testing.T) {
-	t.Run("preserves HealthCheckNodePort", func(t *testing.T) {
-		existing := corev1.ServiceSpec{HealthCheckNodePort: 31000}
-		desired := corev1.ServiceSpec{Type: corev1.ServiceTypeClusterIP}
-		preserveServiceAllocatedFields(&desired, existing)
-		assert.Equal(t, int32(31000), desired.HealthCheckNodePort)
-	})
+func TestPreserveServiceAllocatedFields(t *testing.T) {
+	t.Parallel()
 
-	t.Run("clears ClusterIP for ExternalName services", func(t *testing.T) {
-		existing := corev1.ServiceSpec{ClusterIP: "10.0.0.5", ClusterIPs: []string{"10.0.0.5"}}
-		desired := corev1.ServiceSpec{Type: corev1.ServiceTypeExternalName}
-		preserveServiceAllocatedFields(&desired, existing)
+	familyPolicy := corev1.IPFamilyPolicySingleStack
+	tests := []struct {
+		name     string
+		desired  corev1.ServiceSpec
+		existing corev1.ServiceSpec
+		want     corev1.ServiceSpec
+	}{
+		{
+			name: "preserves cluster allocation fields",
+			desired: corev1.ServiceSpec{
+				Type:  corev1.ServiceTypeClusterIP,
+				Ports: []corev1.ServicePort{{Port: 9090}},
+			},
+			existing: corev1.ServiceSpec{
+				ClusterIP:      "10.0.0.12",
+				ClusterIPs:     []string{"10.0.0.12"},
+				IPFamilies:     []corev1.IPFamily{corev1.IPv4Protocol},
+				IPFamilyPolicy: &familyPolicy,
+			},
+			want: corev1.ServiceSpec{
+				Type:           corev1.ServiceTypeClusterIP,
+				Ports:          []corev1.ServicePort{{Port: 9090}},
+				ClusterIP:      "10.0.0.12",
+				ClusterIPs:     []string{"10.0.0.12"},
+				IPFamilies:     []corev1.IPFamily{corev1.IPv4Protocol},
+				IPFamilyPolicy: &familyPolicy,
+			},
+		},
+		{
+			name: "preserves health check node port",
+			desired: corev1.ServiceSpec{
+				Type: corev1.ServiceTypeLoadBalancer,
+			},
+			existing: corev1.ServiceSpec{
+				HealthCheckNodePort: 31000,
+			},
+			want: corev1.ServiceSpec{
+				Type:                corev1.ServiceTypeLoadBalancer,
+				HealthCheckNodePort: 31000,
+			},
+		},
+		{
+			name: "clears cluster allocation fields for ExternalName",
+			desired: corev1.ServiceSpec{
+				Type:         corev1.ServiceTypeExternalName,
+				ExternalName: "superset.example.com",
+			},
+			existing: corev1.ServiceSpec{
+				ClusterIP:      "10.0.0.5",
+				ClusterIPs:     []string{"10.0.0.5"},
+				IPFamilies:     []corev1.IPFamily{corev1.IPv4Protocol},
+				IPFamilyPolicy: &familyPolicy,
+			},
+			want: corev1.ServiceSpec{
+				Type:         corev1.ServiceTypeExternalName,
+				ExternalName: "superset.example.com",
+			},
+		},
+	}
 
-		assert.Empty(t, desired.ClusterIP)
-		assert.Nil(t, desired.ClusterIPs)
-		assert.Nil(t, desired.IPFamilies)
-		assert.Nil(t, desired.IPFamilyPolicy)
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			preserveServiceAllocatedFields(&tt.desired, tt.existing)
+			assert.Equal(t, tt.want, tt.desired)
+		})
+	}
 }
 
 func TestReconcileComponentResources_NoServiceNoScaling(t *testing.T) {
