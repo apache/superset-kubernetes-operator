@@ -478,30 +478,3 @@ func TestBuildServiceSpec(t *testing.T) {
 		}
 	})
 }
-
-func TestPreserveServiceAllocatedFields(t *testing.T) {
-	familyPolicy := corev1.IPFamilyPolicySingleStack
-	desired := corev1.ServiceSpec{
-		Type:  corev1.ServiceTypeClusterIP,
-		Ports: []corev1.ServicePort{{Port: 9090}},
-	}
-	existing := corev1.ServiceSpec{
-		Type:           corev1.ServiceTypeClusterIP,
-		ClusterIP:      "10.0.0.12",
-		ClusterIPs:     []string{"10.0.0.12"},
-		IPFamilies:     []corev1.IPFamily{corev1.IPv4Protocol},
-		IPFamilyPolicy: &familyPolicy,
-	}
-
-	preserveServiceAllocatedFields(&desired, existing)
-
-	if desired.ClusterIP != existing.ClusterIP {
-		t.Errorf("expected ClusterIP to be preserved, got %q", desired.ClusterIP)
-	}
-	if len(desired.ClusterIPs) != 1 || desired.ClusterIPs[0] != "10.0.0.12" {
-		t.Errorf("expected ClusterIPs to be preserved, got %v", desired.ClusterIPs)
-	}
-	if desired.IPFamilyPolicy == nil || *desired.IPFamilyPolicy != familyPolicy {
-		t.Errorf("expected IPFamilyPolicy to be preserved, got %v", desired.IPFamilyPolicy)
-	}
-}

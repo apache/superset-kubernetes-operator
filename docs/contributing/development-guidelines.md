@@ -293,6 +293,7 @@ the `#`-comment form:
 - **Use `componentLabels(component, instance)`** for consistent label generation
 - **Stamp `parentLabels(parentName)` on all parent-owned resources** (ServiceAccount, Ingress, HTTPRoute, ServiceMonitor) — this enables label-based cleanup
 - **Use `controllerutil.CreateOrUpdate`** for idempotent reconciliation
+- **Keep spec builders pure**: `build*Spec` helpers should construct desired Kubernetes specs from resolved CR/operator inputs only, not from live Kubernetes objects. Preserve API-server allocated/defaulted fields, or fields owned by another controller, at the `CreateOrUpdate` boundary: build the desired spec, copy the live field when appropriate, then assign. Examples include Service `ClusterIP`/`HealthCheckNodePort` and Deployment `replicas` when HPA manages scaling.
 - **Set OwnerReferences** via `controllerutil.SetControllerReference`
 - **Record events** via `r.Recorder.Eventf()` for errors and state changes
 - **Add Go doc comments** to all exported types — they become CRD descriptions
