@@ -275,12 +275,12 @@ func hasConditionMessage(conditions []metav1.Condition, conditionType, message s
 	return false
 }
 
-// TestReconcileLifecycle_BlocksOnInvalidCloneSchedule pins the gate that
-// prevents downstream tasks from running when clone is configured with a cron
+// TestReconcileLifecycle_BlocksOnInvalidSeedSchedule pins the gate that
+// prevents downstream tasks from running when seed is configured with a cron
 // schedule that passes structural CRD validation but fails runtime parsing
-// (e.g. out-of-range values). Without the gate, IsEnabled would treat clone
+// (e.g. out-of-range values). Without the gate, IsEnabled would treat seed
 // as disabled and migrate/init would silently run against the wrong dataset.
-func TestReconcileLifecycle_BlocksOnInvalidCloneSchedule(t *testing.T) {
+func TestReconcileLifecycle_BlocksOnInvalidSeedSchedule(t *testing.T) {
 	scheme := testScheme(t)
 	devMode := "Development"
 	invalidSchedule := "99 99 99 99 99"
@@ -307,11 +307,11 @@ func TestReconcileLifecycle_BlocksOnInvalidCloneSchedule(t *testing.T) {
 				},
 			},
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{
-				Clone: &supersetv1alpha1.CloneTaskSpec{
+				Seed: &supersetv1alpha1.SeedTaskSpec{
 					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
 						CronSchedule: &invalidSchedule,
 					},
-					Source: supersetv1alpha1.CloneSourceSpec{
+					Source: supersetv1alpha1.SeedSourceSpec{
 						Host:     "pg-prod.svc",
 						Database: "superset_prod",
 						Username: "reader",
@@ -332,7 +332,7 @@ func TestReconcileLifecycle_BlocksOnInvalidCloneSchedule(t *testing.T) {
 		t.Fatalf("reconcileLifecycle: %v", err)
 	}
 	if !res.TerminalFailure {
-		t.Fatalf("expected terminal failure for invalid clone schedule, got %#v", res)
+		t.Fatalf("expected terminal failure for invalid seed schedule, got %#v", res)
 	}
 	if res.Complete {
 		t.Fatal("expected lifecycle blocked, not complete")
@@ -355,6 +355,6 @@ func TestReconcileLifecycle_BlocksOnInvalidCloneSchedule(t *testing.T) {
 		for _, j := range jobs.Items {
 			names = append(names, j.Name)
 		}
-		t.Fatalf("expected no task Jobs to be created when clone schedule is invalid, got %v", names)
+		t.Fatalf("expected no task Jobs to be created when seed schedule is invalid, got %v", names)
 	}
 }

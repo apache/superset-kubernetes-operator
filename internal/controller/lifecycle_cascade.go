@@ -58,6 +58,9 @@ func (r *SupersetReconciler) walkLifecycleCascade(superset *supersetv1alpha1.Sup
 	steps := make([]lifecycleCascadeStep, 0, len(lifecycleTaskDescriptors))
 	incomingChecksum := string(superset.UID)
 	for _, desc := range lifecycleTaskDescriptors {
+		if desc.OutOfBand {
+			continue
+		}
 		if !desc.IsEnabled(superset) {
 			continue
 		}

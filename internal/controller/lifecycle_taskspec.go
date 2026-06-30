@@ -37,35 +37,51 @@ func (r *SupersetReconciler) buildTaskFlatSpec(
 	topLevel *resolution.SharedInput,
 	saName string,
 ) (supersetv1alpha1.FlatComponentSpec, string) {
-	if taskType == taskTypeClone {
-		return r.buildCloneTaskFlatSpec(superset, saName, topLevel), ""
+	switch taskType {
+	case taskTypeSeed:
+		return r.buildSeedTaskFlatSpec(superset, saName, topLevel), ""
+	case taskTypeBackup:
+		return r.buildBackupTaskFlatSpec(superset, saName, topLevel), ""
+	case taskTypeRestore:
+		return r.buildRestoreTaskFlatSpec(superset, saName, topLevel), ""
 	}
 	return r.buildStandardTaskFlatSpec(superset, taskType, command, topLevel, saName)
 }
 
-// buildCloneTaskFlatSpec builds the flat spec for clone tasks (database-tool image, no Python config).
-func (r *SupersetReconciler) buildCloneTaskFlatSpec(
+// taskUsesDatabaseToolImage reports whether a task runs in a database-tool image
+// (postgres/mysql client) rather than the Superset image. These tasks (seed,
+// backup, restore) render no Python config and take no bootstrap script.
+func taskUsesDatabaseToolImage(taskType string) bool {
+	switch taskType {
+	case taskTypeSeed, taskTypeBackup, taskTypeRestore:
+		return true
+	}
+	return false
+}
+
+// buildSeedTaskFlatSpec builds the flat spec for seed tasks (database-tool image, no Python config).
+func (r *SupersetReconciler) buildSeedTaskFlatSpec(
 	superset *supersetv1alpha1.Superset,
 	saName string,
 	topLevel *resolution.SharedInput,
 ) supersetv1alpha1.FlatComponentSpec {
-	clone := superset.Spec.Lifecycle.Clone
-	instanceName := superset.Name + suffixClone
+	seed := superset.Spec.Lifecycle.Seed
+	instanceName := superset.Name + suffixSeed
 
-	cloneEnvVars := collectCloneEnvVars(superset)
-	cloneCmd := r.buildCloneCommand(superset)
-	comp := convertCloneComponent(clone, cloneCmd)
-	operatorInjected := &resolution.OperatorInjected{Env: cloneEnvVars}
+	seedEnvVars := collectSeedEnvVars(superset)
+	seedCmd := r.buildSeedCommand(superset)
+	comp := convertSeedComponent(seed, seedCmd)
+	operatorInjected := &resolution.OperatorInjected{Env: seedEnvVars}
 
 	flat := resolution.ResolveComponentSpec(
 		resolution.ComponentInit, topLevel, comp,
 		podOperatorLabels(string(naming.ComponentInit), instanceName, superset.Name), operatorInjected,
 	)
 
-	cloneImage := resolveCloneImage(clone)
+	seedImage := resolveSeedImage(seed)
 	one := int32(1)
 	flatSpec := supersetv1alpha1.FlatComponentSpec{
-		Image:              cloneImage,
+		Image:              seedImage,
 		Replicas:           &one,
 		PodTemplate:        flatPodTemplate(flat),
 		ServiceAccountName: saName,

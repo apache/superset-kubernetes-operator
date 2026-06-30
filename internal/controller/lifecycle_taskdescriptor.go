@@ -32,6 +32,13 @@ type lifecycleTaskDescriptor struct {
 	Phase           string
 	DrainsByDefault bool
 
+	// OutOfBand marks a task that is NOT part of the forward seed → backup →
+	// migrate → rotate → init cascade. Such tasks (restore) are driven by their
+	// own gated flow and are skipped by the cascade walker, the enabled-task
+	// set, and prune-by-enablement — but still participate in status slots
+	// (TaskRef), spec accessors (BaseSpec), and retention cleanup.
+	OutOfBand bool
+
 	// BuildCommand returns the task command (respecting user override).
 	BuildCommand func(*SupersetReconciler, *supersetv1alpha1.Superset) []string
 
@@ -41,7 +48,7 @@ type lifecycleTaskDescriptor struct {
 	BuildInputs func(*SupersetReconciler, *supersetv1alpha1.Superset, string) any
 
 	// IsEnabled determines whether the task participates in the pipeline given
-	// the parent spec. Defaults vary per task: clone/rotate require explicit
+	// the parent spec. Defaults vary per task: seed/rotate require explicit
 	// spec; migrate/init are enabled by default.
 	IsEnabled func(*supersetv1alpha1.Superset) bool
 
@@ -56,37 +63,69 @@ type lifecycleTaskDescriptor struct {
 }
 
 // lifecycleTaskDescriptors is the source of truth for task ordering and
-// per-task wiring. Order is significant: clone → migrate → rotate → init is
+// per-task wiring. Order is significant: seed → migrate → rotate → init is
 // the cascade direction.
 var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 	{
-		TaskType:        taskTypeClone,
-		Suffix:          suffixClone,
-		Phase:           lifecyclePhaseCloning,
+		TaskType:        taskTypeSeed,
+		Suffix:          suffixSeed,
+		Phase:           lifecyclePhaseSeeding,
 		DrainsByDefault: true,
 		BuildCommand: func(r *SupersetReconciler, s *supersetv1alpha1.Superset) []string {
-			return r.buildCloneCommand(s)
+			return r.buildSeedCommand(s)
 		},
 		BuildInputs: func(r *SupersetReconciler, s *supersetv1alpha1.Superset, _ string) any {
-			return r.cloneInputs(s)
+			return r.seedInputs(s)
 		},
 		IsEnabled: func(s *supersetv1alpha1.Superset) bool {
-			if s.Spec.Lifecycle == nil || s.Spec.Lifecycle.Clone == nil {
+			if s.Spec.Lifecycle == nil || s.Spec.Lifecycle.Seed == nil {
 				return false
 			}
-			if isDisabled(s.Spec.Lifecycle.Clone.Disabled) {
+			if isDisabled(s.Spec.Lifecycle.Seed.Disabled) {
 				return false
 			}
-			return cloneScheduleIsValid(s.Spec.Lifecycle.Clone.CronSchedule)
+			return seedScheduleIsValid(s.Spec.Lifecycle.Seed.CronSchedule)
 		},
 		BaseSpec: func(s *supersetv1alpha1.Superset) *supersetv1alpha1.BaseTaskSpec {
-			if s.Spec.Lifecycle == nil || s.Spec.Lifecycle.Clone == nil {
+			if s.Spec.Lifecycle == nil || s.Spec.Lifecycle.Seed == nil {
 				return nil
 			}
-			return &s.Spec.Lifecycle.Clone.BaseTaskSpec
+			return &s.Spec.Lifecycle.Seed.BaseTaskSpec
 		},
 		TaskRef: func(ls *supersetv1alpha1.LifecycleStatus) **supersetv1alpha1.TaskRefStatus {
-			return &ls.Clone
+			return &ls.Seed
+		},
+	},
+	{
+		TaskType:        taskTypeBackup,
+		Suffix:          suffixBackup,
+		Phase:           lifecyclePhaseBackingUp,
+		DrainsByDefault: true,
+		BuildCommand: func(r *SupersetReconciler, s *supersetv1alpha1.Superset) []string {
+			return r.buildBackupCommand(s)
+		},
+		BuildInputs: func(r *SupersetReconciler, s *supersetv1alpha1.Superset, _ string) any {
+			return r.backupInputs(s)
+		},
+		IsEnabled: func(s *supersetv1alpha1.Superset) bool {
+			if s.Spec.Lifecycle == nil || s.Spec.Lifecycle.Backup == nil {
+				return false
+			}
+			if isDisabled(s.Spec.Lifecycle.Backup.Disabled) {
+				return false
+			}
+			// Pre-upgrade only: a backup captures the state we are upgrading FROM,
+			// so there is nothing to back up on the first install (no prior image).
+			return s.Status.LastLifecycleImage != ""
+		},
+		BaseSpec: func(s *supersetv1alpha1.Superset) *supersetv1alpha1.BaseTaskSpec {
+			if s.Spec.Lifecycle == nil || s.Spec.Lifecycle.Backup == nil {
+				return nil
+			}
+			return &s.Spec.Lifecycle.Backup.BaseTaskSpec
+		},
+		TaskRef: func(ls *supersetv1alpha1.LifecycleStatus) **supersetv1alpha1.TaskRefStatus {
+			return &ls.Backup
 		},
 	},
 	{
@@ -171,6 +210,35 @@ var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 		},
 		TaskRef: func(ls *supersetv1alpha1.LifecycleStatus) **supersetv1alpha1.TaskRefStatus {
 			return &ls.Init
+		},
+	},
+	{
+		TaskType:        taskTypeRestore,
+		Suffix:          suffixRestore,
+		Phase:           lifecyclePhaseRestoring,
+		DrainsByDefault: true,
+		OutOfBand:       true,
+		BuildCommand: func(r *SupersetReconciler, s *supersetv1alpha1.Superset) []string {
+			return r.buildRestoreCommand(s)
+		},
+		BuildInputs: func(r *SupersetReconciler, s *supersetv1alpha1.Superset, _ string) any {
+			artifact := resolveRestoreArtifact(s)
+			if artifact == nil {
+				return nil
+			}
+			return r.restoreInputs(s, artifact)
+		},
+		IsEnabled: func(s *supersetv1alpha1.Superset) bool {
+			return s.Spec.Lifecycle != nil && s.Spec.Lifecycle.Restore != nil
+		},
+		BaseSpec: func(s *supersetv1alpha1.Superset) *supersetv1alpha1.BaseTaskSpec {
+			if s.Spec.Lifecycle == nil || s.Spec.Lifecycle.Restore == nil {
+				return nil
+			}
+			return &s.Spec.Lifecycle.Restore.BaseTaskSpec
+		},
+		TaskRef: func(ls *supersetv1alpha1.LifecycleStatus) **supersetv1alpha1.TaskRefStatus {
+			return &ls.Restore
 		},
 	},
 }
