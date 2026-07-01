@@ -72,7 +72,7 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 		if ctr.Name != createDatabaseContainerName {
 			t.Errorf("expected name %q, got %q", createDatabaseContainerName, ctr.Name)
 		}
-		if want := common.CloneImagePostgres; ctr.Image != want {
+		if want := common.SeedImagePostgres; ctr.Image != want {
 			t.Errorf("expected image %q, got %q", want, ctr.Image)
 		}
 		if len(ctr.Command) != 3 || ctr.Command[0] != "/bin/sh" || ctr.Command[1] != "-c" {
@@ -137,7 +137,7 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 		if ctr == nil {
 			t.Fatal("expected init container, got nil")
 		}
-		if want := common.CloneImageMySQL; ctr.Image != want {
+		if want := common.SeedImageMySQL; ctr.Image != want {
 			t.Errorf("expected image %q, got %q", want, ctr.Image)
 		}
 		script := ctr.Command[2]
@@ -441,7 +441,7 @@ func TestBuildStandardTaskFlatSpec(t *testing.T) {
 		if count != 1 {
 			t.Fatalf("expected exactly 1 init container named %q, got %d", createDatabaseContainerName, count)
 		}
-		if createDB.Image != common.CloneImagePostgres && createDB.Image != common.CloneImageMySQL {
+		if createDB.Image != common.SeedImagePostgres && createDB.Image != common.SeedImageMySQL {
 			t.Errorf("operator's create-database container should win; got image %q", createDB.Image)
 		}
 		if !podHasContainer(pod.InitContainers, "user-keeper") {

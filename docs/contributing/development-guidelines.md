@@ -31,7 +31,7 @@ hierarchy, configuration model, config rendering) and
 lifecycle, parent-owned resource reconciliation, status reporting). Key points:
 
 - **Single public CRD**: `Superset` resolves shared spec (top-level + per-component) into parent-owned Kubernetes resources
-- **6 deployment components + lifecycle tasks**: web server, Celery worker, Celery beat, Flower, websocket, MCP, and task Jobs for clone/migrate/rotate/init
+- **6 deployment components + lifecycle tasks**: web server, Celery worker, Celery beat, Flower, websocket, MCP, and task Jobs for seed/migrate/rotate/init
 - **3 pure Go packages**: `internal/resolution/` (spec flattening), `internal/config/` (Python rendering), `internal/common/` (shared types)
 - **Parent resolves and executes**: All layering, lifecycle orchestration, resource reconciliation, and status projection live in the parent controller
 
@@ -570,14 +570,25 @@ changes, and documentation-only updates.
 
 Group entries under `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, or
 `Security` (per [Keep a Changelog](https://keepachangelog.com/en/1.1.0/));
-create the subheading on first use. Lead each bullet with the user-facing
-effect, not the implementation:
+create the subheading on first use. These are the only subheadings — Keep a
+Changelog has no dedicated "Breaking" section. Lead each bullet with the
+user-facing effect, not the implementation.
+
+Mark a breaking change with a bold `**Breaking:**` prefix under the most
+fitting category (usually `Changed` or `Removed`) and state the required
+migration in the same bullet. The `Added` section and the `**Breaking:**`
+markers are what operators scan first when deciding whether — and how
+carefully — to upgrade, so keep both accurate:
 
 ```markdown
 ## Unreleased
 
 ### Added
 - New `webServer.gunicorn.keepAlive` field for tuning Gunicorn keepalive timeouts.
+
+### Changed
+- **Breaking:** renamed `spec.oldField` to `spec.newField`; rename it in
+  existing Superset resources before upgrading.
 
 ### Fixed
 - Lifecycle `migrate` task no longer retries indefinitely when the metastore

@@ -183,9 +183,9 @@ func TestTaskRequiresDrain(t *testing.T) {
 	})
 
 	t.Run("defaults per task type", func(t *testing.T) {
-		// clone/migrate/rotate default to draining; init does not.
+		// seed/migrate/rotate default to draining; init does not.
 		empty := &supersetv1alpha1.Superset{}
-		assert.True(t, r.taskRequiresDrain(empty, taskTypeClone))
+		assert.True(t, r.taskRequiresDrain(empty, taskTypeSeed))
 		assert.True(t, r.taskRequiresDrain(empty, taskTypeMigrate))
 		assert.True(t, r.taskRequiresDrain(empty, taskTypeRotate))
 		assert.False(t, r.taskRequiresDrain(empty, taskTypeInit))

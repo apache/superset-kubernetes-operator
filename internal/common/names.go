@@ -41,7 +41,7 @@ const (
 	SuffixMcpServer       = "-mcp-server"       // matches ComponentMcpServer
 	SuffixMaintenancePage = "-maintenance"      // matches ComponentMaintenancePage
 	SuffixInit            = "-init"             // matches ComponentInit
-	SuffixClone           = "-clone"
+	SuffixSeed            = "-seed"
 	SuffixRotate          = "-rotate"
 	SuffixConfig          = "-config"
 	SuffixNetworkPolicy   = "-netpol"
@@ -93,10 +93,10 @@ const (
 	InitTaskInit = "init"
 )
 
-// Clone default images.
+// Seed default images.
 const (
-	CloneImagePostgres = "postgres:17-alpine"
-	CloneImageMySQL    = "mysql:8-alpine"
+	SeedImagePostgres = "postgres:17-alpine"
+	SeedImageMySQL    = "mysql:8-alpine"
 )
 
 // Env var names for operator-managed environment variables.
@@ -129,12 +129,12 @@ const (
 	EnvAdminLastName  = "SUPERSET_OPERATOR__ADMIN_LAST_NAME"
 	EnvAdminEmail     = "SUPERSET_OPERATOR__ADMIN_EMAIL"
 
-	// Clone source operator-internal transport vars.
-	EnvCloneSrcHost = "SUPERSET_OPERATOR__CLONE_SRC_HOST"
-	EnvCloneSrcPort = "SUPERSET_OPERATOR__CLONE_SRC_PORT"
-	EnvCloneSrcDB   = "SUPERSET_OPERATOR__CLONE_SRC_DB"
-	EnvCloneSrcUser = "SUPERSET_OPERATOR__CLONE_SRC_USER"
-	EnvCloneSrcPass = "SUPERSET_OPERATOR__CLONE_SRC_PASS"
+	// Seed source operator-internal transport vars.
+	EnvSeedSrcHost = "SUPERSET_OPERATOR__SEED_SRC_HOST"
+	EnvSeedSrcPort = "SUPERSET_OPERATOR__SEED_SRC_PORT"
+	EnvSeedSrcDB   = "SUPERSET_OPERATOR__SEED_SRC_DB"
+	EnvSeedSrcUser = "SUPERSET_OPERATOR__SEED_SRC_USER"
+	EnvSeedSrcPass = "SUPERSET_OPERATOR__SEED_SRC_PASS"
 
 	// Maintenance page content transport vars.
 	EnvMaintenanceTitle   = "SUPERSET_OPERATOR__MAINTENANCE_TITLE"

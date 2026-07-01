@@ -52,7 +52,7 @@ routing as part of a control loop that keeps your declared state reconciled.
 | Migrate — `superset db upgrade` | install-time hook Job | managed `migrate` task: drains to avoid deadlocks, gates rollout, retries, status |
 | Init — `superset init` | same hook Job | managed `init` task: config-checksum driven |
 | Secret-key rotation — `re-encrypt-secrets` | — | `rotate` task |
-| Staging data clone | — | `clone` task — Development/Staging only, `cronSchedule` refresh, **not** a backup |
+| Staging data seed | — | `seed` task — Development/Staging only, `cronSchedule` refresh, **not** a backup |
 | Upgrade gating, supervised approval, maintenance page | — | ✓ |
 | **Scaling & operations** | | |
 | Autoscaling | web server, worker | web, worker, **Flower, websocket** (`autoscaling/v2`: CPU/memory/custom/external) |
@@ -213,7 +213,7 @@ Superset version you deploy.
 The chart runs a single install-time hook Job (`init.*`) that performs
 `superset db upgrade` then `superset init`. The operator splits this into up to
 four sequential, individually configurable tasks under `spec.lifecycle` —
-**clone → migrate → rotate → init** — each tracked in `Superset` status with
+**seed → migrate → rotate → init** — each tracked in `Superset` status with
 retries, timeouts, and upgrade gating. Tasks that change the schema or secrets
 drain running components first (scale to zero), then components are recreated
 once the pipeline completes; enable `spec.lifecycle.maintenancePage` to serve a
@@ -222,7 +222,7 @@ holding page during the drain. See [Lifecycle](lifecycle.md) for the full model.
 | Helm chart value | Operator equivalent | Notes |
 |---|---|---|
 | `init.enabled` | `spec.lifecycle.disabled`, or per-task `disabled` | Lifecycle is enabled by default (even when `spec.lifecycle` is unset). Set `lifecycle.disabled: true` to skip everything, or disable a single task with `<task>.disabled: true`. |
-| — (chart has no equivalent) | `spec.lifecycle.clone` | **Operator-only; Development/Staging only.** Seeds the target metastore from an external source database (default `pg_dump`/`mysqldump` stream) so you can test an upgrade against a copy of production. Performs a destructive `DROP DATABASE` and always drains components first, so it is **not** a production backup. Supports `excludeTables`/`excludeTableData` and a `cronSchedule` for periodically refreshing a staging environment. Requires structured metastore mode + `CREATEDB` rights. |
+| — (chart has no equivalent) | `spec.lifecycle.seed` | **Operator-only; Development/Staging only.** Seeds the target metastore from an external source database (default `pg_dump`/`mysqldump` stream) so you can test an upgrade against a copy of production. Performs a destructive `DROP DATABASE` and always drains components first, so it is **not** a production backup. Supports `excludeTables`/`excludeTableData` and a `cronSchedule` for periodically refreshing a staging environment. Requires structured metastore mode + `CREATEDB` rights. |
 | `init.command` (the `superset db upgrade` part) | `spec.lifecycle.migrate`, `migrate.command` | Runs `superset db upgrade`. Image/schema-version driven and gates component rollout. Drains components by default (`requiresDrain: true`) so schema changes don't deadlock against live connections or hit version/schema mismatches; set `requiresDrain: false` to opt into rolling, additive-only migrations. `metastore.createDatabase: true` adds a `CREATE DATABASE` init container for fresh servers. |
 | — (chart has no equivalent) | `spec.lifecycle.rotate` | **Operator-only.** Runs `superset re-encrypt-secrets` to re-encrypt stored secrets after a `SECRET_KEY` change; runs after migrate, before init. Set `previousSecretKeyFrom` (+ `secretKeyFrom`) and add `rotate: {}`. Idempotent, drains by default. |
 | `init.initscript` (the `superset init` part) | `spec.lifecycle.init`, `init.command` | Runs `superset init` (roles/permissions). Config-checksum driven (rendered `superset_config.py` changes re-run it). Does not drain by default — role/permission work is safe while components run. |

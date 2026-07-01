@@ -194,9 +194,9 @@ func metastoreType(metastore *supersetv1alpha1.MetastoreSpec) string {
 // resolveCreateDatabaseImage selects the DB-tool image. The metastore spec
 // has no image override field, so callers always get the operator default.
 func resolveCreateDatabaseImage(dbType string) supersetv1alpha1.ImageSpec {
-	defaultRef := naming.CloneImagePostgres
+	defaultRef := naming.SeedImagePostgres
 	if dbType == dbTypeMySQL {
-		defaultRef = naming.CloneImageMySQL
+		defaultRef = naming.SeedImageMySQL
 	}
 	repo, tag := splitImageRef(defaultRef)
 	return supersetv1alpha1.ImageSpec{Repository: repo, Tag: tag}

@@ -36,7 +36,7 @@ import (
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 )
 
-// TestLifecyclePipeline_FullSuccess walks the full clone → migrate → rotate →
+// TestLifecyclePipeline_FullSuccess walks the full seed → migrate → rotate →
 // init pipeline through fake Job status transitions and asserts the lifecycle
 // reaches Phase=Complete with no terminal failure. This locks in the cascade
 // behavior end-to-end so a refactor that breaks task sequencing or status
@@ -69,8 +69,8 @@ func TestLifecyclePipeline_FullSuccess(t *testing.T) {
 				},
 			},
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{
-				Clone: &supersetv1alpha1.CloneTaskSpec{
-					Source: supersetv1alpha1.CloneSourceSpec{
+				Seed: &supersetv1alpha1.SeedTaskSpec{
+					Source: supersetv1alpha1.SeedSourceSpec{
 						Host:     "pg-prod.svc",
 						Database: "superset_prod",
 						Username: "reader",
@@ -94,7 +94,7 @@ func TestLifecyclePipeline_FullSuccess(t *testing.T) {
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(50)}
 
-	expected := []string{taskTypeClone, taskTypeMigrate, taskTypeRotate, taskTypeInit}
+	expected := []string{taskTypeSeed, taskTypeMigrate, taskTypeRotate, taskTypeInit}
 	for _, taskType := range expected {
 		// Drive the pipeline until the next task's Job exists, then mark it
 		// succeeded. Bound the loop to defend against an accidental infinite
@@ -147,8 +147,8 @@ func TestLifecyclePipeline_FullSuccess(t *testing.T) {
 
 func taskJobName(parent, taskType string) string {
 	switch taskType {
-	case taskTypeClone:
-		return parent + suffixClone
+	case taskTypeSeed:
+		return parent + suffixSeed
 	case taskTypeMigrate:
 		return parent + suffixMigrate
 	case taskTypeRotate:

@@ -33,7 +33,7 @@ The operator manages the full Superset lifecycle: database migrations, configura
 - **Configurable** — defaults can be overridden at the preset, deployment-template, or container level, with a raw Python escape hatch in `spec.config`/`spec.<component>.config` for settings not surfaced as typed fields
 - **Component toggle** — enable CeleryWorker, CeleryBeat, CeleryFlower, McpServer, or WebsocketServer (experimental) by setting their spec; omit to disable
 - **Maintenance-backed upgrades** — when database migrations need to run, the operator drains components, runs the lifecycle tasks, and restores traffic only after the new version is healthy; an optional maintenance page can serve users during the window when configured
-- **Lifecycle automation** — database cloning, schema migrations, secret key rotation, and application init run as sequenced tasks with automatic change detection and checksum-based re-execution
+- **Lifecycle automation** — database seeding, schema migrations, secret key rotation, and application init run as sequenced tasks with automatic change detection and checksum-based re-execution
 - **Networking** — Gateway API (HTTPRoute) and Ingress support with per-component routing
 - **Scaling and resilience** — HPA with custom metrics, PodDisruptionBudgets, NetworkPolicies, Prometheus ServiceMonitor
 - **Flexible install scope** — cluster-scoped (default) or namespace-scoped; the namespace-scoped Helm install renders no manager `ClusterRole`. CRD installation and, unless metrics are disabled, secure metrics auth still require cluster-scoped RBAC — see [installation](user-guide/installation.md#namespace-scoped-install) for the exact constraints

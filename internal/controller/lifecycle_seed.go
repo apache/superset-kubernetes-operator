@@ -29,74 +29,74 @@ import (
 	"github.com/apache/superset-kubernetes-operator/internal/resolution"
 )
 
-// cloneInputs returns the clone-specific inputs that contribute to its step checksum.
-func (r *SupersetReconciler) cloneInputs(superset *supersetv1alpha1.Superset) any {
-	clone := superset.Spec.Lifecycle.Clone
+// seedInputs returns the seed-specific inputs that contribute to its step checksum.
+func (r *SupersetReconciler) seedInputs(superset *supersetv1alpha1.Superset) any {
+	seed := superset.Spec.Lifecycle.Seed
 	targetImage := resolveLifecycleImage(&superset.Spec.Image, lifecycleImageOverride(superset))
 	return struct {
 		Image            supersetv1alpha1.ImageSpec
 		TargetImage      string
 		Trigger          string
 		ScheduleTick     string
-		Source           supersetv1alpha1.CloneSourceSpec
+		Source           supersetv1alpha1.SeedSourceSpec
 		ExcludeTables    []string
 		ExcludeTableData []string
-		PostCloneSQL     []string
+		PostSeedSQL      []string
 	}{
-		Image:            resolveCloneImage(clone),
+		Image:            resolveSeedImage(seed),
 		TargetImage:      targetImage,
-		Trigger:          derefOrDefault(clone.Trigger, ""),
-		ScheduleTick:     r.scheduleTick(clone.CronSchedule),
-		Source:           clone.Source,
-		ExcludeTables:    clone.ExcludeTables,
-		ExcludeTableData: clone.ExcludeTableData,
-		PostCloneSQL:     clone.PostCloneSQL,
+		Trigger:          derefOrDefault(seed.Trigger, ""),
+		ScheduleTick:     r.scheduleTick(seed.CronSchedule),
+		Source:           seed.Source,
+		ExcludeTables:    seed.ExcludeTables,
+		ExcludeTableData: seed.ExcludeTableData,
+		PostSeedSQL:      seed.PostSeedSQL,
 	}
 }
 
-// buildCloneCommand constructs the pg_dump|psql or mysqldump|mysql streaming command
-// from the clone spec. Returns the user's custom command if specified.
-func (r *SupersetReconciler) buildCloneCommand(superset *supersetv1alpha1.Superset) []string {
-	clone := superset.Spec.Lifecycle.Clone
-	if len(clone.Command) > 0 {
-		return clone.Command
+// buildSeedCommand constructs the pg_dump|psql or mysqldump|mysql streaming command
+// from the seed spec. Returns the user's custom command if specified.
+func (r *SupersetReconciler) buildSeedCommand(superset *supersetv1alpha1.Superset) []string {
+	seed := superset.Spec.Lifecycle.Seed
+	if len(seed.Command) > 0 {
+		return seed.Command
 	}
 
 	srcType := dbTypePostgresql
-	if clone.Source.Type != nil {
-		srcType = *clone.Source.Type
+	if seed.Source.Type != nil {
+		srcType = *seed.Source.Type
 	}
 
 	if srcType == dbTypeMySQL {
-		return []string{bootstrapShell, "-c", buildMySQLCloneScript(clone)}
+		return []string{bootstrapShell, "-c", buildMySQLSeedScript(seed)}
 	}
-	return []string{bootstrapShell, "-c", buildPostgresCloneScript(clone)}
+	return []string{bootstrapShell, "-c", buildPostgresSeedScript(seed)}
 }
 
-func buildPostgresCloneScript(clone *supersetv1alpha1.CloneTaskSpec) string {
+func buildPostgresSeedScript(seed *supersetv1alpha1.SeedTaskSpec) string {
 	var b strings.Builder
 	b.WriteString(`set -e
 PGPASSWORD="$SUPERSET_OPERATOR__DB_PASS" dropdb --if-exists -h "$SUPERSET_OPERATOR__DB_HOST" -p "$SUPERSET_OPERATOR__DB_PORT" -U "$SUPERSET_OPERATOR__DB_USER" "$SUPERSET_OPERATOR__DB_NAME"
 PGPASSWORD="$SUPERSET_OPERATOR__DB_PASS" createdb -h "$SUPERSET_OPERATOR__DB_HOST" -p "$SUPERSET_OPERATOR__DB_PORT" -U "$SUPERSET_OPERATOR__DB_USER" "$SUPERSET_OPERATOR__DB_NAME"
-PGPASSWORD="$SUPERSET_OPERATOR__CLONE_SRC_PASS" pg_dump -h "$SUPERSET_OPERATOR__CLONE_SRC_HOST" -p "$SUPERSET_OPERATOR__CLONE_SRC_PORT" -U "$SUPERSET_OPERATOR__CLONE_SRC_USER" --no-owner --no-privileges`)
+PGPASSWORD="$SUPERSET_OPERATOR__SEED_SRC_PASS" pg_dump -h "$SUPERSET_OPERATOR__SEED_SRC_HOST" -p "$SUPERSET_OPERATOR__SEED_SRC_PORT" -U "$SUPERSET_OPERATOR__SEED_SRC_USER" --no-owner --no-privileges`)
 
-	for _, t := range clone.ExcludeTables {
+	for _, t := range seed.ExcludeTables {
 		fmt.Fprintf(&b, ` --exclude-table=%q`, t)
 	}
-	for _, t := range clone.ExcludeTableData {
+	for _, t := range seed.ExcludeTableData {
 		fmt.Fprintf(&b, ` --exclude-table-data=%q`, t)
 	}
 
-	b.WriteString(` "$SUPERSET_OPERATOR__CLONE_SRC_DB" | PGPASSWORD="$SUPERSET_OPERATOR__DB_PASS" psql -h "$SUPERSET_OPERATOR__DB_HOST" -p "$SUPERSET_OPERATOR__DB_PORT" -U "$SUPERSET_OPERATOR__DB_USER" "$SUPERSET_OPERATOR__DB_NAME"`)
+	b.WriteString(` "$SUPERSET_OPERATOR__SEED_SRC_DB" | PGPASSWORD="$SUPERSET_OPERATOR__DB_PASS" psql -h "$SUPERSET_OPERATOR__DB_HOST" -p "$SUPERSET_OPERATOR__DB_PORT" -U "$SUPERSET_OPERATOR__DB_USER" "$SUPERSET_OPERATOR__DB_NAME"`)
 
-	for _, sql := range clone.PostCloneSQL {
+	for _, sql := range seed.PostSeedSQL {
 		fmt.Fprintf(&b, "\nPGPASSWORD=\"$SUPERSET_OPERATOR__DB_PASS\" psql -h \"$SUPERSET_OPERATOR__DB_HOST\" -p \"$SUPERSET_OPERATOR__DB_PORT\" -U \"$SUPERSET_OPERATOR__DB_USER\" \"$SUPERSET_OPERATOR__DB_NAME\" -c %q", sql)
 	}
 
 	return b.String()
 }
 
-func buildMySQLCloneScript(clone *supersetv1alpha1.CloneTaskSpec) string {
+func buildMySQLSeedScript(seed *supersetv1alpha1.SeedTaskSpec) string {
 	var b strings.Builder
 	// Passwords are passed via the MYSQL_PWD environment variable rather than
 	// -p"$PASS" so they never appear in the process argv (visible via ps or
@@ -125,64 +125,64 @@ mysql -h "$SUPERSET_OPERATOR__DB_HOST" -P "$SUPERSET_OPERATOR__DB_PORT" -u "$SUP
 	// combined stdout is piped to the target mysql client. The schema pass is
 	// skipped when ExcludeTableData is empty so the existing single-pass
 	// behaviour is preserved.
-	mysqldumpHead := `mysqldump -h "$SUPERSET_OPERATOR__CLONE_SRC_HOST" -P "$SUPERSET_OPERATOR__CLONE_SRC_PORT" -u "$SUPERSET_OPERATOR__CLONE_SRC_USER"`
+	mysqldumpHead := `mysqldump -h "$SUPERSET_OPERATOR__SEED_SRC_HOST" -P "$SUPERSET_OPERATOR__SEED_SRC_PORT" -u "$SUPERSET_OPERATOR__SEED_SRC_USER"`
 
 	// Open the dump subshell and scope the source password to it only, so the
 	// downstream target mysql keeps the target password exported above.
-	b.WriteString(`( if [ -n "${SUPERSET_OPERATOR__CLONE_SRC_PASS:-}" ]; then export MYSQL_PWD="$SUPERSET_OPERATOR__CLONE_SRC_PASS"; fi ; `)
-	if len(clone.ExcludeTableData) > 0 {
+	b.WriteString(`( if [ -n "${SUPERSET_OPERATOR__SEED_SRC_PASS:-}" ]; then export MYSQL_PWD="$SUPERSET_OPERATOR__SEED_SRC_PASS"; fi ; `)
+	if len(seed.ExcludeTableData) > 0 {
 		fmt.Fprintf(&b, "%s --single-transaction --no-data", mysqldumpHead)
-		b.WriteString(` "$SUPERSET_OPERATOR__CLONE_SRC_DB"`)
-		for _, t := range clone.ExcludeTableData {
+		b.WriteString(` "$SUPERSET_OPERATOR__SEED_SRC_DB"`)
+		for _, t := range seed.ExcludeTableData {
 			fmt.Fprintf(&b, ` %q`, t)
 		}
 		b.WriteString(" ; ")
 	}
 
 	fmt.Fprintf(&b, "%s --single-transaction --routines --triggers", mysqldumpHead)
-	for _, t := range clone.ExcludeTables {
-		fmt.Fprintf(&b, ` --ignore-table="$SUPERSET_OPERATOR__CLONE_SRC_DB".%q`, t)
+	for _, t := range seed.ExcludeTables {
+		fmt.Fprintf(&b, ` --ignore-table="$SUPERSET_OPERATOR__SEED_SRC_DB".%q`, t)
 	}
-	for _, t := range clone.ExcludeTableData {
-		fmt.Fprintf(&b, ` --ignore-table="$SUPERSET_OPERATOR__CLONE_SRC_DB".%q`, t)
+	for _, t := range seed.ExcludeTableData {
+		fmt.Fprintf(&b, ` --ignore-table="$SUPERSET_OPERATOR__SEED_SRC_DB".%q`, t)
 	}
-	b.WriteString(` "$SUPERSET_OPERATOR__CLONE_SRC_DB" ) | mysql -h "$SUPERSET_OPERATOR__DB_HOST" -P "$SUPERSET_OPERATOR__DB_PORT" -u "$SUPERSET_OPERATOR__DB_USER" "$SUPERSET_OPERATOR__DB_NAME"`)
+	b.WriteString(` "$SUPERSET_OPERATOR__SEED_SRC_DB" ) | mysql -h "$SUPERSET_OPERATOR__DB_HOST" -P "$SUPERSET_OPERATOR__DB_PORT" -u "$SUPERSET_OPERATOR__DB_USER" "$SUPERSET_OPERATOR__DB_NAME"`)
 
-	for _, sql := range clone.PostCloneSQL {
+	for _, sql := range seed.PostSeedSQL {
 		fmt.Fprintf(&b, "\nmysql -h \"$SUPERSET_OPERATOR__DB_HOST\" -P \"$SUPERSET_OPERATOR__DB_PORT\" -u \"$SUPERSET_OPERATOR__DB_USER\" \"$SUPERSET_OPERATOR__DB_NAME\" -e %q", sql)
 	}
 
 	return b.String()
 }
 
-// collectCloneEnvVars builds env vars for the clone task Job.
-// Includes both source (CLONE_SRC_*) and target (DB_*) connection details.
-func collectCloneEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVar {
+// collectSeedEnvVars builds env vars for the seed task Job.
+// Includes both source (SEED_SRC_*) and target (DB_*) connection details.
+func collectSeedEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVar {
 	var envs []corev1.EnvVar
-	clone := superset.Spec.Lifecycle.Clone
+	seed := superset.Spec.Lifecycle.Seed
 	spec := &superset.Spec
 
 	// Source env vars.
-	envs = append(envs, corev1.EnvVar{Name: naming.EnvCloneSrcHost, Value: clone.Source.Host})
+	envs = append(envs, corev1.EnvVar{Name: naming.EnvSeedSrcHost, Value: seed.Source.Host})
 
-	port := defaultDBPort(clone.Source.Type)
-	if clone.Source.Port != nil {
-		port = *clone.Source.Port
+	port := defaultDBPort(seed.Source.Type)
+	if seed.Source.Port != nil {
+		port = *seed.Source.Port
 	}
-	envs = append(envs, corev1.EnvVar{Name: naming.EnvCloneSrcPort, Value: fmt.Sprintf("%d", port)})
-	envs = append(envs, corev1.EnvVar{Name: naming.EnvCloneSrcDB, Value: clone.Source.Database})
-	envs = append(envs, corev1.EnvVar{Name: naming.EnvCloneSrcUser, Value: clone.Source.Username})
+	envs = append(envs, corev1.EnvVar{Name: naming.EnvSeedSrcPort, Value: fmt.Sprintf("%d", port)})
+	envs = append(envs, corev1.EnvVar{Name: naming.EnvSeedSrcDB, Value: seed.Source.Database})
+	envs = append(envs, corev1.EnvVar{Name: naming.EnvSeedSrcUser, Value: seed.Source.Username})
 
-	if clone.Source.Password != nil {
-		envs = append(envs, corev1.EnvVar{Name: naming.EnvCloneSrcPass, Value: *clone.Source.Password})
-	} else if clone.Source.PasswordFrom != nil {
+	if seed.Source.Password != nil {
+		envs = append(envs, corev1.EnvVar{Name: naming.EnvSeedSrcPass, Value: *seed.Source.Password})
+	} else if seed.Source.PasswordFrom != nil {
 		envs = append(envs, corev1.EnvVar{
-			Name:      naming.EnvCloneSrcPass,
-			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: clone.Source.PasswordFrom},
+			Name:      naming.EnvSeedSrcPass,
+			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: seed.Source.PasswordFrom},
 		})
 	}
 
-	// Target env vars (from spec.metastore; clone requires structured metastore).
+	// Target env vars (from spec.metastore; seed requires structured metastore).
 	if spec.Metastore != nil && spec.Metastore.Host != nil {
 		envs = append(envs, corev1.EnvVar{Name: naming.EnvDBHost, Value: *spec.Metastore.Host})
 		targetPort := defaultDBPort(spec.Metastore.Type)
@@ -209,22 +209,22 @@ func collectCloneEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVar {
 	return envs
 }
 
-// resolveCloneImage determines the image for the clone pod. Defaults are
+// resolveSeedImage determines the image for the seed pod. Defaults are
 // type-aware: postgres:17-alpine for PostgreSQL sources, mysql:8-alpine for
 // MySQL. Partial user specs inherit the default repository or tag for omitted
 // fields rather than the Superset image (which would be incorrect for a
 // database tooling container).
-func resolveCloneImage(clone *supersetv1alpha1.CloneTaskSpec) supersetv1alpha1.ImageSpec {
+func resolveSeedImage(seed *supersetv1alpha1.SeedTaskSpec) supersetv1alpha1.ImageSpec {
 	srcType := dbTypePostgresql
-	if clone.Source.Type != nil {
-		srcType = *clone.Source.Type
+	if seed.Source.Type != nil {
+		srcType = *seed.Source.Type
 	}
-	defaultRef := naming.CloneImagePostgres
+	defaultRef := naming.SeedImagePostgres
 	if srcType == dbTypeMySQL {
-		defaultRef = naming.CloneImageMySQL
+		defaultRef = naming.SeedImageMySQL
 	}
 	defRepo, defTag := splitImageRef(defaultRef)
-	return resolveContainerImage(clone.Image, defRepo, defTag)
+	return resolveContainerImage(seed.Image, defRepo, defTag)
 }
 
 // resolveContainerImage merges a user-provided ContainerImageSpec with
@@ -256,11 +256,11 @@ func splitImageRef(ref string) (string, string) {
 	return ref, defaultImageTag
 }
 
-// convertCloneComponent builds a minimal ComponentInput for the clone task Job.
-func convertCloneComponent(clone *supersetv1alpha1.CloneTaskSpec, command []string) *resolution.ComponentInput {
+// convertSeedComponent builds a minimal ComponentInput for the seed task Job.
+func convertSeedComponent(seed *supersetv1alpha1.SeedTaskSpec, command []string) *resolution.ComponentInput {
 	var pt *supersetv1alpha1.PodTemplate
-	if clone.PodTemplate != nil {
-		pt = clone.PodTemplate
+	if seed.PodTemplate != nil {
+		pt = seed.PodTemplate
 	}
 
 	var ct *supersetv1alpha1.ContainerTemplate

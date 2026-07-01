@@ -27,7 +27,7 @@ troubleshooting.
 
 The `spec.lifecycle` section controls up to four sequential tasks:
 
-1. **clone** — database snapshot from an external source (staging workflows)
+1. **seed** — database snapshot from an external source (staging workflows)
 2. **migrate** — `superset db upgrade` (database schema migration)
 3. **rotate** — `superset re-encrypt-secrets` (secret key rotation)
 4. **init** — `superset init` (application initialization: roles, permissions)
@@ -42,7 +42,7 @@ explicitly with `spec.lifecycle.disabled: true`.
 
 **Key behaviors:**
 
-- Clone must complete before migrate starts; migrate before rotate; rotate before init
+- Seed must complete before migrate starts; migrate before rotate; rotate before init
 - Components are not created or updated until all enabled tasks complete
 - When config or image changes require a re-run, the parent deletes the old task Job and creates a fresh one
 
@@ -52,7 +52,7 @@ Each task has hardcoded trigger inputs — what it watches for changes:
 
 | Task | Watches | Re-runs when... |
 |------|---------|-----------------|
-| Clone | `trigger` field, `cronSchedule` tick, source config, excludes, target Superset image | Trigger value changes, schedule tick boundary crossed, source DB config changes, or target image changes (so a downgrade triggers a fresh clone before migrate sees the older schema) |
+| Seed | `trigger` field, `cronSchedule` tick, source config, excludes, target Superset image | Trigger value changes, schedule tick boundary crossed, source DB config changes, or target image changes (so a downgrade triggers a fresh seed before migrate sees the older schema) |
 | Migrate | Image (resolved lifecycle image), `metastore.createDatabase` flag | Image tag or repository changes, or `createDatabase` is toggled |
 | Rotate | `trigger` field, `secretKeyFrom` ref, `previousSecretKeyFrom` ref | Secret key references change or trigger value changes |
 | Init | Config checksum (rendered Python config) | Any config-affecting field changes |
@@ -87,14 +87,14 @@ spec:
 
 ### Scheduled Execution
 
-Tasks that support scheduling (currently clone) accept a `cronSchedule` field —
+Tasks that support scheduling (currently seed) accept a `cronSchedule` field —
 a standard 5-field cron expression that triggers periodic re-execution:
 
 ```yaml
 spec:
   environment: Staging
   lifecycle:
-    clone:
+    seed:
       cronSchedule: "0 2 * * *"  # daily at 2 AM UTC
       source:
         host: postgres-prod.db.svc
@@ -106,7 +106,7 @@ spec:
 ```
 
 When a schedule is configured, the operator automatically re-runs the full
-lifecycle pipeline (clone → migrate → rotate → init) each time a cron tick boundary is
+lifecycle pipeline (seed → migrate → rotate → init) each time a cron tick boundary is
 crossed. The `trigger` field remains functional for manual overrides on top of
 the schedule — both contribute independently.
 
@@ -124,7 +124,7 @@ the schedule — both contribute independently.
 
 **Status reporting:**
 
-The clone task status includes `lastScheduledAt` (the tick that triggered the
+The seed task status includes `lastScheduledAt` (the tick that triggered the
 most recent run) and `nextScheduleAt` (the next future tick).
 
 **Alternative — external CronJob:**
@@ -195,7 +195,7 @@ change that only re-runs the default init task does not drain components.
 
 | Task | Default `requiresDrain` | Rationale |
 |------|------------------------|-----------|
-| Clone | `true` | DROP DATABASE fails with active connections |
+| Seed | `true` | DROP DATABASE fails with active connections |
 | Migrate | `true` | Schema changes risk deadlocks and version/schema inconsistencies |
 | Rotate | `true` | After re-encryption, stored secrets use the new key — components with the old key would fail to decrypt |
 | Init | `false` | Role/permission operations are safe with components running |
@@ -314,9 +314,9 @@ flowchart TD
     MP -->|Yes| MP1[Deploy maintenance page, switch Service selector]
     MP -->|No| F
     MP1 --> F[Drain: delete component resources, wait for pod termination]
-    F --> G[Clone task]
+    F --> G[Seed task]
     G -->|checksum match| H[Skip]
-    G -->|checksum mismatch| G1[Execute clone job]
+    G -->|checksum mismatch| G1[Execute seed job]
     G1 --> H
     H --> I[Migrate task]
     I -->|checksum match| J[Skip]
@@ -354,7 +354,7 @@ constructs the full init command automatically.
 
 ## Auto-Creating the Metastore Database
 
-Setting `metastore.createDatabase: true` attaches an idempotent init container to the migrate Job that runs `CREATE DATABASE` against the server before `superset db upgrade`. This avoids a chicken-and-egg pre-install step on fresh PostgreSQL/MySQL servers. See [Auto-creating the database](configuration.md#auto-creating-the-database) for full details, including the privilege requirement on the metastore user. The flag is redundant alongside `lifecycle.clone` (which already drops and re-creates the target database) but harmless.
+Setting `metastore.createDatabase: true` attaches an idempotent init container to the migrate Job that runs `CREATE DATABASE` against the server before `superset db upgrade`. This avoids a chicken-and-egg pre-install step on fresh PostgreSQL/MySQL servers. See [Auto-creating the database](configuration.md#auto-creating-the-database) for full details, including the privilege requirement on the metastore user. The flag is redundant alongside `lifecycle.seed` (which already drops and re-creates the target database) but harmless.
 
 ## Timeout, Retries, and Pod Retention
 
@@ -521,16 +521,16 @@ After confirming rotation succeeded, remove `previousSecretKeyFrom` and the
 `lifecycle.rotate` section. The previous secret key is no longer needed once all
 components have restarted with the new key.
 
-## Clone (Development and Staging Mode Only)
+## Seed (Development and Staging Mode Only)
 
-The clone task creates a database snapshot from an external source into the CR's
+The seed task creates a database snapshot from an external source into the CR's
 metastore before running migrations. This enables staging workflows where you
 test version upgrades against a copy of production data.
 
-Clone is only allowed when `environment: Development` or `environment: Staging`
+Seed is only allowed when `environment: Development` or `environment: Staging`
 — it performs a destructive DROP DATABASE on the target metastore and must never
 run against a production instance. Staging mode enforces secrets (like
-Production) while still permitting clone operations.
+Production) while still permitting seed operations.
 
 ### Staging Workflow
 
@@ -557,8 +557,8 @@ spec:
       name: staging-db-creds
       key: password
   lifecycle:
-    clone:
-      trigger: "2026-05-09-v1"       # change to re-clone
+    seed:
+      trigger: "2026-05-09-v1"       # change to re-seed
       source:
         host: postgres-prod.db.svc
         database: superset_prod
@@ -579,22 +579,22 @@ spec:
   # celeryBeat intentionally omitted — prevents alert double-triggers
 ```
 
-The lifecycle pipeline runs: **clone → migrate → rotate → init → components**. Components
-are not deployed until all enabled tasks complete, and clone always drains existing
+The lifecycle pipeline runs: **seed → migrate → rotate → init → components**. Components
+are not deployed until all enabled tasks complete, and seed always drains existing
 components before running (DROP DATABASE fails with active connections). Only
 the tasks you configure run; `rotate`, for example, is skipped when no
 `lifecycle.rotate` spec is set.
 
-### Clone Trigger and Scheduling
+### Seed Trigger and Scheduling
 
-The clone task runs when its checksum changes. Two mechanisms trigger re-execution:
+The seed task runs when its checksum changes. Two mechanisms trigger re-execution:
 
 - **`trigger` field** — an opaque string (date, UUID, CI build ID). Changing it
-  causes a re-clone. Use this for manual or CI-driven refreshes.
+  causes a re-seed. Use this for manual or CI-driven refreshes.
 - **`cronSchedule` field** — a 5-field cron expression for periodic re-execution.
   When the clock crosses a cron boundary, the task checksum changes automatically.
 
-To disable clone without removing its configuration, set `disabled: true`.
+To disable seed without removing its configuration, set `disabled: true`.
 
 ### Table Exclusion
 
@@ -604,7 +604,7 @@ To disable clone without removing its configuration, set `disabled: true`.
   where migrations expect the schema to exist but the data is not needed for
   testing (e.g., `logs`, `query`).
 
-### Custom Clone Command
+### Custom Seed Command
 
 By default the operator constructs a streaming `pg_dump | psql` (or
 `mysqldump | mysql`) command. Override it for custom workflows (anonymization,
@@ -613,8 +613,8 @@ database-native snapshots, etc.):
 ```yaml
 spec:
   lifecycle:
-    clone:
-      command: ["/bin/sh", "-c", "custom-clone-script.sh"]
+    seed:
+      command: ["/bin/sh", "-c", "custom-seed-script.sh"]
       image:
         repository: my-registry/custom-tools
         tag: "v1"
@@ -628,28 +628,28 @@ spec:
 ```
 
 When a custom command is set, the operator still injects all env vars
-(`SUPERSET_OPERATOR__CLONE_SRC_*` and `SUPERSET_OPERATOR__DB_*`) so your script
+(`SUPERSET_OPERATOR__SEED_SRC_*` and `SUPERSET_OPERATOR__DB_*`) so your script
 can use them.
 
-### Clone Image
+### Seed Image
 
-The clone pod uses a database-tool image (not the Superset image):
+The seed pod uses a database-tool image (not the Superset image):
 
 | Source type | Default image |
 |---|---|
 | `postgresql` | `postgres:17-alpine` |
 | `mysql` | `mysql:8-alpine` |
 
-Override with `clone.image` if you need additional tools.
+Override with `seed.image` if you need additional tools.
 
 ### Requirements
 
 - **Metastore must use structured mode** (host, database, username) — passthrough
-  URI mode is not supported for clone.
-- **Metastore user must have CREATEDB rights** — the clone drops and recreates
+  URI mode is not supported for seed.
+- **Metastore user must have CREATEDB rights** — the seed drops and recreates
   the target database.
-- **Source user should be read-only** — the clone only reads from production.
-- **Network access** — the clone pod needs egress to both source and target
+- **Source user should be read-only** — the seed only reads from production.
+- **Network access** — the seed pod needs egress to both source and target
   databases. Configure NetworkPolicy accordingly.
 
 ## How It Works Under the Hood
@@ -665,9 +665,9 @@ incoming checksum for the next task.
 ```
                      parentUID (stable anchor)
                          ↓
-clone.checksum   = hash(parentUID, "Clone", command, trigger, scheduleTick, source, excludes, postCloneSQL, cloneImage, targetImage)
+seed.checksum   = hash(parentUID, "Seed", command, trigger, scheduleTick, source, excludes, postSeedSQL, seedImage, targetImage)
                          ↓ (stored in parent status on completion)
-migrate.checksum = hash(clone.status.checksum, "Migrate", command, trigger, image)
+migrate.checksum = hash(seed.status.checksum, "Migrate", command, trigger, image)
                          ↓ (stored in parent status on completion)
 rotate.checksum  = hash(migrate.status.checksum, "Rotate", command, trigger, image, secretKey, secretKeyFrom, previousSecretKey, previousSecretKeyFrom)
                          ↓ (stored in parent status on completion)
@@ -677,7 +677,7 @@ init.checksum    = hash(rotate.status.checksum, "Init", command, trigger, image,
 **The universal rule:** a task executes when its computed checksum differs from
 the completed checksum stored in parent status. If they match, the task skips.
 
-**Upstream propagation is automatic:** when clone re-runs (e.g., trigger
+**Upstream propagation is automatic:** when seed re-runs (e.g., trigger
 changed), its status checksum changes. That new value flows into migrate's
 checksum computation, making it differ from its stored value — so migrate
 re-runs too. The chain continues transitively through rotate to init.
@@ -686,8 +686,8 @@ re-runs too. The chain continues transitively through rotate to init.
 Migrate is image/schema-version driven and intentionally ignores feature/config
 changes — a config tweak does not re-run migrations. Init is the
 config-sensitive task: rendered `superset_config.py` changes propagate here.
-Clone tracks both the source connection identity and the *target* Superset
-image, so a staging image change (including a downgrade) triggers a fresh clone
+Seed tracks both the source connection identity and the *target* Superset
+image, so a staging image change (including a downgrade) triggers a fresh seed
 before migrations re-run. Rotate fires on secret-key transitions.
 
 **What checksums do NOT cover:** checksums hash *task-semantic* inputs only.
@@ -695,12 +695,12 @@ Pod-level fields like resource requests/limits, node selectors, tolerations,
 affinity, and other `podTemplate` knobs are not part of the task checksum and
 do not by themselves trigger a re-run. Such changes apply on the next execution
 that *is* triggered by a semantic input change. This is intentional: a pure
-scheduling tweak should not, for example, re-run a destructive `clone`.
+scheduling tweak should not, for example, re-run a destructive `seed`.
 
 ### Why Jobs
 
 - **Idempotent creation** — Each task uses a deterministic Job name, so repeated
-  reconciles cannot create duplicate clone/migrate/init executions.
+  reconciles cannot create duplicate seed/migrate/init executions.
 - **Controlled retries** — Jobs use `backoffLimit: 0`; the operator decides when
   and how to retry with configurable max attempts and exponential backoff.
 - **Durable checkpoints** — Task completion is stored on the parent status
@@ -741,9 +741,9 @@ Lifecycle task progress is tracked per-task in the parent status:
 ```yaml
 status:
   lifecycle:
-    phase: Complete        # Cloning | Draining | Migrating | Rotating | Initializing | Restoring | Complete | Blocked | AwaitingApproval
-    clone:
-      state: Complete      # Pending | Running | Complete | Failed (only present when clone is enabled)
+    phase: Complete        # Seeding | Draining | Migrating | Rotating | Initializing | Restoring | Complete | Blocked | AwaitingApproval
+    seed:
+      state: Complete      # Pending | Running | Complete | Failed (only present when seed is enabled)
       attempts: 1
     migrate:
       state: Complete      # Pending | Running | Complete | Failed

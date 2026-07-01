@@ -29,8 +29,8 @@ The `environment` field controls validation strictness (enforced by
 [CEL](https://kubernetes.io/docs/reference/using-api/cel/) rules in the CRD schema):
 
 - **`Production`** (default) — inline `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, and `websocketServer.config` are rejected by CRD validation. Use the corresponding `*From` fields (`secretKeyFrom`, `previousSecretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`, `valkey.passwordFrom`, `websocketServer.configFrom`) to reference Kubernetes Secrets.
-- **`Staging`** — same secret restrictions as Production, but allows `lifecycle.clone` for database cloning from an external source. `lifecycle.clone.source.password` must still be supplied via `passwordFrom`.
-- **`Development`** — allows plain-text `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, `websocketServer.config`, and `lifecycle.clone.source.password` directly in the CR for quick local development. Also permits `lifecycle.clone`, `lifecycle.init.adminUser`, and `lifecycle.init.loadExamples`.
+- **`Staging`** — same secret restrictions as Production, but allows `lifecycle.seed` for database seeding from an external source. `lifecycle.seed.source.password` must still be supplied via `passwordFrom`.
+- **`Development`** — allows plain-text `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, `websocketServer.config`, and `lifecycle.seed.source.password` directly in the CR for quick local development. Also permits `lifecycle.seed`, `lifecycle.init.adminUser`, and `lifecycle.init.loadExamples`.
 
 ### Dev Mode Example
 
@@ -174,9 +174,9 @@ Requirements and caveats:
 
 - **Structured metastore only.** Rejected by CRD validation when `uri` or `uriFrom` is set — the operator needs the individual host/database/username fields to issue admin-level statements.
 - **Privileges.** The configured metastore user must have `CREATEDB` (PostgreSQL) or `CREATE` (MySQL) privilege on the server. The init container connects to the `postgres` admin database (PostgreSQL) or runs `CREATE DATABASE IF NOT EXISTS` (MySQL).
-- **Init container image.** The operator uses `postgres:17-alpine` or `mysql:8-alpine` (matching the clone task) — the Superset image is not assumed to ship database client tools.
+- **Init container image.** The operator uses `postgres:17-alpine` or `mysql:8-alpine` (matching the seed task) — the Superset image is not assumed to ship database client tools.
 - **Resources and securityContext are inherited from `spec.lifecycle.podTemplate.container`.** Whatever you set on `spec.lifecycle.podTemplate.container.resources` and `spec.lifecycle.podTemplate.container.securityContext` is applied to the create-database init container. This lets you satisfy strict admission policies (Pod Security Standards `restricted`, Kyverno, OPA) without a dedicated knob. The init container also defaults to a non-root UID (matching its DB-tool image), so it starts cleanly under a pod-level `runAsNonRoot: true` even when you don't pin a UID — an explicit `runAsUser` at the pod or container level is always respected.
-- **Redundant with `lifecycle.clone`.** Clone already drops and re-creates its target database every time it runs, so toggling `createDatabase` on alongside clone is harmless but does no extra work in practice — the init container detects the existing database (created by clone) and no-ops.
+- **Redundant with `lifecycle.seed`.** Seed already drops and re-creates its target database every time it runs, so toggling `createDatabase` on alongside seed is harmless but does no extra work in practice — the init container detects the existing database (created by seed) and no-ops.
 
 ## Valkey
 
@@ -420,7 +420,7 @@ spec:
 
 The top-level value applies to web server, Celery worker, Celery Beat, Celery
 Flower, MCP server, and lifecycle `migrate`, `rotate`, and `init` task Jobs.
-The websocket server (Node.js) and clone tasks (which run a database-tool image)
+The websocket server (Node.js) and seed tasks (which run a database-tool image)
 do not use this script.
 
 Components and lifecycle tasks can override the top-level script. Set the

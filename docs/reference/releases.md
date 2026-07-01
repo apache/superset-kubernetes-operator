@@ -24,6 +24,16 @@ releases.
 
 ## Unreleased
 
+### Changed
+
+- **Breaking:** the lifecycle `clone` task is renamed to `seed`. Rename
+  `spec.lifecycle.clone` to `spec.lifecycle.seed` (and its `postCloneSQL` field
+  to `postSeedSQL`) in your Superset resources. The task Job name suffix changes
+  from `-clone` to `-seed`, and the lifecycle status phase from `Cloning` to
+  `Seeding`. Custom `seed.command` scripts must read the renamed
+  `SUPERSET_OPERATOR__SEED_SRC_*` environment variables. Renamed ahead of an
+  upcoming backup/restore feature, where "clone" would be ambiguous.
+
 ## 0.1.1 - 2026-06-29
 
 ### Fixed

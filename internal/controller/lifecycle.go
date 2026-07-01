@@ -22,7 +22,7 @@ limitations under the License.
 // # Lifecycle pipeline
 //
 // The lifecycle pipeline is a small state machine over four sequential tasks
-// (clone → migrate → rotate → init) executed as parent-owned Jobs with
+// (seed → migrate → rotate → init) executed as parent-owned Jobs with
 // backoffLimit: 0. Per-task wiring (suffix, phase, command builder, inputs
 // builder, IsEnabled, BaseSpec accessor, status slot) lives in
 // lifecycleTaskDescriptors (lifecycle_taskdescriptor.go); per-task spec
@@ -36,7 +36,7 @@ limitations under the License.
 //
 // Two phase enums coexist intentionally:
 //
-//   - lifecyclePhase* (Cloning, Draining, Migrating, Rotating, Initializing,
+//   - lifecyclePhase* (Seeding, Draining, Migrating, Rotating, Initializing,
 //     Restoring, Complete, Blocked, AwaitingApproval) is the lifecycle
 //     sub-state, surfaced on Status.Lifecycle.Phase. It tells operators what
 //     the lifecycle pipeline is currently doing.
@@ -66,18 +66,18 @@ import (
 const (
 	taskTypeMigrate = "Migrate"
 	taskTypeInit    = "Init"
-	taskTypeClone   = "Clone"
+	taskTypeSeed    = "Seed"
 	taskTypeRotate  = "Rotate"
 
 	suffixMigrate = "-migrate"
 	suffixInit    = "-init"
-	suffixClone   = "-clone"
+	suffixSeed    = "-seed"
 	suffixRotate  = "-rotate"
 
 	upgradeModeAutomatic  = "Automatic"
 	upgradeModeSupervised = "Supervised"
 
-	lifecyclePhaseCloning          = "Cloning"
+	lifecyclePhaseSeeding          = "Seeding"
 	lifecyclePhaseDraining         = "Draining"
 	lifecyclePhaseMigrating        = "Migrating"
 	lifecyclePhaseRotating         = "Rotating"
@@ -127,7 +127,7 @@ func lifecycleCheckpoint() lifecycleResult { return lifecycleResult{RequeueAfter
 // lifecycleTerminal is a "permanent failure, don't requeue on own" result.
 func lifecycleTerminal() lifecycleResult { return lifecycleResult{TerminalFailure: true} }
 
-// reconcileLifecycle orchestrates lifecycle tasks (clone + migrate + rotate + init)
+// reconcileLifecycle orchestrates lifecycle tasks (seed + migrate + rotate + init)
 // as parent-owned Jobs and gates component deployment.
 func (r *SupersetReconciler) reconcileLifecycle(
 	ctx context.Context,
@@ -163,12 +163,12 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	// Validate cron schedules early so invalid expressions are surfaced immediately.
 	r.validateSchedules(superset)
 
-	// Block the pipeline when the user configured clone with a malformed cron
-	// schedule. Without this gate, IsEnabled would treat clone as disabled and
-	// downstream tasks would silently run without the cloned database, which
+	// Block the pipeline when the user configured seed with a malformed cron
+	// schedule. Without this gate, IsEnabled would treat seed as disabled and
+	// downstream tasks would silently run without the seeded database, which
 	// is almost never what the user wants — typo in cron should not yield a
 	// migrate/init against the wrong data set.
-	if blockResult, blocked := r.gateOnInvalidCloneSchedule(superset); blocked {
+	if blockResult, blocked := r.gateOnInvalidSeedSchedule(superset); blocked {
 		return blockResult, nil
 	}
 
@@ -232,7 +232,7 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		return drainResult, nil
 	}
 
-	// Orchestrate lifecycle pipeline: clone → migrate → rotate → init.
+	// Orchestrate lifecycle pipeline: seed → migrate → rotate → init.
 	pipelineResult, err := r.runLifecyclePipeline(ctx, superset, upgradeInProgress, configChecksum, topLevel, saName)
 	if err != nil {
 		return lifecycleResult{}, err
@@ -302,35 +302,35 @@ func lifecycleParentPhase(upgradeInProgress bool) string {
 	return phaseInitializing
 }
 
-// gateOnInvalidCloneSchedule returns a terminal result when the user
-// configured clone with a malformed cron schedule. CRD pattern validation only
+// gateOnInvalidSeedSchedule returns a terminal result when the user
+// configured seed with a malformed cron schedule. CRD pattern validation only
 // covers the structural shape (5 whitespace-separated fields of allowed
 // characters); out-of-range values like "99 99 99 99 99" still pass admission
 // and only fail at runtime when robfig/cron parses them. Without this gate,
-// IsEnabled would treat clone as disabled and downstream tasks would run
+// IsEnabled would treat seed as disabled and downstream tasks would run
 // against the wrong data set.
-func (r *SupersetReconciler) gateOnInvalidCloneSchedule(superset *supersetv1alpha1.Superset) (lifecycleResult, bool) {
-	if superset.Spec.Lifecycle == nil || superset.Spec.Lifecycle.Clone == nil {
+func (r *SupersetReconciler) gateOnInvalidSeedSchedule(superset *supersetv1alpha1.Superset) (lifecycleResult, bool) {
+	if superset.Spec.Lifecycle == nil || superset.Spec.Lifecycle.Seed == nil {
 		return lifecycleResult{}, false
 	}
-	clone := superset.Spec.Lifecycle.Clone
-	if isDisabled(clone.Disabled) {
+	seed := superset.Spec.Lifecycle.Seed
+	if isDisabled(seed.Disabled) {
 		return lifecycleResult{}, false
 	}
-	if cloneScheduleIsValid(clone.CronSchedule) {
+	if seedScheduleIsValid(seed.CronSchedule) {
 		return lifecycleResult{}, false
 	}
 	expr := ""
-	if clone.CronSchedule != nil {
-		expr = *clone.CronSchedule
+	if seed.CronSchedule != nil {
+		expr = *seed.CronSchedule
 	}
-	message := fmt.Sprintf("clone cronSchedule %q is invalid; downstream lifecycle tasks blocked until corrected", expr)
+	message := fmt.Sprintf("seed cronSchedule %q is invalid; downstream lifecycle tasks blocked until corrected", expr)
 	superset.Status.Lifecycle.Phase = lifecyclePhaseBlocked
 	superset.Status.Phase = phaseBlocked
 	setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 		metav1.ConditionFalse, "InvalidCronSchedule", message, superset.Generation)
 	r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "InvalidCronSchedule", "Lifecycle",
-		"Lifecycle blocked: clone cronSchedule %q is invalid", expr)
+		"Lifecycle blocked: seed cronSchedule %q is invalid", expr)
 	return lifecycleTerminal(), true
 }
 
@@ -384,7 +384,7 @@ func (r *SupersetReconciler) clearUpgradeApprovalAnnotation(ctx context.Context,
 	return nil
 }
 
-// runLifecyclePipeline executes the sequential task pipeline (clone → migrate → rotate → init).
+// runLifecyclePipeline executes the sequential task pipeline (seed → migrate → rotate → init).
 // Each task receives an incoming checksum from the previous task, creating a chain
 // that automatically invalidates downstream tasks when upstream re-executes.
 func (r *SupersetReconciler) runLifecyclePipeline(
@@ -539,7 +539,7 @@ func (r *SupersetReconciler) reconcileLifecycleTask(
 	// Build the task's flat spec and pod configuration.
 	flatSpec, renderedConfig := r.buildTaskFlatSpec(superset, taskType, command, configChecksum, topLevel, saName)
 	bootstrapScript := ""
-	if taskType != taskTypeClone {
+	if taskType != taskTypeSeed {
 		bootstrapScript = effectiveLifecycleBootstrapScript(&superset.Spec)
 	}
 
@@ -603,15 +603,15 @@ func (r *SupersetReconciler) reconcileLifecycleTask(
 }
 
 // buildTaskFlatSpec constructs the fully-resolved FlatComponentSpec for a task Job.
-// Clone tasks use a database-tool image; migrate/init use the Superset image.
-// Returns (flatSpec, renderedConfig) — renderedConfig is empty for clone.
+// Seed tasks use a database-tool image; migrate/init use the Superset image.
+// Returns (flatSpec, renderedConfig) — renderedConfig is empty for seed.
 // taskPodRetention returns the retention spec for a task type.
 func (r *SupersetReconciler) taskPodRetention(superset *supersetv1alpha1.Superset, taskType string) *supersetv1alpha1.PodRetentionSpec {
 	if superset.Spec.Lifecycle == nil {
 		return nil
 	}
-	if taskType == taskTypeClone && superset.Spec.Lifecycle.Clone != nil && superset.Spec.Lifecycle.Clone.PodRetention != nil {
-		return superset.Spec.Lifecycle.Clone.PodRetention
+	if taskType == taskTypeSeed && superset.Spec.Lifecycle.Seed != nil && superset.Spec.Lifecycle.Seed.PodRetention != nil {
+		return superset.Spec.Lifecycle.Seed.PodRetention
 	}
 	return superset.Spec.Lifecycle.PodRetention
 }
@@ -640,7 +640,7 @@ func (r *SupersetReconciler) deleteLifecycleTaskResources(ctx context.Context, s
 	if err := r.deleteTaskJobs(ctx, superset, taskName); err != nil {
 		return err
 	}
-	if taskType != taskTypeClone {
+	if taskType != taskTypeSeed {
 		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, "", "", taskName, nil); err != nil {
 			return err
 		}
@@ -707,7 +707,7 @@ func getUpgradeMode(superset *supersetv1alpha1.Superset) string {
 }
 
 // taskRequiresDrain returns whether a task requires components to be drained.
-// Defaults: clone=true (DROP DATABASE needs no connections), migrate=true
+// Defaults: seed=true (DROP DATABASE needs no connections), migrate=true
 // (schema changes risk deadlocks), init=false (roles/permissions are safe).
 func (r *SupersetReconciler) taskRequiresDrain(superset *supersetv1alpha1.Superset, taskType string) bool {
 	desc := lifecycleTaskDescriptorByType(taskType)

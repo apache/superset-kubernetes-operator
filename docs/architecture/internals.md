@@ -59,18 +59,18 @@ parent CR name. Owned by the parent CR and garbage-collected on parent deletion.
 ### Phase 3: Lifecycle Tasks
 
 The parent controller runs deterministic lifecycle task Jobs:
-`{parentName}-clone`, `{parentName}-migrate`, `{parentName}-rotate`, and
+`{parentName}-seed`, `{parentName}-migrate`, `{parentName}-rotate`, and
 `{parentName}-init`. Durable task state lives on the parent
 `status.lifecycle` field, so a completed task is still visible after successful
 Jobs and Pods are removed by retention policy.
 
-Tasks run sequentially: clone → migrate → rotate → init. Each task can be independently
-disabled via `disabled: true`. Clone also supports periodic re-execution via
-`cronSchedule`. Checksums cascade downstream: a re-clone forces re-migrate,
+Tasks run sequentially: seed → migrate → rotate → init. Each task can be independently
+disabled via `disabled: true`. Seed also supports periodic re-execution via
+`cronSchedule`. Checksums cascade downstream: a re-seed forces re-migrate,
 which forces re-rotate, which forces re-init.
 
 When a pending task requires drain (`requiresDrain: true`, the default for
-clone, migrate, and rotate), the operator deletes component Deployments, HPAs,
+seed, migrate, and rotate), the operator deletes component Deployments, HPAs,
 PDBs, and routable Services before running that task, but only when at least one
 configured component has desired replicas greater than zero. Tasks whose current
 checksum is already complete do not contribute to the drain decision. The parent
@@ -192,7 +192,7 @@ changed.
 
 | Component | ConfigMap | Workload | Service | HPA | PDB |
 |---|---|---|---|---|---|
-| Clone (task) | — | Job (database tool) | — | — | — |
+| Seed (task) | — | Job (database tool) | — | — | — |
 | Migrate (task) | superset_config.py | Job | — | — | — |
 | Rotate (task) | superset_config.py | Job | — | — | — |
 | Init (task) | superset_config.py | Job | — | — | — |
@@ -343,7 +343,7 @@ drain, the parent:
    labels, instantly routing traffic to maintenance pods.
 3. Drains all component workloads, but the Service is unaffected because it
    belongs to the parent.
-4. Runs lifecycle tasks (clone → migrate → rotate → init).
+4. Runs lifecycle tasks (seed → migrate → rotate → init).
 5. After tasks complete and the web-server Deployment is recreated, waits for the
    web-server Deployment to become ready.
 6. Switches the Service selector back to the web-server pod labels.
