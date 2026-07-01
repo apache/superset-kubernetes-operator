@@ -50,6 +50,14 @@
         "// renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+curlImage = getEnvOrDefault\\(\\s+\"E2E_CURL_IMAGE\",\\s+\"\\S+:(?<currentValue>[^@\\\"]+)@(?<currentDigest>sha256:[a-f0-9]+)\""
       ],
       "versioningTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Track hand-pinned CLI tool versions in the Makefile",
+      "managerFilePatterns": ["/^Makefile$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( versioning=(?<versioning>\\S+))?\\s+\\S+_VERSION \\?= (?<currentValue>\\S+)"
+      ]
     }
   ]
 }
