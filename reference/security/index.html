@@ -1,0 +1,2093 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Kubernetes operator for deploying and managing Apache Superset">
+      
+      
+      
+        <link rel="canonical" href="https://apache.github.io/superset-kubernetes-operator/reference/security/">
+      
+      
+        <link rel="prev" href="../releases/">
+      
+      
+        <link rel="next" href="../../contributing/development-setup/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Security - Apache Superset Kubernetes Operator</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#security" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Apache Superset Kubernetes Operator" class="md-header__button md-logo" aria-label="Apache Superset Kubernetes Operator" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Apache Superset Kubernetes Operator
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Security
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/apache/superset-kubernetes-operator" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    apache/superset-kubernetes-operator
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Apache Superset Kubernetes Operator" class="md-nav__button md-logo" aria-label="Apache Superset Kubernetes Operator" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Apache Superset Kubernetes Operator
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/apache/superset-kubernetes-operator" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    apache/superset-kubernetes-operator
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/lifecycle/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lifecycle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/networking-and-monitoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Networking & Monitoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migration from Helm Chart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/internals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../downloads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Downloads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../releases/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releases
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#trust-boundaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trust Boundaries
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Trust Boundaries">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#single-public-crd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single Public CRD
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#serviceaccount-selection-is-part-of-cr-write-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ServiceAccount Selection Is Part of CR Write Access
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security Model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Security Model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#productionstaging-vs-development-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Production/Staging vs Development Mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#secret-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Secret Handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#raw-python-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Raw Python Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#crd-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CRD Validation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#design-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Design Decisions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rbac-justification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RBAC Justification
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="RBAC Justification">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#install-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install Scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-in-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Is In Scope
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supply-chain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supply Chain
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-generally-out-of-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Is Generally Out of Scope
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reporting-vulnerabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reporting Vulnerabilities
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reporting Vulnerabilities">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#supported-versions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supported Versions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#component-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Component Scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/development-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/development-guidelines/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/releasing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releasing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#trust-boundaries" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Trust Boundaries
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Trust Boundaries">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#single-public-crd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Single Public CRD
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#serviceaccount-selection-is-part-of-cr-write-access" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ServiceAccount Selection Is Part of CR Write Access
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security Model
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Security Model">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#productionstaging-vs-development-mode" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Production/Staging vs Development Mode
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#secret-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Secret Handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#raw-python-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Raw Python Configuration
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#crd-validation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CRD Validation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#design-decisions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Design Decisions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#rbac-justification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RBAC Justification
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="RBAC Justification">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#install-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Install Scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-in-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Is In Scope
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#supply-chain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supply Chain
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-generally-out-of-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What Is Generally Out of Scope
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reporting-vulnerabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reporting Vulnerabilities
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Reporting Vulnerabilities">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#supported-versions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Supported Versions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#component-scope" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Component Scope
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<!--
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+-->
+
+<h1 id="security">Security<a class="headerlink" href="#security" title="Permanent link">&para;</a></h1>
+<p>This document covers the security posture of the Superset Kubernetes
+Operator. It includes the <strong>threat model</strong> (trust boundaries, security
+assumptions, in-scope / out-of-scope concerns), secret handling, RBAC
+justification, security-relevant design decisions, and the vulnerability
+reporting process.</p>
+<h2 id="trust-boundaries">Trust Boundaries<a class="headerlink" href="#trust-boundaries" title="Permanent link">&para;</a></h2>
+<p>The operator operates across three trust levels:</p>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>What they can do</th>
+<th>Trust level</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Cluster admin</strong></td>
+<td>Installs the operator, manages its RBAC and namespace</td>
+<td>Full trust</td>
+</tr>
+<tr>
+<td><strong>Namespace admin</strong></td>
+<td>Creates and modifies <code>Superset</code> CRs in their namespace</td>
+<td>Trusted — can deploy arbitrary workloads</td>
+</tr>
+<tr>
+<td><strong>Superset end-user</strong></td>
+<td>Accesses the Superset web UI and API</td>
+<td>Untrusted — no operator interaction</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Key assumption:</strong> Granting <code>create</code> or <code>update</code> on the <code>Superset</code> CRD is
+equivalent to granting the ability to create Pods, Deployments,
+Services (including NodePort and LoadBalancer if cluster policy allows),
+ConfigMaps, ServiceAccounts, Ingresses, HTTPRoutes, NetworkPolicies,
+HorizontalPodAutoscalers, PodDisruptionBudgets, and ServiceMonitors in that
+namespace, including choosing container images, commands, arguments, environment
+variables, volumes, and ServiceAccount references. This is inherent to the
+Kubernetes operator pattern and is not a vulnerability.</p>
+<p>A <code>Superset</code> CR controls all of the above plus arbitrary Python configuration
+via <code>spec.config</code>. Restrict access to the <code>supersets</code> resource using Kubernetes
+RBAC.</p>
+<p>Supervised upgrade approval is object-local and uses the
+<code>superset.apache.org/approve-upgrade</code> annotation on the <code>Superset</code> CR. This is
+not a separate authorization boundary from <code>Superset</code> write access: anyone with
+permission to patch or update the <code>Superset</code> resource can approve an image
+change by setting the annotation to the approval token recorded in
+<code>status.lifecycle.upgrade.approvalToken</code>. Clusters that need a distinct approver
+role that cannot modify the parent CR spec should enforce that separation with
+an external admission policy or a separate approval API.</p>
+<h3 id="single-public-crd">Single Public CRD<a class="headerlink" href="#single-public-crd" title="Permanent link">&para;</a></h3>
+<p>The operator exposes one public custom resource, <code>Superset</code>. Component
+Deployments, Services, ConfigMaps, HPAs, PDBs, lifecycle task Jobs, networking,
+monitoring, and NetworkPolicies are reconciled as parent-owned Kubernetes
+resources. The bundled <code>superset-editor-role</code>, <code>superset-admin-role</code>, and
+<code>superset-viewer-role</code> therefore only need permissions for the <code>supersets</code>
+resource and its status subresource.</p>
+<h3 id="serviceaccount-selection-is-part-of-cr-write-access">ServiceAccount Selection Is Part of CR Write Access<a class="headerlink" href="#serviceaccount-selection-is-part-of-cr-write-access" title="Permanent link">&para;</a></h3>
+<p>CR authors can set <code>serviceAccount.name</code> with <code>serviceAccount.create: false</code>
+to bind workloads to any existing ServiceAccount in the namespace — including
+ServiceAccounts linked to cloud IAM or workload-identity setups (IRSA, GKE
+Workload Identity, Azure AD). This is intentional and enables legitimate
+integration patterns, but it means a CR author inherits whatever permissions
+the selected ServiceAccount has. Cluster and namespace admins should treat
+"can create Superset CRs" as equivalent to "can run workloads under any
+ServiceAccount in this namespace" and restrict ServiceAccount distribution
+accordingly.</p>
+<h2 id="security-model">Security Model<a class="headerlink" href="#security-model" title="Permanent link">&para;</a></h2>
+<h3 id="productionstaging-vs-development-mode">Production/Staging vs Development Mode<a class="headerlink" href="#productionstaging-vs-development-mode" title="Permanent link">&para;</a></h3>
+<p>The operator enforces a strict separation between hardened modes (Production
+and Staging) and Development:</p>
+<ul>
+<li><strong>Production/Staging</strong> (<code>environment: Production</code> is the default; <code>Staging</code>
+  keeps the same secret rules but allows the destructive <code>seed</code> task):
+  Inline <code>secretKey</code>, <code>previousSecretKey</code>, <code>metastore.uri</code>,
+  <code>metastore.password</code>, <code>valkey.password</code>, websocket <code>config</code>, and
+  <code>lifecycle.seed.source.password</code> are rejected by CRD CEL validation rules.
+  Users reference secrets via <code>secretKeyFrom</code>, <code>previousSecretKeyFrom</code>,
+  <code>metastore.uriFrom</code>, <code>metastore.passwordFrom</code>, <code>valkey.passwordFrom</code>,
+  websocket <code>configFrom</code>, and <code>lifecycle.seed.source.passwordFrom</code> — the
+  operator wires each of these as <code>valueFrom.secretKeyRef</code> env vars (or, for
+  websocket <code>configFrom</code>, mounts the referenced Secret key as a file).</li>
+<li><strong>Development</strong> (<code>environment: Development</code>): Inline secrets are allowed for
+  local development convenience. Additionally, <code>lifecycle.init.adminUser</code> and
+  <code>lifecycle.init.loadExamples</code> are permitted — these create a default admin account and
+  load sample data during initialization. Admin credentials from <code>adminUser</code>
+  are stored as plain-text environment variables on the parent Superset CR and
+  the resulting task Pod spec (visible to anyone with read access to these
+  resources in the namespace). The admin password also appears in the Pod's
+  process arguments via shell expansion.</li>
+</ul>
+<p>Development mode is intentionally less secure. It exists for local development
+with Kind or Minikube where secret management infrastructure is not available.</p>
+<h3 id="secret-handling">Secret Handling<a class="headerlink" href="#secret-handling" title="Permanent link">&para;</a></h3>
+<p>In Staging and Production modes, secrets follow this path:</p>
+<ol>
+<li>User creates a Kubernetes <code>Secret</code> containing the secret key and database
+   credentials</li>
+<li>User references the Secret via <code>secretKeyFrom</code>, <code>previousSecretKeyFrom</code>,
+   <code>metastore.uriFrom</code>, <code>metastore.passwordFrom</code>, <code>valkey.passwordFrom</code>,
+   <code>lifecycle.seed.source.passwordFrom</code>, or <code>websocketServer.configFrom</code> on
+   the Superset CR. For env-var references the operator injects
+   <code>valueFrom.secretKeyRef</code>; for <code>websocketServer.configFrom</code> the operator
+   mounts the referenced Secret key as a file. In every case the secret value
+   is resolved by the kubelet at pod startup, not by the operator.</li>
+<li>The operator generates <code>superset_config.py</code> that renders
+   <code>SECRET_KEY = os.environ['SUPERSET_OPERATOR__SECRET_KEY']</code> — the actual
+   secret value is resolved at Python runtime from the env var, so it never
+   appears in the ConfigMap</li>
+<li>The operator does not need Kubernetes Secret read permissions for this flow
+   and never reads, logs, writes, or stores secret values in ConfigMaps, CRD
+   status fields, or Events</li>
+</ol>
+<p><strong>Task failure caveat:</strong> When a task Job fails, the operator records a truncated
+failure message (max 256 characters) in the parent Superset status and Kubernetes Events for
+debugging. If the task command writes sensitive data to its failure output
+(e.g., a database connection error that includes credentials), a truncated form
+may appear in status. This only applies to the task container's own output, not
+to operator-managed secret references.</p>
+<p><strong>Scope of this guarantee:</strong> The above applies to operator-managed secret
+references (<code>secretKeyFrom</code>, <code>previousSecretKeyFrom</code>, <code>metastore.uriFrom</code>,
+<code>metastore.passwordFrom</code>, <code>valkey.passwordFrom</code>,
+<code>lifecycle.seed.source.passwordFrom</code>, and <code>websocketServer.configFrom</code>).
+User-authored fields — raw Python in <code>spec.config</code>, component-level <code>config</code>,
+<code>bootstrapScript</code>, and <code>podTemplate.container.env</code> — are trusted input and may
+contain arbitrary values including secrets. Users with read access to Superset
+CRs or the generated ConfigMaps will see any values placed in these fields.
+These are out of scope for the operator's secret handling guarantees
+(see <a href="#what-is-generally-out-of-scope">What Is Generally Out of Scope</a>).</p>
+<h3 id="raw-python-configuration">Raw Python Configuration<a class="headerlink" href="#raw-python-configuration" title="Permanent link">&para;</a></h3>
+<p>The <code>spec.config</code> field accepts arbitrary Python code that is appended to the
+generated <code>superset_config.py</code>. This is by design — Superset's configuration
+system is Python-based and requires arbitrary Python for features like custom
+security managers, database drivers, and feature flags. The same trust model
+applies to <code>bootstrapScript</code>, custom lifecycle commands, container env vars,
+and mounted files: operator-managed secret transport avoids ConfigMap leakage,
+but user-supplied raw fields can still expose secrets if CR authors put secrets
+there directly.</p>
+<p>Since CR creators can already deploy arbitrary containers (via <code>image</code>,
+<code>command</code>, <code>args</code>), the ability to inject Python does not expand the attack
+surface. Restrict who can create <code>Superset</code> CRs using Kubernetes RBAC.</p>
+<h3 id="crd-validation">CRD Validation<a class="headerlink" href="#crd-validation" title="Permanent link">&para;</a></h3>
+<p>All validation is enforced via <a href="https://kubernetes.io/docs/reference/using-api/cel/">CEL</a>
+rules embedded in the CRD schema (<code>x-kubernetes-validations</code>). No admission
+webhooks are used. This avoids the operational complexity of cert-manager and
+ensures validation is always active regardless of how the operator is deployed.</p>
+<p>Key rules:</p>
+<ul>
+<li><strong>Production/Staging secret rejection:</strong> Inline <code>secretKey</code>,
+  <code>metastore.uri</code>, <code>metastore.password</code>, <code>valkey.password</code>, and websocket
+  <code>config</code> are rejected outside Development mode</li>
+<li><strong>Staging seed boundary:</strong> <code>lifecycle.seed</code> is allowed only in Development
+  or Staging because it performs a destructive target database drop</li>
+<li><strong>Mutual exclusivity:</strong> <code>secretKey</code>/<code>secretKeyFrom</code>, metastore URI vs
+  structured fields, Valkey password inline vs Secret reference, websocket
+  <code>config</code>/<code>configFrom</code>, gateway vs ingress</li>
+<li><strong>Ingress requires webServer:</strong> <code>spec.networking.ingress</code> rules target the
+  web server service, so a CR cannot enable Ingress without <code>webServer</code></li>
+<li><strong>Gateway requires at least one routable component:</strong> <code>spec.networking.gateway</code>
+  routes to whichever of <code>webServer</code>, <code>websocketServer</code>, <code>mcpServer</code>, and
+  <code>celeryFlower</code> are configured; a CR with only Beat and Worker cannot enable
+  Gateway</li>
+<li><strong>Monitoring requires webServer:</strong> ServiceMonitor scrapes the web server service</li>
+<li><strong>Defaulting:</strong> <code>environment</code> defaults to <code>Production</code>, image repository and pull
+  policy default via kubebuilder markers</li>
+</ul>
+<p>CEL is the operator's built-in validation layer. Cluster operators who want
+defense-in-depth — for example, restricting which <code>image.repository</code> values are
+allowed, forbidding <code>environment: Development</code> outside specific namespaces, or
+requiring particular labels on every Superset CR — can layer a policy engine
+such as Kyverno, OPA Gatekeeper, or the Validating Admission Policy API on top
+of these CRD-level rules.</p>
+<h2 id="design-decisions">Design Decisions<a class="headerlink" href="#design-decisions" title="Permanent link">&para;</a></h2>
+<p>The following design choices are intentional and documented here to avoid
+repeat review cycles:</p>
+<ul>
+<li><strong>Ingress <code>CreateOrUpdate</code> replaces the full spec.</strong> The <code>reconcileIngress</code>
+  mutate function assigns <code>ingress.Spec = networkingv1.IngressSpec{...}</code> before
+  building rules, so rules are rebuilt from scratch on every reconcile — they do
+  not accumulate.</li>
+<li><strong><code>setCondition</code> ignores message-only changes.</strong> Condition updates are
+  triggered by Status, Reason, or ObservedGeneration changes. In all current
+  call sites, Status and Reason change together, so message-only changes are a
+  no-op by design. <code>LastTransitionTime</code> is only updated when Status changes
+  (per Kubernetes API conventions), not on Reason or generation changes alone.</li>
+<li><strong><code>FlatComponentSpec</code> is shared across component Deployments and lifecycle tasks.</strong>
+  Lifecycle tasks use Jobs (no Deployment), so fields like Autoscaling,
+  PDB, and Replicas are unused. The parent controller nils these fields before
+  creating task Jobs. A dedicated <code>FlatInitSpec</code> may be introduced in a future
+  API version, but the shared struct avoids duplicating Image, PodTemplate, and
+  ServiceAccountName today.</li>
+<li><strong><code>computeChecksum</code> has an unreachable fallback.</strong> The <code>fmt.Sprintf("%v")</code>
+  fallback after <code>json.Marshal</code> cannot fire for CRD types (which always marshal
+  successfully). It exists as a defensive guard, not as an expected code path.</li>
+<li><strong>WebServer and McpServer share port 8088.</strong> These are separate Pods and
+  Services, so identical port numbers do not conflict.</li>
+<li><strong>Generated Python and bootstrap wrapping use operator-controlled values.</strong> String fields
+  interpolated into <code>superset_config.py</code> (key prefixes, SSL cert paths) come
+  from CRD fields whose values are set by CR authors — trusted actors who can
+  already deploy arbitrary containers. Raw Python in <code>spec.config</code> and shell in
+  <code>bootstrapScript</code> are appended verbatim by design and are out of scope (see
+  "What Is Generally Out of Scope" below).</li>
+<li><strong>Celery Flower uses shell expansion for <code>--url_prefix</code>.</strong> The Flower default
+  command uses <code>/bin/sh -c</code> to expand <code>$SUPERSET_OPERATOR__FLOWER_URL_PREFIX</code>,
+  which is set from <code>service.gatewayPath</code>. The <code>gatewayPath</code> field is restricted
+  to <code>^/[a-zA-Z0-9/_.-]+$</code> by CRD validation, preventing shell metacharacter
+  injection. Additionally, CR creators can already override the command entirely
+  via <code>podTemplate.container.command</code>, so this does not expand the attack
+  surface.</li>
+<li><strong>ServiceAccount ownership.</strong> When <code>serviceAccount.create</code> is true (the
+  default), the operator creates and owns the ServiceAccount. If a
+  ServiceAccount with the specified name already exists and is not owned by the
+  Superset CR, the operator refuses to adopt it and reports an error. Users who
+  want to reference a pre-existing ServiceAccount should set <code>create: false</code>.</li>
+<li><strong>Managed resource adoption and cleanup.</strong> The operator reconciles managed
+  resources at deterministic names derived from the Superset name.
+  Kubernetes controller-owner semantics prevent adopting resources already
+  controlled by another controller. Unowned resources with the same managed
+  name, or resources carrying the operator's cleanup labels, may be adopted or
+  deleted during reconciliation. This is within the trust model: users who can
+  create or update Superset CRs are trusted namespace operators and already have
+  the effective ability to manage the corresponding workloads and resources.</li>
+<li><strong>Supervised upgrade approval uses a consumed, target-bound annotation.</strong> In
+  supervised mode, an image change is gated on the
+  <code>superset.apache.org/approve-upgrade</code> annotation matching the approval token
+  recorded in <code>status.lifecycle.upgrade.approvalToken</code>. The token is derived
+  from the observed source and target image refs, so a later spec update changes
+  the token and requires a separate approval. After lifecycle completion is
+  persisted to status, the operator deletes the annotation so a stale approval
+  cannot authorize a later image change. Kubernetes RBAC cannot grant
+  metadata-only patch access, so the manager has <code>patch</code> on <code>supersets</code>; the
+  implementation uses that permission only to remove the approval annotation
+  from the parent resource.</li>
+<li><strong>NetworkPolicy provides baseline ingress segmentation, not egress
+  restriction.</strong> When the built-in NetworkPolicy is enabled, the operator
+  installs policies that isolate ingress between Superset instances and allow
+  external clients to reach user-facing components (web, websocket, flower,
+  MCP). Egress is intentionally unrestricted so workloads can reach the
+  metastore database, Valkey, SMTP servers, object stores, and any other
+  user-configured dependencies. Users who require strict egress isolation
+  should disable the built-in policy and author their own.</li>
+<li><strong>Metrics endpoint ships with a permissive TLS default.</strong> The bundled
+  ServiceMonitor defaults to <code>insecureSkipVerify: true</code> against the manager's
+  self-signed serving certificate so that Prometheus can scrape metrics
+  out-of-the-box on clusters without cert-manager. Authentication and
+  authorization are still enforced via bearer tokens validated by
+  <code>TokenReview</code>/<code>SubjectAccessReview</code> (see <a href="#rbac-justification">RBAC Justification</a>),
+  so the endpoint is not anonymously accessible. Production deployments
+  should switch to cert-manager-issued certificates and set
+  <code>insecureSkipVerify: false</code> — <code>charts/superset-operator/values.yaml</code>
+  documents the flip.</li>
+</ul>
+<h2 id="rbac-justification">RBAC Justification<a class="headerlink" href="#rbac-justification" title="Permanent link">&para;</a></h2>
+<p>The operator runs with a <code>ClusterRole</code> to support managing <code>Superset</code> instances
+across namespaces. Each permission is justified below:</p>
+<table>
+<thead>
+<tr>
+<th>Resource</th>
+<th>Verbs</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>configmaps</code></td>
+<td>CRUD</td>
+<td>Stores generated <code>superset_config.py</code> per component</td>
+</tr>
+<tr>
+<td><code>services</code></td>
+<td>CRUD</td>
+<td>Exposes web server, Flower, websocket, MCP server</td>
+</tr>
+<tr>
+<td><code>serviceaccounts</code></td>
+<td>CRUD</td>
+<td>Creates per-instance ServiceAccount for pod identity</td>
+</tr>
+<tr>
+<td><code>pods</code></td>
+<td>get, list, watch</td>
+<td>Reads Job pods to verify drain progress and component readiness</td>
+</tr>
+<tr>
+<td><code>jobs</code></td>
+<td>CRUD</td>
+<td>Manages deterministic lifecycle task Jobs</td>
+</tr>
+<tr>
+<td><code>events</code></td>
+<td>create, patch, update</td>
+<td>Records reconciliation events</td>
+</tr>
+<tr>
+<td><code>deployments</code></td>
+<td>CRUD</td>
+<td>Manages component Deployments</td>
+</tr>
+<tr>
+<td><code>horizontalpodautoscalers</code></td>
+<td>CRUD</td>
+<td>Manages HPA for scalable components</td>
+</tr>
+<tr>
+<td><code>poddisruptionbudgets</code></td>
+<td>CRUD</td>
+<td>Manages PDBs for availability</td>
+</tr>
+<tr>
+<td><code>ingresses</code>, <code>networkpolicies</code></td>
+<td>CRUD</td>
+<td>Optional networking features</td>
+</tr>
+<tr>
+<td><code>httproutes</code></td>
+<td>CRUD</td>
+<td>Optional Gateway API support</td>
+</tr>
+<tr>
+<td><code>servicemonitors</code></td>
+<td>CRUD</td>
+<td>Optional Prometheus integration</td>
+</tr>
+<tr>
+<td><code>tokenreviews</code>, <code>subjectaccessreviews</code></td>
+<td>create</td>
+<td>Metrics endpoint auth/authz (controller-runtime secure metrics)</td>
+</tr>
+<tr>
+<td><code>supersets</code></td>
+<td>get, list, watch, patch</td>
+<td>Reads <code>Superset</code> CRs and patches metadata to consume target-bound supervised-upgrade approval; Kubernetes RBAC is not field-scoped</td>
+</tr>
+<tr>
+<td><code>supersets/status</code></td>
+<td>get, update, patch</td>
+<td>Updates reconciliation status only</td>
+</tr>
+</tbody>
+</table>
+<p>The operator does <strong>not</strong> request:</p>
+<ul>
+<li><code>*</code> (wildcard) on any resource or verb</li>
+<li><code>impersonate</code> or RBAC management permissions</li>
+<li><code>cluster-admin</code> or equivalent</li>
+<li>Kubernetes Secret read or write permissions</li>
+</ul>
+<h3 id="install-scope">Install Scope<a class="headerlink" href="#install-scope" title="Permanent link">&para;</a></h3>
+<p>The operator supports two install modes, selectable at deploy time:</p>
+<ul>
+<li><strong>Cluster-scoped (default).</strong> The manager ServiceAccount is bound to the
+  generated <code>ClusterRole</code> (<code>manager-role</code>) via a <code>ClusterRoleBinding</code>
+  (<code>manager-rolebinding</code>), and the cache watches every namespace. Appropriate
+  when a cluster admin administers the operator centrally. Helm:
+  <code>watch.scope: cluster</code>.</li>
+<li><strong>Namespace-scoped.</strong> The manager watches only the namespaces listed in
+  <code>WATCH_NAMESPACE</code> (comma-separated). Appropriate for restricted clusters
+  that forbid <code>ClusterRole</code> creation, or for single-tenant installs that
+  want a tighter blast radius.</li>
+</ul>
+<p>Leader election is namespace-scoped in both modes: the operator binds the
+namespace-local <code>Role</code> <code>leader-election-role</code> to the manager ServiceAccount via
+the <code>RoleBinding</code> <code>leader-election-rolebinding</code> in the operator's own
+namespace, and the lease/lock objects live there too.</p>
+<p>The RBAC shape differs between Helm and Kustomize for namespace-scoped
+installs:</p>
+<ul>
+<li><strong>Helm (<code>watch.scope: namespaces</code>)</strong> renders one <code>Role</code> and one
+  <code>RoleBinding</code> per watched namespace, and does <strong>not</strong> create a manager
+  <code>ClusterRole</code>/<code>ClusterRoleBinding</code> at all. With CRDs preinstalled by a
+  cluster admin and <code>metrics.enabled: false</code>, this install succeeds on
+  clusters that deny cluster-scoped RBAC to the installer (see the
+  Constraints list below).</li>
+<li><strong>Kustomize (<code>config/components/watch-namespace/</code>)</strong> retains the
+  controller-gen–generated <code>ClusterRole</code> but replaces the
+  <code>ClusterRoleBinding</code> with a namespaced <code>RoleBinding</code> pointing at that
+  same <code>ClusterRole</code>. A <code>RoleBinding</code> → <code>ClusterRole</code> pairing restricts
+  the granted permissions to the binding's namespace. The Kustomize path
+  therefore still requires cluster-scoped RBAC <em>at install time</em> for the
+  <code>ClusterRole</code>; its runtime footprint is namespace-scoped.</li>
+</ul>
+<p>Constraints common to both paths:</p>
+<ul>
+<li><strong>CRD installation always needs cluster-admin.</strong> CRDs are cluster-scoped
+  resources; watch-scope does not change that.</li>
+<li><strong>Secure metrics auth still needs cluster-scoped RBAC.</strong> The metrics
+  endpoint uses <code>TokenReview</code>/<code>SubjectAccessReview</code>, which are cluster-level
+  APIs. On clusters that forbid <code>ClusterRole</code> entirely, disable metrics
+  (<code>metrics.enabled: false</code> in Helm values).</li>
+<li><strong>Changing the watched-namespace list requires a manager restart.</strong> The
+  manager cache is built at startup; dynamic reconfiguration is not
+  supported.</li>
+<li><strong>Superset CRs in unwatched namespaces are silently ignored.</strong> The
+  operator logs the watched set at startup but does not detect stray CRs
+  elsewhere — confirm by tailing the startup log or listing <code>Supersets</code>
+  across namespaces manually if users report missing reconciliation.</li>
+</ul>
+<h2 id="what-is-in-scope">What Is In Scope<a class="headerlink" href="#what-is-in-scope" title="Permanent link">&para;</a></h2>
+<p>The following are valid security concerns for this project:</p>
+<ul>
+<li>Secrets leaking into ConfigMaps, Events, logs, or CRD status in <strong>Staging or Production mode</strong></li>
+<li>Privilege escalation via the operator's RBAC permissions</li>
+<li>CRD validation bypass (e.g., crafting a CR that evades CEL rules)</li>
+<li>The operator container's own security posture (it runs as non-root,
+  read-only, all capabilities dropped)</li>
+<li>Supply chain issues in the operator's build and release pipeline</li>
+<li>Vulnerabilities in the operator binary itself</li>
+</ul>
+<p><strong>Note on workload security contexts:</strong> The operator does not enforce default
+security contexts on Superset workload pods — it propagates whatever the user
+configures via <code>podTemplate.podSecurityContext</code> and
+<code>podTemplate.container.securityContext</code>. The
+<a href="https://github.com/apache/superset-kubernetes-operator/blob/main/config/samples/superset_v1alpha1_superset_prod.yaml">production sample</a>
+shows recommended settings. Workload pod security is the user's responsibility
+(see <a href="#what-is-generally-out-of-scope">What Is Generally Out of Scope</a>).</p>
+<p><strong>Recommendation — Pod Security Admission:</strong> The operator manager Pod is
+configured to satisfy the <code>restricted</code> Pod Security Standard (non-root,
+read-only root filesystem, all capabilities dropped, <code>seccompProfile:
+RuntimeDefault</code>, <code>allowPrivilegeEscalation: false</code>). For defense in depth,
+label the operator's namespace with
+<code>pod-security.kubernetes.io/enforce: restricted</code> so the apiserver rejects any
+Pod that drifts from this baseline.</p>
+<h2 id="supply-chain">Supply Chain<a class="headerlink" href="#supply-chain" title="Permanent link">&para;</a></h2>
+<p>The release pipeline produces signed multi-architecture artifacts:</p>
+<ul>
+<li><strong>Base images:</strong> the build stage uses a fully-qualified Go patch tag and the
+  runtime stage uses
+  <a href="https://github.com/GoogleContainerTools/distroless"><code>gcr.io/distroless/static:nonroot</code></a>
+  — no shell, no package manager, no unnecessary binaries. The Dockerfile pins both
+  by digest and Renovate keeps them current (digest refreshes are applied without the
+  version soak — see the dependency policy below).</li>
+<li><strong>Architectures:</strong> <code>linux/amd64</code> and <code>linux/arm64</code> are built and signed
+  identically.</li>
+<li><strong>Image signatures:</strong> The release workflow signs the manager image and the
+  packaged Helm chart with <a href="https://github.com/sigstore/cosign">Cosign</a> using
+  GitHub Actions OIDC (keyless). Verify with
+  <code>cosign verify ghcr.io/apache/superset-kubernetes-operator@&lt;digest&gt;</code>.</li>
+<li><strong>Dependency policy:</strong> Go modules, GitHub Actions, and container base images are
+  kept current via <a href="https://docs.renovatebot.com/">Renovate</a> with pinned versions and
+  a 7-day minimum age before a <em>version</em> update is proposed. This soak does <strong>not</strong>
+  apply to <em>digest</em> updates: when a floating tag is re-pushed to a new digest for the
+  same version (a base-OS rebuild, or a patch published under a rolling tag), Renovate
+  proposes the digest bump immediately, because <code>minimumReleaseAge</code> gates versions, not
+  digests. The Go builder is pinned to a fully-qualified patch version so Go upgrades
+  are soaked version updates; the distroless runtime base has no semantic-version tag,
+  so its digest refreshes are inherently un-soaked. This residual exposure is accepted
+  and bounded by the minimal distroless base and by keyless Cosign signing of the
+  image this project itself publishes.</li>
+<li><strong>SBOM &amp; provenance:</strong> Each published image carries a per-platform Software
+  Bill of Materials (SPDX) and SLSA build provenance, attached as in-toto
+  attestations by BuildKit at build time. Inspect them with
+  <code>docker buildx imagetools inspect ghcr.io/apache/superset-kubernetes-operator:&lt;tag&gt; --format '{{ json .SBOM }}'</code>
+  (or <code>.Provenance</code>), or with <code>cosign download attestation</code>.</li>
+<li><strong>Vulnerability scanning:</strong> CI runs <a href="https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck"><code>govulncheck</code></a>
+  against the Go source (reachable CVEs in dependencies and the standard library)
+  and <a href="https://github.com/aquasecurity/trivy">Trivy</a> against the built image
+  (OS and shipped-binary CVEs), with results uploaded to GitHub code scanning.
+  <a href="https://codeql.github.com/">CodeQL</a> provides static analysis of the Go code.</li>
+<li><strong>Supply-chain posture:</strong> An <a href="https://securityscorecards.dev/">OpenSSF Scorecard</a>
+  workflow runs on a schedule and publishes the project's score (linked from the
+  README badge).</li>
+</ul>
+<h2 id="what-is-generally-out-of-scope">What Is Generally Out of Scope<a class="headerlink" href="#what-is-generally-out-of-scope" title="Permanent link">&para;</a></h2>
+<p>The following areas are usually outside this project's security scope. Reports
+are still welcome when they show that the operator changes the expected trust
+boundary, weakens Kubernetes controls, leaks operator-managed secrets, or makes
+one of these conditions materially worse:</p>
+<ul>
+<li><strong>Superset application vulnerabilities</strong> — report these to the
+  <a href="https://github.com/apache/superset/security/policy">Apache Superset project</a></li>
+<li><strong>Database or cache security</strong> — the operator does not manage PostgreSQL or
+  Valkey instances; their security is the user's responsibility</li>
+<li><strong>Kubernetes control plane vulnerabilities</strong> — report these to the
+  <a href="https://kubernetes.io/docs/reference/issues-security/security/">Kubernetes security team</a></li>
+<li><strong>Development mode allows inline secrets</strong> — this is intentional and documented for
+  local development; Production mode is the enforced default. <code>lifecycle.init.adminUser</code> and
+  <code>lifecycle.init.loadExamples</code> are also Development-only features, rejected by CRD
+  validation in Staging and Production</li>
+<li><strong>CR creators can deploy arbitrary workloads</strong> — creating or updating any
+  Superset CRD is equivalent to creating Pods with chosen images, commands,
+  env vars, volumes, and ServiceAccounts; this is inherent to the operator
+  pattern and is the expected trust model (see <a href="#trust-boundaries">Trust Boundaries</a>)</li>
+<li><strong>Arbitrary Python via <code>spec.config</code></strong> — this field accepts raw Python by
+  design; CR creators can already deploy arbitrary containers, so Python
+  configuration does not expand the attack surface</li>
+<li><strong>Lifecycle seed task command is trusted input</strong> — the <code>lifecycle.seed</code>
+  task runs whatever image and command the CR author configures, so shell
+  and SQL content embedded in that command is trusted input. CR authors
+  already deploy arbitrary containers, so the seed task does not expand the
+  attack surface. Review seed commands as part of CR review, not as a
+  separable vulnerability class.</li>
+<li><strong>Container image vulnerabilities</strong> — the operator does not control the
+  contents of the Superset container image</li>
+<li><strong>Workload pod security contexts</strong> — the operator propagates user-configured
+  security contexts but does not enforce defaults; workload pod hardening is
+  the user's responsibility (see the production sample for recommended settings)</li>
+<li><strong>Websocket server is experimental and pending security hardening</strong> — the
+  <code>websocketServer</code> component is not yet well supported and may exhibit gaps,
+  either in the operator (e.g. unvalidated gateway/ingress routing) or upstream
+  in the Node.js websocket image, which is community-maintained and not part of
+  the default Superset image. Treat it as subject to change and avoid enabling
+  it in production until it is hardened. Note that in Development mode the
+  inline <code>websocketServer.config</code> is written to a ConfigMap — the one place an
+  inline secret (e.g. the websocket JWT secret) legitimately lands in a
+  ConfigMap. Staging and Production reject inline <code>config</code> and require
+  <code>websocketServer.configFrom</code>, which mounts the referenced Secret as a file.</li>
+<li><strong>Network-level attacks</strong> (MITM, DNS spoofing) — these are infrastructure
+  concerns outside the operator's control</li>
+<li><strong>Missing features</strong> (e.g., "should support Vault integration") — these are
+  normally handled as feature requests unless the missing behavior creates a
+  concrete security regression in the operator</li>
+</ul>
+<h2 id="reporting-vulnerabilities">Reporting Vulnerabilities<a class="headerlink" href="#reporting-vulnerabilities" title="Permanent link">&para;</a></h2>
+<p>The Apache Superset Kubernetes Operator project follows the
+<a href="https://apache.org/security/">Apache Software Foundation vulnerability handling process</a>.</p>
+<p>To report a security vulnerability, please email <strong>security@apache.org</strong>.</p>
+<p>Please do <strong>not</strong> file a public GitHub issue for security vulnerabilities.</p>
+<h3 id="supported-versions">Supported Versions<a class="headerlink" href="#supported-versions" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Version</th>
+<th>Supported</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>v1alpha1 (latest)</td>
+<td>Yes</td>
+</tr>
+</tbody>
+</table>
+<h3 id="component-scope">Component Scope<a class="headerlink" href="#component-scope" title="Permanent link">&para;</a></h3>
+<p>This policy covers the Superset Kubernetes Operator and its components:</p>
+<ul>
+<li>CRD definitions and CEL validation rules</li>
+<li>Controller reconciliation logic</li>
+<li>RBAC and resource management</li>
+<li>Helm chart and deployment manifests</li>
+</ul>
+<p>The <code>websocketServer</code> component is experimental and pending security hardening
+(see <a href="#what-is-generally-out-of-scope">What Is Generally Out of Scope</a>); its
+guarantees are best-effort until that work is complete.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "navigation.sections", "navigation.expand", "navigation.top", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="https://unpkg.com/mermaid@11/dist/mermaid.min.js"></script>
+      
+    
+  </body>
+</html>

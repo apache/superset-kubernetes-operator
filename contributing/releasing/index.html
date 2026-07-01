@@ -1,0 +1,1771 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Kubernetes operator for deploying and managing Apache Superset">
+      
+      
+      
+        <link rel="canonical" href="https://apache.github.io/superset-kubernetes-operator/contributing/releasing/">
+      
+      
+        <link rel="prev" href="../development-guidelines/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+    
+    
+      
+        <title>Releasing - Apache Superset Kubernetes Operator</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#releasing" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Apache Superset Kubernetes Operator" class="md-header__button md-logo" aria-label="Apache Superset Kubernetes Operator" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Apache Superset Kubernetes Operator
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Releasing
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/apache/superset-kubernetes-operator" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    apache/superset-kubernetes-operator
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Apache Superset Kubernetes Operator" class="md-nav__button md-logo" aria-label="Apache Superset Kubernetes Operator" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Apache Superset Kubernetes Operator
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/apache/superset-kubernetes-operator" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    apache/superset-kubernetes-operator
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Installation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/lifecycle/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lifecycle
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/networking-and-monitoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Networking & Monitoring
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../user-guide/migration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Migration from Helm Chart
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/internals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Internals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/api-reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/downloads/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Downloads
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/releases/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releases
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/security/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Security
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contributing
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development-setup/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Setup
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../development-guidelines/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development Guidelines
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releasing
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Releasing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#ci-supply-chain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CI &amp; Supply Chain
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="CI &amp; Supply Chain">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#github-actions-pinning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GitHub Actions pinning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tool-binary-pinning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool binary pinning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#workflow-permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflow permissions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#renovate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Renovate
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#versioning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Versioning
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#release-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Release Checklist
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reviewing-the-changelog" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reviewing the Changelog
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#creating-a-release-candidate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Creating a Release Candidate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#asf-source-release-artifacts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ASF Source Release Artifacts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ASF Source Release Artifacts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pre-requisites-for-the-release-manager" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pre-requisites for the release manager
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#producing-the-source-tarball" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Producing the source tarball
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#staging-the-artifacts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Staging the artifacts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vote-email-template" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Vote email template
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#finalizing-a-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Finalizing a Release
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#ci-supply-chain" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CI &amp; Supply Chain
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="CI &amp; Supply Chain">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#github-actions-pinning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GitHub Actions pinning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tool-binary-pinning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool binary pinning
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#workflow-permissions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Workflow permissions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#renovate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Renovate
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#versioning" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Versioning
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#release-checklist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Release Checklist
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reviewing-the-changelog" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reviewing the Changelog
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#creating-a-release-candidate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Creating a Release Candidate
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#asf-source-release-artifacts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ASF Source Release Artifacts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ASF Source Release Artifacts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pre-requisites-for-the-release-manager" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pre-requisites for the release manager
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#producing-the-source-tarball" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Producing the source tarball
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#staging-the-artifacts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Staging the artifacts
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#vote-email-template" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Vote email template
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#finalizing-a-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Finalizing a Release
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<!--
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+-->
+
+<h1 id="releasing">Releasing<a class="headerlink" href="#releasing" title="Permanent link">&para;</a></h1>
+<h2 id="ci-supply-chain">CI &amp; Supply Chain<a class="headerlink" href="#ci-supply-chain" title="Permanent link">&para;</a></h2>
+<p>All CI workflows live in <code>.github/workflows/</code>. When adding or modifying
+workflows, follow these conventions:</p>
+<h3 id="github-actions-pinning">GitHub Actions pinning<a class="headerlink" href="#github-actions-pinning" title="Permanent link">&para;</a></h3>
+<p>Pin all <code>uses:</code> references by <strong>full commit SHA</strong>, not version tag. Add a
+version comment for readability:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683</span><span class="w"> </span><span class="c1"># v4.2.2</span>
+</code></pre></div>
+<p><strong>Why</strong>: Version tags are mutable — a compromised upstream can retag a
+malicious commit to an existing version. SHA pinning makes the reference
+immutable. Dependabot automatically proposes SHA updates when new versions
+are released, so maintenance overhead is minimal.</p>
+<h3 id="tool-binary-pinning">Tool binary pinning<a class="headerlink" href="#tool-binary-pinning" title="Permanent link">&para;</a></h3>
+<p>When downloading binaries in CI (e.g., <code>kind</code>, <code>helm</code>), always:</p>
+<ol>
+<li>Pin to a specific version (never <code>latest</code>)</li>
+<li>Verify with a SHA256 checksum</li>
+</ol>
+<p>Use <code>scripts/install-helm.sh</code> for CI Helm installs so the pinned Helm version
+and checksum stay in one place.</p>
+<h3 id="workflow-permissions">Workflow permissions<a class="headerlink" href="#workflow-permissions" title="Permanent link">&para;</a></h3>
+<p>Every workflow must declare <code>permissions:</code> at the top level. Default to the
+minimum required:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">permissions</span><span class="p">:</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="nt">contents</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">read</span>
+</code></pre></div>
+<p>Only add broader permissions when needed (e.g., <code>packages: write</code> for image
+publishing, <code>security-events: write</code> for CodeQL).</p>
+<h3 id="renovate">Renovate<a class="headerlink" href="#renovate" title="Permanent link">&para;</a></h3>
+<p><code>renovate.json</code> is configured to propose weekly dependency updates for Go
+modules and GitHub Actions. A <strong>7-day minimum release age</strong> is enforced — Renovate
+will not propose a version until it has been published for at least 7 days. This
+reduces the risk of adopting a compromised release before the community detects
+it. Review and merge these PRs promptly to stay current on security patches.</p>
+<hr />
+<h2 id="versioning">Versioning<a class="headerlink" href="#versioning" title="Permanent link">&para;</a></h2>
+<p>The project follows <a href="https://semver.org/">Semantic Versioning</a>. The operator
+and Helm chart versions are coupled for release artifacts:</p>
+<table>
+<thead>
+<tr>
+<th>Version</th>
+<th>Location</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Operator version</strong></td>
+<td><code>VERSION</code> in <code>Makefile</code></td>
+<td>Operator image tag. Single source of truth.</td>
+</tr>
+<tr>
+<td><strong>Chart version</strong></td>
+<td><code>version</code> in <code>charts/superset-operator/Chart.yaml</code></td>
+<td>Helm chart package version.</td>
+</tr>
+<tr>
+<td><strong>Chart app version</strong></td>
+<td><code>appVersion</code> in <code>charts/superset-operator/Chart.yaml</code></td>
+<td>Default operator image tag used by the chart.</td>
+</tr>
+</tbody>
+</table>
+<p>Release preparation sets all three to the same base release version, for example
+<code>0.1.0</code>. The tag-triggered release workflow packages RC convenience artifacts
+with the RC suffix, for example <code>0.1.0-rc1</code>.</p>
+<p>While the project is pre-1.0, all versions use <code>0.x.y</code> to signal instability per semver.</p>
+<h2 id="release-checklist">Release Checklist<a class="headerlink" href="#release-checklist" title="Permanent link">&para;</a></h2>
+<p>The release workflow (<code>.github/workflows/release.yml</code>) builds multi-platform
+images and pushes them to GHCR. It runs automatically on pushes to <code>main</code>
+(producing <code>dev</code> and <code>sha-&lt;commit&gt;</code> tags) and on version tags (producing semver
+tags). It can also be triggered manually via <code>workflow_dispatch</code>.</p>
+<p><strong>Image tagging:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Trigger</th>
+<th>Image tag</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Push to <code>main</code></td>
+<td><code>dev</code> + <code>sha-&lt;commit&gt;</code></td>
+<td><code>dev</code>, <code>sha-1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b</code></td>
+</tr>
+<tr>
+<td>RC tag</td>
+<td>Semver without <code>v</code> prefix</td>
+<td><code>0.1.0-rc1</code></td>
+</tr>
+<tr>
+<td>Release tag</td>
+<td>Semver without <code>v</code> prefix + <code>latest</code></td>
+<td><code>0.1.0</code>, <code>latest</code></td>
+</tr>
+</tbody>
+</table>
+<p>See <a href="../../reference/downloads/">Downloads</a> for full details on published images
+and registries.</p>
+<p>Before creating the first RC for a minor release, run or verify:</p>
+<ul>
+<li><code>make codegen</code> leaves no diff</li>
+<li><code>make lint</code></li>
+<li><code>make test</code></li>
+<li><code>make helm-lint</code></li>
+<li><code>make docs-build</code></li>
+<li><code>make check-license</code></li>
+<li><code>make test-e2e</code> on a working Kind or equivalent Kubernetes cluster</li>
+<li>The release workflow is using pinned/checksum-verified tool downloads</li>
+</ul>
+<h2 id="reviewing-the-changelog">Reviewing the Changelog<a class="headerlink" href="#reviewing-the-changelog" title="Permanent link">&para;</a></h2>
+<p>Contributors add bullets to <code>## Unreleased</code> in
+<a href="../../reference/releases/"><code>docs/reference/releases.md</code></a> as PRs land (see the
+<a href="../development-guidelines/#changelog-entry">changelog convention</a>). Before
+tagging the RC, the release manager does one review pass to make sure the
+section accurately reflects the release:</p>
+<ol>
+<li>Skim <code>git log v&lt;previous&gt;..HEAD</code> for noteworthy changes that nobody added
+   an entry for, and add them. Skim for changes that were added but aren't
+   actually noteworthy (typo fixes, internal refactors that snuck in), and
+   drop them.</li>
+<li>Merge bullets that describe the same user-visible change — separate PRs
+   often touch on a single feature.</li>
+<li>Make sure each bullet leads with the user-facing effect and reads in a
+   consistent voice.</li>
+<li>Group bullets under the standard Keep a Changelog subheadings — <code>Added</code>,
+   <code>Changed</code>, <code>Deprecated</code>, <code>Removed</code>, <code>Fixed</code>, <code>Security</code> — dropping any
+   that end up empty.</li>
+<li>Rename the section header from <code>## Unreleased</code> to <code>## &lt;version&gt;</code> and add
+   a fresh empty <code>## Unreleased</code> above it. Add the final release date after
+   the vote passes and the release has been promoted (<code>## &lt;version&gt; - &lt;date&gt;</code>).</li>
+</ol>
+<p>Two flows depending on whether the minor release branch already exists:</p>
+<ul>
+<li><strong>First RC of a minor release.</strong> The <code>&lt;major&gt;.&lt;minor&gt;</code> branch does not exist
+  yet. Create it from <code>main</code>, commit the reviewed changelog and any
+  release-only polish there, then run <code>release-rc.sh</code> so the RC tag picks it up.</li>
+<li><strong>Subsequent RCs (<code>rc2</code>, <code>rc3</code>, …).</strong> The <code>&lt;major&gt;.&lt;minor&gt;</code> branch already
+  exists. Commit changelog polish on that branch directly,
+  then run <code>release-rc.sh</code> to bump the RC number.</li>
+</ul>
+<h2 id="creating-a-release-candidate">Creating a Release Candidate<a class="headerlink" href="#creating-a-release-candidate" title="Permanent link">&para;</a></h2>
+<p>The <code>scripts/release-rc.sh</code> script automates the full RC preparation: creates
+the minor release branch (first RC only), bumps the operator version and Helm
+chart <code>version</code>/<code>appVersion</code> metadata to the target release version, regenerates
+manifests, runs the lint/license/test/docs/helm-lint checks, commits, and tags.
+The tag-triggered release workflow packages and publishes the RC image and Helm
+chart with the RC version suffix. The script also verifies that
+<code>docs/reference/releases.md</code> contains a heading for the target release version.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># First RC for 0.2.0 — create the 0.2 branch first, then tag v0.2.0-rc1.</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>git<span class="w"> </span>checkout<span class="w"> </span>main
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>git<span class="w"> </span>pull
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span><span class="m">0</span>.2
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="c1"># Commit docs/reference/releases.md and any release-only polish here.</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>scripts/release-rc.sh<span class="w"> </span><span class="m">0</span>.2.0<span class="w"> </span>--expect-rc<span class="w"> </span><span class="m">1</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="c1"># Build and verify signed source artifacts before pushing anything.</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>scripts/release-source.sh
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="c1"># Push branch + tag to trigger the release workflow after source verification.</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a>git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span><span class="m">0</span>.2<span class="w"> </span>v0.2.0-rc1
+</code></pre></div>
+<p>Running the script again from the same release branch increments the RC
+number automatically (rc1, rc2, ...).</p>
+<h2 id="asf-source-release-artifacts">ASF Source Release Artifacts<a class="headerlink" href="#asf-source-release-artifacts" title="Permanent link">&para;</a></h2>
+<p>Per the <a href="https://www.apache.org/legal/release-policy.html">ASF Release Policy</a>,
+the <strong>signed source archive is the official release</strong>. The OCI images and
+Helm chart published to GHCR by the release workflow are convenience binaries
+and cannot be voted on in isolation.</p>
+<p>A release candidate therefore needs three artifacts staged on
+<a href="https://dist.apache.org/repos/dist/dev/superset/">dist.apache.org</a>:</p>
+<table>
+<thead>
+<tr>
+<th>Artifact</th>
+<th>Filename pattern</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Source archive</td>
+<td><code>apache-superset-kubernetes-operator-&lt;version&gt;-rc&lt;n&gt;.tar.gz</code></td>
+<td>A <code>git archive</code> of the RC tag, prefixed with the project directory.</td>
+</tr>
+<tr>
+<td>Detached PGP signature</td>
+<td><code>apache-superset-kubernetes-operator-&lt;version&gt;-rc&lt;n&gt;.tar.gz.asc</code></td>
+<td>Generated with a key in <a href="https://dist.apache.org/repos/dist/release/superset/KEYS"><code>KEYS</code></a>.</td>
+</tr>
+<tr>
+<td>SHA-512 checksum</td>
+<td><code>apache-superset-kubernetes-operator-&lt;version&gt;-rc&lt;n&gt;.tar.gz.sha512</code></td>
+<td><code>shasum -a 512</code> output, with a bare filename so verifiers can run <code>shasum -c</code> after a plain download.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="pre-requisites-for-the-release-manager">Pre-requisites for the release manager<a class="headerlink" href="#pre-requisites-for-the-release-manager" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Be a Superset PMC member (binding vote), or coordinate with one if you are
+   a committer driving the release.</li>
+<li>Have a PGP key registered in
+   <code>https://dist.apache.org/repos/dist/release/superset/KEYS</code> and uploaded to
+   the public keyservers. To add a new key, append the output of
+   <code>gpg --list-sigs &lt;fingerprint&gt; &amp;&amp; gpg --armor --export &lt;fingerprint&gt;</code> to
+   <code>KEYS</code> in the SVN checkout below and commit.</li>
+<li>Have <code>svn</code> checkouts of both ASF dist locations:</li>
+</ol>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>svn<span class="w"> </span>co<span class="w"> </span>https://dist.apache.org/repos/dist/dev/superset/<span class="w"> </span>~/asf/dev-superset
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>svn<span class="w"> </span>co<span class="w"> </span>https://dist.apache.org/repos/dist/release/superset/<span class="w"> </span>~/asf/release-superset
+</code></pre></div>
+<h3 id="producing-the-source-tarball">Producing the source tarball<a class="headerlink" href="#producing-the-source-tarball" title="Permanent link">&para;</a></h3>
+<p><code>scripts/release-source.sh</code> wraps <code>git archive</code>, <code>gpg</code>, and <code>shasum</code> and
+self-verifies before exiting. It infers the local RC tag from <code>HEAD</code>, writes to
+<code>dist/&lt;version&gt;-rc&lt;n&gt;/</code>, and signs with the newest usable local secret key that
+has an <code>@apache.org</code> UID:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>scripts/release-source.sh
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="c1"># → dist/0.2.0-rc1/apache-superset-kubernetes-operator-0.2.0-rc1.tar.gz{,.asc,.sha512}</span>
+</code></pre></div>
+<p>Pass <code>--gpg-key &lt;id&gt;</code> to pick a specific signing key, and <code>--out-dir &lt;path&gt;</code> to
+write the artifacts somewhere other than <code>dist/&lt;version&gt;-rc&lt;n&gt;/</code>.</p>
+<blockquote>
+<p><strong>Why a script, not raw <code>git archive</code> + <code>gpg</code> + <code>shasum</code>.</strong> The script
+avoids a small set of subtle errors that are easy to make manually:</p>
+<ul>
+<li><code>shasum -a 512 path/to/file</code> writes the path into the checksum file. If
+  the file is later renamed (RC → final), <code>shasum -c</code> fails. The script
+  always runs <code>shasum</code> from the file's own directory so the checksum line
+  contains a bare filename.</li>
+<li>Detached PGP signatures verify the tarball <strong>contents</strong>, not the
+  filename. RC → final promotion only needs to copy the <code>.asc</code>; no
+  re-signing is required. The <code>--finalize</code> mode below relies on this.</li>
+</ul>
+</blockquote>
+<h3 id="staging-the-artifacts">Staging the artifacts<a class="headerlink" href="#staging-the-artifacts" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nb">cd</span><span class="w"> </span>~/asf/dev-superset
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>mkdir<span class="w"> </span>kubernetes-operator-<span class="si">${</span><span class="nv">VERSION</span><span class="si">}</span>-rc<span class="si">${</span><span class="nv">RC</span><span class="si">}</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>cp<span class="w"> </span>/path/to/dist/<span class="si">${</span><span class="nv">VERSION</span><span class="si">}</span>-rc<span class="si">${</span><span class="nv">RC</span><span class="si">}</span>/apache-superset-kubernetes-operator-<span class="si">${</span><span class="nv">VERSION</span><span class="si">}</span>-rc<span class="si">${</span><span class="nv">RC</span><span class="si">}</span>.tar.gz<span class="o">{</span>,.asc,.sha512<span class="o">}</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">   </span>kubernetes-operator-<span class="si">${</span><span class="nv">VERSION</span><span class="si">}</span>-rc<span class="si">${</span><span class="nv">RC</span><span class="si">}</span>/
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a>svn<span class="w"> </span>add<span class="w"> </span>kubernetes-operator-<span class="si">${</span><span class="nv">VERSION</span><span class="si">}</span>-rc<span class="si">${</span><span class="nv">RC</span><span class="si">}</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a>svn<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Stage Superset Kubernetes Operator </span><span class="si">${</span><span class="nv">VERSION</span><span class="si">}</span><span class="s2">-rc</span><span class="si">${</span><span class="nv">RC</span><span class="si">}</span><span class="s2">&quot;</span>
+</code></pre></div>
+<p>After the commit lands, the artifacts appear at
+<code>https://dist.apache.org/repos/dist/dev/superset/kubernetes-operator-&lt;version&gt;-rc&lt;n&gt;/</code>.</p>
+<h3 id="vote-email-template">Vote email template<a class="headerlink" href="#vote-email-template" title="Permanent link">&para;</a></h3>
+<p>Generate a vote email draft from the RC tag on <code>HEAD</code>, review it, then send the
+thread to <code>dev@superset.apache.org</code> with <code>[VOTE]</code> in the subject:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>scripts/release-email.sh<span class="w"> </span>vote<span class="w"> </span>&gt;<span class="w"> </span>dist/0.2.0-rc1/VOTE.txt
+</code></pre></div>
+<p>The vote thread must stay open for <strong>at least 72 hours</strong> and pass with at least
+three <code>+1</code> votes from PMC members and no <code>-1</code> votes (per
+<a href="https://www.apache.org/foundation/voting.html#ReleaseVotes">ASF voting rules</a>).</p>
+<p>After the vote thread closes, post a <code>[RESULT][VOTE]</code> summary to the same list
+with the tally and the binding/non-binding breakdown:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>scripts/release-email.sh<span class="w"> </span>result<span class="w"> </span>&gt;<span class="w"> </span>dist/0.2.0-rc1/RESULT.txt
+</code></pre></div>
+<h2 id="finalizing-a-release">Finalizing a Release<a class="headerlink" href="#finalizing-a-release" title="Permanent link">&para;</a></h2>
+<p>After the ASF vote passes, the <code>scripts/release-finalize.sh</code> script tags the
+final release on the same commit as the voted RC. Do not commit changelog date
+updates or other polish before finalizing; those changes were not part of the
+voted source release.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># From the 0.2 branch</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>scripts/release-finalize.sh<span class="w"> </span><span class="m">0</span>.2.0
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="c1"># Push the tag to trigger the release workflow</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>v0.2.0
+</code></pre></div>
+<p>The release workflow pushes the <code>0.2.0</code> and <code>latest</code> images to GHCR.</p>
+<p>After the final tag is pushed, add the final release date to
+<code>docs/reference/releases.md</code> on <code>main</code> only (the docs site builds from <code>main</code>).
+Leave the release-branch changelog undated so it continues to match the voted
+source.</p>
+<p>After the binary release workflow finishes, promote the source artifacts.
+<code>release-source.sh</code> sees the final tag on <code>HEAD</code>, requires a matching RC tag on
+the same commit, reuses the staged RC tarball bytes (so the detached signature
+stays valid), and regenerates the SHA-512 file under the final filename:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>scripts/release-source.sh
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="c1"># → dist/0.2.0/apache-superset-kubernetes-operator-0.2.0.tar.gz{,.asc,.sha512}</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="nb">cd</span><span class="w"> </span>~/asf/release-superset
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>mkdir<span class="w"> </span>kubernetes-operator-0.2.0
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>cp<span class="w"> </span>/path/to/dist/0.2.0/apache-superset-kubernetes-operator-0.2.0.tar.gz<span class="o">{</span>,.asc,.sha512<span class="o">}</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">   </span>kubernetes-operator-0.2.0/
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>svn<span class="w"> </span>add<span class="w"> </span>kubernetes-operator-0.2.0
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>svn<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Release Apache Superset Kubernetes Operator 0.2.0&quot;</span>
+</code></pre></div>
+<p>Generate the release announcement after the artifacts have propagated to the ASF
+mirror network (typically within 24 hours), review it, then send it to
+<code>announce@apache.org</code> and <code>dev@superset.apache.org</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>scripts/release-email.sh<span class="w"> </span>announce<span class="w"> </span>&gt;<span class="w"> </span>dist/0.2.0/ANNOUNCE.txt
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "navigation.sections", "navigation.expand", "navigation.top", "search.highlight"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+        <script src="https://unpkg.com/mermaid@11/dist/mermaid.min.js"></script>
+      
+    
+  </body>
+</html>
