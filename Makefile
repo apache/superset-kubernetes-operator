@@ -354,7 +354,7 @@ GOLANGCI_LINT_VERSION ?= v2.1.0
 # renovate: datasource=go depName=github.com/elastic/crd-ref-docs
 CRD_REF_DOCS_VERSION ?= v0.3.0
 # renovate: datasource=go depName=golang.org/x/vuln
-GOVULNCHECK_VERSION ?= v1.3.0
+GOVULNCHECK_VERSION ?= v1.4.0
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
