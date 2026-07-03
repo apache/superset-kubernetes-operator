@@ -64,7 +64,7 @@ endif
 # Set the Operator SDK version to use. By default, what is installed on the system is used.
 # This is useful for CI or a project to utilize a specific version of the operator-sdk toolkit.
 # renovate: datasource=github-releases depName=operator-framework/operator-sdk
-OPERATOR_SDK_VERSION ?= v1.42.2
+OPERATOR_SDK_VERSION ?= v1.42.3
 # Image URL to use all building/pushing image targets
 IMG ?= ghcr.io/apache/superset-kubernetes-operator:latest
 
