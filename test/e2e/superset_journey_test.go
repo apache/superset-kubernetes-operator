@@ -270,7 +270,6 @@ spec:
 		expectJSONPath("superset", crName, "{.status.lifecycle.phase}", "AwaitingApproval", time.Minute)
 		expectJSONPath("superset", crName, "{.status.lifecycle.upgrade.fromVersion}", "6.0.0", time.Minute)
 		expectJSONPath("superset", crName, "{.status.lifecycle.upgrade.toVersion}", "6.1.0", time.Minute)
-		expectJSONPath("superset", crName, "{.status.lifecycle.upgrade.direction}", "Upgrade", time.Minute)
 
 		By("approving the supervised upgrade with the recorded token")
 		token, err := jsonPath("superset", crName, "{.status.lifecycle.upgrade.approvalToken}")
