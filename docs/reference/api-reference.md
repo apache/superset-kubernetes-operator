@@ -1159,7 +1159,6 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `fromVersion` _string_ |  |  | Optional: \{\} <br /> |
 | `toVersion` _string_ |  |  | Optional: \{\} <br /> |
-| `direction` _string_ |  |  | Enum: [Upgrade Downgrade Unknown] <br />Optional: \{\} <br /> |
 | `approvalToken` _string_ | ApprovalToken is the annotation value required to approve this exact upgrade transition. |  | Optional: \{\} <br /> |
 | `startedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
 

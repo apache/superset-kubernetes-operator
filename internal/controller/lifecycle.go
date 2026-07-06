@@ -183,9 +183,10 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	upgradeInProgress := lastImage != "" && currentImage != lastImage
 	parentLifecyclePhase := lifecycleParentPhase(upgradeInProgress)
 
-	// Check upgrade gates (version comparison, downgrade blocking, supervised approval).
-	if gateResult, gated := r.checkUpgradeGates(ctx, superset, imageChanged, lastImage, currentImage); gated {
-		return gateResult, nil
+	// Enforce supervised upgrade approval. A gated change waits for the approval
+	// annotation (which re-triggers reconcile), so no timed requeue is needed.
+	if r.checkUpgradeGates(ctx, superset, imageChanged, lastImage, currentImage) {
+		return lifecycleResult{}, nil
 	}
 
 	// Determine which tasks are enabled and prune orphans for disabled ones.
@@ -411,64 +412,41 @@ func (r *SupersetReconciler) runLifecyclePipeline(
 	return lifecycleComplete(), nil
 }
 
-// checkUpgradeGates handles version comparison, downgrade blocking, and supervised approval.
-// Returns (result, gated) — if gated is true, the caller should return early with result.
+// checkUpgradeGates records the in-flight image change and enforces supervised
+// approval. Version direction is not inspected — any image change proceeds and
+// re-runs migrate. Returns true if the change is gated (awaiting approval) and
+// the caller should stop reconciling until the approval annotation is set.
 func (r *SupersetReconciler) checkUpgradeGates(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
 	imageChanged bool,
 	lastImage, currentImage string,
-) (lifecycleResult, bool) {
+) bool {
 	log := logf.FromContext(ctx)
 
 	if !imageChanged || lastImage == "" {
-		return lifecycleResult{}, false
+		return false
 	}
 
 	oldTag := tagFromImageRef(lastImage)
 	newTag := tagFromImageRef(currentImage)
-	direction := CompareVersions(oldTag, newTag)
 	approvalToken := upgradeApprovalToken(lastImage, currentImage)
-	log.V(2).Info("Compared image versions", "from", oldTag, "to", newTag, "direction", direction)
+	log.V(2).Info("Detected lifecycle image change", "from", oldTag, "to", newTag)
 
-	if direction == DirectionDowngrade {
-		log.Info("Downgrade detected, blocking lifecycle", "from", oldTag, "to", newTag)
-		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
-			metav1.ConditionFalse, "DowngradeBlocked",
-			fmt.Sprintf("Downgrade from %s to %s is not supported. Alembic migrations are forward-only.", oldTag, newTag),
-			superset.Generation)
-		superset.Status.Phase = phaseBlocked
-		superset.Status.Lifecycle.Phase = lifecyclePhaseBlocked
-		superset.Status.Lifecycle.Upgrade = &supersetv1alpha1.UpgradeContext{
-			FromVersion:   oldTag,
-			ToVersion:     newTag,
-			Direction:     string(DirectionDowngrade),
-			ApprovalToken: approvalToken,
-		}
-		r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "DowngradeBlocked", "Lifecycle",
-			"Downgrade from %s to %s is not supported", oldTag, newTag)
-		return lifecycleTerminal(), true
-	}
-
-	contextMatches := upgradeContextMatches(superset.Status.Lifecycle.Upgrade, oldTag, newTag, direction, approvalToken)
-
-	// Non-semver tags (e.g. "latest", date stamps, digest pins) cannot be
-	// ordered, so downgrade protection does not apply — a downgrade expressed
-	// with such tags would run forward-only migrations against an older image
-	// undetected. Surface this once per distinct image transition so operators
-	// can intervene; the !contextMatches guard prevents per-reconcile spam.
-	if direction == DirectionUnknown && !contextMatches {
-		log.Info("Image version change could not be compared (non-semver tags); downgrade protection skipped",
-			"from", oldTag, "to", newTag)
-		r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "VersionComparisonSkipped", "Lifecycle",
-			"Cannot compare image tags %q and %q (non-semver); downgrade protection does not apply", oldTag, newTag)
-	}
+	// Any version change re-runs migrate (superset db upgrade); direction is
+	// not inspected. Superset supports `superset db downgrade`, but down
+	// migrations are poorly tested and frequently break, so the operator does
+	// not attempt to run them — pinning back to an older image just re-runs the
+	// forward migration. Blocking the change instead strands deployments that
+	// need to pin back after a failed upgrade. Matching the official Superset
+	// Helm chart, the operator runs the migration on every change and relies on
+	// the (optional) pre-upgrade backup as the safety net.
+	contextMatches := upgradeContextMatches(superset.Status.Lifecycle.Upgrade, oldTag, newTag, approvalToken)
 
 	if !contextMatches {
 		superset.Status.Lifecycle.Upgrade = &supersetv1alpha1.UpgradeContext{
 			FromVersion:   oldTag,
 			ToVersion:     newTag,
-			Direction:     string(direction),
 			ApprovalToken: approvalToken,
 			StartedAt:     nowPtr(),
 		}
@@ -488,24 +466,22 @@ func (r *SupersetReconciler) checkUpgradeGates(
 				superset.Generation)
 			superset.Status.Phase = phaseAwaitingApproval
 			superset.Status.Lifecycle.Phase = lifecyclePhaseAwaitingApproval
-			return lifecycleResult{}, true
+			return true
 		}
 	}
 
-	return lifecycleResult{}, false
+	return false
 }
 
 func upgradeContextMatches(
 	upgrade *supersetv1alpha1.UpgradeContext,
 	fromVersion string,
 	toVersion string,
-	direction VersionDirection,
 	approvalToken string,
 ) bool {
 	return upgrade != nil &&
 		upgrade.FromVersion == fromVersion &&
 		upgrade.ToVersion == toVersion &&
-		upgrade.Direction == string(direction) &&
 		upgrade.ApprovalToken == approvalToken
 }
 

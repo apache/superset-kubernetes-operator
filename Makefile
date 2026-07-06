@@ -221,7 +221,6 @@ test-integration: manifests generate fmt vet setup-envtest ## Run integration te
 fuzz: ## Run all fuzz targets for a bounded duration (FUZZTIME per target, default 30s).
 	@FUZZTIME=$${FUZZTIME:-30s}; \
 	set -e; \
-	go test ./internal/controller/ -run '^$$' -fuzz '^FuzzCompareVersions$$' -fuzztime $$FUZZTIME; \
 	go test ./internal/config/     -run '^$$' -fuzz '^FuzzPyQuote$$'         -fuzztime $$FUZZTIME; \
 	go test ./internal/config/     -run '^$$' -fuzz '^FuzzRenderConfig$$'    -fuzztime $$FUZZTIME; \
 	go test ./internal/resolution/ -run '^$$' -fuzz '^FuzzMergeMaps$$'       -fuzztime $$FUZZTIME

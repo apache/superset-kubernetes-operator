@@ -26,6 +26,15 @@ releases.
 
 ### Changed
 
+- **Breaking:** downgrade blocking is removed. Any change to the lifecycle image
+  tag now re-runs the migrate task (`superset db upgrade`) regardless of
+  direction — the operator no longer performs semver comparison or sets
+  `status.phase: Blocked` on a version decrease, matching the official Superset
+  Helm chart. The migrate task only runs `superset db upgrade` (Superset's down
+  migrations are poorly tested and often break, so the operator never runs
+  them), so take a database backup before an upgrade if you may need to revert.
+  The `direction` field is removed from `status.lifecycle.upgrade`, and the
+  `VersionComparisonSkipped` warning event no longer fires.
 - **Breaking:** the lifecycle `clone` task is renamed to `seed`. Rename
   `spec.lifecycle.clone` to `spec.lifecycle.seed` (and its `postCloneSQL` field
   to `postSeedSQL`) in your Superset resources. The task Job name suffix changes

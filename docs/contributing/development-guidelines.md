@@ -62,6 +62,14 @@ Across all tiers:
   helper or restructuring a package breaks tests, those tests were coupled
   to implementation, not behavior, and should be rewritten to assert on
   observable outputs or removed entirely.
+- **Don't test non-actions.** A test should pin a behavior the code actively
+  produces, not assert the absence of behavior the code never had (or no longer
+  has). When you delete a feature, delete its tests — don't invert them into
+  "X no longer happens" assertions. The positive tests for the surviving
+  behavior already cover it: e.g. after removing downgrade blocking, a
+  "downgrade proceeds" test is redundant because the general "an image change
+  proceeds and re-runs migrate" test already exercises that path. (Mirrors the
+  documentation rule: don't describe what the default already precludes.)
 
 ### Security and the threat model
 
@@ -224,8 +232,8 @@ make fuzz FUZZTIME=2m  # longer local run
 ```
 
 Each target seeds a corpus with `f.Add(...)` cases and asserts an invariant
-beyond "does not panic" — e.g. `CompareVersions` is antisymmetric, `RenderConfig`
-is deterministic, `pyQuote` round-trips, `MergeMaps` is a last-writer-wins union.
+beyond "does not panic" — e.g. `RenderConfig` is deterministic, `pyQuote`
+round-trips, `MergeMaps` is a last-writer-wins union.
 The seed corpus (plus any committed `testdata/fuzz/...` reproducers) replays as
 ordinary subtests during `make test-unit`, so regressions are caught on every PR;
 the scheduled `fuzz.yaml` workflow runs the targets for longer to explore new
@@ -445,7 +453,7 @@ logr/zap). Verbosity is a single knob, `--zap-log-level`, configured in
 
 - **Info / V(0)** — `log.Info(msg, kv...)`. Low-frequency, meaningful state
   *transitions* an operator wants at default verbosity (lifecycle task
-  created/completed/failed, downgrade blocked, awaiting approval, maintenance
+  created/completed/failed, awaiting approval, maintenance
   cleared, a component actually changed). **Must not fire on every reconcile.**
 - **V(1) / debug** — `log.V(1).Info(msg, kv...)`. Per-reconcile progress and
   decisions: reconcile entry, phase markers, checksum-skip decisions,

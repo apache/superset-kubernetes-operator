@@ -118,7 +118,7 @@ func TestCheckUpgradeGates_SupervisedApprovalRequiresRecordedToken(t *testing.T)
 	}
 	r := &SupersetReconciler{}
 
-	_, gated := r.checkUpgradeGates(context.Background(), superset, true, lastImage, currentImage)
+	gated := r.checkUpgradeGates(context.Background(), superset, true, lastImage, currentImage)
 	if !gated {
 		t.Fatal("expected first reconcile to publish the approval token before accepting it")
 	}
@@ -129,7 +129,7 @@ func TestCheckUpgradeGates_SupervisedApprovalRequiresRecordedToken(t *testing.T)
 		t.Fatalf("expected approval token %q, got %q", token, got)
 	}
 
-	_, gated = r.checkUpgradeGates(context.Background(), superset, true, lastImage, currentImage)
+	gated = r.checkUpgradeGates(context.Background(), superset, true, lastImage, currentImage)
 	if gated {
 		t.Fatal("expected matching recorded approval token to allow the upgrade")
 	}
@@ -156,7 +156,6 @@ func TestCheckUpgradeGates_StaleApprovalDoesNotApproveChangedTarget(t *testing.T
 				Upgrade: &supersetv1alpha1.UpgradeContext{
 					FromVersion:   "1.0.0",
 					ToVersion:     "1.1.0",
-					Direction:     string(DirectionUpgrade),
 					ApprovalToken: oldToken,
 				},
 			},
@@ -164,7 +163,7 @@ func TestCheckUpgradeGates_StaleApprovalDoesNotApproveChangedTarget(t *testing.T
 	}
 	r := &SupersetReconciler{}
 
-	_, gated := r.checkUpgradeGates(context.Background(), superset, true, lastImage, newTarget)
+	gated := r.checkUpgradeGates(context.Background(), superset, true, lastImage, newTarget)
 	if !gated {
 		t.Fatal("expected stale approval token to keep the changed target gated")
 	}

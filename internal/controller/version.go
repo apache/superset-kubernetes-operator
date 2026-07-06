@@ -19,46 +19,6 @@ under the License.
 
 package controller
 
-import (
-	"strings"
-
-	"github.com/Masterminds/semver/v3"
-)
-
-// VersionDirection represents the relationship between two image versions.
-type VersionDirection string
-
-const (
-	DirectionUpgrade   VersionDirection = "Upgrade"
-	DirectionDowngrade VersionDirection = "Downgrade"
-	DirectionRebuild   VersionDirection = "Rebuild"
-	DirectionUnknown   VersionDirection = "Unknown"
-)
-
-// CompareVersions determines the direction between two image tags.
-// Returns Upgrade if newTag > oldTag, Downgrade if newTag < oldTag,
-// Rebuild if equal, or Unknown if either tag is not valid semver.
-func CompareVersions(oldTag, newTag string) VersionDirection {
-	if oldTag == newTag {
-		return DirectionRebuild
-	}
-
-	oldVer, oldErr := semver.NewVersion(strings.TrimPrefix(oldTag, "v"))
-	newVer, newErr := semver.NewVersion(strings.TrimPrefix(newTag, "v"))
-
-	if oldErr != nil || newErr != nil {
-		return DirectionUnknown
-	}
-
-	if newVer.GreaterThan(oldVer) {
-		return DirectionUpgrade
-	}
-	if newVer.LessThan(oldVer) {
-		return DirectionDowngrade
-	}
-	return DirectionRebuild
-}
-
 // ImageRef returns the canonical "repository:tag" string for an image.
 func ImageRef(repository, tag string) string {
 	return repository + ":" + tag

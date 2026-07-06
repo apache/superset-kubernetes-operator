@@ -446,7 +446,7 @@ The top-level `status.phase` reflects the overall instance state:
 | `Running` | All enabled components are ready and lifecycle is complete |
 | `Degraded` | One or more components are not fully ready |
 | `Suspended` | `spec.suspend: true` — all reconciliation paused |
-| `Blocked` | Downgrade detected — lifecycle tasks will not run (manual intervention required) |
+| `Blocked` | Configuration error (e.g. an invalid `seed.cronSchedule`) — lifecycle tasks will not run until corrected |
 | `AwaitingApproval` | Supervised upgrade mode — waiting for the target-bound approval annotation before proceeding |
 
 Drain progress is reported on `status.lifecycle.phase=Draining`; it does not

@@ -174,16 +174,23 @@ You can monitor the upgrade status with:
 kubectl get superset my-superset -o jsonpath='{.status.lifecycle}'
 ```
 
-The operator also performs semver comparison on image tags and blocks downgrades
-to prevent accidental database corruption. A blocked downgrade sets
-`status.phase: Blocked` — revert the image tag to resolve.
+### Version changes and downgrades
 
-Downgrade protection requires semantically comparable (semver) image tags.
-Non-semver tags — such as `latest`, date stamps, or digest pins — cannot be
-ordered, so the operator cannot detect a downgrade and lifecycle tasks proceed
-normally. In that case it emits a `VersionComparisonSkipped` warning event
-rather than blocking. Use semver tags in Staging and Production if you rely on
-downgrade protection.
+Any change to the lifecycle image tag re-runs the migrate task
+(`superset db upgrade`), regardless of whether the new version is higher or
+lower than the previous one. The operator does not compare versions or block
+downgrades. This matches the behavior of the official Superset Helm chart, which
+runs `superset db upgrade` on every upgrade.
+
+The migrate task only ever runs `superset db upgrade`. Superset does provide
+`superset db downgrade`, but its down migrations are poorly tested and often
+break, so the operator never runs them — pinning back to an older image re-runs
+the forward migration rather than reversing the schema. You are responsible for
+ensuring the database is compatible with the target version (for example, by
+restoring a backup taken before the upgrade). Allowing the change means a
+deployment that needs to revert after a failed upgrade is never stranded in a
+blocked state. Take a database backup before every migration so a known-good
+dump exists if you need to revert.
 
 ## Drain Behavior
 
@@ -767,7 +774,7 @@ Task Job names are deterministic: `{parentName}-{taskType}` (e.g. `my-superset-m
 |---|---|
 | `Initializing` | First deployment — lifecycle tasks running for the first time |
 | `Upgrading` | Image change detected — lifecycle tasks running against new version |
-| `Blocked` | Downgrade detected — lifecycle tasks will not run (manual intervention required) |
+| `Blocked` | Configuration error (e.g. an invalid `seed.cronSchedule`) — lifecycle tasks will not run until corrected |
 | `AwaitingApproval` | Supervised upgrade mode — waiting for the target-bound approval annotation before proceeding |
 
 Drain progress appears in the `Lifecycle` column and

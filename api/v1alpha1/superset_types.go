@@ -867,9 +867,6 @@ type UpgradeContext struct {
 	FromVersion string `json:"fromVersion,omitempty"`
 	// +optional
 	ToVersion string `json:"toVersion,omitempty"`
-	// +optional
-	// +kubebuilder:validation:Enum=Upgrade;Downgrade;Unknown
-	Direction string `json:"direction,omitempty"`
 	// ApprovalToken is the annotation value required to approve this exact upgrade transition.
 	// +optional
 	ApprovalToken string `json:"approvalToken,omitempty"`

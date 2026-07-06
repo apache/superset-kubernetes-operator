@@ -40045,12 +40045,6 @@ spec:
                     properties:
                       approvalToken:
                         type: string
-                      direction:
-                        enum:
-                        - Upgrade
-                        - Downgrade
-                        - Unknown
-                        type: string
                       fromVersion:
                         type: string
                       startedAt:
