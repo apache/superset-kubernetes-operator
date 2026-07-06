@@ -219,6 +219,14 @@ drain running components first (scale to zero), then components are recreated
 once the pipeline completes; enable `spec.lifecycle.maintenancePage` to serve a
 holding page during the drain. See [Lifecycle](lifecycle.md) for the full model.
 
+**Execution differs too.** The chart's init hook (`helm.sh/hook:
+post-install,post-upgrade`) re-runs `superset db upgrade` and `superset init` on
+*every* `helm upgrade`, even a no-op re-apply. The operator instead runs each
+task only when its inputs change: migrate on an image tag change, init on a tag
+or rendered-config change, and the whole pipeline cascades when an upstream task
+re-runs. A re-apply that changes nothing runs nothing — so it never
+unnecessarily drains components or re-runs migrations.
+
 | Helm chart value | Operator equivalent | Notes |
 |---|---|---|
 | `init.enabled` | `spec.lifecycle.disabled`, or per-task `disabled` | Lifecycle is enabled by default (even when `spec.lifecycle` is unset). Set `lifecycle.disabled: true` to skip everything, or disable a single task with `<task>.disabled: true`. |

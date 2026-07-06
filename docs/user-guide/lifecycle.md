@@ -52,7 +52,7 @@ Each task has hardcoded trigger inputs — what it watches for changes:
 
 | Task | Watches | Re-runs when... |
 |------|---------|-----------------|
-| Seed | `trigger` field, `cronSchedule` tick, source config, excludes, target Superset image | Trigger value changes, schedule tick boundary crossed, source DB config changes, or target image changes (so a downgrade triggers a fresh seed before migrate sees the older schema) |
+| Seed | `trigger` field, `cronSchedule` tick, source config, excludes, target Superset image | Trigger value changes, schedule tick boundary crossed, source DB config changes, or the target image changes (so the data set is re-seeded before migrate runs against it) |
 | Migrate | Image (resolved lifecycle image), `metastore.createDatabase` flag | Image tag or repository changes, or `createDatabase` is toggled |
 | Rotate | `trigger` field, `secretKeyFrom` ref, `previousSecretKeyFrom` ref | Secret key references change or trigger value changes |
 | Init | Config checksum (rendered Python config) | Any config-affecting field changes |
@@ -174,23 +174,20 @@ You can monitor the upgrade status with:
 kubectl get superset my-superset -o jsonpath='{.status.lifecycle}'
 ```
 
-### Version changes and downgrades
+### Changing the image tag
 
-Any change to the lifecycle image tag re-runs the migrate task
-(`superset db upgrade`), regardless of whether the new version is higher or
-lower than the previous one. The operator does not compare versions or block
-downgrades. This matches the behavior of the official Superset Helm chart, which
-runs `superset db upgrade` on every upgrade.
+Any change to the resolved lifecycle image tag re-runs the migrate task
+(`superset db upgrade`), whether the new tag is a higher or lower version. The
+operator does not compare versions — it runs `superset db upgrade` on every
+image change.
 
-The migrate task only ever runs `superset db upgrade`. Superset does provide
-`superset db downgrade`, but its down migrations are poorly tested and often
-break, so the operator never runs them — pinning back to an older image re-runs
-the forward migration rather than reversing the schema. You are responsible for
-ensuring the database is compatible with the target version (for example, by
-restoring a backup taken before the upgrade). Allowing the change means a
-deployment that needs to revert after a failed upgrade is never stranded in a
-blocked state. Take a database backup before every migration so a known-good
-dump exists if you need to revert.
+Migrate only ever runs `superset db upgrade`; the operator never runs
+`superset db downgrade` (Superset's down migrations are poorly tested and often
+break). So pinning back to an older image re-runs the forward migration rather
+than reversing the schema — you are responsible for ensuring the database is
+compatible with the target image, for example by restoring a backup taken
+before the upgrade. Take a backup before every upgrade so you can revert if
+needed.
 
 ## Drain Behavior
 
@@ -694,8 +691,8 @@ Migrate is image/schema-version driven and intentionally ignores feature/config
 changes — a config tweak does not re-run migrations. Init is the
 config-sensitive task: rendered `superset_config.py` changes propagate here.
 Seed tracks both the source connection identity and the *target* Superset
-image, so a staging image change (including a downgrade) triggers a fresh seed
-before migrations re-run. Rotate fires on secret-key transitions.
+image, so a staging image change triggers a fresh seed before migrations
+re-run. Rotate fires on secret-key transitions.
 
 **What checksums do NOT cover:** checksums hash *task-semantic* inputs only.
 Pod-level fields like resource requests/limits, node selectors, tolerations,
@@ -773,7 +770,7 @@ Task Job names are deterministic: `{parentName}-{taskType}` (e.g. `my-superset-m
 | Phase | Meaning |
 |---|---|
 | `Initializing` | First deployment — lifecycle tasks running for the first time |
-| `Upgrading` | Image change detected — lifecycle tasks running against new version |
+| `Upgrading` | Image tag change detected — lifecycle tasks running against the new image |
 | `Blocked` | Configuration error (e.g. an invalid `seed.cronSchedule`) — lifecycle tasks will not run until corrected |
 | `AwaitingApproval` | Supervised upgrade mode — waiting for the target-bound approval annotation before proceeding |
 

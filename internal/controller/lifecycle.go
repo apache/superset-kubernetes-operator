@@ -438,9 +438,9 @@ func (r *SupersetReconciler) checkUpgradeGates(
 	// migrations are poorly tested and frequently break, so the operator does
 	// not attempt to run them — pinning back to an older image just re-runs the
 	// forward migration. Blocking the change instead strands deployments that
-	// need to pin back after a failed upgrade. Matching the official Superset
-	// Helm chart, the operator runs the migration on every change and relies on
-	// the (optional) pre-upgrade backup as the safety net.
+	// need to pin back after a failed upgrade. The operator runs the migration
+	// on every change and relies on the (optional) pre-upgrade backup as the
+	// safety net.
 	contextMatches := upgradeContextMatches(superset.Status.Lifecycle.Upgrade, oldTag, newTag, approvalToken)
 
 	if !contextMatches {

@@ -442,7 +442,7 @@ The top-level `status.phase` reflects the overall instance state:
 | Phase | Meaning |
 |---|---|
 | `Initializing` | First deployment — lifecycle tasks running for the first time |
-| `Upgrading` | Image change detected — lifecycle tasks running against new version |
+| `Upgrading` | Image tag change detected — lifecycle tasks running against the new image |
 | `Running` | All enabled components are ready and lifecycle is complete |
 | `Degraded` | One or more components are not fully ready |
 | `Suspended` | `spec.suspend: true` — all reconciliation paused |
