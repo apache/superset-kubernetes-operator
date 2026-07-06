@@ -154,8 +154,8 @@ func TestCheckUpgradeGates_StaleApprovalDoesNotApproveChangedTarget(t *testing.T
 		Status: supersetv1alpha1.SupersetStatus{
 			Lifecycle: &supersetv1alpha1.LifecycleStatus{
 				Upgrade: &supersetv1alpha1.UpgradeContext{
-					FromVersion:   "1.0.0",
-					ToVersion:     "1.1.0",
+					FromTag:       "1.0.0",
+					ToTag:         "1.1.0",
 					ApprovalToken: oldToken,
 				},
 			},
@@ -167,7 +167,7 @@ func TestCheckUpgradeGates_StaleApprovalDoesNotApproveChangedTarget(t *testing.T
 	if !gated {
 		t.Fatal("expected stale approval token to keep the changed target gated")
 	}
-	if got := superset.Status.Lifecycle.Upgrade.ToVersion; got != "1.2.0" {
+	if got := superset.Status.Lifecycle.Upgrade.ToTag; got != "1.2.0" {
 		t.Fatalf("expected upgrade context to move to 1.2.0, got %q", got)
 	}
 	if got := superset.Status.Lifecycle.Upgrade.ApprovalToken; got != newToken {

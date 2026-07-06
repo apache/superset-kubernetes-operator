@@ -15,8 +15,8 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .status.version
-      name: Version
+    - jsonPath: .status.tag
+      name: Tag
       type: string
     - jsonPath: .status.phase
       name: Phase
@@ -40045,12 +40045,12 @@ spec:
                     properties:
                       approvalToken:
                         type: string
-                      fromVersion:
+                      fromTag:
                         type: string
                       startedAt:
                         format: date-time
                         type: string
-                      toVersion:
+                      toTag:
                         type: string
                     type: object
                 type: object
@@ -40069,7 +40069,7 @@ spec:
                 type: string
               ready:
                 type: string
-              version:
+              tag:
                 type: string
             type: object
         type: object

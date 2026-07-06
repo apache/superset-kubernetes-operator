@@ -272,7 +272,7 @@ func TestFinalizeLifecycle(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{WebServer: &supersetv1alpha1.WebServerComponentSpec{}},
 			Status: supersetv1alpha1.SupersetStatus{Lifecycle: &supersetv1alpha1.LifecycleStatus{
-				Upgrade: &supersetv1alpha1.UpgradeContext{FromVersion: "1", ToVersion: "2"},
+				Upgrade: &supersetv1alpha1.UpgradeContext{FromTag: "1", ToTag: "2"},
 			}},
 		}
 		r := &SupersetReconciler{Recorder: events.NewFakeRecorder(10)}
@@ -333,7 +333,7 @@ func TestCheckUpgradeGates(t *testing.T) {
 		assert.False(t, gated)
 		// Upgrade context recorded for the in-flight upgrade.
 		require.NotNil(t, s.Status.Lifecycle.Upgrade)
-		assert.Equal(t, "2.0.0", s.Status.Lifecycle.Upgrade.FromVersion)
-		assert.Equal(t, "3.0.0", s.Status.Lifecycle.Upgrade.ToVersion)
+		assert.Equal(t, "2.0.0", s.Status.Lifecycle.Upgrade.FromTag)
+		assert.Equal(t, "3.0.0", s.Status.Lifecycle.Upgrade.ToTag)
 	})
 }

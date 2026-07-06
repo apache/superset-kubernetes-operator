@@ -391,7 +391,7 @@ The parent `Superset` CR reports aggregate status:
 status:
   phase: Running
   observedGeneration: 3
-  version: "latest"
+  tag: "latest"
   ready: "7/7"
   components:
     webServer:

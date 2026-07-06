@@ -445,8 +445,8 @@ func (r *SupersetReconciler) checkUpgradeGates(
 
 	if !contextMatches {
 		superset.Status.Lifecycle.Upgrade = &supersetv1alpha1.UpgradeContext{
-			FromVersion:   oldTag,
-			ToVersion:     newTag,
+			FromTag:       oldTag,
+			ToTag:         newTag,
 			ApprovalToken: approvalToken,
 			StartedAt:     nowPtr(),
 		}
@@ -460,8 +460,8 @@ func (r *SupersetReconciler) checkUpgradeGates(
 			setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 				metav1.ConditionFalse, "AwaitingApproval",
 				fmt.Sprintf("Upgrade from %s to %s detected. Approve with: kubectl annotate superset %s %s=%s",
-					superset.Status.Lifecycle.Upgrade.FromVersion,
-					superset.Status.Lifecycle.Upgrade.ToVersion,
+					superset.Status.Lifecycle.Upgrade.FromTag,
+					superset.Status.Lifecycle.Upgrade.ToTag,
 					superset.Name, annotationApproveUpgrade, approvalToken),
 				superset.Generation)
 			superset.Status.Phase = phaseAwaitingApproval
@@ -475,13 +475,13 @@ func (r *SupersetReconciler) checkUpgradeGates(
 
 func upgradeContextMatches(
 	upgrade *supersetv1alpha1.UpgradeContext,
-	fromVersion string,
-	toVersion string,
+	fromTag string,
+	toTag string,
 	approvalToken string,
 ) bool {
 	return upgrade != nil &&
-		upgrade.FromVersion == fromVersion &&
-		upgrade.ToVersion == toVersion &&
+		upgrade.FromTag == fromTag &&
+		upgrade.ToTag == toTag &&
 		upgrade.ApprovalToken == approvalToken
 }
 

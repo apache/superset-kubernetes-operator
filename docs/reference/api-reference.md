@@ -682,7 +682,7 @@ _Appears in:_
 
 
 MigrateTaskSpec defines the database migration task.
-Triggers on image (version) changes and upstream task re-execution.
+Triggers on image tag changes and upstream task re-execution.
 
 
 
@@ -1111,7 +1111,7 @@ _Appears in:_
 | `components` _[ComponentStatusMap](#componentstatusmap)_ |  |  | Optional: \{\} <br /> |
 | `lifecycle` _[LifecycleStatus](#lifecyclestatus)_ | Lifecycle tracks the current lifecycle state. |  | Optional: \{\} <br /> |
 | `lastLifecycleImage` _string_ | Last image (repository:tag) that successfully completed the lifecycle.<br />Used to detect image changes on subsequent reconciles. |  | Optional: \{\} <br /> |
-| `version` _string_ |  |  | Optional: \{\} <br /> |
+| `tag` _string_ | Tag is the resolved image tag currently reconciled. |  | Optional: \{\} <br /> |
 | `configChecksum` _string_ |  |  | Optional: \{\} <br /> |
 | `phase` _string_ | High-level phase. |  | Enum: [Initializing Upgrading Running Degraded Suspended Blocked AwaitingApproval] <br />Optional: \{\} <br /> |
 
@@ -1157,8 +1157,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `fromVersion` _string_ |  |  | Optional: \{\} <br /> |
-| `toVersion` _string_ |  |  | Optional: \{\} <br /> |
+| `fromTag` _string_ | FromTag is the image tag previously reconciled. |  | Optional: \{\} <br /> |
+| `toTag` _string_ | ToTag is the image tag being reconciled. |  | Optional: \{\} <br /> |
 | `approvalToken` _string_ | ApprovalToken is the annotation value required to approve this exact upgrade transition. |  | Optional: \{\} <br /> |
 | `startedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
 

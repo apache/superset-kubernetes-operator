@@ -109,7 +109,7 @@ func removeCondition(conditions *[]metav1.Condition, conditionType string) {
 
 func (r *SupersetReconciler) updateStatus(ctx context.Context, superset *supersetv1alpha1.Superset, origSuperset *supersetv1alpha1.Superset) error {
 	superset.Status.ObservedGeneration = superset.Generation
-	superset.Status.Version = superset.Spec.Image.Tag
+	superset.Status.Tag = superset.Spec.Image.Tag
 
 	if superset.Status.Components == nil {
 		superset.Status.Components = &supersetv1alpha1.ComponentStatusMap{}
@@ -142,7 +142,7 @@ func (r *SupersetReconciler) updateStatus(ctx context.Context, superset *superse
 func (r *SupersetReconciler) updateLifecycleComponentStatus(ctx context.Context, superset *supersetv1alpha1.Superset, configChecksum string) {
 	_ = ctx
 	superset.Status.ObservedGeneration = superset.Generation
-	superset.Status.Version = superset.Spec.Image.Tag
+	superset.Status.Tag = superset.Spec.Image.Tag
 	superset.Status.ConfigChecksum = configChecksum
 
 	if superset.Status.Components == nil {

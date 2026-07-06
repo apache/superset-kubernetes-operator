@@ -452,7 +452,7 @@ type LifecycleSpec struct {
 }
 
 // MigrateTaskSpec defines the database migration task.
-// Triggers on image (version) changes and upstream task re-execution.
+// Triggers on image tag changes and upstream task re-execution.
 type MigrateTaskSpec struct {
 	BaseTaskSpec `json:",inline"`
 }
@@ -780,8 +780,9 @@ type SupersetStatus struct {
 	// Used to detect image changes on subsequent reconciles.
 	// +optional
 	LastLifecycleImage string `json:"lastLifecycleImage,omitempty"`
+	// Tag is the resolved image tag currently reconciled.
 	// +optional
-	Version string `json:"version,omitempty"`
+	Tag string `json:"tag,omitempty"`
 	// +optional
 	ConfigChecksum string `json:"configChecksum,omitempty"`
 	// High-level phase.
@@ -863,10 +864,12 @@ type TaskRefStatus struct {
 
 // UpgradeContext tracks the current upgrade operation.
 type UpgradeContext struct {
+	// FromTag is the image tag previously reconciled.
 	// +optional
-	FromVersion string `json:"fromVersion,omitempty"`
+	FromTag string `json:"fromTag,omitempty"`
+	// ToTag is the image tag being reconciled.
 	// +optional
-	ToVersion string `json:"toVersion,omitempty"`
+	ToTag string `json:"toTag,omitempty"`
 	// ApprovalToken is the annotation value required to approve this exact upgrade transition.
 	// +optional
 	ApprovalToken string `json:"approvalToken,omitempty"`
@@ -942,7 +945,7 @@ type ComponentResourceStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="Version",type=string,JSONPath=`.status.version`
+// +kubebuilder:printcolumn:name="Tag",type=string,JSONPath=`.status.tag`
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="Lifecycle",type=string,JSONPath=`.status.lifecycle.phase`
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.ready`
