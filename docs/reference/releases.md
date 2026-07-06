@@ -26,11 +26,10 @@ releases.
 
 ### Changed
 
-- **Breaking:** the operator is version-agnostic — it only tracks the image tag,
-  so the "version" status nomenclature is renamed to "tag". `status.version`
-  becomes `status.tag` (and the `kubectl get` column is renamed **Version** →
-  **Tag**), and `status.lifecycle.upgrade.fromVersion`/`toVersion` become
-  `fromTag`/`toTag`. No behavior change.
+- **Breaking:** renamed the "version" status fields to "tag". `status.version`
+  → `status.tag` (the `kubectl get` column is renamed **Version** → **Tag**),
+  and `status.lifecycle.upgrade.fromVersion`/`toVersion` → `fromTag`/`toTag`.
+  No behavior change.
 - **Breaking:** downgrade blocking is removed. Any change to the lifecycle image
   tag now re-runs the migrate task (`superset db upgrade`) regardless of
   direction — the operator no longer performs semver comparison or sets
