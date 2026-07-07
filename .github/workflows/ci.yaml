@@ -50,6 +50,8 @@ jobs:
           go-version-file: go.mod
       - name: Lint
         run: make lint
+      - name: Lint Markdown
+        run: make lint-md
       - name: Vulnerability scan (govulncheck)
         run: make govulncheck
 

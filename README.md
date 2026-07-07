@@ -21,22 +21,11 @@ under the License.
 
 > **Note**: The API is still `v1alpha1` — CRD schemas and behavior may change between releases until it stabilizes.
 
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13114/badge)](https://www.bestpractices.dev/projects/13114)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/apache/superset-kubernetes-operator/badge)](https://scorecard.dev/viewer/?uri=github.com/apache/superset-kubernetes-operator)
-[![CI](https://github.com/apache/superset-kubernetes-operator/actions/workflows/ci.yaml/badge.svg)](https://github.com/apache/superset-kubernetes-operator/actions/workflows/ci.yaml)
-[![codecov](https://codecov.io/gh/apache/superset-kubernetes-operator/branch/main/graph/badge.svg)](https://codecov.io/gh/apache/superset-kubernetes-operator)
-[![Go Report Card](https://goreportcard.com/badge/github.com/apache/superset-kubernetes-operator)](https://goreportcard.com/report/github.com/apache/superset-kubernetes-operator)
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Docs](https://img.shields.io/badge/docs-apache.github.io-blue)](https://apache.github.io/superset-kubernetes-operator/)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13114/badge)](https://www.bestpractices.dev/projects/13114) [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/apache/superset-kubernetes-operator/badge)](https://scorecard.dev/viewer/?uri=github.com/apache/superset-kubernetes-operator) [![CI](https://github.com/apache/superset-kubernetes-operator/actions/workflows/ci.yaml/badge.svg)](https://github.com/apache/superset-kubernetes-operator/actions/workflows/ci.yaml) [![codecov](https://codecov.io/gh/apache/superset-kubernetes-operator/branch/main/graph/badge.svg)](https://codecov.io/gh/apache/superset-kubernetes-operator) [![Go Report Card](https://goreportcard.com/badge/github.com/apache/superset-kubernetes-operator)](https://goreportcard.com/report/github.com/apache/superset-kubernetes-operator) [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) [![Docs](https://img.shields.io/badge/docs-apache.github.io-blue)](https://apache.github.io/superset-kubernetes-operator/)
 
-**Run Apache Superset on Kubernetes from a single custom resource.** Define one
-`Superset` object and the operator reconciles everything that stands behind a
-working Superset — Deployments, Services, ConfigMaps, lifecycle Jobs, and the
-supporting resources — keeping migrations, configuration, scaling, and
-networking in sync as your spec changes.
+**Run Apache Superset on Kubernetes from a single custom resource.** Define one `Superset` object and the operator reconciles everything that stands behind a working Superset — Deployments, Services, ConfigMaps, lifecycle Jobs, and the supporting resources — keeping migrations, configuration, scaling, and networking in sync as your spec changes.
 
-Read the [documentation](https://apache.github.io/superset-kubernetes-operator/)
-to get started, or jump straight to the [quick start](#quick-start).
+Read the [documentation](https://apache.github.io/superset-kubernetes-operator/) to get started, or jump straight to the [quick start](#quick-start).
 
 ## Highlights
 
@@ -55,19 +44,11 @@ to get started, or jump straight to the [quick start](#quick-start).
 - **Officially tested:** Kubernetes 1.36, 1.35
 <!-- END SUPPORTED-K8S -->
 
-Official support covers the two most recent Kubernetes minor versions with a
-published [kind](https://kind.sigs.k8s.io/) node image. The newest Kubernetes
-release gets best-effort coverage via a non-blocking CI lane until kind ships
-its node image.
+Official support covers the two most recent Kubernetes minor versions with a published [kind](https://kind.sigs.k8s.io/) node image. The newest Kubernetes release gets best-effort coverage via a non-blocking CI lane until kind ships its node image.
 
-Older releases are likely to work but are not tested. The practical minimum is
-**Kubernetes 1.25**: the operator's CRD validation is implemented entirely with
+Older releases are likely to work but are not tested. The practical minimum is **Kubernetes 1.25**: the operator's CRD validation is implemented entirely with
 [CEL validation rules](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#validation-rules),
-which are enabled by default as beta from 1.25 and graduated to GA in 1.29. On
-clusters older than 1.25 the CRD still installs, but these rules are silently
-ignored — meaning the operator's secret-handling and configuration-safety checks
-are not enforced. Horizontal Pod Autoscaling additionally requires the
-`autoscaling/v2` API (Kubernetes 1.23+).
+which are enabled by default as beta from 1.25 and graduated to GA in 1.29. On clusters older than 1.25 the CRD still installs, but these rules are silently ignored — meaning the operator's secret-handling and configuration-safety checks are not enforced. Horizontal Pod Autoscaling additionally requires the `autoscaling/v2` API (Kubernetes 1.23+).
 
 ## Quick Start
 
@@ -115,11 +96,7 @@ For the plumbing-curious:
 
 ## Contributing
 
-Contributions are welcome. Development setup, the full list of `make` commands,
-the testing philosophy, and the code-generation workflow live in the
-[contributing guide](docs/contributing/development-setup.md). After editing type
-definitions in `api/v1alpha1/`, run `make codegen` and commit the generated
-files alongside your changes.
+Contributions are welcome. Development setup, the full list of `make` commands, the testing philosophy, and the code-generation workflow live in the [contributing guide](docs/contributing/development-setup.md). After editing type definitions in `api/v1alpha1/`, run `make codegen` and commit the generated files alongside your changes.
 
 ## License
 

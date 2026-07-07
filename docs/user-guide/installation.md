@@ -19,9 +19,7 @@ under the License.
 
 # Installation
 
-This guide covers installing the operator and deploying a Superset instance in
-production. For a quick local trial, see [Getting Started](../getting-started.md).
-For development setup, see [Development Setup](../contributing/development-setup.md).
+This guide covers installing the operator and deploying a Superset instance in production. For a quick local trial, see [Getting Started](../getting-started.md). For development setup, see [Development Setup](../contributing/development-setup.md).
 
 ## Prerequisites
 
@@ -39,19 +37,11 @@ For development setup, see [Development Setup](../contributing/development-setup
 - **Officially tested:** Kubernetes 1.36, 1.35
 <!-- END SUPPORTED-K8S -->
 
-Official support covers the two most recent Kubernetes minor versions with a
-published [kind](https://kind.sigs.k8s.io/) node image. The newest Kubernetes
-release gets best-effort coverage via a non-blocking CI lane until kind ships
-its node image.
+Official support covers the two most recent Kubernetes minor versions with a published [kind](https://kind.sigs.k8s.io/) node image. The newest Kubernetes release gets best-effort coverage via a non-blocking CI lane until kind ships its node image.
 
-Older releases are likely to work but are not tested. The practical minimum is
-**Kubernetes 1.25**: the operator's CRD validation is implemented entirely with
+Older releases are likely to work but are not tested. The practical minimum is **Kubernetes 1.25**: the operator's CRD validation is implemented entirely with
 [CEL validation rules](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#validation-rules),
-which are enabled by default as beta from 1.25 and graduated to GA in 1.29. On
-clusters older than 1.25 the CRD still installs, but these rules are silently
-ignored — meaning the operator's secret-handling and configuration-safety checks
-are not enforced. Horizontal Pod Autoscaling additionally requires the
-`autoscaling/v2` API (Kubernetes 1.23+).
+which are enabled by default as beta from 1.25 and graduated to GA in 1.29. On clusters older than 1.25 the CRD still installs, but these rules are silently ignored — meaning the operator's secret-handling and configuration-safety checks are not enforced. Horizontal Pod Autoscaling additionally requires the `autoscaling/v2` API (Kubernetes 1.23+).
 
 ## 1. Install the operator
 
@@ -63,9 +53,7 @@ helm install superset-operator \
   --create-namespace
 ```
 
-Replace `<version>` with a published chart version (e.g., `0.1.0`). Use
-`0.0.0-dev` for the latest build from main. When using the `dev` version,
-set `image.pullPolicy=Always` to ensure you always get the latest image:
+Replace `<version>` with a published chart version (e.g., `0.1.0`). Use `0.0.0-dev` for the latest build from main. When using the `dev` version, set `image.pullPolicy=Always` to ensure you always get the latest image:
 
 ```bash
 helm install superset-operator \
@@ -76,14 +64,11 @@ helm install superset-operator \
   --set image.pullPolicy=Always
 ```
 
-See `charts/superset-operator/values.yaml` for all available Helm values and
-[Downloads](../reference/downloads.md) for published images and tag conventions.
+See `charts/superset-operator/values.yaml` for all available Helm values and [Downloads](../reference/downloads.md) for published images and tag conventions.
 
 ### Namespace-scoped install
 
-By default the operator installs cluster-scoped (watches all namespaces and
-binds a `ClusterRole`). For restricted clusters that forbid cluster-scoped
-RBAC, or for single-tenant hardening, switch to namespace-scoped mode.
+By default the operator installs cluster-scoped (watches all namespaces and binds a `ClusterRole`). For restricted clusters that forbid cluster-scoped RBAC, or for single-tenant hardening, switch to namespace-scoped mode.
 
 With Helm, set `watch.scope: namespaces` and list the namespaces to watch:
 
@@ -97,48 +82,31 @@ helm install superset-operator \
   --set 'watch.namespaces={team-a,team-b}'
 ```
 
-Each namespace in `watch.namespaces` must already exist — Helm renders
-`Role` and `RoleBinding` resources into those namespaces during install and
-will fail if they are absent. Create them up front (e.g.,
-`kubectl create namespace team-a`).
+Each namespace in `watch.namespaces` must already exist — Helm renders `Role` and `RoleBinding` resources into those namespaces during install and will fail if they are absent. Create them up front (e.g., `kubectl create namespace team-a`).
 
-An empty `watch.namespaces` list falls back to watching the release
-namespace only. In namespace-scoped mode the chart renders a `Role` +
-`RoleBinding` per watched namespace and does not create a manager
-`ClusterRole`/`ClusterRoleBinding`.
+An empty `watch.namespaces` list falls back to watching the release namespace only. In namespace-scoped mode the chart renders a `Role` + `RoleBinding` per watched namespace and does not create a manager `ClusterRole`/`ClusterRoleBinding`.
 
-Kustomize users can opt in via the bundled `watch-namespace` component —
-uncomment the `[NAMESPACED]` block in `config/default/kustomization.yaml`.
-The Kustomize path is single-namespace only (the manager watches its own
-deployment namespace via the Downward API); for multi-namespace watch,
-extend the component.
+Kustomize users can opt in via the bundled `watch-namespace` component — uncomment the `[NAMESPACED]` block in `config/default/kustomization.yaml`. The Kustomize path is single-namespace only (the manager watches its own deployment namespace via the Downward API); for multi-namespace watch, extend the component.
 
 **Constraints in both modes:**
 
 - CRD installation always requires cluster-admin — CRDs are cluster-scoped.
-- Secure metrics auth (`TokenReview`/`SubjectAccessReview`) needs
-  cluster-scoped RBAC. On clusters that forbid `ClusterRole` entirely, set
-  `metrics.enabled: false`.
-- Changing `watch.namespaces` requires a `helm upgrade` — the manager cache
-  is built at startup, so the pod must restart to pick up a new list.
-- Superset CRs created in namespaces outside `watch.namespaces` are not
-  reconciled (no log, no status).
+- Secure metrics auth (`TokenReview`/`SubjectAccessReview`) needs cluster-scoped RBAC. On clusters that forbid `ClusterRole` entirely, set `metrics.enabled: false`.
+- Changing `watch.namespaces` requires a `helm upgrade` — the manager cache is built at startup, so the pod must restart to pick up a new list.
+- Superset CRs created in namespaces outside `watch.namespaces` are not reconciled (no log, no status).
 
-See [Install Scope](../reference/security.md#install-scope) in the security
-reference for the trust-model context.
+See [Install Scope](../reference/security.md#install-scope) in the security reference for the trust-model context.
 
 ## 2. Create secrets
 
-Superset requires a secret key for session signing. In production, mount it
-as an environment variable:
+Superset requires a secret key for session signing. In production, mount it as an environment variable:
 
 ```bash
 kubectl create secret generic superset-secrets \
   --from-literal=secret-key="$(openssl rand -hex 32)"
 ```
 
-If your database credentials should not appear in the CR, mount the full
-connection URI as a Secret too:
+If your database credentials should not appear in the CR, mount the full connection URI as a Secret too:
 
 ```bash
 kubectl create secret generic superset-db \
@@ -149,12 +117,7 @@ Replace the placeholders with your PostgreSQL connection details.
 
 ## 3. Deploy Superset
 
-Create a `Superset` custom resource. In production (`environment: Production`, the
-default), CRD validation rejects inline `secretKey`, `metastore.uri`,
-`metastore.password`, and `valkey.password`. Reference secrets via
-`secretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`, or
-`valkey.passwordFrom` — the operator wires these as `valueFrom.secretKeyRef`
-env vars automatically:
+Create a `Superset` custom resource. In production (`environment: Production`, the default), CRD validation rejects inline `secretKey`, `metastore.uri`, `metastore.password`, and `valkey.password`. Reference secrets via `secretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`, or `valkey.passwordFrom` — the operator wires these as `valueFrom.secretKeyRef` env vars automatically:
 
 ```bash
 kubectl apply -f - <<'EOF'
@@ -183,9 +146,7 @@ spec:
 EOF
 ```
 
-The operator will create parent-owned lifecycle task Jobs to perform database
-migration and initialization, then create the web server Deployment, Service,
-and ConfigMap. Check task status with `kubectl describe superset my-superset`.
+The operator will create parent-owned lifecycle task Jobs to perform database migration and initialization, then create the web server Deployment, Service, and ConfigMap. Check task status with `kubectl describe superset my-superset`.
 
 ## 4. Watch it come up
 
@@ -212,17 +173,13 @@ Open [http://localhost:8088](http://localhost:8088) in your browser.
 
 ### Authentication
 
-The operator does not manage Superset user accounts. Production deployments
-typically use an external authentication provider (OIDC, OAuth, LDAP) configured
-via `spec.config`. See the
+The operator does not manage Superset user accounts. Production deployments typically use an external authentication provider (OIDC, OAuth, LDAP) configured via `spec.config`. See the
 [Superset security documentation](https://superset.apache.org/docs/configuration/configuring-superset/#custom-oauth2-configuration)
 for details.
 
 ## 6. Add Celery workers
 
-Celery workers handle background tasks such as chart data caching, scheduled
-reports, and long-running queries. Add the Celery components and point them at
-your Valkey (or Redis) instance via `spec.valkey`:
+Celery workers handle background tasks such as chart data caching, scheduled reports, and long-running queries. Add the Celery components and point them at your Valkey (or Redis) instance via `spec.valkey`:
 
 ```bash
 kubectl apply -f - <<'EOF'
@@ -259,17 +216,11 @@ spec:
 EOF
 ```
 
-The operator will create the CeleryWorker and CeleryBeat Deployments and their
-ConfigMaps automatically.
+The operator will create the CeleryWorker and CeleryBeat Deployments and their ConfigMaps automatically.
 
 ## Debugging the operator
 
-If a Superset isn't reconciling as expected, raise the operator's log verbosity.
-The chart exposes a `logLevel` value mapped to the manager's `--zap-log-level`
-flag: `debug` (or `1`) adds V(1) per-reconcile progress logs, and `2` adds V(2)
-trace-level internals. See the
-[logging policy](../contributing/development-guidelines.md#logging) for what each
-level emits.
+If a Superset isn't reconciling as expected, raise the operator's log verbosity. The chart exposes a `logLevel` value mapped to the manager's `--zap-log-level` flag: `debug` (or `1`) adds V(1) per-reconcile progress logs, and `2` adds V(2) trace-level internals. See the [logging policy](../contributing/development-guidelines.md#logging) for what each level emits.
 
 Set it at install/upgrade time:
 

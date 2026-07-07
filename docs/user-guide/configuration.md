@@ -19,14 +19,11 @@ under the License.
 
 # Configuration
 
-This guide covers the full configuration reference for the Superset operator.
-For installation instructions, see [Installation](installation.md).
-For lifecycle (migrations, upgrades), see [Lifecycle](lifecycle.md).
+This guide covers the full configuration reference for the Superset operator. For installation instructions, see [Installation](installation.md). For lifecycle (migrations, upgrades), see [Lifecycle](lifecycle.md).
 
 ## Environment Mode
 
-The `environment` field controls validation strictness (enforced by
-[CEL](https://kubernetes.io/docs/reference/using-api/cel/) rules in the CRD schema):
+The `environment` field controls validation strictness (enforced by [CEL](https://kubernetes.io/docs/reference/using-api/cel/) rules in the CRD schema):
 
 - **`Production`** (default) — inline `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, and `websocketServer.config` are rejected by CRD validation. Use the corresponding `*From` fields (`secretKeyFrom`, `previousSecretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`, `valkey.passwordFrom`, `websocketServer.configFrom`) to reference Kubernetes Secrets.
 - **`Staging`** — same secret restrictions as Production, but allows `lifecycle.seed` for database seeding from an external source. `lifecycle.seed.source.password` must still be supplied via `passwordFrom`.
@@ -128,17 +125,9 @@ spec:
 
 `password` and `passwordFrom` are mutually exclusive.
 
-Structured mode defaults to `postgresql+psycopg2` for PostgreSQL and
-`mysql+mysqldb` for MySQL. The operator only selects the SQLAlchemy scheme; it
-does not install Python driver packages into the Superset image. The official
-lean Superset images do not include database drivers, so production images
-should add the driver package required by the selected scheme. For the default
-MySQL scheme, install `mysqlclient`; for the default PostgreSQL scheme, install
-`psycopg2` or a compatible package. See Superset's
+Structured mode defaults to `postgresql+psycopg2` for PostgreSQL and `mysql+mysqldb` for MySQL. The operator only selects the SQLAlchemy scheme; it does not install Python driver packages into the Superset image. The official lean Superset images do not include database drivers, so production images should add the driver package required by the selected scheme. For the default MySQL scheme, install `mysqlclient`; for the default PostgreSQL scheme, install `psycopg2` or a compatible package. See Superset's
 [Docker Builds](https://superset.apache.org/admin-docs/installation/docker-builds/#build-presets)
-and [MySQL](https://superset.apache.org/user-docs/databases/supported/mysql/)
-docs for the upstream driver guidance. If your image installs a different
-SQLAlchemy driver, set `metastore.driver`:
+and [MySQL](https://superset.apache.org/user-docs/databases/supported/mysql/) docs for the upstream driver guidance. If your image installs a different SQLAlchemy driver, set `metastore.driver`:
 
 ```yaml
 spec:
@@ -343,14 +332,11 @@ See [Config Rendering Pipeline](../architecture/overview.md#config-rendering-pip
 
 ## Extensions
 
-Superset loads extension bundles (`.supx` files) from the directory configured
-by `EXTENSIONS_PATH` in `superset_config.py`. The operator does not currently
-provide a typed extension field. Use one of two deployment patterns.
+Superset loads extension bundles (`.supx` files) from the directory configured by `EXTENSIONS_PATH` in `superset_config.py`. The operator does not currently provide a typed extension field. Use one of two deployment patterns.
 
 ### Bake Extensions Into The Image
 
-Build a Superset image that already contains the extension bundles, then point
-`EXTENSIONS_PATH` at that directory:
+Build a Superset image that already contains the extension bundles, then point `EXTENSIONS_PATH` at that directory:
 
 ```yaml
 spec:
@@ -361,13 +347,11 @@ spec:
     EXTENSIONS_PATH = "/app/extensions"
 ```
 
-This is the most repeatable path when extension contents should version with
-the Superset image.
+This is the most repeatable path when extension contents should version with the Superset image.
 
 ### Mount Extensions With PodTemplate
 
-Mount the extension directory with native Kubernetes volume fields, then point
-`EXTENSIONS_PATH` at the mount path:
+Mount the extension directory with native Kubernetes volume fields, then point `EXTENSIONS_PATH` at the mount path:
 
 ```yaml
 spec:
@@ -386,15 +370,11 @@ spec:
           readOnly: true
 ```
 
-Top-level `spec.podTemplate` is inherited by every operator-managed Superset
-workload Pod, so the extension volume is mounted consistently across the
-deployment and lifecycle workloads.
+Top-level `spec.podTemplate` is inherited by every operator-managed Superset workload Pod, so the extension volume is mounted consistently across the deployment and lifecycle workloads.
 
-Because `.supx` files are binary zip archives, use a storage source suited for
-binary artifacts.
+Because `.supx` files are binary zip archives, use a storage source suited for binary artifacts.
 
-When you know mounted extension contents have changed, update
-`spec.forceReload` to roll the component pods:
+When you know mounted extension contents have changed, update `spec.forceReload` to roll the component pods:
 
 ```yaml
 spec:
@@ -407,10 +387,7 @@ for up-to-date guidance on deploying extensions.
 
 ## Bootstrap Script
 
-`bootstrapScript` is an escape hatch for the default Python component and
-lifecycle task commands. When set, the operator writes it as
-`superset_bootstrap.sh` in the component or lifecycle ConfigMap and sources it
-before the default command starts.
+`bootstrapScript` is an escape hatch for the default Python component and lifecycle task commands. When set, the operator writes it as `superset_bootstrap.sh` in the component or lifecycle ConfigMap and sources it before the default command starts.
 
 ```yaml
 spec:
@@ -418,13 +395,9 @@ spec:
     pip install my-superset-plugin
 ```
 
-The top-level value applies to web server, Celery worker, Celery Beat, Celery
-Flower, MCP server, and lifecycle `migrate`, `rotate`, and `init` task Jobs.
-The websocket server (Node.js) and seed tasks (which run a database-tool image)
-do not use this script.
+The top-level value applies to web server, Celery worker, Celery Beat, Celery Flower, MCP server, and lifecycle `migrate`, `rotate`, and `init` task Jobs. The websocket server (Node.js) and seed tasks (which run a database-tool image) do not use this script.
 
-Components and lifecycle tasks can override the top-level script. Set the
-override to an empty string to disable inheritance:
+Components and lifecycle tasks can override the top-level script. Set the override to an empty string to disable inheritance:
 
 ```yaml
 spec:
@@ -437,12 +410,7 @@ spec:
       pip install migration-only-helper
 ```
 
-If you override `podTemplate.container.command` or a lifecycle task `command`,
-that command is responsible for sourcing `/app/pythonpath/superset_bootstrap.sh`
-if it still needs the script. `bootstrapScript` is trusted shell code and is
-stored in the generated ConfigMap, so do not place secrets in it. For production
-dependency installation, a custom image is usually more repeatable than
-installing packages on every pod start.
+If you override `podTemplate.container.command` or a lifecycle task `command`, that command is responsible for sourcing `/app/pythonpath/superset_bootstrap.sh` if it still needs the script. `bootstrapScript` is trusted shell code and is stored in the generated ConfigMap, so do not place secrets in it. For production dependency installation, a custom image is usually more repeatable than installing packages on every pod start.
 
 ## Feature Flags
 
@@ -675,26 +643,12 @@ spec:
 ## Websocket Server
 
 !!! warning "Experimental"
-    The websocket server is **experimental and pending security hardening**. It
-    is not yet well supported and may exhibit gaps, either in the operator (e.g.
-    unvalidated path-based gateway/ingress routing) or upstream in the Node.js
-    websocket image. It requires a custom Node.js image (below). Treat its spec
-    and behavior as subject to change, and avoid enabling it in production until
-    it is hardened. See the [security reference](../reference/security.md#what-is-generally-out-of-scope)
-    for details.
+    The websocket server is **experimental and pending security hardening**. It is not yet well supported and may exhibit gaps, either in the operator (e.g. unvalidated path-based gateway/ingress routing) or upstream in the Node.js websocket image. It requires a custom Node.js image (below). Treat its spec and behavior as subject to change, and avoid enabling it in production until it is hardened. See the [security reference](../reference/security.md#what-is-generally-out-of-scope) for details.
 
-Enable Superset's async event streaming by setting `websocketServer`. This
-deploys a **Node.js** application (not Python) that pushes real-time updates to
-dashboards via WebSocket connections.
+Enable Superset's async event streaming by setting `websocketServer`. This deploys a **Node.js** application (not Python) that pushes real-time updates to dashboards via WebSocket connections.
 
 !!! warning "Requires a dedicated image"
-    The websocket server is a separate Node.js application and **does not run
-    from the default Superset image**. You must provide an image that contains
-    `websocket_server.js` — the CRD enforces this with a CEL rule that rejects
-    `websocketServer` set without an `image.repository` override. A
-    community-maintained image is available at
-    [`oneacrefund/superset-websocket`](https://hub.docker.com/r/oneacrefund/superset-websocket)
-    (experimental, not officially supported by Apache Superset).
+    The websocket server is a separate Node.js application and **does not run from the default Superset image**. You must provide an image that contains `websocket_server.js` — the CRD enforces this with a CEL rule that rejects `websocketServer` set without an `image.repository` override. A community-maintained image is available at [`oneacrefund/superset-websocket`](https://hub.docker.com/r/oneacrefund/superset-websocket) (experimental, not officially supported by Apache Superset).
 
 ```yaml
 spec:
@@ -704,10 +658,7 @@ spec:
       tag: "latest"
 ```
 
-Because the websocket server is Node.js-based, it does **not** receive a
-`superset_config.py`, and `sqlaEngineOptions` is not available on this
-component. Configuration can be provided with environment variables, inline
-Development-only `config`, or a Secret-backed `configFrom`.
+Because the websocket server is Node.js-based, it does **not** receive a `superset_config.py`, and `sqlaEngineOptions` is not available on this component. Configuration can be provided with environment variables, inline Development-only `config`, or a Secret-backed `configFrom`.
 
 ```yaml
 spec:
@@ -722,9 +673,7 @@ spec:
             value: "http://my-superset-web-server:8088"
 ```
 
-Inline `config` renders `config.json` and mounts it at
-`/home/superset-websocket/config.json`. It is allowed only in Development mode
-because websocket config commonly contains `jwtSecret` or Redis credentials:
+Inline `config` renders `config.json` and mounts it at `/home/superset-websocket/config.json`. It is allowed only in Development mode because websocket config commonly contains `jwtSecret` or Redis credentials:
 
 ```yaml
 spec:
@@ -757,12 +706,9 @@ spec:
       key: config.json
 ```
 
-The operator mounts the Secret key without reading or copying the Secret. If
-the Secret content changes, update `spec.forceReload` to roll websocket pods.
+The operator mounts the Secret key without reading or copying the Secret. If the Secret content changes, update `spec.forceReload` to roll websocket pods.
 
-The websocket server creates a Service (default port 8080) and supports the
-same scaling, deployment template, and pod template fields as other scalable
-components.
+The websocket server creates a Service (default port 8080) and supports the same scaling, deployment template, and pod template fields as other scalable components.
 
 ## MCP Server
 
@@ -868,46 +814,25 @@ spec:
   mcpServer: {}          # enabled with defaults
 ```
 
-A Superset CR with no components enabled is valid — the operator will run
-initialization (if not disabled) but deploy no workloads. The parent status
-will report `Phase: Running` with condition reason `NoComponentsEnabled`.
+A Superset CR with no components enabled is valid — the operator will run initialization (if not disabled) but deploy no workloads. The parent status will report `Phase: Running` with condition reason `NoComponentsEnabled`.
 
 ### Resource Names
 
-Component resources are named `{parentName}-{componentType}`. For example, a
-parent named `my-superset` creates resources such as
-`my-superset-web-server`, `my-superset-celery-worker`, and
-`my-superset-mcp-server`. ConfigMaps add the `-config` suffix, for example
-`my-superset-web-server-config`. Lifecycle task Jobs use deterministic names
-based on `{parentName}-{taskName}`, such as `my-superset-migrate`.
+Component resources are named `{parentName}-{componentType}`. For example, a parent named `my-superset` creates resources such as `my-superset-web-server`, `my-superset-celery-worker`, and `my-superset-mcp-server`. ConfigMaps add the `-config` suffix, for example `my-superset-web-server-config`. Lifecycle task Jobs use deterministic names based on `{parentName}-{taskName}`, such as `my-superset-migrate`.
 
-The parent name must be a valid DNS label: lowercase alphanumeric and hyphens
-only (`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`), at most 63 characters. Since
-sub-resource names append a component suffix, the parent name is further
-constrained by the longest enabled component's suffix. The longest suffix is
-`-websocket-server` (17 characters), so parent names must be at most 46
-characters when websocket-server is enabled. CRD validation enforces the
-appropriate limit for each enabled component.
+The parent name must be a valid DNS label: lowercase alphanumeric and hyphens only (`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`), at most 63 characters. Since sub-resource names append a component suffix, the parent name is further constrained by the longest enabled component's suffix. The longest suffix is `-websocket-server` (17 characters), so parent names must be at most 46 characters when websocket-server is enabled. CRD validation enforces the appropriate limit for each enabled component.
 
 ## Deployment Template
 
-The `deploymentTemplate` and `podTemplate` fields configure the Kubernetes
-Deployment and Pod for each component. They mirror the Kubernetes hierarchy
-as siblings:
+The `deploymentTemplate` and `podTemplate` fields configure the Kubernetes Deployment and Pod for each component. They mirror the Kubernetes hierarchy as siblings:
 
-```
+```text
 deploymentTemplate                  → DeploymentSpec-level
 podTemplate                         → PodSpec-level
 └── container                       → main container
 ```
 
-`deploymentTemplate` carries Deployment-level fields: `strategy`,
-`revisionHistoryLimit`, `minReadySeconds`, `progressDeadlineSeconds`, and
-`labels`/`annotations` for the Deployment object's own metadata. Deployment
-`labels`/`annotations` are merged by key (component wins over top-level);
-operator-managed labels are applied last and cannot be overridden. They land on
-the Deployment metadata only, so changing them does not roll the pods — for pod
-metadata use `podTemplate.labels`/`annotations`.
+`deploymentTemplate` carries Deployment-level fields: `strategy`, `revisionHistoryLimit`, `minReadySeconds`, `progressDeadlineSeconds`, and `labels`/`annotations` for the Deployment object's own metadata. Deployment `labels`/`annotations` are merged by key (component wins over top-level); operator-managed labels are applied last and cannot be overridden. They land on the Deployment metadata only, so changing them does not roll the pods — for pod metadata use `podTemplate.labels`/`annotations`.
 
 ### Three usage patterns
 
@@ -946,8 +871,7 @@ spec:
     replicas: 4
 ```
 
-All components inherit the deployment template, pod template (node selector,
-termination grace period), and container template (resources, env vars).
+All components inherit the deployment template, pod template (node selector, termination grace period), and container template (resources, env vars).
 
 **3. Per-component customization** — field-level merge with top-level:
 
@@ -996,8 +920,7 @@ spec:
 
 ### Merge semantics
 
-Per-component `deploymentTemplate` and `podTemplate` are each **field-level
-merged** independently with the top-level — you only specify what's different.
+Per-component `deploymentTemplate` and `podTemplate` are each **field-level merged** independently with the top-level — you only specify what's different.
 
 | Behavior | Fields |
 |----------|--------|
@@ -1007,10 +930,7 @@ merged** independently with the top-level — you only specify what's different.
 | **Append** | `tolerations`, `topologySpreadConstraints`, `envFrom` |
 | **No inheritance** | `command`, `args` (component-only, not inherited from top-level) |
 
-**Note on append fields:** `tolerations`, `topologySpreadConstraints`, and `envFrom` are
-concatenated (top-level first, then component-level) without deduplication. To avoid
-duplicates in the final pod spec, define each entry at one level only — typically
-top-level for shared entries and component-level for component-specific ones.
+**Note on append fields:** `tolerations`, `topologySpreadConstraints`, and `envFrom` are concatenated (top-level first, then component-level) without deduplication. To avoid duplicates in the final pod spec, define each entry at one level only — typically top-level for shared entries and component-level for component-specific ones.
 
 ### Available fields
 
@@ -1064,10 +984,7 @@ top-level for shared entries and component-level for component-specific ones.
 | `startupProbe` | Startup probe |
 | `lifecycle` | preStop/postStart lifecycle hooks |
 
-**Pod-level resources** (Kubernetes 1.34+): When `podTemplate.resources` is set,
-it defines the total resource budget for the entire pod, enabling resource
-sharing among containers (main + sidecars). Container-level
-`podTemplate.container.resources` remains available for per-container limits.
+**Pod-level resources** (Kubernetes 1.34+): When `podTemplate.resources` is set, it defines the total resource budget for the entire pod, enabling resource sharing among containers (main + sidecars). Container-level `podTemplate.container.resources` remains available for per-container limits.
 
 ```yaml
 spec:
@@ -1095,11 +1012,7 @@ spec:
   forceReload: "2026-03-14T12:00:00Z"
 ```
 
-Change the value to any new string to trigger a restart. This is primarily
-useful for **secret rotation**: when you update a Kubernetes Secret's data, pods
-don't automatically restart because the operator references secrets via
-`valueFrom.secretKeyRef` (resolved at pod creation time). Changing `forceReload`
-forces new pods that pick up the updated secret values.
+Change the value to any new string to trigger a restart. This is primarily useful for **secret rotation**: when you update a Kubernetes Secret's data, pods don't automatically restart because the operator references secrets via `valueFrom.secretKeyRef` (resolved at pod creation time). Changing `forceReload` forces new pods that pick up the updated secret values.
 
 Use the same mechanism when you know mounted extension contents have changed.
 
@@ -1112,9 +1025,7 @@ spec:
   suspend: true
 ```
 
-When suspended, the operator stops all reconciliation — no lifecycle task Jobs
-run, no component resources are created or updated, and no resources are deleted. Set
-`suspend: false` (or remove the field) to resume.
+When suspended, the operator stops all reconciliation — no lifecycle task Jobs run, no component resources are created or updated, and no resources are deleted. Set `suspend: false` (or remove the field) to resume.
 
 ## Connecting PostgreSQL and Valkey
 

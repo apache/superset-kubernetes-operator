@@ -19,11 +19,7 @@ under the License.
 
 # Contributing to the Apache Superset Kubernetes Operator
 
-Thank you for your interest in contributing! Please see the
-[Development Setup guide](docs/contributing/development-setup.md) and the
-[Development Guidelines](docs/contributing/development-guidelines.md) for
-instructions on setting up your development environment, running tests, and
-submitting changes.
+Thank you for your interest in contributing! Please see the [Development Setup guide](docs/contributing/development-setup.md) and the [Development Guidelines](docs/contributing/development-guidelines.md) for instructions on setting up your development environment, running tests, and submitting changes.
 
 ## Code of Conduct
 
@@ -37,5 +33,4 @@ Please file issues on the
 
 ## Reporting Security Vulnerabilities
 
-Please see [SECURITY.md](SECURITY.md) for instructions on reporting security
-vulnerabilities.
+Please see [SECURITY.md](SECURITY.md) for instructions on reporting security vulnerabilities.

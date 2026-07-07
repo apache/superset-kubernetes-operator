@@ -19,9 +19,7 @@ under the License.
 
 # Development Setup
 
-This guide walks through setting up a local development environment with
-Kind, PostgreSQL, and Valkey. By the end you will have a working Superset
-instance running on your laptop.
+This guide walks through setting up a local development environment with Kind, PostgreSQL, and Valkey. By the end you will have a working Superset instance running on your laptop.
 
 ## Prerequisites
 
@@ -35,10 +33,12 @@ instance running on your laptop.
 ### macOS notes
 
 - **Colima** is a lightweight alternative to Docker Desktop. Start it with enough headroom for Kind plus a Superset deployment:
-  ```bash
-  colima start --cpu 4 --memory 8 --disk 50
-  ```
-  The Docker CLI auto-switches to the `colima` context.
+
+    ```bash
+    colima start --cpu 4 --memory 8 --disk 50
+    ```
+
+    The Docker CLI auto-switches to the `colima` context.
 - If you previously ran Docker Desktop and have switched to Colima, the leftover `credsStore: desktop` in `~/.docker/config.json` will fail every `docker pull` with a keychain error in non-interactive shells. Remove the `credsStore` and `plugins`/`features.hooks` keys from that file (they only apply to Docker Desktop).
 
 ## 1. Create a Kind cluster
@@ -77,7 +77,7 @@ kubectl expose deployment valkey --port=6379
 
 There are two ways to run the operator:
 
-**Option A: Run locally (outside the cluster)**
+### Option A: Run locally (outside the cluster)
 
 ```bash
 make run
@@ -85,7 +85,7 @@ make run
 
 This compiles and runs the operator process on your machine, connecting to the Kind cluster via your kubeconfig. Leave this terminal open — it streams reconciliation logs.
 
-**Option B: Deploy in-cluster**
+### Option B: Deploy in-cluster
 
 ```bash
 make docker-build IMG=superset-operator:dev
@@ -107,8 +107,7 @@ kubectl logs -n superset-operator-system deployment/superset-operator-controller
 kubectl apply -f config/samples/superset_v1alpha1_superset.yaml
 ```
 
-The sample manifest deploys a web server in dev mode, runs the init task, and
-points at the Postgres instance created above.
+The sample manifest deploys a web server in dev mode, runs the init task, and points at the Postgres instance created above.
 
 ## 6. Access Superset
 
@@ -178,6 +177,8 @@ kind delete cluster --name superset
 | `make lint` | Run golangci-lint linter |
 | `make lint-fix` | Run golangci-lint linter and perform fixes |
 | `make lint-config` | Verify golangci-lint linter configuration |
+| `make lint-md` | Lint Markdown files (check only). |
+| `make format-md` | Auto-fix Markdown formatting in place. |
 | `make hooks` | Configure git to use .githooks/ for pre-commit hooks |
 
 ### Build
@@ -198,13 +199,23 @@ kind delete cluster --name superset
 | `make uninstall` | Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion. |
 | `make deploy` | Deploy controller to the K8s cluster specified in ~/.kube/config. |
 | `make undeploy` | Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion. |
+
 <!-- END MAKE-COMMANDS -->
 
 ---
 
 ## Pre-Commit Hooks
 
-The project includes a lightweight git hook at `.githooks/pre-commit` that runs `make lint` before each commit. No external tools required — it uses `golangci-lint`, which covers formatting (`gofmt`, `goimports`), `go vet`, and all configured linters.
+The project includes a lightweight git hook at `.githooks/pre-commit` that runs before each commit. It runs `make lint` (`golangci-lint`, which covers `gofmt`, `goimports`, `go vet`, and all configured linters) and reformats any staged Markdown with [rumdl](https://rumdl.dev/). If rumdl changes a file, the commit is aborted so you can review the changes and re-stage them — nothing is silently amended. rumdl is a pinned binary downloaded on demand into `bin/`.
+
+Markdown formatting is also enforced in CI. To check or fix Markdown by hand:
+
+```sh
+make lint-md    # check only (what CI runs)
+make format-md  # auto-fix in place
+```
+
+Formatting rules — including single-line-per-paragraph prose (no hard wrapping) — live in `.rumdl.toml`.
 
 ### Setup
 
@@ -229,9 +240,7 @@ make docs-serve
 
 This starts a live-reloading server at `http://localhost:8000`. Edit Markdown files in `docs/` and changes appear instantly.
 
-The documentation dependency lock is generated from `docs-requirements.in`.
-After changing documentation dependencies, run `make docs-lock` and commit the
-updated `docs-requirements.txt`.
+The documentation dependency lock is generated from `docs-requirements.in`. After changing documentation dependencies, run `make docs-lock` and commit the updated `docs-requirements.txt`.
 
 To verify the docs build cleanly (same check that runs in CI):
 

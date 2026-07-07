@@ -19,13 +19,11 @@ under the License.
 
 # Getting Started
 
-This guide walks through installing the operator and deploying a minimal
-Superset instance using dev mode.
+This guide walks through installing the operator and deploying a minimal Superset instance using dev mode.
 
 ## Prerequisites
 
-- Kubernetes 1.25+ (<!-- BEGIN SUPPORTED-K8S-INLINE -->1.36, 1.35<!-- END SUPPORTED-K8S-INLINE --> officially
-  tested; 1.29+ recommended so CEL validation is GA — see [supported versions](user-guide/installation.md#supported-kubernetes-versions))
+- Kubernetes 1.25+ (<!-- BEGIN SUPPORTED-K8S-INLINE -->1.36, 1.35<!-- END SUPPORTED-K8S-INLINE --> officially tested; 1.29+ recommended so CEL validation is GA — see [supported versions](user-guide/installation.md#supported-kubernetes-versions))
 - Helm 3
 - A PostgreSQL database accessible from the cluster
 
@@ -39,8 +37,7 @@ helm install superset-operator \
   --create-namespace
 ```
 
-Replace `<version>` with a published chart version (e.g., `0.1.0`); see
-[Downloads](reference/downloads.md) for published tags.
+Replace `<version>` with a published chart version (e.g., `0.1.0`); see [Downloads](reference/downloads.md) for published tags.
 
 ## 2. Deploy Superset
 
@@ -76,8 +73,7 @@ The operator runs database migrations and initialization, then deploys the web s
 kubectl get superset my-superset -w
 ```
 
-Wait for `PHASE: Running`. You can also inspect lifecycle task state on the
-parent:
+Wait for `PHASE: Running`. You can also inspect lifecycle task state on the parent:
 
 ```bash
 kubectl describe superset my-superset

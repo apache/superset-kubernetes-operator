@@ -1,0 +1,7 @@
+# rumdl configuration for the docs site.
+# The docs are rendered by MkDocs Material, so use its flavor (admonitions,
+# content tabs, etc.). All other rules — single-line-per-paragraph prose and the
+# exclusions — are inherited from the repo-root .rumdl.toml.
+extends = "../.rumdl.toml"
+
+flavor = "mkdocs"

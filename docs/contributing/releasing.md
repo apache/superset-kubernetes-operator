@@ -21,22 +21,17 @@ under the License.
 
 ## CI & Supply Chain
 
-All CI workflows live in `.github/workflows/`. When adding or modifying
-workflows, follow these conventions:
+All CI workflows live in `.github/workflows/`. When adding or modifying workflows, follow these conventions:
 
 ### GitHub Actions pinning
 
-Pin all `uses:` references by **full commit SHA**, not version tag. Add a
-version comment for readability:
+Pin all `uses:` references by **full commit SHA**, not version tag. Add a version comment for readability:
 
 ```yaml
 - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 ```
 
-**Why**: Version tags are mutable — a compromised upstream can retag a
-malicious commit to an existing version. SHA pinning makes the reference
-immutable. Dependabot automatically proposes SHA updates when new versions
-are released, so maintenance overhead is minimal.
+**Why**: Version tags are mutable — a compromised upstream can retag a malicious commit to an existing version. SHA pinning makes the reference immutable. Dependabot automatically proposes SHA updates when new versions are released, so maintenance overhead is minimal.
 
 ### Tool binary pinning
 
@@ -45,36 +40,28 @@ When downloading binaries in CI (e.g., `kind`, `helm`), always:
 1. Pin to a specific version (never `latest`)
 2. Verify with a SHA256 checksum
 
-Use `scripts/install-helm.sh` for CI Helm installs so the pinned Helm version
-and checksum stay in one place.
+Use `scripts/install-helm.sh` for CI Helm installs so the pinned Helm version and checksum stay in one place.
 
 ### Workflow permissions
 
-Every workflow must declare `permissions:` at the top level. Default to the
-minimum required:
+Every workflow must declare `permissions:` at the top level. Default to the minimum required:
 
 ```yaml
 permissions:
   contents: read
 ```
 
-Only add broader permissions when needed (e.g., `packages: write` for image
-publishing, `security-events: write` for CodeQL).
+Only add broader permissions when needed (e.g., `packages: write` for image publishing, `security-events: write` for CodeQL).
 
 ### Renovate
 
-`renovate.json` is configured to propose weekly dependency updates for Go
-modules and GitHub Actions. A **7-day minimum release age** is enforced — Renovate
-will not propose a version until it has been published for at least 7 days. This
-reduces the risk of adopting a compromised release before the community detects
-it. Review and merge these PRs promptly to stay current on security patches.
+`renovate.json` is configured to propose weekly dependency updates for Go modules and GitHub Actions. A **7-day minimum release age** is enforced — Renovate will not propose a version until it has been published for at least 7 days. This reduces the risk of adopting a compromised release before the community detects it. Review and merge these PRs promptly to stay current on security patches.
 
 ---
 
 ## Versioning
 
-The project follows [Semantic Versioning](https://semver.org/). The operator
-and Helm chart versions are coupled for release artifacts:
+The project follows [Semantic Versioning](https://semver.org/). The operator and Helm chart versions are coupled for release artifacts:
 
 | Version | Location | Purpose |
 |---------|----------|---------|
@@ -82,18 +69,13 @@ and Helm chart versions are coupled for release artifacts:
 | **Chart version** | `version` in `charts/superset-operator/Chart.yaml` | Helm chart package version. |
 | **Chart app version** | `appVersion` in `charts/superset-operator/Chart.yaml` | Default operator image tag used by the chart. |
 
-Release preparation sets all three to the same base release version, for example
-`0.1.0`. The tag-triggered release workflow packages RC convenience artifacts
-with the RC suffix, for example `0.1.0-rc1`.
+Release preparation sets all three to the same base release version, for example `0.1.0`. The tag-triggered release workflow packages RC convenience artifacts with the RC suffix, for example `0.1.0-rc1`.
 
 While the project is pre-1.0, all versions use `0.x.y` to signal instability per semver.
 
 ## Release Checklist
 
-The release workflow (`.github/workflows/release.yml`) builds multi-platform
-images and pushes them to GHCR. It runs automatically on pushes to `main`
-(producing `dev` and `sha-<commit>` tags) and on version tags (producing semver
-tags). It can also be triggered manually via `workflow_dispatch`.
+The release workflow (`.github/workflows/release.yml`) builds multi-platform images and pushes them to GHCR. It runs automatically on pushes to `main` (producing `dev` and `sha-<commit>` tags) and on version tags (producing semver tags). It can also be triggered manually via `workflow_dispatch`.
 
 **Image tagging:**
 
@@ -103,8 +85,7 @@ tags). It can also be triggered manually via `workflow_dispatch`.
 | RC tag | Semver without `v` prefix | `0.1.0-rc1` |
 | Release tag | Semver without `v` prefix + `latest` | `0.1.0`, `latest` |
 
-See [Downloads](../reference/downloads.md) for full details on published images
-and registries.
+See [Downloads](../reference/downloads.md) for full details on published images and registries.
 
 Before creating the first RC for a minor release, run or verify:
 
@@ -119,45 +100,22 @@ Before creating the first RC for a minor release, run or verify:
 
 ## Reviewing the Changelog
 
-Contributors add bullets to `## Unreleased` in
-[`docs/reference/releases.md`](../reference/releases.md) as PRs land (see the
-[changelog convention](development-guidelines.md#changelog-entry)). Before
-tagging the RC, the release manager does one review pass to make sure the
-section accurately reflects the release:
+Contributors add bullets to `## Unreleased` in [`docs/reference/releases.md`](../reference/releases.md) as PRs land (see the [changelog convention](development-guidelines.md#changelog-entry)). Before tagging the RC, the release manager does one review pass to make sure the section accurately reflects the release:
 
-1. Skim `git log v<previous>..HEAD` for noteworthy changes that nobody added
-   an entry for, and add them. Skim for changes that were added but aren't
-   actually noteworthy (typo fixes, internal refactors that snuck in), and
-   drop them.
-2. Merge bullets that describe the same user-visible change — separate PRs
-   often touch on a single feature.
-3. Make sure each bullet leads with the user-facing effect and reads in a
-   consistent voice.
-4. Group bullets under the standard Keep a Changelog subheadings — `Added`,
-   `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security` — dropping any
-   that end up empty.
-5. Rename the section header from `## Unreleased` to `## <version>` and add
-   a fresh empty `## Unreleased` above it. Add the final release date after
-   the vote passes and the release has been promoted (`## <version> - <date>`).
+1. Skim `git log v<previous>..HEAD` for noteworthy changes that nobody added an entry for, and add them. Skim for changes that were added but aren't actually noteworthy (typo fixes, internal refactors that snuck in), and drop them.
+2. Merge bullets that describe the same user-visible change — separate PRs often touch on a single feature.
+3. Make sure each bullet leads with the user-facing effect and reads in a consistent voice.
+4. Group bullets under the standard Keep a Changelog subheadings — `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed`, `Security` — dropping any that end up empty.
+5. Rename the section header from `## Unreleased` to `## <version>` and add a fresh empty `## Unreleased` above it. Add the final release date after the vote passes and the release has been promoted (`## <version> - <date>`).
 
 Two flows depending on whether the minor release branch already exists:
 
-- **First RC of a minor release.** The `<major>.<minor>` branch does not exist
-  yet. Create it from `main`, commit the reviewed changelog and any
-  release-only polish there, then run `release-rc.sh` so the RC tag picks it up.
-- **Subsequent RCs (`rc2`, `rc3`, …).** The `<major>.<minor>` branch already
-  exists. Commit changelog polish on that branch directly,
-  then run `release-rc.sh` to bump the RC number.
+- **First RC of a minor release.** The `<major>.<minor>` branch does not exist yet. Create it from `main`, commit the reviewed changelog and any release-only polish there, then run `release-rc.sh` so the RC tag picks it up.
+- **Subsequent RCs (`rc2`, `rc3`, …).** The `<major>.<minor>` branch already exists. Commit changelog polish on that branch directly, then run `release-rc.sh` to bump the RC number.
 
 ## Creating a Release Candidate
 
-The `scripts/release-rc.sh` script automates the full RC preparation: creates
-the minor release branch (first RC only), bumps the operator version and Helm
-chart `version`/`appVersion` metadata to the target release version, regenerates
-manifests, runs the lint/license/test/docs/helm-lint checks, commits, and tags.
-The tag-triggered release workflow packages and publishes the RC image and Helm
-chart with the RC version suffix. The script also verifies that
-`docs/reference/releases.md` contains a heading for the target release version.
+The `scripts/release-rc.sh` script automates the full RC preparation: creates the minor release branch (first RC only), bumps the operator version and Helm chart `version`/`appVersion` metadata to the target release version, regenerates manifests, runs the lint/license/test/docs/helm-lint checks, commits, and tags. The tag-triggered release workflow packages and publishes the RC image and Helm chart with the RC version suffix. The script also verifies that `docs/reference/releases.md` contains a heading for the target release version.
 
 ```sh
 # First RC for 0.2.0 — create the 0.2 branch first, then tag v0.2.0-rc1.
@@ -174,15 +132,11 @@ scripts/release-source.sh
 git push origin 0.2 v0.2.0-rc1
 ```
 
-Running the script again from the same release branch increments the RC
-number automatically (rc1, rc2, ...).
+Running the script again from the same release branch increments the RC number automatically (rc1, rc2, ...).
 
 ## ASF Source Release Artifacts
 
-Per the [ASF Release Policy](https://www.apache.org/legal/release-policy.html),
-the **signed source archive is the official release**. The OCI images and
-Helm chart published to GHCR by the release workflow are convenience binaries
-and cannot be voted on in isolation.
+Per the [ASF Release Policy](https://www.apache.org/legal/release-policy.html), the **signed source archive is the official release**. The OCI images and Helm chart published to GHCR by the release workflow are convenience binaries and cannot be voted on in isolation.
 
 A release candidate therefore needs three artifacts staged on
 [dist.apache.org](https://dist.apache.org/repos/dist/dev/superset/):
@@ -195,45 +149,30 @@ A release candidate therefore needs three artifacts staged on
 
 ### Pre-requisites for the release manager
 
-1. Be a Superset PMC member (binding vote), or coordinate with one if you are
-   a committer driving the release.
-2. Have a PGP key registered in
-   `https://dist.apache.org/repos/dist/release/superset/KEYS` and uploaded to
-   the public keyservers. To add a new key, append the output of
-   `gpg --list-sigs <fingerprint> && gpg --armor --export <fingerprint>` to
-   `KEYS` in the SVN checkout below and commit.
+1. Be a Superset PMC member (binding vote), or coordinate with one if you are a committer driving the release.
+2. Have a PGP key registered in `https://dist.apache.org/repos/dist/release/superset/KEYS` and uploaded to the public keyservers. To add a new key, append the output of `gpg --list-sigs <fingerprint> && gpg --armor --export <fingerprint>` to `KEYS` in the SVN checkout below and commit.
 3. Have `svn` checkouts of both ASF dist locations:
 
-   ```sh
-   svn co https://dist.apache.org/repos/dist/dev/superset/ ~/asf/dev-superset
-   svn co https://dist.apache.org/repos/dist/release/superset/ ~/asf/release-superset
-   ```
+    ```sh
+    svn co https://dist.apache.org/repos/dist/dev/superset/ ~/asf/dev-superset
+    svn co https://dist.apache.org/repos/dist/release/superset/ ~/asf/release-superset
+    ```
 
 ### Producing the source tarball
 
-`scripts/release-source.sh` wraps `git archive`, `gpg`, and `shasum` and
-self-verifies before exiting. It infers the local RC tag from `HEAD`, writes to
-`dist/<version>-rc<n>/`, and signs with the newest usable local secret key that
-has an `@apache.org` UID:
+`scripts/release-source.sh` wraps `git archive`, `gpg`, and `shasum` and self-verifies before exiting. It infers the local RC tag from `HEAD`, writes to `dist/<version>-rc<n>/`, and signs with the newest usable local secret key that has an `@apache.org` UID:
 
 ```sh
 scripts/release-source.sh
 # → dist/0.2.0-rc1/apache-superset-kubernetes-operator-0.2.0-rc1.tar.gz{,.asc,.sha512}
 ```
 
-Pass `--gpg-key <id>` to pick a specific signing key, and `--out-dir <path>` to
-write the artifacts somewhere other than `dist/<version>-rc<n>/`.
+Pass `--gpg-key <id>` to pick a specific signing key, and `--out-dir <path>` to write the artifacts somewhere other than `dist/<version>-rc<n>/`.
 
-> **Why a script, not raw `git archive` + `gpg` + `shasum`.** The script
-> avoids a small set of subtle errors that are easy to make manually:
+> **Why a script, not raw `git archive` + `gpg` + `shasum`.** The script avoids a small set of subtle errors that are easy to make manually:
 >
-> - `shasum -a 512 path/to/file` writes the path into the checksum file. If
->   the file is later renamed (RC → final), `shasum -c` fails. The script
->   always runs `shasum` from the file's own directory so the checksum line
->   contains a bare filename.
-> - Detached PGP signatures verify the tarball **contents**, not the
->   filename. RC → final promotion only needs to copy the `.asc`; no
->   re-signing is required. The `--finalize` mode below relies on this.
+> - `shasum -a 512 path/to/file` writes the path into the checksum file. If the file is later renamed (RC → final), `shasum -c` fails. The script always runs `shasum` from the file's own directory so the checksum line contains a bare filename.
+> - Detached PGP signatures verify the tarball **contents**, not the filename. RC → final promotion only needs to copy the `.asc`; no re-signing is required. The `--finalize` mode below relies on this.
 
 ### Staging the artifacts
 
@@ -246,24 +185,20 @@ svn add kubernetes-operator-${VERSION}-rc${RC}
 svn commit -m "Stage Superset Kubernetes Operator ${VERSION}-rc${RC}"
 ```
 
-After the commit lands, the artifacts appear at
-`https://dist.apache.org/repos/dist/dev/superset/kubernetes-operator-<version>-rc<n>/`.
+After the commit lands, the artifacts appear at `https://dist.apache.org/repos/dist/dev/superset/kubernetes-operator-<version>-rc<n>/`.
 
 ### Vote email template
 
-Generate a vote email draft from the RC tag on `HEAD`, review it, then send the
-thread to `dev@superset.apache.org` with `[VOTE]` in the subject:
+Generate a vote email draft from the RC tag on `HEAD`, review it, then send the thread to `dev@superset.apache.org` with `[VOTE]` in the subject:
 
 ```sh
 scripts/release-email.sh vote > dist/0.2.0-rc1/VOTE.txt
 ```
 
-The vote thread must stay open for **at least 72 hours** and pass with at least
-three `+1` votes from PMC members and no `-1` votes (per
+The vote thread must stay open for **at least 72 hours** and pass with at least three `+1` votes from PMC members and no `-1` votes (per
 [ASF voting rules](https://www.apache.org/foundation/voting.html#ReleaseVotes)).
 
-After the vote thread closes, post a `[RESULT][VOTE]` summary to the same list
-with the tally and the binding/non-binding breakdown:
+After the vote thread closes, post a `[RESULT][VOTE]` summary to the same list with the tally and the binding/non-binding breakdown:
 
 ```sh
 scripts/release-email.sh result > dist/0.2.0-rc1/RESULT.txt
@@ -271,10 +206,7 @@ scripts/release-email.sh result > dist/0.2.0-rc1/RESULT.txt
 
 ## Finalizing a Release
 
-After the ASF vote passes, the `scripts/release-finalize.sh` script tags the
-final release on the same commit as the voted RC. Do not commit changelog date
-updates or other polish before finalizing; those changes were not part of the
-voted source release.
+After the ASF vote passes, the `scripts/release-finalize.sh` script tags the final release on the same commit as the voted RC. Do not commit changelog date updates or other polish before finalizing; those changes were not part of the voted source release.
 
 ```sh
 # From the 0.2 branch
@@ -286,15 +218,9 @@ git push origin v0.2.0
 
 The release workflow pushes the `0.2.0` and `latest` images to GHCR.
 
-After the final tag is pushed, add the final release date to
-`docs/reference/releases.md` on `main` only (the docs site builds from `main`).
-Leave the release-branch changelog undated so it continues to match the voted
-source.
+After the final tag is pushed, add the final release date to `docs/reference/releases.md` on `main` only (the docs site builds from `main`). Leave the release-branch changelog undated so it continues to match the voted source.
 
-After the binary release workflow finishes, promote the source artifacts.
-`release-source.sh` sees the final tag on `HEAD`, requires a matching RC tag on
-the same commit, reuses the staged RC tarball bytes (so the detached signature
-stays valid), and regenerates the SHA-512 file under the final filename:
+After the binary release workflow finishes, promote the source artifacts. `release-source.sh` sees the final tag on `HEAD`, requires a matching RC tag on the same commit, reuses the staged RC tarball bytes (so the detached signature stays valid), and regenerates the SHA-512 file under the final filename:
 
 ```sh
 scripts/release-source.sh
@@ -308,9 +234,7 @@ svn add kubernetes-operator-0.2.0
 svn commit -m "Release Apache Superset Kubernetes Operator 0.2.0"
 ```
 
-Generate the release announcement after the artifacts have propagated to the ASF
-mirror network (typically within 24 hours), review it, then send it to
-`announce@apache.org` and `dev@superset.apache.org`:
+Generate the release announcement after the artifacts have propagated to the ASF mirror network (typically within 24 hours), review it, then send it to `announce@apache.org` and `dev@superset.apache.org`:
 
 ```sh
 scripts/release-email.sh announce > dist/0.2.0/ANNOUNCE.txt

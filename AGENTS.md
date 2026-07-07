@@ -22,6 +22,7 @@ under the License.
 ## Project Overview
 
 Kubernetes operator for Apache Superset, built with the Go-based Operator SDK and Go 1.26+.
+
 - Module: `github.com/apache/superset-kubernetes-operator`
 - API group: `superset.apache.org/v1alpha1`
 - License: Apache 2.0
@@ -46,6 +47,7 @@ The operator uses a **single public CRD architecture** where the parent `Superse
 - **Deployment components** — web server, Celery worker, Celery beat, Flower, websocket, and MCP server Deployments with Services/ConfigMaps/HPA/PDB as applicable.
 
 **Key principles:**
+
 - **Parent resolves and reconciles.** All layering logic lives in the parent controller, which writes Kubernetes resources directly.
 - **Presence = enabled.** No `enabled: true/false`. If `celeryWorker: {}` is set, workers deploy. Lifecycle tasks (migrate, init) run by default; disable individual tasks via `disabled: true`. Seed runs when `spec.lifecycle.seed` is set. Rotate runs when `spec.lifecycle.rotate` is set.
 - **Secrets never touch ConfigMaps.** In prod mode, CRD CEL validation rejects inline `secretKey`, `metastore.uri`, `metastore.password`, and `valkey.password`. Use `secretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`, or `valkey.passwordFrom` to reference Kubernetes Secrets (operator injects `valueFrom.secretKeyRef` env vars). In dev mode, inline secrets are allowed.
@@ -56,7 +58,6 @@ The operator uses a **single public CRD architecture** where the parent `Superse
 - `api/v1alpha1/` — CRD type definitions
   - `shared_types.go` — ImageSpec, MetastoreSpec, ValkeySpec (ValkeySSLSpec, ValkeyCacheSpec, ValkeyCelerySpec, ValkeyResultsBackendSpec), GunicornSpec, CeleryWorkerProcessSpec, SQLAlchemyEngineOptionsSpec, FlatComponentSpec, DeploymentTemplate, PodTemplate, ContainerTemplate, ScalableComponentSpec, ComponentSpec, AutoscalingSpec, PDBSpec
   - `superset_types.go` — SupersetSpec (environment, secretKey/secretKeyFrom, metastore with uriFrom/passwordFrom, valkey, config, sqlaEngineOptions, autoscaling, podDisruptionBudget), component specs (GunicornSpec on webServer, CeleryWorkerProcessSpec on celeryWorker, SQLAlchemyEngineOptionsSpec on all Python components except Flower), LifecycleSpec (seed/migrate/rotate/init tasks, upgradeMode, maintenancePage), AdminUserSpec, NetworkingSpec, MonitoringSpec, status types (LifecycleStatus, ComponentStatusMap, LastLifecycleImage)
-
 - `internal/resolution/` — Pure Go spec resolution engine (zero controller-runtime deps)
   - `merge.go` — MergeMaps, MergeEnvVars, MergeVolumes, MergeVolumeMounts, MergeHostAliases, MergeContainers
   - `resolve.go` — ResolveScalar, ResolveOverridableMap/Slice/Value

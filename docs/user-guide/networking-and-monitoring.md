@@ -21,8 +21,7 @@ under the License.
 
 ## Services
 
-Routable components expose a Kubernetes Service. The service spec supports
-`type`, `port`, `nodePort`, labels, and annotations:
+Routable components expose a Kubernetes Service. The service spec supports `type`, `port`, `nodePort`, labels, and annotations:
 
 ```yaml
 spec:
@@ -34,9 +33,7 @@ spec:
         service.beta.kubernetes.io/aws-load-balancer-internal: "true"
 ```
 
-The operator does not expose Kubernetes `Service.spec.loadBalancerIP` because
-that field is deprecated. Prefer controller-specific annotations when your
-provider documents them.
+The operator does not expose Kubernetes `Service.spec.loadBalancerIP` because that field is deprecated. Prefer controller-specific annotations when your provider documents them.
 
 ## Gateway API (Recommended)
 
@@ -62,8 +59,7 @@ The operator creates an `HTTPRoute` with path-based routing:
 | 3 | `/flower` | celery-flower Service | celeryFlower enabled |
 | 4 (catch-all) | `/` | web-server Service | webServer enabled |
 
-More specific paths are listed first to ensure correct routing priority.
-Paths are configurable via `service.gatewayPath` on each component spec.
+More specific paths are listed first to ensure correct routing priority. Paths are configurable via `service.gatewayPath` on each component spec.
 
 For example, to serve Celery Flower under `/monitoring`:
 
@@ -78,12 +74,7 @@ spec:
 
 Gateway API and Ingress are mutually exclusive — set one or the other, not both.
 
-Ingress uses the **same per-component path routing** as Gateway API: a host with
-no explicit `paths` is expanded by the operator into one rule per present
-component (`/` → web server, plus `/flower`, `/mcp`, `/ws` for the components
-that are enabled), reusing each component's `service.gatewayPath`. Requests are
-forwarded as-is (no path rewrite), so each component owns its subpath the same
-way it does under Gateway API (e.g. Flower via its `--url_prefix`).
+Ingress uses the **same per-component path routing** as Gateway API: a host with no explicit `paths` is expanded by the operator into one rule per present component (`/` → web server, plus `/flower`, `/mcp`, `/ws` for the components that are enabled), reusing each component's `service.gatewayPath`. Requests are forwarded as-is (no path rewrite), so each component owns its subpath the same way it does under Gateway API (e.g. Flower via its `--url_prefix`).
 
 ```yaml
 spec:
@@ -93,9 +84,7 @@ spec:
       host: superset.example.com   # no explicit paths -> all components routed by path
 ```
 
-A host **with** explicit `paths` is treated as a user-controlled override and
-those paths route to the web server only — use this when you want full control
-of the path rules for a host:
+A host **with** explicit `paths` is treated as a user-controlled override and those paths route to the web server only — use this when you want full control of the path rules for a host:
 
 ```yaml
 spec:
@@ -115,9 +104,7 @@ spec:
             - superset.example.com
 ```
 
-Use `className` for controllers that support `spec.ingressClassName`. For
-legacy controllers, put `kubernetes.io/ingress.class` under `annotations`
-instead:
+Use `className` for controllers that support `spec.ingressClassName`. For legacy controllers, put `kubernetes.io/ingress.class` under `annotations` instead:
 
 ```yaml
 spec:
@@ -135,9 +122,7 @@ spec:
 
 ### Graceful CRD Handling
 
-If Gateway API CRDs are not present, the controller skips HTTPRoute watch
-registration and catches `meta.IsNoMatchError` at reconciliation time. The
-operator runs with reduced functionality rather than failing.
+If Gateway API CRDs are not present, the controller skips HTTPRoute watch registration and catches `meta.IsNoMatchError` at reconciliation time. The operator runs with reduced functionality rather than failing.
 
 ## Superset Instance Metrics
 
@@ -152,23 +137,13 @@ spec:
         release: prometheus
 ```
 
-The controller creates a Prometheus `ServiceMonitor` targeting the web-server
-component using unstructured objects (because the ServiceMonitor CRD is
-external: `monitoring.coreos.com/v1`). Default scrape interval is 30s
-(configurable). Targets pods with `app.kubernetes.io/component: web-server`.
+The controller creates a Prometheus `ServiceMonitor` targeting the web-server component using unstructured objects (because the ServiceMonitor CRD is external: `monitoring.coreos.com/v1`). Default scrape interval is 30s (configurable). Targets pods with `app.kubernetes.io/component: web-server`.
 
 ## Operator Metrics
 
-The operator itself exposes [controller-runtime](https://book.kubebuilder.io/reference/metrics.html)
-default metrics — reconcile counts and durations, work-queue depth, leader
-election state. These are served over HTTPS on port 8443, guarded by
-Kubernetes bearer-token authentication and authorization. No custom
-lifecycle metrics are emitted today; condition and event streams cover the
-per-instance lifecycle state.
+The operator itself exposes [controller-runtime](https://book.kubebuilder.io/reference/metrics.html) default metrics — reconcile counts and durations, work-queue depth, leader election state. These are served over HTTPS on port 8443, guarded by Kubernetes bearer-token authentication and authorization. No custom lifecycle metrics are emitted today; condition and event streams cover the per-instance lifecycle state.
 
-**RBAC.** Any scraper (typically Prometheus) needs the `metrics-reader`
-ClusterRole bound to its own ServiceAccount. Both install paths ship this
-role; bind it to your Prometheus ServiceAccount, for example:
+**RBAC.** Any scraper (typically Prometheus) needs the `metrics-reader` ClusterRole bound to its own ServiceAccount. Both install paths ship this role; bind it to your Prometheus ServiceAccount, for example:
 
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -185,20 +160,11 @@ subjects:
     namespace: monitoring
 ```
 
-**TLS by default.** The operator generates a self-signed certificate at
-startup, so scrapers connect over HTTPS with `insecureSkipVerify: true`. This
-is the default in both the Kustomize ServiceMonitor (`config/prometheus/monitor.yaml`)
-and the Helm chart. It's fine for a trusted cluster but not for
-zero-trust environments. Authentication and authorization are always enforced
-via bearer tokens (`TokenReview`/`SubjectAccessReview`) regardless of TLS
-setup — see
-[Design Decisions](../reference/security.md#design-decisions) in the security
-reference for the trust-model context.
+**TLS by default.** The operator generates a self-signed certificate at startup, so scrapers connect over HTTPS with `insecureSkipVerify: true`. This is the default in both the Kustomize ServiceMonitor (`config/prometheus/monitor.yaml`) and the Helm chart. It's fine for a trusted cluster but not for zero-trust environments. Authentication and authorization are always enforced via bearer tokens (`TokenReview`/`SubjectAccessReview`) regardless of TLS setup — see [Design Decisions](../reference/security.md#design-decisions) in the security reference for the trust-model context.
 
 ### Enable via Helm
 
-The chart ships a ServiceMonitor template, off by default. The minimal
-opt-in looks like:
+The chart ships a ServiceMonitor template, off by default. The minimal opt-in looks like:
 
 ```yaml
 metrics:
@@ -212,9 +178,7 @@ metrics:
 
 That keeps the default self-signed + `insecureSkipVerify: true` behavior.
 
-For real TLS via cert-manager, provision a `metrics-server-cert` Secret
-(typically via a `cert-manager.io/v1` Certificate keyed to a self-signed
-Issuer) and point the chart at it:
+For real TLS via cert-manager, provision a `metrics-server-cert` Secret (typically via a `cert-manager.io/v1` Certificate keyed to a self-signed Issuer) and point the chart at it:
 
 ```yaml
 metrics:
@@ -233,44 +197,23 @@ metrics:
           key: ca.crt
 ```
 
-The operator authenticates scrapers via bearer token (TokenReview), not
-mTLS, so `ca` + `serverName` are sufficient for the scraper to verify the
-server. Add `cert`/`keySecret` only if you've separately configured the
-metrics server to require client certs.
+The operator authenticates scrapers via bearer token (TokenReview), not mTLS, so `ca` + `serverName` are sufficient for the scraper to verify the server. Add `cert`/`keySecret` only if you've separately configured the metrics server to require client certs.
 
-Setting `metrics.certSecretName` mounts the Secret into the manager pod
-and adds `--metrics-cert-path` args so the metrics server presents that
-certificate. The full set of knobs is documented in
-`charts/superset-operator/values.yaml`.
+Setting `metrics.certSecretName` mounts the Secret into the manager pod and adds `--metrics-cert-path` args so the metrics server presents that certificate. The full set of knobs is documented in `charts/superset-operator/values.yaml`.
 
-The chart does not ship the cert-manager `Certificate` or `Issuer`
-resources themselves; you create them (for example via
-`cert-manager.io/v1` manifests alongside your values). See the Kustomize
-section below for a working example of those manifests.
+The chart does not ship the cert-manager `Certificate` or `Issuer` resources themselves; you create them (for example via `cert-manager.io/v1` manifests alongside your values). See the Kustomize section below for a working example of those manifests.
 
 ### Enable via Kustomize
 
-Uncomment `- ../prometheus` in `config/default/kustomization.yaml` and
-re-apply. This adds the shipped ServiceMonitor in
-`config/prometheus/monitor.yaml`, which scrapes the operator's self-signed
-metrics endpoint with `insecureSkipVerify: true`.
+Uncomment `- ../prometheus` in `config/default/kustomization.yaml` and re-apply. This adds the shipped ServiceMonitor in `config/prometheus/monitor.yaml`, which scrapes the operator's self-signed metrics endpoint with `insecureSkipVerify: true`.
 
-For a cert-manager-managed certificate (real TLS, no `insecureSkipVerify`),
-install [cert-manager](https://cert-manager.io/) on the cluster, then
-uncomment three more sections in `config/default/kustomization.yaml`:
+For a cert-manager-managed certificate (real TLS, no `insecureSkipVerify`), install [cert-manager](https://cert-manager.io/) on the cluster, then uncomment three more sections in `config/default/kustomization.yaml`:
 
-- `[CERTMANAGER]` — pulls in `config/certmanager` (a `selfsigned-issuer`
-  Issuer plus a `metrics-certs` Certificate that issues the
-  `metrics-server-cert` Secret).
-- `[METRICS-WITH-CERTS]` — mounts that Secret into the manager pod and
-  adds the `--metrics-cert-path` args.
-- `[PROMETHEUS-WITH-CERTS]` — a `replacements` block that substitutes the
-  real Service name and namespace into the Certificate's dnsNames and the
-  ServiceMonitor's `tlsConfig.serverName`.
+- `[CERTMANAGER]` — pulls in `config/certmanager` (a `selfsigned-issuer` Issuer plus a `metrics-certs` Certificate that issues the `metrics-server-cert` Secret).
+- `[METRICS-WITH-CERTS]` — mounts that Secret into the manager pod and adds the `--metrics-cert-path` args.
+- `[PROMETHEUS-WITH-CERTS]` — a `replacements` block that substitutes the real Service name and namespace into the Certificate's dnsNames and the ServiceMonitor's `tlsConfig.serverName`.
 
-Also uncomment the patch reference in `config/prometheus/kustomization.yaml`
-so the ServiceMonitor picks up the real-TLS `tlsConfig` from
-`monitor_tls_patch.yaml`.
+Also uncomment the patch reference in `config/prometheus/kustomization.yaml` so the ServiceMonitor picks up the real-TLS `tlsConfig` from `monitor_tls_patch.yaml`.
 
 ## Network Policies
 
@@ -299,13 +242,6 @@ Creates per-component NetworkPolicies that:
 | WebsocketServer | any port | port 8080 | all |
 | McpServer | any port | port 8088 | all |
 
-If you need to restrict external ingress to specific sources, disable the built-in
-network policy and create your own NetworkPolicy resources with the desired `from`
-selectors.
+If you need to restrict external ingress to specific sources, disable the built-in network policy and create your own NetworkPolicy resources with the desired `from` selectors.
 
-The built-in policy is ingress segmentation only — egress is intentionally
-unrestricted so workloads can reach the metastore database, Valkey, SMTP
-servers, and other user-configured dependencies. For the rationale and
-hardening path, see
-[Design Decisions](../reference/security.md#design-decisions) in the security
-reference.
+The built-in policy is ingress segmentation only — egress is intentionally unrestricted so workloads can reach the metastore database, Valkey, SMTP servers, and other user-configured dependencies. For the rationale and hardening path, see [Design Decisions](../reference/security.md#design-decisions) in the security reference.

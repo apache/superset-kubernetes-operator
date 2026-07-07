@@ -45,10 +45,7 @@ The operator manages the full Superset lifecycle: database migrations, configura
 - **Officially tested:** Kubernetes 1.36, 1.35
 <!-- END SUPPORTED-K8S -->
 
-Official support covers the two most recent Kubernetes minor versions with a
-published [kind](https://kind.sigs.k8s.io/) node image. The newest Kubernetes
-release gets best-effort coverage via a non-blocking CI lane until kind ships
-its node image.
+Official support covers the two most recent Kubernetes minor versions with a published [kind](https://kind.sigs.k8s.io/) node image. The newest Kubernetes release gets best-effort coverage via a non-blocking CI lane until kind ships its node image.
 
 ## What it looks like
 
@@ -107,10 +104,10 @@ spec:
 
 The operator resolves this into parent-owned resources. Lifecycle task Jobs run database migrations before components deploy, and their durable state is projected onto the parent status:
 
-```
+```text
 $ kubectl get supersets
-NAME           VERSION   PHASE     READY   AVAILABLE   AGE
-my-superset    latest    Running   3/3     True        5m
+NAME           TAG      PHASE     LIFECYCLE   READY   AVAILABLE   AGE
+my-superset    latest   Running   Complete    3/3     True        5m
 
 $ kubectl get superset my-superset -o jsonpath='{.status.lifecycle.migrate.state}'
 Complete

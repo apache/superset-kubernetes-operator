@@ -19,8 +19,7 @@ under the License.
 
 # Security Policy
 
-For the operator threat model, trust boundaries, secret handling, RBAC
-justification, and security-relevant design decisions, see
+For the operator threat model, trust boundaries, secret handling, RBAC justification, and security-relevant design decisions, see
 [docs/reference/security.md](docs/reference/security.md).
 
 ## Supported Versions
@@ -34,6 +33,6 @@ justification, and security-relevant design decisions, see
 The Apache Superset Kubernetes Operator project follows the
 [Apache Software Foundation vulnerability handling process](https://apache.org/security/).
 
-To report a security vulnerability, email **security@apache.org**.
+To report a security vulnerability, email **<security@apache.org>**.
 
 Do not file a public GitHub issue for security vulnerabilities.

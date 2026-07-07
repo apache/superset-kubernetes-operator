@@ -19,9 +19,7 @@ under the License.
 
 # Lifecycle
 
-The operator manages database migrations and application initialization through
-dedicated lifecycle tasks. This page covers configuration, behavior, and
-troubleshooting.
+The operator manages database migrations and application initialization through dedicated lifecycle tasks. This page covers configuration, behavior, and troubleshooting.
 
 ## Overview
 
@@ -32,13 +30,9 @@ The `spec.lifecycle` section controls up to four sequential tasks:
 3. **rotate** — `superset re-encrypt-secrets` (secret key rotation)
 4. **init** — `superset init` (application initialization: roles, permissions)
 
-Tasks run as parent-owned Jobs. The parent
-Superset controller orchestrates sequencing, gating, re-runs, Job lifecycle,
-retries, and timeouts, and stores durable task state in
-`status.lifecycle`.
+Tasks run as parent-owned Jobs. The parent Superset controller orchestrates sequencing, gating, re-runs, Job lifecycle, retries, and timeouts, and stores durable task state in `status.lifecycle`.
 
-Lifecycle is enabled by default even when `spec.lifecycle` is nil; disable it
-explicitly with `spec.lifecycle.disabled: true`.
+Lifecycle is enabled by default even when `spec.lifecycle` is nil; disable it explicitly with `spec.lifecycle.disabled: true`.
 
 **Key behaviors:**
 
@@ -61,9 +55,7 @@ All tasks also re-run when an upstream task re-executes (automatic propagation).
 
 ### Manual Trigger
 
-Every task has a `trigger` field (on `BaseTaskSpec`) — an opaque string that
-forces a re-run when changed. Changing a trigger also cascades to all downstream
-tasks:
+Every task has a `trigger` field (on `BaseTaskSpec`) — an opaque string that forces a re-run when changed. Changing a trigger also cascades to all downstream tasks:
 
 ```yaml
 spec:
@@ -87,8 +79,7 @@ spec:
 
 ### Scheduled Execution
 
-Tasks that support scheduling (currently seed) accept a `cronSchedule` field —
-a standard 5-field cron expression that triggers periodic re-execution:
+Tasks that support scheduling (currently seed) accept a `cronSchedule` field — a standard 5-field cron expression that triggers periodic re-execution:
 
 ```yaml
 spec:
@@ -105,38 +96,25 @@ spec:
           key: password
 ```
 
-When a schedule is configured, the operator automatically re-runs the full
-lifecycle pipeline (seed → migrate → rotate → init) each time a cron tick boundary is
-crossed. The `trigger` field remains functional for manual overrides on top of
-the schedule — both contribute independently.
+When a schedule is configured, the operator automatically re-runs the full lifecycle pipeline (seed → migrate → rotate → init) each time a cron tick boundary is crossed. The `trigger` field remains functional for manual overrides on top of the schedule — both contribute independently.
 
 **How it works:**
 
-- The operator computes the "current tick" (most recent past time matching the
-  expression) and includes it in the task checksum
-- When the clock crosses a cron boundary, the tick changes, the checksum changes,
-  and the pipeline re-runs
+- The operator computes the "current tick" (most recent past time matching the expression) and includes it in the task checksum
+- When the clock crosses a cron boundary, the tick changes, the checksum changes, and the pipeline re-runs
 - The operator requeues itself to wake at the next cron tick
-- If the operator is down during a scheduled tick, it catches up on the next
-  reconcile
-- If the pipeline is still running when a tick fires, it completes normally; the
-  new tick is detected afterward and triggers one re-run (no backlog accumulation)
+- If the operator is down during a scheduled tick, it catches up on the next reconcile
+- If the pipeline is still running when a tick fires, it completes normally; the new tick is detected afterward and triggers one re-run (no backlog accumulation)
 
 **Status reporting:**
 
-The seed task status includes `lastScheduledAt` (the tick that triggered the
-most recent run) and `nextScheduleAt` (the next future tick).
+The seed task status includes `lastScheduledAt` (the tick that triggered the most recent run) and `nextScheduleAt` (the next future tick).
 
 **Alternative — external CronJob:**
 
-For teams that prefer external scheduling, a Kubernetes CronJob can patch
-the `trigger` field on a cron schedule. This requires a CronJob resource,
-ServiceAccount, RoleBinding, and a kubectl image, but keeps the scheduling
-logic outside the operator.
+For teams that prefer external scheduling, a Kubernetes CronJob can patch the `trigger` field on a cron schedule. This requires a CronJob resource, ServiceAccount, RoleBinding, and a kubectl image, but keeps the scheduling logic outside the operator.
 
-When disabled, the task's Job and ConfigMap are deleted, its projected status
-is cleared from the parent, and it does not participate in the pipeline.
-Downstream tasks still run but don't receive propagation from the disabled task.
+When disabled, the task's Job and ConfigMap are deleted, its projected status is cleared from the parent, and it does not participate in the pipeline. Downstream tasks still run but don't receive propagation from the disabled task.
 
 ## Upgrade Mode
 
@@ -151,10 +129,7 @@ spec:
     upgradeMode: Supervised
 ```
 
-When an image change is detected in supervised mode, the operator sets
-`status.phase: AwaitingApproval` and records the upgrade context in
-`status.lifecycle.upgrade`. Approve the upgrade by annotating the CR with the
-recorded approval token:
+When an image change is detected in supervised mode, the operator sets `status.phase: AwaitingApproval` and records the upgrade context in `status.lifecycle.upgrade`. Approve the upgrade by annotating the CR with the recorded approval token:
 
 ```bash
 TOKEN=$(kubectl get superset my-superset \
@@ -163,12 +138,7 @@ kubectl annotate superset my-superset \
   superset.apache.org/approve-upgrade="${TOKEN}" --overwrite
 ```
 
-The approval is consumed once: the operator clears the annotation automatically
-after lifecycle tasks complete or the image change is otherwise settled. This
-prevents a stale approval annotation from approving a later image change. If the
-target image changes while an upgrade is awaiting approval, the approval token
-changes and the new transition must be approved separately.
-You can monitor the upgrade status with:
+The approval is consumed once: the operator clears the annotation automatically after lifecycle tasks complete or the image change is otherwise settled. This prevents a stale approval annotation from approving a later image change. If the target image changes while an upgrade is awaiting approval, the approval token changes and the new transition must be approved separately. You can monitor the upgrade status with:
 
 ```bash
 kubectl get superset my-superset -o jsonpath='{.status.lifecycle}'
@@ -176,26 +146,13 @@ kubectl get superset my-superset -o jsonpath='{.status.lifecycle}'
 
 ### Changing the image tag
 
-Any change to the resolved lifecycle image tag re-runs the migrate task
-(`superset db upgrade`), whether the new tag is a higher or lower version. The
-operator does not compare versions — it runs `superset db upgrade` on every
-image change.
+Any change to the resolved lifecycle image tag re-runs the migrate task (`superset db upgrade`), whether the new tag is a higher or lower version. The operator does not compare versions — it runs `superset db upgrade` on every image change.
 
-Migrate only ever runs `superset db upgrade`; the operator never runs
-`superset db downgrade` (Superset's down migrations are poorly tested and often
-break). So pinning back to an older image re-runs the forward migration rather
-than reversing the schema — you are responsible for ensuring the database is
-compatible with the target image, for example by restoring a backup taken
-before the upgrade. Take a backup before every upgrade so you can revert if
-needed.
+Migrate only ever runs `superset db upgrade`; the operator never runs `superset db downgrade` (Superset's down migrations are poorly tested and often break). So pinning back to an older image re-runs the forward migration rather than reversing the schema — you are responsible for ensuring the database is compatible with the target image, for example by restoring a backup taken before the upgrade. Take a backup before every upgrade so you can revert if needed.
 
 ## Drain Behavior
 
-Each task declares whether it requires components to be drained (scaled to zero)
-before execution. The operator drains once before the first pending task that
-requires it when at least one configured component has desired replicas greater
-than zero, and recreates components after the pipeline completes. A config-only
-change that only re-runs the default init task does not drain components.
+Each task declares whether it requires components to be drained (scaled to zero) before execution. The operator drains once before the first pending task that requires it when at least one configured component has desired replicas greater than zero, and recreates components after the pipeline completes. A config-only change that only re-runs the default init task does not drain components.
 
 | Task | Default `requiresDrain` | Rationale |
 |------|------------------------|-----------|
@@ -215,14 +172,11 @@ spec:
       requiresDrain: true   # force drain before init (rare)
 ```
 
-During a drain, Ingress/HTTPRoute and NetworkPolicy resources are preserved
-because they are owned by the parent CR. Once all lifecycle tasks complete,
-components are recreated and traffic resumes automatically.
+During a drain, Ingress/HTTPRoute and NetworkPolicy resources are preserved because they are owned by the parent CR. Once all lifecycle tasks complete, components are recreated and traffic resumes automatically.
 
 ### Maintenance Page
 
-By default, the web UI is unreachable while components are drained. To avoid user
-confusion during upgrades, enable the maintenance page:
+By default, the web UI is unreachable while components are drained. To avoid user confusion during upgrades, enable the maintenance page:
 
 ```yaml
 spec:
@@ -230,22 +184,11 @@ spec:
     maintenancePage: {}
 ```
 
-When enabled, the operator spins up a lightweight maintenance page **before**
-draining components and redirects all traffic from the web-server Service to it.
-The maintenance page is only started when a drain will actually run and the
-web-server component already has an existing workload. Initial installs skip the
-maintenance page because there is no existing web traffic to preserve. The
-Service name and ClusterIP are preserved, so Ingress, HTTPRoute, and direct
-Service consumers continue working without interruption. After lifecycle tasks
-complete, traffic is returned to the web-server pods automatically.
+When enabled, the operator spins up a lightweight maintenance page **before** draining components and redirects all traffic from the web-server Service to it. The maintenance page is only started when a drain will actually run and the web-server component already has an existing workload. Initial installs skip the maintenance page because there is no existing web traffic to preserve. The Service name and ClusterIP are preserved, so Ingress, HTTPRoute, and direct Service consumers continue working without interruption. After lifecycle tasks complete, traffic is returned to the web-server pods automatically.
 
-Parent Superset events report operator-level lifecycle milestones such as
-maintenance routing, drain start/completion, task starts, retries, and failures.
-Kubernetes-native Deployment, ReplicaSet, Job, and Pod events remain the source
-for lower-level workload creation and scaling details.
+Parent Superset events report operator-level lifecycle milestones such as maintenance routing, drain start/completion, task starts, retries, and failures. Kubernetes-native Deployment, ReplicaSet, Job, and Pod events remain the source for lower-level workload creation and scaling details.
 
-All paths return a 302 redirect to `/`, which serves the maintenance HTML page
-with a 30-second auto-refresh.
+All paths return a 302 redirect to `/`, which serves the maintenance HTML page with a 30-second auto-refresh.
 
 #### Customizing the message
 
@@ -273,8 +216,7 @@ spec:
 
 #### Custom image
 
-For advanced use cases (custom branding, dynamic status pages, HA), provide your
-own image. It must serve HTTP on the web-server port (default 8088):
+For advanced use cases (custom branding, dynamic status pages, HA), provide your own image. It must serve HTTP on the web-server port (default 8088):
 
 ```yaml
 spec:
@@ -294,15 +236,11 @@ spec:
               memory: 64Mi
 ```
 
-In custom mode, `title`, `message`, and `body` are passed as environment variables
-(`SUPERSET_OPERATOR__MAINTENANCE_TITLE`, `SUPERSET_OPERATOR__MAINTENANCE_MESSAGE`,
-`SUPERSET_OPERATOR__MAINTENANCE_BODY`) — your image can use them for dynamic content.
+In custom mode, `title`, `message`, and `body` are passed as environment variables (`SUPERSET_OPERATOR__MAINTENANCE_TITLE`, `SUPERSET_OPERATOR__MAINTENANCE_MESSAGE`, `SUPERSET_OPERATOR__MAINTENANCE_BODY`) — your image can use them for dynamic content.
 
 ## Lifecycle Flow
 
-The following diagram shows the lifecycle pipeline. Tasks execute sequentially;
-components are drained before the first task that requires it, and recreated
-after the pipeline completes.
+The following diagram shows the lifecycle pipeline. Tasks execute sequentially; components are drained before the first task that requires it, and recreated after the pipeline completes.
 
 ```mermaid
 %%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '12px'}}}%%
@@ -352,9 +290,7 @@ spec:
       command: ["/bin/sh", "-c", "superset init && custom-seed"]
 ```
 
-Both `adminUser` and `loadExamples` (see below) are mutually exclusive with a
-custom `lifecycle.init.command` — when using these fields, the operator
-constructs the full init command automatically.
+Both `adminUser` and `loadExamples` (see below) are mutually exclusive with a custom `lifecycle.init.command` — when using these fields, the operator constructs the full init command automatically.
 
 ## Auto-Creating the Metastore Database
 
@@ -377,19 +313,9 @@ spec:
       maxRetries: 3
 ```
 
-On failure, the operator retries with exponential backoff (`10s * 2^(attempt-1)`,
-capped at 5m). If a Job exceeds the timeout while Running or Pending, it counts
-as a failed attempt.
+On failure, the operator retries with exponential backoff (`10s * 2^(attempt-1)`, capped at 5m). If a Job exceeds the timeout while Running or Pending, it counts as a failed attempt.
 
-If a task pod cannot start at all — a `CreateContainerConfigError` (for example a
-`runAsNonRoot` policy the image can't satisfy), an image pull failure, or an
-unschedulable pod — the operator surfaces the reason on the `Superset` status and
-events rather than silently waiting. Once you change the task's pod
-configuration (`securityContext`, resources, image, etc.), the operator
-recreates the task Job from the corrected spec automatically. This also rescues a
-task that has already exhausted its retries: editing how the pod runs lets it run
-again, with no need to delete the Job by hand. A purely application-level failure
-(unchanged pod, e.g. a broken migration) stays terminal so it does not loop.
+If a task pod cannot start at all — a `CreateContainerConfigError` (for example a `runAsNonRoot` policy the image can't satisfy), an image pull failure, or an unschedulable pod — the operator surfaces the reason on the `Superset` status and events rather than silently waiting. Once you change the task's pod configuration (`securityContext`, resources, image, etc.), the operator recreates the task Job from the corrected spec automatically. This also rescues a task that has already exhausted its retries: editing how the pod runs lets it run again, with no need to delete the Job by hand. A purely application-level failure (unchanged pod, e.g. a broken migration) stays terminal so it does not loop.
 
 **Task retention policies:**
 
@@ -399,9 +325,7 @@ again, with no need to delete the Job by hand. A purely application-level failur
 | `Retain` | Job and Pods kept | Job and Pods kept |
 | `RetainOnFailure` (default) | Job and Pods deleted | Job and Pods kept for debugging |
 
-The default keeps only failed task Jobs and Pods so you can inspect logs without
-cluttering the namespace with completed-success Jobs. Override to `Retain`
-if you want the full history, or `Delete` to garbage-collect everything.
+The default keeps only failed task Jobs and Pods so you can inspect logs without cluttering the namespace with completed-success Jobs. Override to `Retain` if you want the full history, or `Delete` to garbage-collect everything.
 
 To inspect logs of a retained failed Job:
 
@@ -426,10 +350,7 @@ spec:
         email: admin@example.com  # default
 ```
 
-All fields have defaults, so `adminUser: {}` creates a user with
-username/password `admin`/`admin`. The operator passes credentials as env vars
-and appends a `superset fab create-admin` step to the init command. This field
-is rejected in Production and Staging modes by CRD validation.
+All fields have defaults, so `adminUser: {}` creates a user with username/password `admin`/`admin`. The operator passes credentials as env vars and appends a `superset fab create-admin` step to the init command. This field is rejected in Production and Staging modes by CRD validation.
 
 ## Load Examples (Development Mode Only)
 
@@ -443,18 +364,11 @@ spec:
       loadExamples: true
 ```
 
-The operator appends a `superset load-examples` step to the init command. This
-field is rejected in Production and Staging modes by CRD validation. Note that Superset's built-in
-examples require an admin user with username `admin` — if you customize
-`adminUser.username`, example loading may fail.
+The operator appends a `superset load-examples` step to the init command. This field is rejected in Production and Staging modes by CRD validation. Note that Superset's built-in examples require an admin user with username `admin` — if you customize `adminUser.username`, example loading may fail.
 
 ## Lifecycle Pod Template
 
-The `spec.lifecycle` section supports `podTemplate` with the same Pod and
-container fields as other components (tolerations, nodeSelector, volumes, etc.
-on `podTemplate`; env, resources, securityContext, etc. on
-`podTemplate.container`), so task Job Pods inherit top-level scheduling and security
-settings and can be customized independently:
+The `spec.lifecycle` section supports `podTemplate` with the same Pod and container fields as other components (tolerations, nodeSelector, volumes, etc. on `podTemplate`; env, resources, securityContext, etc. on `podTemplate.container`), so task Job Pods inherit top-level scheduling and security settings and can be customized independently:
 
 ```yaml
 spec:
@@ -470,12 +384,9 @@ spec:
 
 ## Secret Key Rotation
 
-The rotate task runs `superset re-encrypt-secrets` to re-encrypt stored secrets
-when the application secret key is rotated. It runs after migrate and before init.
+The rotate task runs `superset re-encrypt-secrets` to re-encrypt stored secrets when the application secret key is rotated. It runs after migrate and before init.
 
-To enable secret key rotation, set `previousSecretKey` (dev mode) or
-`previousSecretKeyFrom` (staging/production) on the parent spec, and add
-`lifecycle.rotate: {}`:
+To enable secret key rotation, set `previousSecretKey` (dev mode) or `previousSecretKeyFrom` (staging/production) on the parent spec, and add `lifecycle.rotate: {}`:
 
 ```yaml
 apiVersion: superset.apache.org/v1alpha1
@@ -493,48 +404,30 @@ spec:
     rotate: {}
 ```
 
-The operator injects both `SECRET_KEY` and `PREVIOUS_SECRET_KEY` into all Python
-components. The rotate task Job uses both to decrypt stored secrets with the old
-key and re-encrypt with the new one. After rotation completes, components restart
-with the new key and can use `PREVIOUS_SECRET_KEY` for fallback decryption during
-the transition.
+The operator injects both `SECRET_KEY` and `PREVIOUS_SECRET_KEY` into all Python components. The rotate task Job uses both to decrypt stored secrets with the old key and re-encrypt with the new one. After rotation completes, components restart with the new key and can use `PREVIOUS_SECRET_KEY` for fallback decryption during the transition.
 
-The command is idempotent: re-running it skips already-converted values. If no
-`PREVIOUS_SECRET_KEY` is set, it exits cleanly. If decryption fails for any entry,
-the entire transaction rolls back.
+The command is idempotent: re-running it skips already-converted values. If no `PREVIOUS_SECRET_KEY` is set, it exits cleanly. If decryption fails for any entry, the entire transaction rolls back.
 
 ### Rotation Triggers
 
 The task re-runs when:
 
-- The `secretKeyFrom` or `previousSecretKeyFrom` references change (different
-  Secret name or key)
-- The `trigger` field changes (use this for in-place Secret content updates where
-  the reference stays the same)
+- The `secretKeyFrom` or `previousSecretKeyFrom` references change (different Secret name or key)
+- The `trigger` field changes (use this for in-place Secret content updates where the reference stays the same)
 
 ### Drain
 
-By default, the rotate task requires drain (`requiresDrain: true`). After
-re-encryption commits, stored secrets are encrypted with the new key — components
-still running with the old key would fail to decrypt them. Override with
-`requiresDrain: false` only if you understand the implications.
+By default, the rotate task requires drain (`requiresDrain: true`). After re-encryption commits, stored secrets are encrypted with the new key — components still running with the old key would fail to decrypt them. Override with `requiresDrain: false` only if you understand the implications.
 
 ### Cleanup
 
-After confirming rotation succeeded, remove `previousSecretKeyFrom` and the
-`lifecycle.rotate` section. The previous secret key is no longer needed once all
-components have restarted with the new key.
+After confirming rotation succeeded, remove `previousSecretKeyFrom` and the `lifecycle.rotate` section. The previous secret key is no longer needed once all components have restarted with the new key.
 
 ## Seed (Development and Staging Mode Only)
 
-The seed task creates a database snapshot from an external source into the CR's
-metastore before running migrations. This enables staging workflows where you
-test version upgrades against a copy of production data.
+The seed task creates a database snapshot from an external source into the CR's metastore before running migrations. This enables staging workflows where you test version upgrades against a copy of production data.
 
-Seed is only allowed when `environment: Development` or `environment: Staging`
-— it performs a destructive DROP DATABASE on the target metastore and must never
-run against a production instance. Staging mode enforces secrets (like
-Production) while still permitting seed operations.
+Seed is only allowed when `environment: Development` or `environment: Staging` — it performs a destructive DROP DATABASE on the target metastore and must never run against a production instance. Staging mode enforces secrets (like Production) while still permitting seed operations.
 
 ### Staging Workflow
 
@@ -583,36 +476,25 @@ spec:
   # celeryBeat intentionally omitted — prevents alert double-triggers
 ```
 
-The lifecycle pipeline runs: **seed → migrate → rotate → init → components**. Components
-are not deployed until all enabled tasks complete, and seed always drains existing
-components before running (DROP DATABASE fails with active connections). Only
-the tasks you configure run; `rotate`, for example, is skipped when no
-`lifecycle.rotate` spec is set.
+The lifecycle pipeline runs: **seed → migrate → rotate → init → components**. Components are not deployed until all enabled tasks complete, and seed always drains existing components before running (DROP DATABASE fails with active connections). Only the tasks you configure run; `rotate`, for example, is skipped when no `lifecycle.rotate` spec is set.
 
 ### Seed Trigger and Scheduling
 
 The seed task runs when its checksum changes. Two mechanisms trigger re-execution:
 
-- **`trigger` field** — an opaque string (date, UUID, CI build ID). Changing it
-  causes a re-seed. Use this for manual or CI-driven refreshes.
-- **`cronSchedule` field** — a 5-field cron expression for periodic re-execution.
-  When the clock crosses a cron boundary, the task checksum changes automatically.
+- **`trigger` field** — an opaque string (date, UUID, CI build ID). Changing it causes a re-seed. Use this for manual or CI-driven refreshes.
+- **`cronSchedule` field** — a 5-field cron expression for periodic re-execution. When the clock crosses a cron boundary, the task checksum changes automatically.
 
 To disable seed without removing its configuration, set `disabled: true`.
 
 ### Table Exclusion
 
-- `excludeTables` — tables excluded entirely (schema and data). Use for tables
-  that are not needed and can be recreated by migrations (e.g., `tab_state`).
-- `excludeTableData` — schema is dumped but data is not. Use for large tables
-  where migrations expect the schema to exist but the data is not needed for
-  testing (e.g., `logs`, `query`).
+- `excludeTables` — tables excluded entirely (schema and data). Use for tables that are not needed and can be recreated by migrations (e.g., `tab_state`).
+- `excludeTableData` — schema is dumped but data is not. Use for large tables where migrations expect the schema to exist but the data is not needed for testing (e.g., `logs`, `query`).
 
 ### Custom Seed Command
 
-By default the operator constructs a streaming `pg_dump | psql` (or
-`mysqldump | mysql`) command. Override it for custom workflows (anonymization,
-database-native snapshots, etc.):
+By default the operator constructs a streaming `pg_dump | psql` (or `mysqldump | mysql`) command. Override it for custom workflows (anonymization, database-native snapshots, etc.):
 
 ```yaml
 spec:
@@ -631,9 +513,7 @@ spec:
           key: password
 ```
 
-When a custom command is set, the operator still injects all env vars
-(`SUPERSET_OPERATOR__SEED_SRC_*` and `SUPERSET_OPERATOR__DB_*`) so your script
-can use them.
+When a custom command is set, the operator still injects all env vars (`SUPERSET_OPERATOR__SEED_SRC_*` and `SUPERSET_OPERATOR__DB_*`) so your script can use them.
 
 ### Seed Image
 
@@ -648,25 +528,18 @@ Override with `seed.image` if you need additional tools.
 
 ### Requirements
 
-- **Metastore must use structured mode** (host, database, username) — passthrough
-  URI mode is not supported for seed.
-- **Metastore user must have CREATEDB rights** — the seed drops and recreates
-  the target database.
+- **Metastore must use structured mode** (host, database, username) — passthrough URI mode is not supported for seed.
+- **Metastore user must have CREATEDB rights** — the seed drops and recreates the target database.
 - **Source user should be read-only** — the seed only reads from production.
-- **Network access** — the seed pod needs egress to both source and target
-  databases. Configure NetworkPolicy accordingly.
+- **Network access** — the seed pod needs egress to both source and target databases. Configure NetworkPolicy accordingly.
 
 ## How It Works Under the Hood
 
 ### Pipeline Checksum Model
 
-The lifecycle uses a **checksum chain** to determine which tasks execute and
-which skip. Each task receives an incoming checksum from the previous stage,
-adds its own unique inputs, and produces a task checksum. On completion, that
-checksum is stored in the parent `status.lifecycle` field and becomes the
-incoming checksum for the next task.
+The lifecycle uses a **checksum chain** to determine which tasks execute and which skip. Each task receives an incoming checksum from the previous stage, adds its own unique inputs, and produces a task checksum. On completion, that checksum is stored in the parent `status.lifecycle` field and becomes the incoming checksum for the next task.
 
-```
+```text
                      parentUID (stable anchor)
                          ↓
 seed.checksum   = hash(parentUID, "Seed", command, trigger, scheduleTick, source, excludes, postSeedSQL, seedImage, targetImage)
@@ -678,37 +551,19 @@ rotate.checksum  = hash(migrate.status.checksum, "Rotate", command, trigger, ima
 init.checksum    = hash(rotate.status.checksum, "Init", command, trigger, image, configChecksum)
 ```
 
-**The universal rule:** a task executes when its computed checksum differs from
-the completed checksum stored in parent status. If they match, the task skips.
+**The universal rule:** a task executes when its computed checksum differs from the completed checksum stored in parent status. If they match, the task skips.
 
-**Upstream propagation is automatic:** when seed re-runs (e.g., trigger
-changed), its status checksum changes. That new value flows into migrate's
-checksum computation, making it differ from its stored value — so migrate
-re-runs too. The chain continues transitively through rotate to init.
+**Upstream propagation is automatic:** when seed re-runs (e.g., trigger changed), its status checksum changes. That new value flows into migrate's checksum computation, making it differ from its stored value — so migrate re-runs too. The chain continues transitively through rotate to init.
 
-**Isolation by design:** each task watches only its own relevant inputs.
-Migrate is image/schema-version driven and intentionally ignores feature/config
-changes — a config tweak does not re-run migrations. Init is the
-config-sensitive task: rendered `superset_config.py` changes propagate here.
-Seed tracks both the source connection identity and the *target* Superset
-image, so a staging image change triggers a fresh seed before migrations
-re-run. Rotate fires on secret-key transitions.
+**Isolation by design:** each task watches only its own relevant inputs. Migrate is image/schema-version driven and intentionally ignores feature/config changes — a config tweak does not re-run migrations. Init is the config-sensitive task: rendered `superset_config.py` changes propagate here. Seed tracks both the source connection identity and the *target* Superset image, so a staging image change triggers a fresh seed before migrations re-run. Rotate fires on secret-key transitions.
 
-**What checksums do NOT cover:** checksums hash *task-semantic* inputs only.
-Pod-level fields like resource requests/limits, node selectors, tolerations,
-affinity, and other `podTemplate` knobs are not part of the task checksum and
-do not by themselves trigger a re-run. Such changes apply on the next execution
-that *is* triggered by a semantic input change. This is intentional: a pure
-scheduling tweak should not, for example, re-run a destructive `seed`.
+**What checksums do NOT cover:** checksums hash *task-semantic* inputs only. Pod-level fields like resource requests/limits, node selectors, tolerations, affinity, and other `podTemplate` knobs are not part of the task checksum and do not by themselves trigger a re-run. Such changes apply on the next execution that *is* triggered by a semantic input change. This is intentional: a pure scheduling tweak should not, for example, re-run a destructive `seed`.
 
 ### Why Jobs
 
-- **Idempotent creation** — Each task uses a deterministic Job name, so repeated
-  reconciles cannot create duplicate seed/migrate/init executions.
-- **Controlled retries** — Jobs use `backoffLimit: 0`; the operator decides when
-  and how to retry with configurable max attempts and exponential backoff.
-- **Durable checkpoints** — Task completion is stored on the parent status
-  before the operator advances to the next task or deletes completed Jobs.
+- **Idempotent creation** — Each task uses a deterministic Job name, so repeated reconciles cannot create duplicate seed/migrate/init executions.
+- **Controlled retries** — Jobs use `backoffLimit: 0`; the operator decides when and how to retry with configurable max attempts and exponential backoff.
+- **Durable checkpoints** — Task completion is stored on the parent status before the operator advances to the next task or deletes completed Jobs.
 
 ### Job State Machine
 
@@ -721,14 +576,11 @@ Task Jobs transition through these states:
 
 ### Job Naming and Discovery
 
-Jobs use deterministic names (`{parent}-{task}`, e.g. `my-superset-migrate`).
-The operator reads Jobs by name and also labels them with
-`superset.apache.org/instance` and `superset.apache.org/init-task` for querying.
+Jobs use deterministic names (`{parent}-{task}`, e.g. `my-superset-migrate`). The operator reads Jobs by name and also labels them with `superset.apache.org/instance` and `superset.apache.org/init-task` for querying.
 
 ### Task Job Pod Spec
 
-Task Job Pods inherit scheduling, security, volumes, and env from the top-level
-`podTemplate`, just like other components. Key fields:
+Task Job Pods inherit scheduling, security, volumes, and env from the top-level `podTemplate`, just like other components. Key fields:
 
 - **Image**: From `spec.image`
 - **Command**: From `spec.lifecycle.migrate.command` or `spec.lifecycle.init.command` (defaults: `superset db upgrade` and `superset init`)
@@ -774,10 +626,6 @@ Task Job names are deterministic: `{parentName}-{taskType}` (e.g. `my-superset-m
 | `Blocked` | Configuration error (e.g. an invalid `seed.cronSchedule`) — lifecycle tasks will not run until corrected |
 | `AwaitingApproval` | Supervised upgrade mode — waiting for the target-bound approval annotation before proceeding |
 
-Drain progress appears in the `Lifecycle` column and
-`status.lifecycle.phase=Draining`, while the top-level phase remains
-`Initializing` or `Upgrading`.
+Drain progress appears in the `Lifecycle` column and `status.lifecycle.phase=Draining`, while the top-level phase remains `Initializing` or `Upgrading`.
 
-After lifecycle tasks finish, `status.lifecycle.phase=Restoring` while the
-operator recreates component workloads and waits for them to become ready. It
-switches to `Complete` once the enabled components are available.
+After lifecycle tasks finish, `status.lifecycle.phase=Restoring` while the operator recreates component workloads and waits for them to become ready. It switches to `Complete` once the enabled components are available.

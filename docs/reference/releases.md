@@ -19,40 +19,21 @@ under the License.
 
 # Releases
 
-This page tracks notable changes in Apache Superset Kubernetes Operator
-releases.
+This page tracks notable changes in Apache Superset Kubernetes Operator releases.
 
 ## Unreleased
 
 ### Changed
 
-- **Breaking:** renamed the "version" status fields to "tag". `status.version`
-  → `status.tag` (the `kubectl get` column is renamed **Version** → **Tag**),
-  and `status.lifecycle.upgrade.fromVersion`/`toVersion` → `fromTag`/`toTag`.
-  No behavior change.
-- **Breaking:** downgrade blocking is removed. Any change to the lifecycle image
-  tag now re-runs the migrate task (`superset db upgrade`) regardless of
-  direction — the operator no longer performs semver comparison or sets
-  `status.phase: Blocked` on a version decrease. The migrate task only runs
-  `superset db upgrade` (Superset's down migrations are poorly tested and often
-  break, so the operator never runs them), so take a database backup before an
-  upgrade if you may need to revert. The `direction` field is removed from
-  `status.lifecycle.upgrade`, and the `VersionComparisonSkipped` warning event
-  no longer fires.
-- **Breaking:** the lifecycle `clone` task is renamed to `seed`. Rename
-  `spec.lifecycle.clone` to `spec.lifecycle.seed` (and its `postCloneSQL` field
-  to `postSeedSQL`) in your Superset resources. The task Job name suffix changes
-  from `-clone` to `-seed`, and the lifecycle status phase from `Cloning` to
-  `Seeding`. Custom `seed.command` scripts must read the renamed
-  `SUPERSET_OPERATOR__SEED_SRC_*` environment variables.
+- **Breaking:** renamed the "version" status fields to "tag". `status.version` → `status.tag` (the `kubectl get` column is renamed **Version** → **Tag**), and `status.lifecycle.upgrade.fromVersion`/`toVersion` → `fromTag`/`toTag`. No behavior change.
+- **Breaking:** downgrade blocking is removed. Any change to the lifecycle image tag now re-runs the migrate task (`superset db upgrade`) regardless of direction — the operator no longer performs semver comparison or sets `status.phase: Blocked` on a version decrease. The migrate task only runs `superset db upgrade` (Superset's down migrations are poorly tested and often break, so the operator never runs them), so take a database backup before an upgrade if you may need to revert. The `direction` field is removed from `status.lifecycle.upgrade`, and the `VersionComparisonSkipped` warning event no longer fires.
+- **Breaking:** the lifecycle `clone` task is renamed to `seed`. Rename `spec.lifecycle.clone` to `spec.lifecycle.seed` (and its `postCloneSQL` field to `postSeedSQL`) in your Superset resources. The task Job name suffix changes from `-clone` to `-seed`, and the lifecycle status phase from `Cloning` to `Seeding`. Custom `seed.command` scripts must read the renamed `SUPERSET_OPERATOR__SEED_SRC_*` environment variables.
 
 ## 0.1.1 - 2026-06-29
 
 ### Fixed
 
-- Honor HPA-managed replica counts: the operator no longer overwrites the
-  replica count on Deployments whose scaling is owned by a
-  HorizontalPodAutoscaler ([#152](https://github.com/apache/superset-kubernetes-operator/pull/152), [@pashtet04](https://github.com/pashtet04)).
+- Honor HPA-managed replica counts: the operator no longer overwrites the replica count on Deployments whose scaling is owned by a HorizontalPodAutoscaler ([#152](https://github.com/apache/superset-kubernetes-operator/pull/152), [@pashtet04](https://github.com/pashtet04)).
 
 ## 0.1.0 - 2026-06-10
 
@@ -62,14 +43,6 @@ releases.
 
 ### Known limitations
 
-- **Websocket server is experimental.** The websocket server is not yet well
-  supported and is pending security hardening; it is not recommended for
-  production use.
-- **Downgrade protection requires semver image tags.** Downgrades are detected
-  and blocked only when both image tags are valid semver. Non-semver tags
-  (`latest`, date stamps, digest pins) cannot be ordered, so the operator emits a
-  `VersionComparisonSkipped` warning and proceeds without blocking. See
-  [Lifecycle](../user-guide/lifecycle.md).
-- **Task failure messages may include credential fragments.** Lifecycle task
-  failure output is truncated into `status` and could contain fragments of task
-  stdout, including credentials. See [security.md](security.md).
+- **Websocket server is experimental.** The websocket server is not yet well supported and is pending security hardening; it is not recommended for production use.
+- **Downgrade protection requires semver image tags.** Downgrades are detected and blocked only when both image tags are valid semver. Non-semver tags (`latest`, date stamps, digest pins) cannot be ordered, so the operator emits a `VersionComparisonSkipped` warning and proceeds without blocking. See [Lifecycle](../user-guide/lifecycle.md).
+- **Task failure messages may include credential fragments.** Lifecycle task failure output is truncated into `status` and could contain fragments of task stdout, including credentials. See [security.md](security.md).

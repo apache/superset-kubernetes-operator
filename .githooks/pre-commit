@@ -18,3 +18,18 @@ set -e
 
 # Run golangci-lint (includes gofmt, goimports, govet, and all configured linters)
 make lint
+
+# Reformat staged Markdown with rumdl. `check --fix` exits non-zero (aborting
+# the commit via `set -e`) if any unfixable issues remain. If it only applied
+# fixes, abort so the author can review and re-stage rather than silently
+# amending what gets committed.
+staged_md=$(git diff --cached --name-only --diff-filter=ACM -- '*.md')
+if [ -n "$staged_md" ]; then
+	make rumdl >/dev/null
+	rumdl_bin="$(git rev-parse --show-toplevel)/bin/rumdl"
+	echo "$staged_md" | xargs "$rumdl_bin" check --fix
+	if ! echo "$staged_md" | xargs git diff --quiet --; then
+		echo "rumdl reformatted staged Markdown. Review the changes, 'git add' them, and commit again." >&2
+		exit 1
+	fi
+fi

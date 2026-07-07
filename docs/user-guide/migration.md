@@ -19,21 +19,13 @@ under the License.
 
 # Migration from Helm Chart
 
-This guide helps translate a deployment from the official Apache Superset Helm
-chart to a `Superset` custom resource. It focuses on feature parity and on the
-places where the operator intentionally uses a different model.
+This guide helps translate a deployment from the official Apache Superset Helm chart to a `Superset` custom resource. It focuses on feature parity and on the places where the operator intentionally uses a different model.
 
 > **Comparison target:** This guide is written against the upstream
 > [`apache/superset` Helm chart](https://github.com/apache/superset/tree/superset-helm-chart-0.15.5/helm/superset)
-> at chart version `0.15.5` / `appVersion: 5.0.0`. Older Helm releases share
-> most field names, but some values differ across chart versions.
+> at chart version `0.15.5` / `appVersion: 5.0.0`. Older Helm releases share most field names, but some values differ across chart versions.
 
-The operator runs the same core application as the chart — web server, Celery
-workers, Celery Beat, Celery Flower, and the websocket server — and reads the
-same `superset_config.py`, so most of your Helm values map across directly. What
-changes is the surrounding machinery: instead of an install-time hook Job and
-static manifests, the operator manages migrations, initialization, scaling, and
-routing as part of a control loop that keeps your declared state reconciled.
+The operator runs the same core application as the chart — web server, Celery workers, Celery Beat, Celery Flower, and the websocket server — and reads the same `superset_config.py`, so most of your Helm values map across directly. What changes is the surrounding machinery: instead of an install-time hook Job and static manifests, the operator manages migrations, initialization, scaling, and routing as part of a control loop that keeps your declared state reconciled.
 
 ## Helm Chart vs. Operator
 
@@ -66,82 +58,51 @@ routing as part of a control loop that keeps your declared state reconciled.
 | Celery Beat PDB | ✓ | singleton, no PDB field |
 | `service.loadBalancerIP` | ✓ | use a provider Service annotation |
 
-The operator's intentional gaps each have a straightforward workaround:
-provision PostgreSQL and Redis/Valkey separately and point `spec.metastore` /
-`spec.valkey` at them; move inline secrets into Kubernetes Secrets referenced by
-`secretKeyFrom` and the `*From` fields; influence Celery Beat scheduling with
-`priorityClassName` and affinity (a PDB on a 1-replica singleton is advisory
-only); and pin a load-balancer address with a cloud-provider Service annotation.
-The [Value Mapping](#value-mapping) section below translates every field in
-detail.
+The operator's intentional gaps each have a straightforward workaround: provision PostgreSQL and Redis/Valkey separately and point `spec.metastore` / `spec.valkey` at them; move inline secrets into Kubernetes Secrets referenced by `secretKeyFrom` and the `*From` fields; influence Celery Beat scheduling with `priorityClassName` and affinity (a PDB on a 1-replica singleton is advisory only); and pin a load-balancer address with a cloud-provider Service annotation. The [Value Mapping](#value-mapping) section below translates every field in detail.
 
 ## Migration Workflow
 
 1. Export the Helm values used by the existing release:
 
-   ```bash
-   helm get values <release> -n <namespace> -o yaml > superset-values.yaml
-   ```
+    ```bash
+    helm get values <release> -n <namespace> -o yaml > superset-values.yaml
+    ```
 
-2. Identify external dependencies. If the Helm release currently relied on the
-   bundled PostgreSQL or Redis subcharts, install those dependencies as
-   standalone Helm releases or otherwise provision equivalent services before
-   moving Superset to the operator. Do not delete the Helm release until
-   database persistence and backups are understood.
+2. Identify external dependencies. If the Helm release currently relied on the bundled PostgreSQL or Redis subcharts, install those dependencies as standalone Helm releases or otherwise provision equivalent services before moving Superset to the operator. Do not delete the Helm release until database persistence and backups are understood.
 
-3. Create Kubernetes Secrets for the Superset `SECRET_KEY`, database
-   connection string or password, and Valkey/Redis password. Prefer a full
-   SQLAlchemy URI in `metastore.uriFrom` when migrating from Helm because it
-   preserves the exact connection string.
+3. Create Kubernetes Secrets for the Superset `SECRET_KEY`, database connection string or password, and Valkey/Redis password. Prefer a full SQLAlchemy URI in `metastore.uriFrom` when migrating from Helm because it preserves the exact connection string.
 
-   Check which Secret and key currently hold each credential before wiring the
-   operator CR. With the upstream chart's default `secretEnv.create: true`, the
-   chart creates a Helm-owned Secret named `<helm-fullname>-env` containing
-   `DB_PASS`. If the bundled PostgreSQL subchart is enabled, Bitnami also
-   creates a database Secret, typically `<release>-postgresql` with key
-   `password`. Before uninstalling Helm, copy the credentials you intend to keep
-   into Secrets that will remain after the release is removed, or point the
-   operator at existing externally managed Secrets.
+    Check which Secret and key currently hold each credential before wiring the operator CR. With the upstream chart's default `secretEnv.create: true`, the chart creates a Helm-owned Secret named `<helm-fullname>-env` containing `DB_PASS`. If the bundled PostgreSQL subchart is enabled, Bitnami also creates a database Secret, typically `<release>-postgresql` with key `password`. Before uninstalling Helm, copy the credentials you intend to keep into Secrets that will remain after the release is removed, or point the operator at existing externally managed Secrets.
 
-4. Translate application configuration from `configOverrides` into
-   `spec.config`. Move sensitive values out of Python source and into Secret
-   backed env vars.
+4. Translate application configuration from `configOverrides` into `spec.config`. Move sensitive values out of Python source and into Secret backed env vars.
 
-5. Translate enabled chart components into operator components. In the
-   operator, presence means enabled:
+5. Translate enabled chart components into operator components. In the operator, presence means enabled:
 
-   ```yaml
-   spec:
-     webServer: {}
-     celeryWorker: {}
-     celeryBeat: {}
-     celeryFlower: {}
-     websocketServer:
-       image:
-         repository: oneacrefund/superset-websocket   # or your own image
-         tag: latest
-   ```
+    ```yaml
+    spec:
+      webServer: {}
+      celeryWorker: {}
+      celeryBeat: {}
+      celeryFlower: {}
+      websocketServer:
+        image:
+          repository: oneacrefund/superset-websocket   # or your own image
+          tag: latest
+    ```
 
-6. Decide how the first operator reconciliation should handle lifecycle tasks.
-   If the existing Helm deployment already migrated and initialized the
-   database, either allow the operator to run its idempotent `migrate` and
-   `init` tasks during a planned window, or disable lifecycle initially:
+6. Decide how the first operator reconciliation should handle lifecycle tasks. If the existing Helm deployment already migrated and initialized the database, either allow the operator to run its idempotent `migrate` and `init` tasks during a planned window, or disable lifecycle initially:
 
-   ```yaml
-   spec:
-     lifecycle:
-       disabled: true
-   ```
+    ```yaml
+    spec:
+      lifecycle:
+        disabled: true
+    ```
 
-   Re-enable lifecycle after the first cutover if you want the operator to
-   manage future upgrades.
+    Re-enable lifecycle after the first cutover if you want the operator to manage future upgrades.
 
-7. Create the `Superset` CR with a name that will not collide with existing
-   Helm resources, wait for it to become ready, then move traffic to the
-   operator-managed Service, Ingress, or HTTPRoute.
+7. Create the `Superset` CR with a name that will not collide with existing Helm resources, wait for it to become ready, then move traffic to the operator-managed Service, Ingress, or HTTPRoute.
 
-8. Remove the old Helm release only after the operator-managed deployment is
-   serving traffic and background workers are healthy.
+8. Remove the old Helm release only after the operator-managed deployment is serving traffic and background workers are healthy.
 
 ## Value Mapping
 
@@ -182,16 +143,9 @@ detail.
 | `postgresql.*` | Not managed by this operator | Provide an existing PostgreSQL endpoint and reference it from `spec.metastore`. |
 | `redis.*` | Not managed by this operator | Provide an existing Redis/Valkey-compatible endpoint and reference it from `spec.valkey`. |
 
-The Helm chart exposes one cache DB (`redis_cache_db`) and one Celery DB
-(`redis_celery_db`). The operator gives each Superset cache role its own
-default DB and key prefix. To preserve Helm-like sharing, set the relevant
-`spec.valkey.*.database` fields to the same DB numbers you used in Helm.
+The Helm chart exposes one cache DB (`redis_cache_db`) and one Celery DB (`redis_celery_db`). The operator gives each Superset cache role its own default DB and key prefix. To preserve Helm-like sharing, set the relevant `spec.valkey.*.database` fields to the same DB numbers you used in Helm.
 
-`spec.valkey` renders managed connectivity for Celery (`broker_url`,
-`result_backend`, and SSL settings), but it does not recreate Celery application
-behavior such as imports, task annotations, routes, beat schedules, or scheduler
-expiration. Carry those settings over explicitly in `spec.config` based on the
-Superset version you deploy.
+`spec.valkey` renders managed connectivity for Celery (`broker_url`, `result_backend`, and SSL settings), but it does not recreate Celery application behavior such as imports, task annotations, routes, beat schedules, or scheduler expiration. Carry those settings over explicitly in `spec.config` based on the Superset version you deploy.
 
 ### Components
 
@@ -210,22 +164,9 @@ Superset version you deploy.
 
 ### Lifecycle Tasks
 
-The chart runs a single install-time hook Job (`init.*`) that performs
-`superset db upgrade` then `superset init`. The operator splits this into up to
-four sequential, individually configurable tasks under `spec.lifecycle` —
-**seed → migrate → rotate → init** — each tracked in `Superset` status with
-retries, timeouts, and upgrade gating. Tasks that change the schema or secrets
-drain running components first (scale to zero), then components are recreated
-once the pipeline completes; enable `spec.lifecycle.maintenancePage` to serve a
-holding page during the drain. See [Lifecycle](lifecycle.md) for the full model.
+The chart runs a single install-time hook Job (`init.*`) that performs `superset db upgrade` then `superset init`. The operator splits this into up to four sequential, individually configurable tasks under `spec.lifecycle` — **seed → migrate → rotate → init** — each tracked in `Superset` status with retries, timeouts, and upgrade gating. Tasks that change the schema or secrets drain running components first (scale to zero), then components are recreated once the pipeline completes; enable `spec.lifecycle.maintenancePage` to serve a holding page during the drain. See [Lifecycle](lifecycle.md) for the full model.
 
-**Execution differs too.** The chart's init hook (`helm.sh/hook:
-post-install,post-upgrade`) re-runs `superset db upgrade` and `superset init` on
-*every* `helm upgrade`, even a no-op re-apply. The operator instead runs each
-task only when its inputs change: migrate on an image tag change, init on a tag
-or rendered-config change, and the whole pipeline cascades when an upstream task
-re-runs. A re-apply that changes nothing runs nothing — so it never
-unnecessarily drains components or re-runs migrations.
+**Execution differs too.** The chart's init hook (`helm.sh/hook: post-install,post-upgrade`) re-runs `superset db upgrade` and `superset init` on *every* `helm upgrade`, even a no-op re-apply. The operator instead runs each task only when its inputs change: migrate on an image tag change, init on a tag or rendered-config change, and the whole pipeline cascades when an upstream task re-runs. A re-apply that changes nothing runs nothing — so it never unnecessarily drains components or re-runs migrations.
 
 | Helm chart value | Operator equivalent | Notes |
 |---|---|---|
@@ -236,7 +177,6 @@ unnecessarily drains components or re-runs migrations.
 | `init.initscript` (the `superset init` part) | `spec.lifecycle.init`, `init.command` | Runs `superset init` (roles/permissions). Config-checksum driven (rendered `superset_config.py` changes re-run it). Does not drain by default — role/permission work is safe while components run. |
 | `init.createAdmin`, `init.adminUser`, `init.loadExamples` | `spec.lifecycle.init.adminUser`, `init.loadExamples` | Development mode only (rejected by CRD validation in Staging/Production); the operator appends `fab create-admin` / `load-examples` steps to the init command. In production, create users through your normal identity/admin process or a custom `init.command` with Secret-backed env vars. |
 | `init.jobAnnotations` | Not applicable | Lifecycle tasks are CRD-managed Jobs, not Helm hook Jobs. Annotate task pods via `spec.lifecycle.podTemplate.annotations`. |
-
 
 ### Pod and Deployment Customization
 
@@ -264,15 +204,7 @@ unnecessarily drains components or re-runs migrations.
 | `supersetWebsockets.ingress.*` | `spec.networking.ingress` or `spec.networking.gateway` | Both reconcilers expose the websocket service automatically when `websocketServer` is present; set its path with `websocketServer.service.gatewayPath`. |
 | Flower or MCP external paths | `spec.networking.ingress` or `spec.networking.gateway` | Both reconcilers expose every present component on its own subpath; see the routing table in [Networking & Monitoring](networking-and-monitoring.md#gateway-api-recommended). |
 
-Both reconcilers expand a host with no explicit `paths` into one rule per
-present component, each served under its own subpath (overridable via
-`service.gatewayPath`). Requests are forwarded as-is, with no path rewriting, so
-each component owns its subpath: the operator configures Flower for this
-automatically (its `--url_prefix`), and the web server serves at the root. This
-differs from the Helm chart, where the web server sat at `/` and the websocket
-was a separate `/ws` Ingress rule. If a component must be reached at the root
-instead of a subpath, give it its own host or a prefix-stripping rewrite on your
-controller. See
+Both reconcilers expand a host with no explicit `paths` into one rule per present component, each served under its own subpath (overridable via `service.gatewayPath`). Requests are forwarded as-is, with no path rewriting, so each component owns its subpath: the operator configures Flower for this automatically (its `--url_prefix`), and the web server serves at the root. This differs from the Helm chart, where the web server sat at `/` and the websocket was a separate `/ws` Ingress rule. If a component must be reached at the root instead of a subpath, give it its own host or a prefix-stripping rewrite on your controller. See
 [Networking & Monitoring](networking-and-monitoring.md#gateway-api-recommended)
 for the routing table.
 
@@ -314,10 +246,7 @@ spec:
       className: alb
 ```
 
-TLS terminates on the Ingress just as it does in the chart. Helm's `ingress.tls`
-maps directly to `spec.networking.ingress.tls`, which takes the standard
-`IngressTLS` shape (a `secretName` plus the hosts it covers). cert-manager works
-the same way — request the certificate with `annotations`:
+TLS terminates on the Ingress just as it does in the chart. Helm's `ingress.tls` maps directly to `spec.networking.ingress.tls`, which takes the standard `IngressTLS` shape (a `secretName` plus the hosts it covers). cert-manager works the same way — request the certificate with `annotations`:
 
 ```yaml
 spec:
@@ -333,9 +262,7 @@ spec:
           secretName: superset-tls
 ```
 
-Helm's `service.loadBalancerIP` is intentionally not modeled (the Kubernetes
-field is deprecated). To keep a pinned load-balancer address, set the
-provider-specific annotation on the web-server Service:
+Helm's `service.loadBalancerIP` is intentionally not modeled (the Kubernetes field is deprecated). To keep a pinned load-balancer address, set the provider-specific annotation on the web-server Service:
 
 ```yaml
 spec:
@@ -388,9 +315,7 @@ configOverrides:
     FEATURE_FLAGS = {"ALERT_REPORTS": True}
 ```
 
-The `enable_alert_reports` key above is only a Helm override label. The chart
-appends its value to `superset_config.py`; it does not define a special
-`feature_flags` values field.
+The `enable_alert_reports` key above is only a Helm override label. The chart appends its value to `superset_config.py`; it does not define a special `feature_flags` values field.
 
 Create or choose a Secret that will remain after Helm is removed:
 
@@ -443,10 +368,7 @@ spec:
 
 ## Importing Datasources
 
-The Helm chart's default init script imports
-`/app/configs/import_datasources.yaml` when that file exists. The operator does
-not run this import automatically. To keep the behavior, mount the file and add
-the import to the init command:
+The Helm chart's default init script imports `/app/configs/import_datasources.yaml` when that file exists. The operator does not run this import automatically. To keep the behavior, mount the file and add the import to the init command:
 
 ```yaml
 spec:
@@ -475,8 +397,7 @@ spec:
 
 ## Websocket Config
 
-In Development, Helm's `supersetWebsockets.config` map can be copied under
-`spec.websocketServer.config`:
+In Development, Helm's `supersetWebsockets.config` map can be copied under `spec.websocketServer.config`:
 
 ```yaml
 spec:
@@ -520,17 +441,11 @@ spec:
       key: config.json
 ```
 
-The operator mounts this at `/home/superset-websocket/config.json`. When the
-referenced Secret content changes, update `spec.forceReload` to roll the
-websocket Deployment.
+The operator mounts this at `/home/superset-websocket/config.json`. When the referenced Secret content changes, update `spec.forceReload` to roll the websocket Deployment.
 
 ## Websocket Routing
 
-The Helm chart's `supersetWebsockets.ingress` injects a websocket rule alongside
-the web server. The operator does the same automatically: whenever
-`websocketServer` is present, both the Ingress and Gateway API reconcilers add a
-rule pointing at the `<superset-name>-websocket-server` Service. A bare Ingress
-host is enough:
+The Helm chart's `supersetWebsockets.ingress` injects a websocket rule alongside the web server. The operator does the same automatically: whenever `websocketServer` is present, both the Ingress and Gateway API reconcilers add a rule pointing at the `<superset-name>-websocket-server` Service. A bare Ingress host is enough:
 
 ```yaml
 spec:
@@ -544,8 +459,7 @@ spec:
         - host: superset.example.com   # fans out to every present component on its subpath
 ```
 
-The equivalent with Gateway API, plus a customized websocket path via
-`service.gatewayPath`:
+The equivalent with Gateway API, plus a customized websocket path via `service.gatewayPath`:
 
 ```yaml
 spec:
@@ -564,5 +478,4 @@ spec:
         - superset.example.com
 ```
 
-Adding explicit `hosts[].paths[]` to the Ingress turns off the per-component
-fan-out for that host and routes the listed paths to the web server only.
+Adding explicit `hosts[].paths[]` to the Ingress turns off the per-component fan-out for that host and routes the listed paths to the web server only.

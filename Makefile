@@ -268,6 +268,14 @@ lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
 lint-config: golangci-lint ## Verify golangci-lint linter configuration
 	$(GOLANGCI_LINT) config verify
 
+.PHONY: lint-md
+lint-md: rumdl ## Lint Markdown files (check only).
+	$(RUMDL) check .
+
+.PHONY: format-md
+format-md: rumdl ## Auto-fix Markdown formatting in place.
+	$(RUMDL) check --fix .
+
 .PHONY: hooks
 hooks: ## Configure git to use .githooks/ for pre-commit hooks
 	git config core.hooksPath .githooks
@@ -338,6 +346,7 @@ ENVTEST ?= $(LOCALBIN)/setup-envtest
 GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
 CRD_REF_DOCS = $(LOCALBIN)/crd-ref-docs
 GOVULNCHECK = $(LOCALBIN)/govulncheck
+RUMDL ?= $(LOCALBIN)/rumdl
 
 ## Tool Versions
 # renovate: datasource=go depName=sigs.k8s.io/kustomize/kustomize/v5
@@ -354,6 +363,8 @@ GOLANGCI_LINT_VERSION ?= v2.12.2
 CRD_REF_DOCS_VERSION ?= v0.3.0
 # renovate: datasource=go depName=golang.org/x/vuln
 GOVULNCHECK_VERSION ?= v1.5.0
+# renovate: datasource=github-releases depName=rvben/rumdl
+RUMDL_VERSION ?= v0.2.28
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
@@ -409,6 +420,31 @@ mv $(1) $(1)-$(3) ;\
 } ;\
 ln -sf $(1)-$(3) $(1)
 endef
+
+.PHONY: rumdl
+rumdl: $(RUMDL) ## Download rumdl locally if necessary.
+$(RUMDL): $(LOCALBIN)
+	@[ -f "$(RUMDL)-$(RUMDL_VERSION)" ] || { \
+	set -e ;\
+	OS=$$(go env GOOS); ARCH=$$(go env GOARCH) ;\
+	case "$$OS-$$ARCH" in \
+	  linux-amd64)  TRIPLE=x86_64-unknown-linux-gnu ;; \
+	  linux-arm64)  TRIPLE=aarch64-unknown-linux-gnu ;; \
+	  darwin-amd64) TRIPLE=x86_64-apple-darwin ;; \
+	  darwin-arm64) TRIPLE=aarch64-apple-darwin ;; \
+	  *) echo "unsupported platform $$OS-$$ARCH for rumdl"; exit 1 ;; \
+	esac ;\
+	TARBALL=rumdl-$(RUMDL_VERSION)-$$TRIPLE.tar.gz ;\
+	BASE=https://github.com/rvben/rumdl/releases/download/$(RUMDL_VERSION) ;\
+	echo "Downloading $$TARBALL" ;\
+	curl -fsSL -o "$(LOCALBIN)/$$TARBALL" "$$BASE/$$TARBALL" ;\
+	curl -fsSL -o "$(LOCALBIN)/$$TARBALL.sha256" "$$BASE/$$TARBALL.sha256" ;\
+	(cd $(LOCALBIN) && shasum -a 256 -c "$$TARBALL.sha256") ;\
+	tar -xzf "$(LOCALBIN)/$$TARBALL" -C $(LOCALBIN) rumdl ;\
+	mv $(LOCALBIN)/rumdl $(RUMDL)-$(RUMDL_VERSION) ;\
+	rm -f "$(LOCALBIN)/$$TARBALL" "$(LOCALBIN)/$$TARBALL.sha256" ;\
+	} ;\
+	ln -sf $(RUMDL)-$(RUMDL_VERSION) $(RUMDL)
 
 .PHONY: operator-sdk
 OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
