@@ -128,15 +128,23 @@ watch:
   scope: cluster
   namespaces: []
 
-# extraObjects renders additional Kubernetes manifests alongside the chart's
+# extraManifests renders additional Kubernetes manifests alongside the chart's
 # own resources. Each list entry is either a YAML object or a string; both
 # are passed through Helm's tpl function, so template expressions such as
 # {{ .Release.Namespace }} or {{ include "superset-operator.fullname" . }}
 # are resolved. Use strings when the manifest itself must contain literal
 # template syntax that only renders at install time.
 #
+# Use it for trusted, release-scoped companion resources owned by the
+# operator release — e.g. a cert-manager Certificate backing
+# metrics.certSecretName, a NetworkPolicy for the manager pod, or an
+# ExternalSecret. Do not use it for shared cluster infrastructure such as
+# Gateway API controllers, CRDs, or shared Gateways: those have their own
+# lifecycle and should not be upgraded or garbage-collected with this
+# release.
+#
 # Example:
-#   extraObjects:
+#   extraManifests:
 #     - apiVersion: v1
 #       kind: ConfigMap
 #       metadata:
@@ -150,4 +158,4 @@ watch:
 #         name: {{ include "superset-operator.fullname" . }}-extra-secret
 #       stringData:
 #         key: value
-extraObjects: []
+extraManifests: []

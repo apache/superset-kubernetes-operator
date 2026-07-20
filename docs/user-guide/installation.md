@@ -66,6 +66,10 @@ helm install superset-operator \
 
 See `charts/superset-operator/values.yaml` for all available Helm values and [Downloads](../reference/downloads.md) for published images and tag conventions.
 
+### Extra manifests
+
+The chart's `extraManifests` value renders additional Kubernetes manifests as part of the release. Each entry is passed through Helm's [`tpl` function](https://helm.sh/docs/howto/charts_tips_and_tricks/#using-the-tpl-function), so template expressions like `{{ .Release.Namespace }}` resolve at install time. Use it for trusted, release-scoped companion resources owned by the operator release — a cert-manager `Certificate` backing `metrics.certSecretName`, a `NetworkPolicy` for the manager pod, or an `ExternalSecret`. Do not use it for shared cluster infrastructure such as Gateway API controllers, CRDs, or shared Gateways — those have their own lifecycle and should not be upgraded or garbage-collected with this release. See the `extraManifests` examples in `charts/superset-operator/values.yaml` for both entry forms (YAML objects and raw strings).
+
 ### Namespace-scoped install
 
 By default the operator installs cluster-scoped (watches all namespaces and binds a `ClusterRole`). For restricted clusters that forbid cluster-scoped RBAC, or for single-tenant hardening, switch to namespace-scoped mode.

@@ -103,7 +103,7 @@
         }
       }
     },
-    "extraObjects": {
+    "extraManifests": {
       "description": "Additional Kubernetes manifests rendered with the chart. Entries are YAML objects or strings; both are passed through tpl.",
       "type": "array",
       "items": {
