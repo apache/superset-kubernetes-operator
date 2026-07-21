@@ -364,7 +364,7 @@ CRD_REF_DOCS_VERSION ?= v0.3.0
 # renovate: datasource=go depName=golang.org/x/vuln
 GOVULNCHECK_VERSION ?= v1.6.0
 # renovate: datasource=github-releases depName=rvben/rumdl
-RUMDL_VERSION ?= v0.2.33
+RUMDL_VERSION ?= v0.2.34
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
