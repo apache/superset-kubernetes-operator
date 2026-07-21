@@ -1,10 +1,16 @@
 image:
+  # -- Docker image repository for the operator manager.
   repository: ghcr.io/apache/superset-kubernetes-operator
+  # -- Image tag. Defaults to the chart's appVersion when empty.
   tag: ""  # defaults to .Chart.AppVersion
+  # -- Image pull policy.
   pullPolicy: IfNotPresent
 
+# -- Number of operator manager replicas.
 replicas: 1
 
+# -- Compute resource requests and limits for the manager container.
+# See [corev1.ResourceRequirements](https://pkg.go.dev/k8s.io/api/core/v1#ResourceRequirements).
 resources:
   limits:
     cpu: 500m
@@ -13,77 +19,65 @@ resources:
     cpu: 10m
     memory: 64Mi
 
-# resizePolicy sets the manager container's resize policy for in-place pod
-# resizes (InPlacePodVerticalScaling), e.g. resizes applied by VPA. It does
-# not change how Helm-driven `resources` updates behave: those still roll
-# the Deployment as usual.
+# -- Container resize policy for in-place pod resizes (InPlacePodVerticalScaling).
+# Does not affect how Helm-driven `resources` updates behave — those still roll the Deployment.
+# See [corev1.ContainerResizePolicy](https://pkg.go.dev/k8s.io/api/core/v1#ContainerResizePolicy).
 resizePolicy: []
 
 serviceAccount:
+  # -- Whether to create a ServiceAccount for the operator.
   create: true
+  # -- Name of the ServiceAccount to use. Auto-generated from the release name when empty.
   name: ""
+  # -- Annotations to add to the ServiceAccount.
   annotations: {}
 
 leaderElection:
+  # -- Enable leader election so only one replica is active at a time.
   enabled: true
 
-# logLevel controls the operator's log verbosity (the manager's --zap-log-level
-# flag). Leave empty for the default ("info"). Set to "debug" (alias "1") to
-# include V(1) per-reconcile progress logs, or "2" for V(2) trace-level
-# internals. See the logging policy in the developer guidelines for what each
-# level emits.
+# -- Operator log verbosity (`--zap-log-level`). Leave empty for the default (`info`).
+# Set to `debug` (alias `1`) for per-reconcile progress logs, or `2` for trace-level internals.
 logLevel: ""
 
 metrics:
+  # -- Enable the metrics endpoint.
   enabled: true
   service:
+    # -- Port the metrics Service listens on.
     port: 8443
-  # When non-empty, mount this Secret into the manager pod at
-  # /tmp/k8s-metrics-server/metrics-certs and start the manager with
-  # --metrics-cert-path so the metrics server presents a real certificate
-  # instead of the built-in self-signed one. The Secret must contain
-  # tls.crt, tls.key, and (for the scraper's CA bundle) ca.crt.
-  # Typically this is the Secret written by a cert-manager Certificate.
+  # -- Name of a Secret containing `tls.crt`, `tls.key`, and `ca.crt` to use for the metrics
+  # server instead of the built-in self-signed certificate. Typically written by cert-manager.
   certSecretName: ""
-  # serviceMonitor creates a Prometheus Operator ServiceMonitor scraping the
-  # operator's controller-runtime metrics. Requires the prometheus-operator
-  # CRDs to be installed; otherwise Helm will fail to apply this resource.
   serviceMonitor:
+    # -- Create a Prometheus Operator ServiceMonitor for the operator metrics endpoint.
+    # Requires the prometheus-operator CRDs to be installed.
     enabled: false
-    # How often Prometheus scrapes the operator metrics endpoint.
+    # -- How often Prometheus scrapes the metrics endpoint.
     interval: 30s
-    # Empty string means "inherit Prometheus' default scrape timeout".
+    # -- Scrape timeout. Empty inherits Prometheus' default.
     scrapeTimeout: ""
-    # Extra labels applied to the ServiceMonitor so Prometheus Operator
-    # selects it (e.g., {release: prometheus} for kube-prometheus-stack).
+    # -- Extra labels on the ServiceMonitor so Prometheus Operator selects it
+    # (e.g. `{release: prometheus}` for kube-prometheus-stack).
     labels: {}
-    # Free-form ServiceMonitor tlsConfig. The default trusts any cert
-    # (matches the operator's built-in self-signed flow). To scrape over
-    # real TLS, provision a cert-manager-managed Secret, set metrics.certSecretName
-    # above, and override tlsConfig with something like:
-    #   tlsConfig:
-    #     insecureSkipVerify: false
-    #     serverName: <release-name>-superset-operator-metrics.<namespace>.svc
-    #     ca:
-    #       secret:
-    #         name: metrics-server-cert
-    #         key: ca.crt
-    # The metrics endpoint authenticates scrapers via bearer token, not
-    # client cert, so cert/keySecret are unnecessary unless you've
-    # configured client-cert auth yourself.
+    # -- TLS configuration for the ServiceMonitor scrape. The default trusts any certificate,
+    # matching the operator's built-in self-signed flow. Override to scrape over verified TLS.
     tlsConfig:
       insecureSkipVerify: true
-    # Path to the token Prometheus uses to authenticate to the metrics
-    # endpoint. Default matches Prometheus Operator's in-cluster setup.
+    # -- Path to the bearer token Prometheus uses to authenticate to the metrics endpoint.
     bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
 
 healthProbes:
+  # -- Liveness probe for the manager container.
+  # See [corev1.Probe](https://pkg.go.dev/k8s.io/api/core/v1#Probe).
   livenessProbe:
     httpGet:
       path: /healthz
       port: 8081
     initialDelaySeconds: 15
     periodSeconds: 20
+  # -- Readiness probe for the manager container.
+  # See [corev1.Probe](https://pkg.go.dev/k8s.io/api/core/v1#Probe).
   readinessProbe:
     httpGet:
       path: /readyz
@@ -91,11 +85,15 @@ healthProbes:
     initialDelaySeconds: 5
     periodSeconds: 10
 
+# -- Pod-level security context for the manager pod.
+# See [corev1.PodSecurityContext](https://pkg.go.dev/k8s.io/api/core/v1#PodSecurityContext).
 podSecurityContext:
   runAsNonRoot: true
   seccompProfile:
     type: RuntimeDefault
 
+# -- Container-level security context for the manager container.
+# See [corev1.SecurityContext](https://pkg.go.dev/k8s.io/api/core/v1#SecurityContext).
 securityContext:
   allowPrivilegeEscalation: false
   capabilities:
@@ -103,65 +101,37 @@ securityContext:
       - ALL
   readOnlyRootFilesystem: true
 
+# -- Node selector for the manager pod.
 nodeSelector: {}
+# -- Tolerations for the manager pod.
+# See [corev1.Toleration](https://pkg.go.dev/k8s.io/api/core/v1#Toleration).
 tolerations: []
+# -- Affinity rules for the manager pod.
+# See [corev1.Affinity](https://pkg.go.dev/k8s.io/api/core/v1#Affinity).
 affinity: {}
 
+# -- Extra annotations to add to the manager pod.
 podAnnotations: {}
+# -- Extra labels to add to the manager pod.
 podLabels: {}
 
-# watch controls which namespaces the operator reconciles.
+# -- Namespace watch configuration.
 #
-# scope: cluster (default) — watch all namespaces. Manager RBAC is rendered
-#   as ClusterRole + ClusterRoleBinding. Requires cluster-scoped RBAC on
-#   install.
-# scope: namespaces — watch only the namespaces listed in watch.namespaces
-#   (empty list falls back to the release namespace). Manager RBAC is
-#   rendered as a Role + RoleBinding per watched namespace; no manager
-#   ClusterRole is created. Use this on restricted clusters that forbid
-#   cluster-scoped RBAC, or for single-tenant hardening.
+# `scope: cluster` (default) watches all namespaces; manager RBAC is rendered as
+# ClusterRole + ClusterRoleBinding and requires cluster-scoped RBAC on install.
 #
-# Constraints:
-# - CRD installation always requires cluster-admin, regardless of scope.
-# - Secure metrics auth still needs a cluster-scoped RBAC entry because
-#   TokenReview/SubjectAccessReview are cluster-level APIs. On clusters that
-#   forbid ClusterRole entirely, set metrics.enabled=false.
-# - Updating watch.namespaces requires `helm upgrade` and restarts the
-#   manager so the cache picks up the new list.
-# - Superset CRs created in namespaces outside watch.namespaces are not
-#   reconciled (no log, no status).
+# `scope: namespaces` watches only the namespaces listed in `watch.namespaces`
+# (falls back to the release namespace when empty); manager RBAC is rendered as
+# Role + RoleBinding per watched namespace with no manager ClusterRole.
+# Use on restricted clusters that forbid cluster-scoped RBAC.
 watch:
   scope: cluster
   namespaces: []
 
-# extraManifests renders additional Kubernetes manifests alongside the chart's
-# own resources. Each list entry is either a YAML object or a string; both
-# are passed through Helm's tpl function, so template expressions such as
-# {{ .Release.Namespace }} or {{ include "superset-operator.fullname" . }}
-# are resolved. Use strings when the manifest itself must contain literal
-# template syntax that only renders at install time.
-#
-# Use it for trusted, release-scoped companion resources owned by the
-# operator release — e.g. a cert-manager Certificate backing
-# metrics.certSecretName, a NetworkPolicy for the manager pod, or an
-# ExternalSecret. Do not use it for shared cluster infrastructure such as
-# Gateway API controllers, CRDs, or shared Gateways: those have their own
-# lifecycle and should not be upgraded or garbage-collected with this
-# release.
-#
-# Example:
-#   extraManifests:
-#     - apiVersion: v1
-#       kind: ConfigMap
-#       metadata:
-#         name: '{{ include "superset-operator.fullname" . }}-extra'
-#       data:
-#         namespace: '{{ .Release.Namespace }}'
-#     - |
-#       apiVersion: v1
-#       kind: Secret
-#       metadata:
-#         name: {{ include "superset-operator.fullname" . }}-extra-secret
-#       stringData:
-#         key: value
+# -- Additional Kubernetes manifests rendered alongside the chart's own resources.
+# Each entry is a YAML object or a string; both are passed through Helm's `tpl` function
+# so template expressions such as `{{ .Release.Namespace }}` are resolved.
+# Use for release-scoped companion resources (e.g. a cert-manager Certificate, NetworkPolicy,
+# or ExternalSecret). Do not use for shared cluster infrastructure such as Gateway controllers,
+# CRDs, or shared Gateways — those have their own lifecycle.
 extraManifests: []

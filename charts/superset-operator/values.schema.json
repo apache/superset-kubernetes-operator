@@ -23,9 +23,12 @@
       }
     },
     "replicas": { "type": "integer", "minimum": 0 },
-    "resources": { "type": "object" },
+    "resources": {
+      "description": "Compute resource requests and limits for the manager container. See https://pkg.go.dev/k8s.io/api/core/v1#ResourceRequirements",
+      "type": "object"
+    },
     "resizePolicy": {
-      "description": "Container resizePolicy for in-place resource resizes (InPlacePodVerticalScaling).",
+      "description": "Container resizePolicy for in-place resource resizes (InPlacePodVerticalScaling). See https://pkg.go.dev/k8s.io/api/core/v1#ContainerResizePolicy",
       "type": "array",
       "items": {
         "type": "object",
@@ -91,15 +94,36 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "livenessProbe": { "type": "object" },
-        "readinessProbe": { "type": "object" }
+        "livenessProbe": {
+          "description": "Liveness probe for the manager container. See https://pkg.go.dev/k8s.io/api/core/v1#Probe",
+          "type": "object"
+        },
+        "readinessProbe": {
+          "description": "Readiness probe for the manager container. See https://pkg.go.dev/k8s.io/api/core/v1#Probe",
+          "type": "object"
+        }
       }
     },
-    "podSecurityContext": { "type": "object" },
-    "securityContext": { "type": "object" },
-    "nodeSelector": { "type": "object" },
-    "tolerations": { "type": "array" },
-    "affinity": { "type": "object" },
+    "podSecurityContext": {
+      "description": "Pod-level security context for the manager pod. See https://pkg.go.dev/k8s.io/api/core/v1#PodSecurityContext",
+      "type": "object"
+    },
+    "securityContext": {
+      "description": "Container-level security context for the manager container. See https://pkg.go.dev/k8s.io/api/core/v1#SecurityContext",
+      "type": "object"
+    },
+    "nodeSelector": {
+      "description": "Node label selector for the manager pod.",
+      "type": "object"
+    },
+    "tolerations": {
+      "description": "Tolerations for the manager pod. See https://pkg.go.dev/k8s.io/api/core/v1#Toleration",
+      "type": "array"
+    },
+    "affinity": {
+      "description": "Affinity rules for the manager pod. See https://pkg.go.dev/k8s.io/api/core/v1#Affinity",
+      "type": "object"
+    },
     "podAnnotations": { "type": "object" },
     "podLabels": { "type": "object" },
     "watch": {

@@ -166,6 +166,10 @@ helm-sync-crds: ## Sync generated CRDs into the Helm chart.
 	mkdir -p $(HELM_CHART_DIR)/crds
 	cp config/crd/bases/*.yaml $(HELM_CHART_DIR)/crds/
 
+.PHONY: helm-docs
+helm-docs: helm-docs-tool ## Generate Helm chart README from values.yaml annotations.
+	$(HELM_DOCS) --chart-search-root=charts
+
 .PHONY: helm
 helm: manifests helm-sync-crds ## Sync CRDs into Helm chart and package it. The chart `appVersion` is derived from VERSION at package time.
 	helm package $(HELM_CHART_DIR) --app-version $(VERSION)
@@ -177,7 +181,7 @@ helm-lint: helm-sync-crds ## Lint the Helm chart (syncs CRDs first).
 ##@ Development
 
 .PHONY: codegen
-codegen: manifests generate helm-sync-crds docs-api supported-versions make-commands ## Regenerate all generated artifacts (CRDs, DeepCopy, Helm CRDs, API docs, supported-versions table, make-commands tables).
+codegen: manifests generate helm-sync-crds helm-docs docs-api supported-versions make-commands ## Regenerate all generated artifacts (CRDs, DeepCopy, Helm CRDs, chart README, API docs, supported-versions table, make-commands tables).
 
 .PHONY: clean
 clean: ## Remove build artifacts, downloaded tools, and test cache.
@@ -347,6 +351,7 @@ GOLANGCI_LINT = $(LOCALBIN)/golangci-lint
 CRD_REF_DOCS = $(LOCALBIN)/crd-ref-docs
 GOVULNCHECK = $(LOCALBIN)/govulncheck
 RUMDL ?= $(LOCALBIN)/rumdl
+HELM_DOCS ?= $(LOCALBIN)/helm-docs
 
 ## Tool Versions
 # renovate: datasource=go depName=sigs.k8s.io/kustomize/kustomize/v5
@@ -365,6 +370,8 @@ CRD_REF_DOCS_VERSION ?= v0.3.0
 GOVULNCHECK_VERSION ?= v1.6.0
 # renovate: datasource=github-releases depName=rvben/rumdl
 RUMDL_VERSION ?= v0.2.34
+# renovate: datasource=go depName=github.com/norwoodj/helm-docs
+HELM_DOCS_VERSION ?= v1.14.2
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
@@ -445,6 +452,12 @@ $(RUMDL): $(LOCALBIN)
 	rm -f "$(LOCALBIN)/$$TARBALL" "$(LOCALBIN)/$$TARBALL.sha256" ;\
 	} ;\
 	ln -sf $(RUMDL)-$(RUMDL_VERSION) $(RUMDL)
+
+$(HELM_DOCS): $(LOCALBIN)
+	$(call go-install-tool,$(HELM_DOCS),github.com/norwoodj/helm-docs/cmd/helm-docs,$(HELM_DOCS_VERSION))
+
+.PHONY: helm-docs-tool
+helm-docs-tool: $(HELM_DOCS)
 
 .PHONY: operator-sdk
 OPERATOR_SDK ?= $(LOCALBIN)/operator-sdk
