@@ -24,6 +24,19 @@
     },
     "replicas": { "type": "integer", "minimum": 0 },
     "resources": { "type": "object" },
+    "resizePolicy": {
+      "description": "Container resizePolicy for in-place resource resizes (InPlacePodVerticalScaling).",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "resourceName": { "type": "string", "enum": ["cpu", "memory"] },
+          "restartPolicy": { "type": "string", "enum": ["NotRequired", "RestartContainer"] }
+        },
+        "required": ["resourceName", "restartPolicy"]
+      }
+    },
     "serviceAccount": {
       "type": "object",
       "additionalProperties": false,

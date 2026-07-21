@@ -13,6 +13,12 @@ resources:
     cpu: 10m
     memory: 64Mi
 
+# resizePolicy sets the manager container's resize policy for in-place pod
+# resizes (InPlacePodVerticalScaling), e.g. resizes applied by VPA. It does
+# not change how Helm-driven `resources` updates behave: those still roll
+# the Deployment as usual.
+resizePolicy: []
+
 serviceAccount:
   create: true
   name: ""

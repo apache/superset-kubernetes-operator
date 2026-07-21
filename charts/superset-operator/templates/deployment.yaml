@@ -87,6 +87,10 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- with .Values.resizePolicy }}
+          resizePolicy:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- if and .Values.metrics.enabled .Values.metrics.certSecretName }}
           volumeMounts:
             - name: metrics-certs
