@@ -93,6 +93,9 @@ jobs:
       - name: Install Helm
         run: bash scripts/install-helm.sh
 
+      - name: Install ORAS
+        run: bash scripts/install-oras.sh
+
       - name: Set chart version for release tags
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
@@ -109,6 +112,13 @@ jobs:
       - name: Push Helm chart to GHCR OCI
         run: |
           helm push superset-operator-*.tgz ${{ env.HELM_REGISTRY }}
+
+      - name: Push Artifact Hub repository metadata
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io --username "${{ github.actor }}" --password-stdin
+          oras push ghcr.io/apache/superset-kubernetes-operator/charts/superset-operator:artifacthub.io \
+            --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
+            charts/superset-operator/artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
 
       - name: Sign Helm chart with cosign
         run: |

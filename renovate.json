@@ -58,6 +58,15 @@
       "matchStrings": [
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( versioning=(?<versioning>\\S+))?\\s+\\S+_VERSION \\?= (?<currentValue>\\S+)"
       ]
+    },
+    {
+      "customType": "regex",
+      "description": "Track hand-pinned GitHub release helper binaries in install scripts",
+      "managerFilePatterns": ["/^scripts\\/install-[a-z0-9-]+\\.sh$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( versioning=(?<versioning>\\S+))?\\s+\\S+_VERSION=\"\\$\\{\\S+_VERSION:-(?<currentValue>[^\\\"]+)\\}\"[\\s\\S]*?\\S+_SHA256=\"\\$\\{\\S+_SHA256:-(?<currentDigest>[a-f0-9]+)\\}\""
+      ],
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver-coerced{{/if}}"
     }
   ]
 }

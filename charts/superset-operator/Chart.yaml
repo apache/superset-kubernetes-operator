@@ -1,27 +1,54 @@
 apiVersion: v2
 name: superset-operator
-description: Kubernetes operator for deploying and managing Apache Superset
+description: The official Helm chart for deploying and managing Apache Superset with the Superset Kubernetes Operator
 type: application
 version: 0.0.0-dev
 appVersion: "dev"
-home: https://github.com/apache/superset-kubernetes-operator
-icon: https://superset.apache.org/img/superset-logo-horiz.svg
+home: https://apache.github.io/superset-kubernetes-operator/
+icon: https://superset.apache.org/img/superset-logo-icon-only.png
 sources:
   - https://github.com/apache/superset-kubernetes-operator
 maintainers:
   - name: Apache Superset
+    email: dev@superset.apache.org
     url: https://superset.apache.org/
 keywords:
+  - apache
   - superset
   - operator
   - kubernetes
   - analytics
-  - bi
+  - business-intelligence
+  - dashboard
 annotations:
   artifacthub.io/license: Apache-2.0
   artifacthub.io/operator: "true"
+  artifacthub.io/operatorCapabilities: full lifecycle
+  artifacthub.io/crds: |
+    - kind: Superset
+      version: v1alpha1
+      name: supersets.superset.apache.org
+      displayName: Superset
+      description: Declarative Apache Superset deployment managed by the Superset Kubernetes Operator.
+  artifacthub.io/crdsExamples: |
+    - apiVersion: superset.apache.org/v1alpha1
+      kind: Superset
+      metadata:
+        name: superset
+      spec:
+        secretKeyFrom:
+          name: superset-secret
+          key: secret-key
+        metastore:
+          uriFrom:
+            name: superset-db
+            key: connection-string
+        webServer: {}
+        lifecycle: {}
   artifacthub.io/links: |
     - name: Documentation
       url: https://apache.github.io/superset-kubernetes-operator/
     - name: Source
       url: https://github.com/apache/superset-kubernetes-operator
+    - name: support
+      url: https://github.com/apache/superset-kubernetes-operator/issues
