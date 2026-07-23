@@ -24,7 +24,7 @@ This guide covers installing the operator and deploying a Superset instance in p
 ## Prerequisites
 
 - Kubernetes cluster (see [Supported versions](#supported-kubernetes-versions))
-- Helm 3 (for Helm-based installation) or `kubectl` + `kustomize`
+- Helm 4 (for Helm-based installation) or `kubectl` + `kustomize`
 - PostgreSQL or MySQL database
 - (Optional) [Valkey](https://valkey.io/) (or Redis) — required when enabling caching, Celery task broker, or result backend
 - (Optional) [Gateway API CRDs](https://gateway-api.sigs.k8s.io/guides/#installing-gateway-api) for HTTPRoute support — not included in Kubernetes, must be installed separately
