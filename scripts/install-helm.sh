@@ -19,7 +19,7 @@ set -euo pipefail
 # renovate: datasource=github-releases depName=helm/helm
 HELM_VERSION="${HELM_VERSION:-v4.2.3}"
 HELM_PLATFORM="${HELM_PLATFORM:-linux-amd64}"
-HELM_SHA256="${HELM_SHA256:-e9b88b4ee95b18c706839c28d3a0220e5bc470e9cd9262410c90793c45ff8b7c}"
+HELM_SHA256="${HELM_SHA256:-43e8b7feece8beb0fcba47059ec9b522fd929a64}"
 
 archive="helm-${HELM_VERSION}-${HELM_PLATFORM}.tar.gz"
 url="https://get.helm.sh/${archive}"
