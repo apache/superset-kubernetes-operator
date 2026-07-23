@@ -1,5 +1,170 @@
-renders the default manifests:
+renders the default install manifests:
   1: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      labels:
+        app.kubernetes.io/instance: my-release
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/version: 1.0.0
+        control-plane: controller-manager
+        helm.sh/chart: superset-operator-1.0.0
+      name: my-release-superset-operator-manager
+    rules:
+      - apiGroups:
+          - ""
+        resources:
+          - configmaps
+          - serviceaccounts
+          - services
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ""
+        resources:
+          - pods
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - apps
+        resources:
+          - deployments
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - autoscaling
+        resources:
+          - horizontalpodautoscalers
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - batch
+        resources:
+          - jobs
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - events.k8s.io
+        resources:
+          - events
+        verbs:
+          - create
+          - patch
+          - update
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - httproutes
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - monitoring.coreos.com
+        resources:
+          - servicemonitors
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - networking.k8s.io
+        resources:
+          - ingresses
+          - networkpolicies
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - policy
+        resources:
+          - poddisruptionbudgets
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - superset.apache.org
+        resources:
+          - supersets/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - superset.apache.org
+        resources:
+          - supersets
+        verbs:
+          - get
+          - list
+          - patch
+          - watch
+  2: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      labels:
+        app.kubernetes.io/instance: my-release
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/version: 1.0.0
+        control-plane: controller-manager
+        helm.sh/chart: superset-operator-1.0.0
+      name: my-release-superset-operator-manager
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: my-release-superset-operator-manager
+    subjects:
+      - kind: ServiceAccount
+        name: my-release-superset-operator
+        namespace: my-namespace
+  3: |
     apiVersion: apps/v1
     kind: Deployment
     metadata:
@@ -69,7 +234,158 @@ renders the default manifests:
               type: RuntimeDefault
           serviceAccountName: my-release-superset-operator
           terminationGracePeriodSeconds: 10
-  2: |
+  4: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      labels:
+        app.kubernetes.io/instance: my-release
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/version: 1.0.0
+        control-plane: controller-manager
+        helm.sh/chart: superset-operator-1.0.0
+      name: my-release-superset-operator-leader-election
+      namespace: my-namespace
+    rules:
+      - apiGroups:
+          - ""
+        resources:
+          - configmaps
+        verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+      - apiGroups:
+          - coordination.k8s.io
+        resources:
+          - leases
+        verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+      - apiGroups:
+          - ""
+        resources:
+          - events
+        verbs:
+          - create
+          - patch
+  5: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata:
+      labels:
+        app.kubernetes.io/instance: my-release
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/version: 1.0.0
+        control-plane: controller-manager
+        helm.sh/chart: superset-operator-1.0.0
+      name: my-release-superset-operator-leader-election
+      namespace: my-namespace
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: Role
+      name: my-release-superset-operator-leader-election
+    subjects:
+      - kind: ServiceAccount
+        name: my-release-superset-operator
+        namespace: my-namespace
+  6: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      labels:
+        app.kubernetes.io/instance: my-release
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/version: 1.0.0
+        control-plane: controller-manager
+        helm.sh/chart: superset-operator-1.0.0
+      name: my-release-superset-operator-metrics-auth
+    rules:
+      - apiGroups:
+          - authentication.k8s.io
+        resources:
+          - tokenreviews
+        verbs:
+          - create
+      - apiGroups:
+          - authorization.k8s.io
+        resources:
+          - subjectaccessreviews
+        verbs:
+          - create
+  7: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRoleBinding
+    metadata:
+      labels:
+        app.kubernetes.io/instance: my-release
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/version: 1.0.0
+        control-plane: controller-manager
+        helm.sh/chart: superset-operator-1.0.0
+      name: my-release-superset-operator-metrics-auth
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: my-release-superset-operator-metrics-auth
+    subjects:
+      - kind: ServiceAccount
+        name: my-release-superset-operator
+        namespace: my-namespace
+  8: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      labels:
+        app.kubernetes.io/instance: my-release
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/version: 1.0.0
+        control-plane: controller-manager
+        helm.sh/chart: superset-operator-1.0.0
+      name: my-release-superset-operator-metrics-reader
+    rules:
+      - nonResourceURLs:
+          - /metrics
+        verbs:
+          - get
+  9: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      labels:
+        app.kubernetes.io/instance: my-release
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/version: 1.0.0
+        control-plane: controller-manager
+        helm.sh/chart: superset-operator-1.0.0
+      name: my-release-superset-operator-metrics
+      namespace: my-namespace
+    spec:
+      ports:
+        - name: https
+          port: 8443
+          protocol: TCP
+          targetPort: 8443
+      selector:
+        app.kubernetes.io/instance: my-release
+        app.kubernetes.io/name: superset-operator
+        control-plane: controller-manager
+  10: |
     apiVersion: v1
     kind: ServiceAccount
     metadata:

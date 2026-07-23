@@ -13,20 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Stripped-down happy path: render with default values.yaml. One broad test
-# snapshots the rendered manifests and asserts the default conditional wiring
-# (cluster-scoped RBAC on, namespaced RBAC and ServiceMonitor off).
+# Stripped-down happy path: a full-render golden snapshot of a default
+# `helm install`. With no `templates:` restriction, the whole chart is rendered,
+# so the snapshot captures every manifest a minimal install deploys (Deployment,
+# ServiceAccount, cluster-scoped manager RBAC, leader-election RBAC, metrics
+# Service + auth RBAC). Any change to any rendered resource — including ones this
+# file never mentions, and templates added to the chart later — shows up as a
+# snapshot diff. Regenerate intended changes with `helm unittest -u`.
 suite: minimal (default values)
-templates:
-  - templates/deployment.yaml
-  - templates/serviceaccount.yaml
-  - templates/clusterrole.yaml
-  - templates/clusterrolebinding.yaml
-  - templates/role.yaml
-  - templates/rolebinding.yaml
-  - templates/metrics-service.yaml
-  - templates/metrics-rbac.yaml
-  - templates/metrics-servicemonitor.yaml
 # Pin chart/release identity so snapshots are stable across chart version bumps.
 chart:
   version: 1.0.0
@@ -35,49 +29,6 @@ release:
   name: my-release
   namespace: my-namespace
 tests:
-  - it: renders the default manifests
+  - it: renders the default install manifests
     asserts:
-      # Manager Deployment: image tag falls back to appVersion, metrics on the
-      # default port, and no WATCH_NAMESPACE env (default watch.scope is cluster).
-      - equal:
-          path: spec.replicas
-          value: 1
-        template: templates/deployment.yaml
-      - matchRegex:
-          path: spec.template.spec.containers[0].image
-          pattern: ^ghcr\.io/apache/superset-kubernetes-operator:1\.0\.0$
-        template: templates/deployment.yaml
-      - contains:
-          path: spec.template.spec.containers[0].args
-          content: --metrics-bind-address=:8443
-        template: templates/deployment.yaml
-      - notExists:
-          path: spec.template.spec.containers[0].env
-        template: templates/deployment.yaml
       - matchSnapshot: {}
-        template: templates/deployment.yaml
-      - matchSnapshot: {}
-        template: templates/serviceaccount.yaml
-      # Default watch.scope: cluster -> cluster-scoped RBAC, no namespaced RBAC.
-      - isKind:
-          of: ClusterRole
-        template: templates/clusterrole.yaml
-      - isKind:
-          of: ClusterRoleBinding
-        template: templates/clusterrolebinding.yaml
-      - hasDocuments:
-          count: 0
-        template: templates/role.yaml
-      - hasDocuments:
-          count: 0
-        template: templates/rolebinding.yaml
-      # Metrics on by default (Service + auth RBAC), ServiceMonitor off.
-      - isKind:
-          of: Service
-        template: templates/metrics-service.yaml
-      - hasDocuments:
-          count: 3
-        template: templates/metrics-rbac.yaml
-      - hasDocuments:
-          count: 0
-        template: templates/metrics-servicemonitor.yaml

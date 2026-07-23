@@ -13,23 +13,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Comprehensive happy path: render with every knob set (tests/values/full-options.yaml,
-# coverage enforced by scripts/check-chart-values-covered.sh). One broad test
-# snapshots the rendered manifests and asserts the invariants a snapshot alone
-# doesn't make obvious (namespace-scoped RBAC, WATCH_NAMESPACE CSV, cert mounts).
+# Comprehensive happy path: a full-render golden snapshot of an install with
+# every knob set (tests/values/full-options.yaml; coverage that every knob is
+# exercised is enforced by scripts/check-chart-values-covered.sh). With no
+# `templates:` restriction, the whole chart is rendered, so the snapshot captures
+# everything this configuration deploys — namespace-scoped RBAC, ServiceMonitor,
+# cert volumes, extra manifests, and the rest. Regenerate intended changes with
+# `helm unittest -u`.
 suite: full options
-templates:
-  - templates/deployment.yaml
-  - templates/serviceaccount.yaml
-  - templates/clusterrole.yaml
-  - templates/clusterrolebinding.yaml
-  - templates/role.yaml
-  - templates/rolebinding.yaml
-  - templates/metrics-service.yaml
-  - templates/metrics-servicemonitor.yaml
-  - templates/extra-manifests.yaml
 values:
   - values/full-options.yaml
+# Pin chart/release identity so snapshots are stable across chart version bumps.
 chart:
   version: 1.0.0
   appVersion: 1.0.0
@@ -37,81 +31,6 @@ release:
   name: my-release
   namespace: my-namespace
 tests:
-  - it: renders all configured options
+  - it: renders the full install manifests
     asserts:
-      # Manager Deployment: overrides, new knobs, namespace-scoped env, cert mounts.
-      - equal:
-          path: spec.replicas
-          value: 2
-        template: templates/deployment.yaml
-      - equal:
-          path: spec.revisionHistoryLimit
-          value: 5
-        template: templates/deployment.yaml
-      - equal:
-          path: spec.template.spec.containers[0].image
-          value: example.com/superset/superset-operator:v9.9.9-test
-        template: templates/deployment.yaml
-      - contains:
-          path: spec.template.spec.containers[0].args
-          content: --zap-log-level=debug
-        template: templates/deployment.yaml
-      - contains:
-          path: spec.template.spec.containers[0].args
-          content: --metrics-cert-path=/tmp/k8s-metrics-server/metrics-certs
-        template: templates/deployment.yaml
-      # watch.scope: namespaces injects the WATCH_NAMESPACE env as a sorted CSV.
-      - equal:
-          path: spec.template.spec.containers[0].env[?(@.name=="WATCH_NAMESPACE")].value
-          value: team-a,team-b
-        template: templates/deployment.yaml
-      - contains:
-          path: spec.template.spec.containers[0].volumeMounts
-          content:
-            name: metrics-certs
-            mountPath: /tmp/k8s-metrics-server/metrics-certs
-            readOnly: true
-        template: templates/deployment.yaml
-      - equal:
-          path: spec.template.spec.serviceAccountName
-          value: superset-operator-custom-sa
-        template: templates/deployment.yaml
-      - exists:
-          path: spec.template.spec.topologySpreadConstraints
-        template: templates/deployment.yaml
       - matchSnapshot: {}
-        template: templates/deployment.yaml
-      # watch.scope: namespaces -> one Role/RoleBinding per namespace, no cluster RBAC.
-      - hasDocuments:
-          count: 2
-        template: templates/role.yaml
-      - hasDocuments:
-          count: 2
-        template: templates/rolebinding.yaml
-      - hasDocuments:
-          count: 0
-        template: templates/clusterrole.yaml
-      - hasDocuments:
-          count: 0
-        template: templates/clusterrolebinding.yaml
-      - matchSnapshot: {}
-        template: templates/role.yaml
-      # ServiceAccount created with the configured name.
-      - matchSnapshot: {}
-        template: templates/serviceaccount.yaml
-      # Metrics Service on the configured port; ServiceMonitor rendered.
-      - equal:
-          path: spec.ports[0].port
-          value: 9443
-        template: templates/metrics-service.yaml
-      - isKind:
-          of: ServiceMonitor
-        template: templates/metrics-servicemonitor.yaml
-      - matchSnapshot: {}
-        template: templates/metrics-servicemonitor.yaml
-      # Extra manifests: string form (tpl-resolved) + object form.
-      - hasDocuments:
-          count: 2
-        template: templates/extra-manifests.yaml
-      - matchSnapshot: {}
-        template: templates/extra-manifests.yaml
