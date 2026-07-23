@@ -77,6 +77,8 @@ While the project is pre-1.0, all versions use `0.x.y` to signal instability per
 
 The release workflow (`.github/workflows/release.yml`) builds multi-platform images and pushes them to GHCR. It runs automatically on pushes to `main` (producing `dev` and `sha-<commit>` tags) and on version tags (producing semver tags). It can also be triggered manually via `workflow_dispatch`.
 
+For **version tags**, publishing is gated: a preflight job (`scripts/verify-release-ci.sh`) waits for the branch-protection required status checks — the same set `main` enforces, read from `.asf.yaml` — to pass on the tagged commit, and fails the release if any didn't. Release branches run the same CI as `main`, so the tagged commit (the release-branch HEAD) already carries those check runs. Push the release branch and let its CI go green **before** pushing the tag, so the gate confirms quickly rather than waiting. Pushes to `main` and `workflow_dispatch` runs (throwaway `dev`/`sha-` images) are not gated.
+
 **Image tagging:**
 
 | Trigger | Image tag | Example |
@@ -129,8 +131,12 @@ scripts/release-rc.sh 0.2.0 --expect-rc 1
 # Build and verify signed source artifacts before pushing anything.
 scripts/release-source.sh
 
-# Push branch + tag to trigger the release workflow after source verification.
-git push origin 0.2 v0.2.0-rc1
+# Push the release branch first and wait for its CI to go green (release
+# branches run the full suite). Then push the tag — the release workflow gates
+# publishing on those required checks passing for the tagged commit.
+git push origin 0.2
+# ... wait for CI on the 0.2 branch to complete successfully ...
+git push origin v0.2.0-rc1
 ```
 
 Running the script again from the same release branch increments the RC number automatically (rc1, rc2, ...).
@@ -208,6 +214,8 @@ scripts/release-email.sh result > dist/0.2.0-rc1/RESULT.txt
 ## Finalizing a Release
 
 After the ASF vote passes, the `scripts/release-finalize.sh` script tags the final release on the same commit as the voted RC. Do not commit changelog date updates or other polish before finalizing; those changes were not part of the voted source release.
+
+Because the final tag points at the already-tested RC commit, the release workflow's CI gate is satisfied immediately from the checks that ran for the RC.
 
 ```sh
 # From the 0.2 branch

@@ -29,8 +29,31 @@ permissions:
   contents: read
 
 jobs:
+  # Gate: for release tags, refuse to publish unless the branch-protection
+  # required status checks all passed on the tagged commit. Release branches run
+  # the same CI as main, so the commit already carries those check runs. A no-op
+  # for main / workflow_dispatch (throwaway dev images).
+  preflight:
+    name: Verify CI passed
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install yq
+        run: bash scripts/install-yq.sh
+      - name: Verify required checks passed for this commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash scripts/verify-release-ci.sh
+
   release:
     name: Build and publish image
+    needs: preflight
     runs-on: ubuntu-latest
     permissions:
       contents: read
