@@ -196,6 +196,29 @@ Each target seeds a corpus with `f.Add(...)` cases and asserts an invariant beyo
 
 **On a finding:** `go test` writes a reproducer to `testdata/fuzz/<target>/<id>`. Commit it as a permanent regression seed, then fix the bug.
 
+### Helm chart tests
+
+The Helm chart (`charts/superset-operator/`) has its own [helm-unittest](https://github.com/helm-unittest/helm-unittest) suite under `charts/superset-operator/tests/`. It renders the chart with different values and asserts on the output — the same "assert on observable outputs" principle as the Go tests, applied to rendered manifests. CI runs it in the `Helm lint & test` job.
+
+Install the tooling once (the plugin binary is pinned; `yq` is only needed for the coverage gate):
+
+```sh
+bash scripts/install-helm-unittest.sh
+bash scripts/install-yq.sh   # or: brew install yq
+```
+
+Run locally:
+
+```sh
+make helm-test              # run the chart unit tests
+helm unittest -u charts/superset-operator   # update snapshots after an intended change
+make helm-values-covered    # verify every values.yaml knob is exercised
+```
+
+Two scenarios anchor the suite: `minimal_test.yaml` renders the chart with default `values.yaml`, and `full_options_test.yaml` renders it with every knob set via `tests/values/full-options.yaml`. Both capture a full-render **snapshot** (stored in `tests/__snapshot__/`) plus targeted assertions for invariants that must never silently change (watch-scope RBAC, `WATCH_NAMESPACE`, ServiceAccount create-vs-BYO, metrics wiring). Chart/release identity is pinned in each suite so snapshots are stable across chart version bumps.
+
+**Any change to the chart — especially a new values knob or feature — must be exercised in `tests/values/full-options.yaml` and its rendered effect captured in the snapshot (`helm unittest -u`).** This is enforced: `make helm-values-covered` (`scripts/check-chart-values-covered.sh`) fails CI when a `values.yaml` key is not set in the comprehensive values file. It closes the gap a snapshot alone cannot — a knob that defaults to null and renders nothing under defaults would otherwise leave both suites green. The gate keys off `values.yaml`, so a template that reads an *undocumented* `.Values.x` is not caught by it; that already violates the chart's documented-values contract (the README is generated from `values.yaml` via helm-docs) and is expected to be caught in review.
+
 ---
 
 ## License Headers

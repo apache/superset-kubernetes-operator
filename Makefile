@@ -178,6 +178,14 @@ helm: manifests helm-sync-crds ## Sync CRDs into Helm chart and package it. The 
 helm-lint: helm-sync-crds ## Lint the Helm chart (syncs CRDs first).
 	helm lint $(HELM_CHART_DIR)
 
+.PHONY: helm-test
+helm-test: ## Run the Helm chart unit tests (requires the helm-unittest plugin; see scripts/install-helm-unittest.sh).
+	helm unittest $(HELM_CHART_DIR)
+
+.PHONY: helm-values-covered
+helm-values-covered: ## Verify every values.yaml knob is exercised by the comprehensive chart test.
+	CHART_DIR=$(HELM_CHART_DIR) ./scripts/check-chart-values-covered.sh
+
 ##@ Development
 
 .PHONY: codegen

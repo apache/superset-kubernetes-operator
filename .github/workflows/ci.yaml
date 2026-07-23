@@ -128,7 +128,7 @@ jobs:
         run: ./scripts/validate-actions.sh
 
   helm-lint:
-    name: Helm lint
+    name: Helm lint & test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -139,5 +139,13 @@ jobs:
           go-version-file: go.mod
       - name: Install Helm
         run: bash scripts/install-helm.sh
+      - name: Install helm-unittest plugin
+        run: bash scripts/install-helm-unittest.sh
+      - name: Install yq
+        run: bash scripts/install-yq.sh
       - name: Lint Helm chart
         run: make helm-lint
+      - name: Run Helm chart unit tests
+        run: make helm-test
+      - name: Verify chart test value coverage
+        run: make helm-values-covered

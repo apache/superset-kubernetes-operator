@@ -1,0 +1,125 @@
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Happy-path render with default values (values.yaml as-is). Asserts the
+# resources that render out of the box, plus a full-render snapshot per template.
+suite: minimal (default values)
+templates:
+  - templates/deployment.yaml
+  - templates/serviceaccount.yaml
+  - templates/clusterrole.yaml
+  - templates/clusterrolebinding.yaml
+  - templates/role.yaml
+  - templates/rolebinding.yaml
+  - templates/metrics-service.yaml
+  - templates/metrics-rbac.yaml
+  - templates/metrics-servicemonitor.yaml
+# Pin chart/release identity so snapshots are stable across chart version bumps.
+chart:
+  version: 1.0.0
+  appVersion: 1.0.0
+release:
+  name: my-release
+  namespace: my-namespace
+tests:
+  - it: renders the manager Deployment with defaults
+    template: templates/deployment.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: spec.replicas
+          value: 1
+      - equal:
+          path: spec.template.spec.containers[0].name
+          value: manager
+      - matchRegex:
+          path: spec.template.spec.containers[0].image
+          pattern: ^ghcr\.io/apache/superset-kubernetes-operator:1\.0\.0$
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --leader-elect=true
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --metrics-bind-address=:8443
+      # Default watch.scope is "cluster", so no WATCH_NAMESPACE env is injected.
+      - notExists:
+          path: spec.template.spec.containers[0].env
+      - matchSnapshot: {}
+
+  - it: applies the standard chart labels
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm
+      - equal:
+          path: metadata.labels["helm.sh/chart"]
+          value: superset-operator-1.0.0
+
+  - it: creates a ServiceAccount by default
+    template: templates/serviceaccount.yaml
+    asserts:
+      - isKind:
+          of: ServiceAccount
+      - matchSnapshot: {}
+
+  - it: renders cluster-scoped manager RBAC by default
+    asserts:
+      - isKind:
+          of: ClusterRole
+        template: templates/clusterrole.yaml
+      - isKind:
+          of: ClusterRoleBinding
+        template: templates/clusterrolebinding.yaml
+
+  - it: contains the supersets management rule in the ClusterRole
+    template: templates/clusterrole.yaml
+    asserts:
+      - contains:
+          path: rules
+          content:
+            apiGroups: [superset.apache.org]
+            resources: [supersets]
+            verbs: [get, list, patch, watch]
+
+  - it: does not render namespaced Roles or RoleBindings by default
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/role.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/rolebinding.yaml
+
+  - it: renders the metrics Service and auth RBAC by default
+    asserts:
+      - isKind:
+          of: Service
+        template: templates/metrics-service.yaml
+      - equal:
+          path: spec.ports[0].port
+          value: 8443
+        template: templates/metrics-service.yaml
+      # metrics-rbac.yaml renders ClusterRole + ClusterRoleBinding + reader ClusterRole.
+      - hasDocuments:
+          count: 3
+        template: templates/metrics-rbac.yaml
+
+  - it: does not render a ServiceMonitor by default
+    template: templates/metrics-servicemonitor.yaml
+    asserts:
+      - hasDocuments:
+          count: 0

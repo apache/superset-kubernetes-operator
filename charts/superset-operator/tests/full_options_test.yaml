@@ -1,0 +1,172 @@
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Happy-path render with the full suite of options exercised
+# (tests/values/full-options.yaml). Every knob in values.yaml is set there and
+# that coverage is enforced by scripts/check-chart-values-covered.sh.
+suite: full options
+templates:
+  - templates/deployment.yaml
+  - templates/serviceaccount.yaml
+  - templates/clusterrole.yaml
+  - templates/clusterrolebinding.yaml
+  - templates/role.yaml
+  - templates/rolebinding.yaml
+  - templates/metrics-service.yaml
+  - templates/metrics-servicemonitor.yaml
+  - templates/extra-manifests.yaml
+values:
+  - values/full-options.yaml
+chart:
+  version: 1.0.0
+  appVersion: 1.0.0
+release:
+  name: my-release
+  namespace: my-namespace
+tests:
+  - it: renders the manager Deployment with all options applied
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: example.com/superset/superset-operator:v9.9.9-test
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --zap-log-level=debug
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --metrics-bind-address=:9443
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --metrics-cert-path=/tmp/k8s-metrics-server/metrics-certs
+      # watch.scope: namespaces injects the WATCH_NAMESPACE env as a sorted CSV.
+      - equal:
+          path: spec.template.spec.containers[0].env[?(@.name=="WATCH_NAMESPACE")].value
+          value: team-a,team-b
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: metrics-certs
+            mountPath: /tmp/k8s-metrics-server/metrics-certs
+            readOnly: true
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: metrics-certs
+          any: true
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/scrape"]
+          value: "false"
+      - equal:
+          path: spec.template.metadata.labels.team
+          value: platform
+      - equal:
+          path: spec.template.spec.nodeSelector["kubernetes.io/os"]
+          value: linux
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: superset-operator-custom-sa
+      - matchSnapshot: {}
+
+  - it: renders one namespaced Role and RoleBinding per watched namespace
+    asserts:
+      - hasDocuments:
+          count: 2
+        template: templates/role.yaml
+      - isKind:
+          of: Role
+        template: templates/role.yaml
+        documentIndex: 0
+      - equal:
+          path: metadata.namespace
+          value: team-a
+        template: templates/role.yaml
+        documentIndex: 0
+      - equal:
+          path: metadata.namespace
+          value: team-b
+        template: templates/role.yaml
+        documentIndex: 1
+      - hasDocuments:
+          count: 2
+        template: templates/rolebinding.yaml
+      - matchSnapshot: {}
+        template: templates/role.yaml
+
+  - it: does not render cluster-scoped manager RBAC when namespace-scoped
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/clusterrole.yaml
+      - hasDocuments:
+          count: 0
+        template: templates/clusterrolebinding.yaml
+
+  - it: renders the metrics Service on the configured port
+    template: templates/metrics-service.yaml
+    asserts:
+      - equal:
+          path: spec.ports[0].port
+          value: 9443
+
+  - it: renders a ServiceMonitor with the configured scrape settings
+    template: templates/metrics-servicemonitor.yaml
+    asserts:
+      - isKind:
+          of: ServiceMonitor
+      - equal:
+          path: spec.endpoints[0].interval
+          value: 15s
+      - equal:
+          path: spec.endpoints[0].scrapeTimeout
+          value: 10s
+      - equal:
+          path: metadata.labels.release
+          value: kube-prometheus-stack
+      - matchSnapshot: {}
+
+  - it: renders both string and object extra manifests through tpl
+    template: templates/extra-manifests.yaml
+    asserts:
+      - hasDocuments:
+          count: 2
+      - equal:
+          path: metadata.namespace
+          value: my-namespace
+        documentIndex: 0
+      - isKind:
+          of: PodDisruptionBudget
+        documentIndex: 1
+      - matchSnapshot: {}
+
+  - it: uses an existing ServiceAccount when create is disabled
+    set:
+      serviceAccount:
+        create: false
+        name: byo-service-account
+    asserts:
+      - hasDocuments:
+          count: 0
+        template: templates/serviceaccount.yaml
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: byo-service-account
+        template: templates/deployment.yaml

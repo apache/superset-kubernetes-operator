@@ -1,0 +1,85 @@
+creates a ServiceAccount by default:
+  1: |
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      labels:
+        app.kubernetes.io/instance: my-release
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/version: 1.0.0
+        control-plane: controller-manager
+        helm.sh/chart: superset-operator-1.0.0
+      name: my-release-superset-operator
+      namespace: my-namespace
+renders the manager Deployment with defaults:
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app.kubernetes.io/instance: my-release
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/version: 1.0.0
+        control-plane: controller-manager
+        helm.sh/chart: superset-operator-1.0.0
+      name: my-release-superset-operator
+      namespace: my-namespace
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: my-release
+          app.kubernetes.io/name: superset-operator
+          control-plane: controller-manager
+      template:
+        metadata:
+          annotations:
+            kubectl.kubernetes.io/default-container: manager
+          labels:
+            app.kubernetes.io/instance: my-release
+            app.kubernetes.io/name: superset-operator
+            control-plane: controller-manager
+        spec:
+          containers:
+            - args:
+                - --leader-elect=true
+                - --health-probe-bind-address=:8081
+                - --metrics-bind-address=:8443
+              command:
+                - /manager
+              image: ghcr.io/apache/superset-kubernetes-operator:1.0.0
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                httpGet:
+                  path: /healthz
+                  port: 8081
+                initialDelaySeconds: 15
+                periodSeconds: 20
+              name: manager
+              readinessProbe:
+                httpGet:
+                  path: /readyz
+                  port: 8081
+                initialDelaySeconds: 5
+                periodSeconds: 10
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 128Mi
+                requests:
+                  cpu: 10m
+                  memory: 64Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          serviceAccountName: my-release-superset-operator
+          terminationGracePeriodSeconds: 10

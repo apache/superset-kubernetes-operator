@@ -1,0 +1,459 @@
+renders a ServiceMonitor with the configured scrape settings:
+  1: |
+    apiVersion: monitoring.coreos.com/v1
+    kind: ServiceMonitor
+    metadata:
+      labels:
+        app.kubernetes.io/instance: my-release
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/version: 1.0.0
+        control-plane: controller-manager
+        helm.sh/chart: superset-operator-1.0.0
+        release: kube-prometheus-stack
+      name: my-release-superset-operator-metrics
+      namespace: my-namespace
+    spec:
+      endpoints:
+        - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+          interval: 15s
+          path: /metrics
+          port: https
+          scheme: https
+          scrapeTimeout: 10s
+          tlsConfig:
+            insecureSkipVerify: false
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: my-release
+          app.kubernetes.io/name: superset-operator
+          control-plane: controller-manager
+renders both string and object extra manifests through tpl:
+  1: |
+    apiVersion: v1
+    data:
+      hello: world
+    kind: ConfigMap
+    metadata:
+      name: superset-operator-extra
+      namespace: my-namespace
+  2: |
+    apiVersion: policy/v1
+    kind: PodDisruptionBudget
+    metadata:
+      name: superset-operator-extra-pdb
+    spec:
+      minAvailable: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: superset-operator
+renders one namespaced Role and RoleBinding per watched namespace:
+  1: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      labels:
+        app.kubernetes.io/instance: my-release
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/version: 1.0.0
+        control-plane: controller-manager
+        helm.sh/chart: superset-operator-1.0.0
+      name: my-release-superset-operator-manager
+      namespace: team-a
+    rules:
+      - apiGroups:
+          - ""
+        resources:
+          - configmaps
+          - serviceaccounts
+          - services
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ""
+        resources:
+          - pods
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - apps
+        resources:
+          - deployments
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - autoscaling
+        resources:
+          - horizontalpodautoscalers
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - batch
+        resources:
+          - jobs
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - events.k8s.io
+        resources:
+          - events
+        verbs:
+          - create
+          - patch
+          - update
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - httproutes
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - monitoring.coreos.com
+        resources:
+          - servicemonitors
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - networking.k8s.io
+        resources:
+          - ingresses
+          - networkpolicies
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - policy
+        resources:
+          - poddisruptionbudgets
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - superset.apache.org
+        resources:
+          - supersets/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - superset.apache.org
+        resources:
+          - supersets
+        verbs:
+          - get
+          - list
+          - patch
+          - watch
+  2: |
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: Role
+    metadata:
+      labels:
+        app.kubernetes.io/instance: my-release
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/version: 1.0.0
+        control-plane: controller-manager
+        helm.sh/chart: superset-operator-1.0.0
+      name: my-release-superset-operator-manager
+      namespace: team-b
+    rules:
+      - apiGroups:
+          - ""
+        resources:
+          - configmaps
+          - serviceaccounts
+          - services
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - ""
+        resources:
+          - pods
+        verbs:
+          - get
+          - list
+          - watch
+      - apiGroups:
+          - apps
+        resources:
+          - deployments
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - autoscaling
+        resources:
+          - horizontalpodautoscalers
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - batch
+        resources:
+          - jobs
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - events.k8s.io
+        resources:
+          - events
+        verbs:
+          - create
+          - patch
+          - update
+      - apiGroups:
+          - gateway.networking.k8s.io
+        resources:
+          - httproutes
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - monitoring.coreos.com
+        resources:
+          - servicemonitors
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - networking.k8s.io
+        resources:
+          - ingresses
+          - networkpolicies
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - policy
+        resources:
+          - poddisruptionbudgets
+        verbs:
+          - create
+          - delete
+          - get
+          - list
+          - patch
+          - update
+          - watch
+      - apiGroups:
+          - superset.apache.org
+        resources:
+          - supersets/status
+        verbs:
+          - get
+          - patch
+          - update
+      - apiGroups:
+          - superset.apache.org
+        resources:
+          - supersets
+        verbs:
+          - get
+          - list
+          - patch
+          - watch
+renders the manager Deployment with all options applied:
+  1: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      labels:
+        app.kubernetes.io/instance: my-release
+        app.kubernetes.io/managed-by: Helm
+        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/version: 1.0.0
+        control-plane: controller-manager
+        helm.sh/chart: superset-operator-1.0.0
+      name: my-release-superset-operator
+      namespace: my-namespace
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app.kubernetes.io/instance: my-release
+          app.kubernetes.io/name: superset-operator
+          control-plane: controller-manager
+      template:
+        metadata:
+          annotations:
+            kubectl.kubernetes.io/default-container: manager
+            prometheus.io/scrape: "false"
+          labels:
+            app.kubernetes.io/instance: my-release
+            app.kubernetes.io/name: superset-operator
+            control-plane: controller-manager
+            team: platform
+        spec:
+          affinity:
+            nodeAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                nodeSelectorTerms:
+                  - matchExpressions:
+                      - key: kubernetes.io/os
+                        operator: In
+                        values:
+                          - linux
+          containers:
+            - args:
+                - --leader-elect=true
+                - --health-probe-bind-address=:8081
+                - --zap-log-level=debug
+                - --metrics-bind-address=:9443
+                - --metrics-cert-path=/tmp/k8s-metrics-server/metrics-certs
+                - --metrics-cert-name=tls.crt
+                - --metrics-cert-key=tls.key
+              command:
+                - /manager
+              env:
+                - name: WATCH_NAMESPACE
+                  value: team-a,team-b
+              image: example.com/superset/superset-operator:v9.9.9-test
+              imagePullPolicy: Always
+              livenessProbe:
+                httpGet:
+                  path: /healthz
+                  port: 8081
+                initialDelaySeconds: 30
+                periodSeconds: 30
+              name: manager
+              readinessProbe:
+                httpGet:
+                  path: /readyz
+                  port: 8081
+                initialDelaySeconds: 10
+                periodSeconds: 15
+              resizePolicy:
+                - resourceName: cpu
+                  restartPolicy: NotRequired
+                - resourceName: memory
+                  restartPolicy: RestartContainer
+              resources:
+                limits:
+                  cpu: "1"
+                  memory: 256Mi
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop:
+                    - ALL
+                readOnlyRootFilesystem: true
+              volumeMounts:
+                - mountPath: /tmp/k8s-metrics-server/metrics-certs
+                  name: metrics-certs
+                  readOnly: true
+          nodeSelector:
+            kubernetes.io/os: linux
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            seccompProfile:
+              type: RuntimeDefault
+          serviceAccountName: superset-operator-custom-sa
+          terminationGracePeriodSeconds: 10
+          tolerations:
+            - effect: NoSchedule
+              key: node-role.kubernetes.io/control-plane
+              operator: Exists
+          volumes:
+            - name: metrics-certs
+              secret:
+                items:
+                  - key: ca.crt
+                    path: ca.crt
+                  - key: tls.crt
+                    path: tls.crt
+                  - key: tls.key
+                    path: tls.key
+                optional: false
+                secretName: superset-operator-metrics-cert

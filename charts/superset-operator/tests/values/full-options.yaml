@@ -1,0 +1,145 @@
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Comprehensive chart-test values: every knob documented in values.yaml is set
+# to a non-default, rendering value. This is the single source of truth for the
+# "full options" test suite and is enforced by scripts/check-chart-values-covered.sh
+# (CI target `make helm-values-covered`) — any new knob added to values.yaml must
+# be exercised here.
+
+image:
+  repository: example.com/superset/superset-operator
+  tag: v9.9.9-test
+  pullPolicy: Always
+
+replicas: 2
+
+resources:
+  limits:
+    cpu: "1"
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+resizePolicy:
+  - resourceName: cpu
+    restartPolicy: NotRequired
+  - resourceName: memory
+    restartPolicy: RestartContainer
+
+serviceAccount:
+  create: true
+  name: superset-operator-custom-sa
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::123456789012:role/superset-operator
+
+leaderElection:
+  enabled: true
+
+logLevel: debug
+
+metrics:
+  enabled: true
+  service:
+    port: 9443
+  certSecretName: superset-operator-metrics-cert
+  serviceMonitor:
+    enabled: true
+    interval: 15s
+    scrapeTimeout: 10s
+    labels:
+      release: kube-prometheus-stack
+    tlsConfig:
+      insecureSkipVerify: false
+    bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+
+healthProbes:
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: 8081
+    initialDelaySeconds: 30
+    periodSeconds: 30
+  readinessProbe:
+    httpGet:
+      path: /readyz
+      port: 8081
+    initialDelaySeconds: 10
+    periodSeconds: 15
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+nodeSelector:
+  kubernetes.io/os: linux
+
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/os
+              operator: In
+              values:
+                - linux
+
+podAnnotations:
+  prometheus.io/scrape: "false"
+
+podLabels:
+  team: platform
+
+watch:
+  scope: namespaces
+  namespaces:
+    - team-a
+    - team-b
+
+extraManifests:
+  # String form, passed through tpl so template expressions resolve.
+  - |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: superset-operator-extra
+      namespace: {{ .Release.Namespace }}
+    data:
+      hello: world
+  # Object form.
+  - apiVersion: policy/v1
+    kind: PodDisruptionBudget
+    metadata:
+      name: superset-operator-extra-pdb
+    spec:
+      minAvailable: 1
+      selector:
+        matchLabels:
+          app.kubernetes.io/name: superset-operator

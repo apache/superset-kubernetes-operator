@@ -157,6 +157,8 @@ kind delete cluster --name superset
 | `make helm-docs` | Generate Helm chart README from values.yaml annotations. |
 | `make helm` | Sync CRDs into Helm chart and package it. The chart `appVersion` is derived from VERSION at package time. |
 | `make helm-lint` | Lint the Helm chart (syncs CRDs first). |
+| `make helm-test` | Run the Helm chart unit tests (requires the helm-unittest plugin; see scripts/install-helm-unittest.sh). |
+| `make helm-values-covered` | Verify every values.yaml knob is exercised by the comprehensive chart test. |
 
 ### Development
 

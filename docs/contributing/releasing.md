@@ -93,6 +93,7 @@ Before creating the first RC for a minor release, run or verify:
 - `make lint`
 - `make test`
 - `make helm-lint`
+- `make helm-test` and `make helm-values-covered`
 - `make docs-build`
 - `make check-license`
 - `make test-e2e` on a working Kind or equivalent Kubernetes cluster
@@ -115,7 +116,7 @@ Two flows depending on whether the minor release branch already exists:
 
 ## Creating a Release Candidate
 
-The `scripts/release-rc.sh` script automates the full RC preparation: creates the minor release branch (first RC only), bumps the operator version and Helm chart `version`/`appVersion` metadata to the target release version, regenerates manifests, runs the lint/license/test/docs/helm-lint checks, commits, and tags. The tag-triggered release workflow packages and publishes the RC image and Helm chart with the RC version suffix. The script also verifies that `docs/reference/releases.md` contains a heading for the target release version.
+The `scripts/release-rc.sh` script automates the full RC preparation: creates the minor release branch (first RC only), bumps the operator version and Helm chart `version`/`appVersion` metadata to the target release version, regenerates manifests, runs the lint/license/test/docs/helm checks (lint, unit tests, and value-coverage), commits, and tags. The tag-triggered release workflow packages and publishes the RC image and Helm chart with the RC version suffix. The script also verifies that `docs/reference/releases.md` contains a heading for the target release version.
 
 ```sh
 # First RC for 0.2.0 — create the 0.2 branch first, then tag v0.2.0-rc1.
