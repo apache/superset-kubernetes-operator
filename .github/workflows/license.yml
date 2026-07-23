@@ -16,10 +16,12 @@
 name: License
 
 on:
+  # Also run on `<major>.<minor>` release branches (e.g. 0.2) so the Apache Rat
+  # license check gates release branches as well as main.
   push:
-    branches: [main]
+    branches: [main, '[0-9]+.[0-9]+']
   pull_request:
-    branches: [main]
+    branches: [main, '[0-9]+.[0-9]+']
 
 permissions:
   contents: read

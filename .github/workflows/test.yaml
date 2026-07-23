@@ -16,10 +16,12 @@
 name: Test
 
 on:
+  # Also run on `<major>.<minor>` release branches (e.g. 0.2) so release branches
+  # get the same test gate (unit, integration, e2e) as main.
   push:
-    branches: [main]
+    branches: [main, '[0-9]+.[0-9]+']
   pull_request:
-    branches: [main]
+    branches: [main, '[0-9]+.[0-9]+']
 
 permissions:
   contents: read
