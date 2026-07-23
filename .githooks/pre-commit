@@ -17,7 +17,7 @@
 set -e
 
 # Run golangci-lint (includes gofmt, goimports, govet, and all configured linters)
-make lint
+make lint-go
 
 # Reformat staged Markdown with rumdl. `check --fix` exits non-zero (aborting
 # the commit via `set -e`) if any unfixable issues remain. If it only applied

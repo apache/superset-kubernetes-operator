@@ -92,7 +92,6 @@ Before creating the first RC for a minor release, run or verify:
 - `make codegen` leaves no diff
 - `make lint`
 - `make test`
-- `make helm-lint`
 - `make helm-test`
 - `make helm-values-covered`
 - `make docs-build`

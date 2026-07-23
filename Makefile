@@ -269,23 +269,29 @@ cleanup-test-e2e: ## Tear down the Kind cluster used for e2e tests
 	@$(KIND) delete cluster --name $(KIND_CLUSTER)
 
 .PHONY: lint
-lint: golangci-lint ## Run golangci-lint linter
-	$(GOLANGCI_LINT) run
+lint: lint-go lint-md helm-lint ## Run all linters (Go, Markdown, Helm chart).
 
 .PHONY: lint-fix
-lint-fix: golangci-lint ## Run golangci-lint linter and perform fixes
+lint-fix: lint-go-fix lint-md-fix ## Auto-fix all linters that support it (Go, Markdown).
+
+.PHONY: lint-go
+lint-go: golangci-lint ## Run the Go linter (golangci-lint).
+	$(GOLANGCI_LINT) run
+
+.PHONY: lint-go-fix
+lint-go-fix: golangci-lint ## Run the Go linter and apply fixes.
 	$(GOLANGCI_LINT) run --fix
 
-.PHONY: lint-config
-lint-config: golangci-lint ## Verify golangci-lint linter configuration
+.PHONY: lint-go-config
+lint-go-config: golangci-lint ## Verify the golangci-lint configuration.
 	$(GOLANGCI_LINT) config verify
 
 .PHONY: lint-md
 lint-md: rumdl ## Lint Markdown files (check only).
 	$(RUMDL) check .
 
-.PHONY: format-md
-format-md: rumdl ## Auto-fix Markdown formatting in place.
+.PHONY: lint-md-fix
+lint-md-fix: rumdl ## Auto-fix Markdown formatting in place.
 	$(RUMDL) check --fix .
 
 .PHONY: hooks

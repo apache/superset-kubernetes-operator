@@ -140,14 +140,11 @@ make codegen
 info "Verifying Apache license headers"
 make check-license
 
-info "Running golangci-lint"
+info "Running all linters (Go, Markdown, Helm chart)"
 make lint
 
 info "Running unit and integration tests"
 make test-unit test-integration
-
-info "Linting Helm chart"
-make helm-lint
 
 info "Running Helm chart unit tests"
 bash scripts/install-helm-unittest.sh

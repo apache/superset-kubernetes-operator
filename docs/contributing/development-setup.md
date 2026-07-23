@@ -29,6 +29,7 @@ This guide walks through setting up a local development environment with Kind, P
 | kubectl | 1.27+ | [kubernetes.io](https://kubernetes.io/docs/tasks/tools/) |
 | Kind | 0.30+ | `brew install kind` or `go install sigs.k8s.io/kind@latest` |
 | Go | 1.26+ | `brew install go` or [go.dev](https://go.dev/dl/) |
+| Helm | 4+ | `brew install helm` or [helm.sh](https://helm.sh/docs/intro/install/) — used by `make lint` (Helm chart lint) and the chart tests |
 
 ### macOS notes
 
@@ -177,11 +178,13 @@ kind delete cluster --name superset
 | `make setup-test-e2e` | Set up a Kind cluster for e2e tests if it does not exist |
 | `make test-e2e` | Run the e2e tests. Expected an isolated environment using Kind. |
 | `make cleanup-test-e2e` | Tear down the Kind cluster used for e2e tests |
-| `make lint` | Run golangci-lint linter |
-| `make lint-fix` | Run golangci-lint linter and perform fixes |
-| `make lint-config` | Verify golangci-lint linter configuration |
+| `make lint` | Run all linters (Go, Markdown, Helm chart). |
+| `make lint-fix` | Auto-fix all linters that support it (Go, Markdown). |
+| `make lint-go` | Run the Go linter (golangci-lint). |
+| `make lint-go-fix` | Run the Go linter and apply fixes. |
+| `make lint-go-config` | Verify the golangci-lint configuration. |
 | `make lint-md` | Lint Markdown files (check only). |
-| `make format-md` | Auto-fix Markdown formatting in place. |
+| `make lint-md-fix` | Auto-fix Markdown formatting in place. |
 | `make hooks` | Configure git to use .githooks/ for pre-commit hooks |
 
 ### Build
@@ -209,13 +212,13 @@ kind delete cluster --name superset
 
 ## Pre-Commit Hooks
 
-The project includes a lightweight git hook at `.githooks/pre-commit` that runs before each commit. It runs `make lint` (`golangci-lint`, which covers `gofmt`, `goimports`, `go vet`, and all configured linters) and reformats any staged Markdown with [rumdl](https://rumdl.dev/). If rumdl changes a file, the commit is aborted so you can review the changes and re-stage them — nothing is silently amended. rumdl is a pinned binary downloaded on demand into `bin/`.
+The project includes a lightweight git hook at `.githooks/pre-commit` that runs before each commit. It runs `make lint-go` (`golangci-lint`, which covers `gofmt`, `goimports`, `go vet`, and all configured linters) and reformats any staged Markdown with [rumdl](https://rumdl.dev/). If rumdl changes a file, the commit is aborted so you can review the changes and re-stage them — nothing is silently amended. rumdl is a pinned binary downloaded on demand into `bin/`.
 
 Markdown formatting is also enforced in CI. To check or fix Markdown by hand:
 
 ```sh
-make lint-md    # check only (what CI runs)
-make format-md  # auto-fix in place
+make lint-md      # check only (what CI runs)
+make lint-md-fix  # auto-fix in place
 ```
 
 Formatting rules — including single-line-per-paragraph prose (no hard wrapping) — live in `.rumdl.toml`.

@@ -49,7 +49,7 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Lint
-        run: make lint
+        run: make lint-go
       - name: Lint Markdown
         run: make lint-md
       - name: Vulnerability scan (govulncheck)
