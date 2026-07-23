@@ -161,8 +161,8 @@ The bar: every new "remember to also update X when Y changes" instruction is a b
 
 ## PR Conventions
 
-- **Title format**: `type(scope): description` or `type: description` — enforced by CI (`amannn/action-semantic-pull-request`). Scope is optional but encouraged. Aim for 50 characters when practical, and avoid exceeding 72 characters because GitHub wraps longer titles in common views.
-- **Allowed types and scopes**: defined canonically in [`.github/workflows/pr.yaml`](.github/workflows/pr.yaml) (the `types`/`scopes` inputs to the semantic-PR action) and enforced by CI — consult that file rather than copying the lists here, where they would silently go stale. Types follow the conventional-commit set; scopes name the affected area of the codebase.
+- **Title format**: `type(scope): description` or `type: description` — enforced by CI (`amannn/action-semantic-pull-request`). Scope is optional but encouraged; any scope is accepted, but short repository-area scopes are preferred. Aim for 50 characters when practical, and avoid exceeding 72 characters because GitHub wraps longer titles in common views.
+- **Allowed types**: defined canonically in [`.github/workflows/pr.yaml`](.github/workflows/pr.yaml) (the `types` input to the semantic-PR action) and enforced by CI — consult that file rather than copying the list here, where it would silently go stale. Types follow the conventional-commit set.
 - **Description**: Every PR must have a Summary section with at least one paragraph explaining what and why. Use the Details section for implementation notes. PR template pre-fills these sections.
 - **Code coverage**: Codecov reports patch coverage and project delta on every PR (informational, no enforced targets).
 

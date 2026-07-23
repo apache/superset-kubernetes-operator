@@ -44,15 +44,5 @@ jobs:
             style
             test
           requireScope: false
-          scopes: |
-            api
-            controller
-            lifecycle
-            resolution
-            config
-            helm
-            ci
-            docs
-            deps
           subjectPattern: ^.+$
           subjectPatternError: "PR title must have a description after the type prefix."

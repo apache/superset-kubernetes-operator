@@ -403,7 +403,7 @@ type(scope): description
 type: description
 ```
 
-Scope is optional but encouraged when the change is scoped to a single area. Keep titles concise: aim for 50 characters when practical, and avoid exceeding 72 characters because GitHub wraps longer titles in common views.
+Scope is optional but encouraged when the change is scoped to a single area. Any scope is accepted, but prefer short, recognizable repository areas such as `api`, `controller`, `helm`, `ci`, `docs`, or `deps`. Keep titles concise: aim for 50 characters when practical, and avoid exceeding 72 characters because GitHub wraps longer titles in common views.
 
 CI validates this on every PR via the `PR / Validate PR title` check.
 
@@ -422,19 +422,6 @@ CI validates this on every PR via the `PR / Validate PR title` check.
 | `perf` | Performance improvements |
 | `style` | Formatting, whitespace, linting |
 | `revert` | Reverting a previous commit |
-
-**Allowed scopes:**
-
-| Scope | Covers |
-|-------|--------|
-| `api` | CRD type definitions (`api/v1alpha1/`) |
-| `controller` | Reconciler logic (`internal/controller/`) |
-| `resolution` | Spec resolution/merge engine (`internal/resolution/`) |
-| `config` | Config rendering (`internal/config/`) |
-| `helm` | Helm chart (`charts/`) |
-| `ci` | CI workflows, tooling (`.github/`, `Makefile`) |
-| `docs` | Documentation (`docs/`) |
-| `deps` | Dependency updates |
 
 **Examples:**
 
