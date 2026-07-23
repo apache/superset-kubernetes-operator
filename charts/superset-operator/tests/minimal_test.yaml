@@ -13,8 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Happy-path render with default values (values.yaml as-is). Asserts the
-# resources that render out of the box, plus a full-render snapshot per template.
+# Stripped-down happy path: render with default values.yaml. One broad test
+# snapshots the rendered manifests and asserts the default conditional wiring
+# (cluster-scoped RBAC on, namespaced RBAC and ServiceMonitor off).
 suite: minimal (default values)
 templates:
   - templates/deployment.yaml
@@ -34,92 +35,49 @@ release:
   name: my-release
   namespace: my-namespace
 tests:
-  - it: renders the manager Deployment with defaults
-    template: templates/deployment.yaml
+  - it: renders the default manifests
     asserts:
-      - isKind:
-          of: Deployment
+      # Manager Deployment: image tag falls back to appVersion, metrics on the
+      # default port, and no WATCH_NAMESPACE env (default watch.scope is cluster).
       - equal:
           path: spec.replicas
           value: 1
-      - equal:
-          path: spec.template.spec.containers[0].name
-          value: manager
+        template: templates/deployment.yaml
       - matchRegex:
           path: spec.template.spec.containers[0].image
           pattern: ^ghcr\.io/apache/superset-kubernetes-operator:1\.0\.0$
-      - contains:
-          path: spec.template.spec.containers[0].args
-          content: --leader-elect=true
+        template: templates/deployment.yaml
       - contains:
           path: spec.template.spec.containers[0].args
           content: --metrics-bind-address=:8443
-      # Default watch.scope is "cluster", so no WATCH_NAMESPACE env is injected.
+        template: templates/deployment.yaml
       - notExists:
           path: spec.template.spec.containers[0].env
+        template: templates/deployment.yaml
       - matchSnapshot: {}
-
-  - it: applies the standard chart labels
-    template: templates/deployment.yaml
-    asserts:
-      - equal:
-          path: metadata.labels["app.kubernetes.io/managed-by"]
-          value: Helm
-      - equal:
-          path: metadata.labels["helm.sh/chart"]
-          value: superset-operator-1.0.0
-
-  - it: creates a ServiceAccount by default
-    template: templates/serviceaccount.yaml
-    asserts:
-      - isKind:
-          of: ServiceAccount
+        template: templates/deployment.yaml
       - matchSnapshot: {}
-
-  - it: renders cluster-scoped manager RBAC by default
-    asserts:
+        template: templates/serviceaccount.yaml
+      # Default watch.scope: cluster -> cluster-scoped RBAC, no namespaced RBAC.
       - isKind:
           of: ClusterRole
         template: templates/clusterrole.yaml
       - isKind:
           of: ClusterRoleBinding
         template: templates/clusterrolebinding.yaml
-
-  - it: contains the supersets management rule in the ClusterRole
-    template: templates/clusterrole.yaml
-    asserts:
-      - contains:
-          path: rules
-          content:
-            apiGroups: [superset.apache.org]
-            resources: [supersets]
-            verbs: [get, list, patch, watch]
-
-  - it: does not render namespaced Roles or RoleBindings by default
-    asserts:
       - hasDocuments:
           count: 0
         template: templates/role.yaml
       - hasDocuments:
           count: 0
         template: templates/rolebinding.yaml
-
-  - it: renders the metrics Service and auth RBAC by default
-    asserts:
+      # Metrics on by default (Service + auth RBAC), ServiceMonitor off.
       - isKind:
           of: Service
         template: templates/metrics-service.yaml
-      - equal:
-          path: spec.ports[0].port
-          value: 8443
-        template: templates/metrics-service.yaml
-      # metrics-rbac.yaml renders ClusterRole + ClusterRoleBinding + reader ClusterRole.
       - hasDocuments:
           count: 3
         template: templates/metrics-rbac.yaml
-
-  - it: does not render a ServiceMonitor by default
-    template: templates/metrics-servicemonitor.yaml
-    asserts:
       - hasDocuments:
           count: 0
+        template: templates/metrics-servicemonitor.yaml

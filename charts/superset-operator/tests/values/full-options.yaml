@@ -26,6 +26,8 @@ image:
 
 replicas: 2
 
+revisionHistoryLimit: 5
+
 resources:
   limits:
     cpu: "1"
@@ -110,6 +112,14 @@ affinity:
               operator: In
               values:
                 - linux
+
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule
+    labelSelector:
+      matchLabels:
+        control-plane: controller-manager
 
 podAnnotations:
   prometheus.io/scrape: "false"
