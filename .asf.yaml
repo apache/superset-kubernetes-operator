@@ -62,7 +62,6 @@ github:
           - Verify codegen
           - Verify supported-versions table
           - Docker build
-          - Helm lint
           - Unit & Integration
           - Apache Rat
       required_signatures: false
