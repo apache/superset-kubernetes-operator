@@ -29,6 +29,15 @@
         "config/manager/manager.yaml"
       ],
       "enabled": false
+    },
+    {
+      "description": "Helm publishes tarballs (and their checksums) on get.helm.sh, not as GitHub release attachments, so Renovate can only bump the version — the pinned SHA-256 must be resynced separately.",
+      "matchDepNames": ["helm/helm"],
+      "matchFileNames": ["scripts/install-helm.sh"],
+      "addLabels": ["review:helm-checksum"],
+      "prBodyNotes": [
+        ":warning: After bumping Helm, run `make sync-helm-checksum` and commit the result to update the pinned `HELM_SHA256` in `scripts/install-helm.sh`. The `Verify helm checksum` CI check will fail until this is done."
+      ]
     }
   ],
   "customManagers": [
@@ -61,10 +70,22 @@
     },
     {
       "customType": "regex",
-      "description": "Track hand-pinned GitHub release helper binaries in install scripts",
-      "managerFilePatterns": ["/^scripts\\/install-[a-z0-9-]+\\.sh$/"],
+      "description": "Track hand-pinned GitHub release-attachment helper binaries in install scripts (version + SHA-256 of the attachment, computed by Renovate)",
+      "managerFilePatterns": [
+        "/^scripts\\/install-yq\\.sh$/",
+        "/^scripts\\/install-oras\\.sh$/"
+      ],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( versioning=(?<versioning>\\S+))?\\s+\\S+_VERSION=\"\\$\\{\\S+_VERSION:-(?<currentValue>[^\\\"]+)\\}\"[\\s\\S]*?\\S+_SHA256=\"\\$\\{\\S+_SHA256:-(?<currentDigest>[a-f0-9]+)\\}\""
+      ],
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver-coerced{{/if}}"
+    },
+    {
+      "customType": "regex",
+      "description": "Track the version-only Helm pin in install-helm.sh (tarballs live on get.helm.sh, not GitHub; the checksum is resynced via `make sync-helm-checksum`)",
+      "managerFilePatterns": ["/^scripts\\/install-helm\\.sh$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( versioning=(?<versioning>\\S+))?\\s+\\S+_VERSION=\"\\$\\{\\S+_VERSION:-(?<currentValue>[^\\\"]+)\\}\""
       ],
       "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver-coerced{{/if}}"
     },

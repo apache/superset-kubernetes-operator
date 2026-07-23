@@ -157,6 +157,14 @@ verify-supported-versions: ## Verify supported-k8s.json matches the pinned kind 
 		exit 1; \
 	fi
 
+.PHONY: sync-helm-checksum
+sync-helm-checksum: ## Sync the pinned Helm tarball SHA-256 in install-helm.sh with the published checksum for HELM_VERSION.
+	./scripts/sync-helm-checksum.sh --write
+
+.PHONY: verify-helm-checksum
+verify-helm-checksum: ## Verify install-helm.sh pins the correct Helm tarball SHA-256 for its HELM_VERSION.
+	./scripts/sync-helm-checksum.sh --check
+
 ##@ Helm
 
 HELM_CHART_DIR ?= charts/superset-operator

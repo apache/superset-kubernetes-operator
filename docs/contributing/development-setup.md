@@ -149,6 +149,8 @@ kind delete cluster --name superset
 | `make make-commands` | Regenerate the make-commands tables in the contributing docs. |
 | `make sync-supported-versions` | Sync .github/supported-k8s.json with the pinned kind release's node images. |
 | `make verify-supported-versions` | Verify supported-k8s.json matches the pinned kind release and docs are up to date. |
+| `make sync-helm-checksum` | Sync the pinned Helm tarball SHA-256 in install-helm.sh with the published checksum for HELM_VERSION. |
+| `make verify-helm-checksum` | Verify install-helm.sh pins the correct Helm tarball SHA-256 for its HELM_VERSION. |
 
 ### Helm
 
