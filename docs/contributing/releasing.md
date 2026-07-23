@@ -93,7 +93,8 @@ Before creating the first RC for a minor release, run or verify:
 - `make lint`
 - `make test`
 - `make helm-lint`
-- `make helm-test` and `make helm-values-covered`
+- `make helm-test`
+- `make helm-values-covered`
 - `make docs-build`
 - `make check-license`
 - `make test-e2e` on a working Kind or equivalent Kubernetes cluster
