@@ -148,6 +148,8 @@ kubectl get superset my-superset -o jsonpath='{.status.lifecycle}'
 
 Any change to the resolved lifecycle image tag re-runs the migrate task (`superset db upgrade`), whether the new tag is a higher or lower version. The operator does not compare versions — it runs `superset db upgrade` on every image change.
 
+The migrate trigger keys off the resolved `repository:tag` string, not the underlying image digest. Mutable tags therefore do **not** re-run migrate: repointing a tag such as `latest` (or any tag) at a new digest leaves the string unchanged, so no migration runs. To force a migration, change the tag to a distinct value or bump `migrate.trigger`.
+
 Migrate only ever runs `superset db upgrade`; the operator never runs `superset db downgrade` (Superset's down migrations are poorly tested and often break). So pinning back to an older image re-runs the forward migration rather than reversing the schema — you are responsible for ensuring the database is compatible with the target image, for example by restoring a backup taken before the upgrade. Take a backup before every upgrade so you can revert if needed.
 
 ## Drain Behavior

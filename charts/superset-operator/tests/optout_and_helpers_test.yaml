@@ -1,0 +1,126 @@
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Targeted assertions for the opt-out / helper branches that the full-render
+# golden snapshots (minimal_test.yaml, full_options_test.yaml) do not exercise.
+# Golden snapshots pin one combined config each; these focused tests vary a
+# single knob at a time so every branch of the affected helper/template is
+# covered and easy to extend with new cases.
+suite: opt-out branches and template helpers
+# Pin release identity so the fullname helper resolves deterministically:
+# release "my-release" does not contain chart name "superset-operator", so
+# `superset-operator.fullname` = "my-release-superset-operator".
+release:
+  name: my-release
+  namespace: my-namespace
+tests:
+  # --- superset-operator.serviceAccountName: all four branches ---
+  - it: uses the custom SA name when serviceAccount.create is true
+    set:
+      serviceAccount:
+        create: true
+        name: custom-sa
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: custom-sa
+
+  - it: creates the SA object with the custom name when create is true
+    set:
+      serviceAccount:
+        create: true
+        name: custom-sa
+    template: templates/serviceaccount.yaml
+    asserts:
+      - hasDocuments:
+          count: 1
+      - equal:
+          path: metadata.name
+          value: custom-sa
+
+  - it: falls back to the fullname when create is true and no name is set
+    set:
+      serviceAccount:
+        create: true
+        name: ""
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: my-release-superset-operator
+
+  - it: uses the external SA name when create is false
+    set:
+      serviceAccount:
+        create: false
+        name: preexisting-operator-sa
+    asserts:
+      - template: templates/deployment.yaml
+        equal:
+          path: spec.template.spec.serviceAccountName
+          value: preexisting-operator-sa
+      - template: templates/serviceaccount.yaml
+        hasDocuments:
+          count: 0
+
+  # The chart intentionally does not enforce serviceAccount cross-field rules
+  # (create=false with no name is unusual and left to the operator); this pins
+  # the relaxed fallback so it can't change silently — create=false + no name
+  # resolves to the cluster "default" SA rather than an empty string.
+  - it: falls back to the default SA when create is false and no name is set
+    set:
+      serviceAccount:
+        create: false
+        name: ""
+    asserts:
+      - template: templates/deployment.yaml
+        equal:
+          path: spec.template.spec.serviceAccountName
+          value: default
+      - template: templates/serviceaccount.yaml
+        hasDocuments:
+          count: 0
+
+  # --- metrics.enabled: false ---
+  - it: binds metrics to 0 and renders no metrics resources when disabled
+    set:
+      metrics:
+        enabled: false
+    asserts:
+      - template: templates/deployment.yaml
+        contains:
+          path: spec.template.spec.containers[0].args
+          content: --metrics-bind-address=0
+      - template: templates/metrics-service.yaml
+        hasDocuments:
+          count: 0
+      - template: templates/metrics-rbac.yaml
+        hasDocuments:
+          count: 0
+      - template: templates/metrics-servicemonitor.yaml
+        hasDocuments:
+          count: 0
+
+  # --- leaderElection.enabled: false ---
+  - it: disables leader election on the manager args when disabled
+    set:
+      leaderElection:
+        enabled: false
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --leader-elect=false

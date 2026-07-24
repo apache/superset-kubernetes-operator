@@ -24,6 +24,13 @@
 # filters in ci.yaml/test.yaml/license.yml), so the tagged commit — the release
 # branch HEAD — carries their check runs.
 #
+# E2E is intentionally NOT among the gated checks. The E2E matrix jobs use
+# dynamic names (e.g. "E2E (1.34)", "E2E (next, best-effort)") that are
+# impractical to pin as branch-protection contexts, so E2E is treated as
+# best-effort and does not block a release. If E2E should ever gate releases,
+# add its (stabilized) job names to .asf.yaml rather than special-casing them
+# here.
+#
 # Only release tags (refs/tags/v*) are gated; pushes to main and workflow_dispatch
 # runs (which publish the throwaway `dev`/`sha-` images) proceed without waiting.
 #

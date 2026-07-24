@@ -36,7 +36,7 @@
       "matchFileNames": ["scripts/install-helm.sh"],
       "addLabels": ["review:helm-checksum"],
       "prBodyNotes": [
-        ":warning: After bumping Helm, run `make sync-helm-checksum` and commit the result to update the pinned `HELM_SHA256` in `scripts/install-helm.sh`. The `Verify helm checksum` CI check will fail until this is done."
+        ":warning: After bumping Helm, run `make sync-helm-checksum` and commit the result to update the pinned `HELM_SHA256` in `scripts/install-helm.sh`. The `Verify Helm checksum pin` CI check will fail until this is done."
       ]
     }
   ],
