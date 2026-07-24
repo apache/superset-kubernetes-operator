@@ -257,14 +257,14 @@ The parent `Superset` CR reports aggregate status:
 status:
   phase: Running
   observedGeneration: 3
-  tag: "latest"
+  tag: "6.1.0"
   ready: "7/7"
   components:
     webServer:
       phase: Ready
       ready: "2/2"
       ref: Deployment/example-web-server
-      image: apache/superset:latest
+      image: apache/superset:6.1.0
       replicas: 2
       readyReplicas: 2
       resources:

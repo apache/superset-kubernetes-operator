@@ -69,6 +69,19 @@ spec:
   webServer: {}
 ```
 
+## Image
+
+`spec.image` sets the Superset image for all Python components. `repository` defaults to the official Superset image; `tag` is required — set it to the release you want:
+
+```yaml
+spec:
+  image:
+    repository: apachesuperset.docker.scarf.sh/apache/superset  # default
+    tag: "6.1.0"
+```
+
+**Pin an explicit release tag — avoid mutable tags such as `latest`.** Beyond the usual reasons (reproducible rollouts, no surprise upgrades), the operator keys the migrate task off the resolved `repository:tag` string: repointing a mutable tag at a new build leaves the string unchanged, so `superset db upgrade` does **not** run and the schema silently drifts from the running code. Distinct, immutable release tags keep upgrades — and their migrations — deterministic. See [Lifecycle › Changing the image tag](lifecycle.md#changing-the-image-tag).
+
 ## Metastore
 
 The `metastore` field provides database connection configuration. There are two modes:

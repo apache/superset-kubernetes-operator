@@ -24,7 +24,7 @@ metadata:
   name: superset-sample
 spec:
   image:
-    tag: latest-dev
+    tag: 6.1.0
   environment: Development
   secretKey: thisIsNotSecure_changeInProduction!
   metastore:

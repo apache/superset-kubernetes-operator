@@ -71,7 +71,7 @@ metadata:
   name: my-superset
 spec:
   image:
-    tag: "latest"
+    tag: "6.1.0"
   environment: Development
   secretKey: thisIsNotSecure_changeInProduction!
   metastore:

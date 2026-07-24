@@ -125,7 +125,7 @@ func TestReconcile_MyScenario(t *testing.T) {
     superset := &supersetv1alpha1.Superset{
         ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
         Spec: supersetv1alpha1.SupersetSpec{
-            Image:       supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+            Image:       supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "6.1.0"},
             Environment: strPtr("dev"),
             SecretKey:   strPtr("test-secret-key"),
             Lifecycle: &supersetv1alpha1.LifecycleSpec{

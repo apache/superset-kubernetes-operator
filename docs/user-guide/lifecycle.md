@@ -608,13 +608,13 @@ status:
       startedAt: "2026-03-16T10:00:00Z"
       completedAt: "2026-03-16T10:00:12Z"
       attempts: 1
-      image: apache/superset:latest
+      image: apache/superset:6.1.0
     init:
       state: Complete
       startedAt: "2026-03-16T10:00:13Z"
       completedAt: "2026-03-16T10:00:22Z"
       attempts: 1
-      image: apache/superset:latest
+      image: apache/superset:6.1.0
 ```
 
 Task Job names are deterministic: `{parentName}-{taskType}` (e.g. `my-superset-migrate`). Inspect the Job directly with `kubectl get job my-superset-migrate`.
