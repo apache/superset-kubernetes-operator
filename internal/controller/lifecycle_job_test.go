@@ -389,6 +389,20 @@ func TestJobFailureMessage(t *testing.T) {
 		got := jobFailureMessage(failed("BackoffLimitExceeded", long))
 		assert.Len(t, got, maxTerminationMessageLen)
 	})
+	t.Run("redacts credentials in the condition message", func(t *testing.T) {
+		got := jobFailureMessage(failed("BackoffLimitExceeded",
+			"connection to postgresql://superset:hunter2@db:5432/superset failed"))
+		assert.Equal(t, "connection to postgresql://superset:***@db:5432/superset failed", got)
+	})
+	t.Run("redacts before truncating so split credentials cannot leak", func(t *testing.T) {
+		// The credential sits so that naive truncate-then-redact would cut it
+		// mid-value, leaving a fragment that no longer matches the pattern.
+		prefix := strings.Repeat("x", maxTerminationMessageLen-10)
+		suffix := strings.Repeat("y", 50)
+		got := jobFailureMessage(failed("BackoffLimitExceeded", prefix+" password=supersecretvalue "+suffix))
+		assert.NotContains(t, got, "supersecret")
+		assert.Len(t, got, maxTerminationMessageLen)
+	})
 }
 
 func TestResetTaskStatusForRun(t *testing.T) {

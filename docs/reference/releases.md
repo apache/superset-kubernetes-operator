@@ -30,6 +30,10 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 - **Helm extra manifests.** The Helm chart now supports `extraManifests` for rendering trusted, release-scoped Kubernetes manifests with Helm `tpl`. Use it for companion resources owned by the operator release, not shared cluster infrastructure such as Gateway API controllers, CRDs, or shared Gateways ([#196](https://github.com/apache/superset-kubernetes-operator/pull/196), [@younsl](https://github.com/younsl)).
 - **Helm resize policy.** The Helm chart now supports `resizePolicy` on the manager container, controlling whether an in-place pod resize (InPlacePodVerticalScaling) restarts the container ([#200](https://github.com/apache/superset-kubernetes-operator/pull/200), [@younsl](https://github.com/younsl)).
 
+### Security
+
+- **Credential redaction in task failure output.** Lifecycle task failure messages are now scrubbed with best-effort pattern-based redaction before being persisted to the parent Superset status and Kubernetes Events: passwords embedded in connection URIs and common credential assignments (`password=...`, `token=...`, etc.) are masked. This mitigates the known limitation where a failing task command could leak credential fragments into status ([@younsl](https://github.com/younsl)).
+
 ### Changed
 
 - **Breaking:** renamed the "version" status fields to "tag". `status.version` → `status.tag` (the `kubectl get` column is renamed **Version** → **Tag**), and `status.lifecycle.upgrade.fromVersion`/`toVersion` → `fromTag`/`toTag`. No behavior change.
