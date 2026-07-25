@@ -20,7 +20,7 @@
 set -euo pipefail
 
 # renovate: datasource=github-releases depName=helm-unittest/helm-unittest
-HELM_UNITTEST_VERSION="${HELM_UNITTEST_VERSION:-v1.1.1}"
+HELM_UNITTEST_VERSION="${HELM_UNITTEST_VERSION:-v1.1.2}"
 
 installed="$(helm plugin list 2>/dev/null | awk '$1 == "unittest" { print $2 }')"
 want="${HELM_UNITTEST_VERSION#v}"
