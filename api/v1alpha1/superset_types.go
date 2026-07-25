@@ -359,23 +359,27 @@ type BaseTaskSpec struct {
 type SchedulableBaseTaskSpec struct {
 	BaseTaskSpec `json:",inline"`
 
-	// CronSchedule is a 5-field cron expression (minute hour day-of-month month
-	// day-of-week) that triggers periodic re-execution of this task and all
-	// downstream tasks. When the clock crosses a cron boundary, the task
-	// checksum changes and the lifecycle pipeline re-runs.
+	// CronSchedule is a cron expression that triggers periodic re-execution of
+	// this task and all downstream tasks. When the clock crosses a cron
+	// boundary, the task checksum changes and the lifecycle pipeline re-runs.
 	//
-	// Uses standard cron syntax. Examples: "0 2 * * *" (daily 2 AM UTC),
-	// "0 */6 * * *" (every 6 hours), "30 1 * * 1" (Mondays 1:30 AM UTC).
-	// Predefined schedules (e.g. "@daily") are not accepted; use the explicit
-	// 5-field form. Pattern validation rejects only malformed *shape* at
-	// admission (e.g. fewer than five fields, disallowed characters);
-	// out-of-range values like "99 99 99 99 99" still pass admission and are
-	// caught by the runtime parser, which blocks the lifecycle pipeline with
-	// an InvalidCronSchedule condition until the expression is corrected.
+	// Uses standard cron syntax with 5 to 7 whitespace-separated fields: the
+	// 5-field form is "minute hour day-of-month month day-of-week"; an optional
+	// leading seconds field and/or trailing year field extend it to 6 or 7
+	// fields. Examples: "0 2 * * *" (daily 2 AM UTC), "0 */6 * * *" (every 6
+	// hours), "30 1 * * 1" (Mondays 1:30 AM UTC), "*/30 * * * * *" (every 30
+	// seconds).
+	// Predefined schedules (e.g. "@daily") are not accepted; use an explicit
+	// field form. Pattern validation rejects only malformed *shape* at
+	// admission (e.g. fewer than five or more than seven fields, disallowed
+	// characters); out-of-range values like "99 99 99 99 99" still pass
+	// admission and are caught by the runtime parser, which blocks the
+	// lifecycle pipeline with an InvalidCronSchedule condition until the
+	// expression is corrected.
 	// +optional
 	// +kubebuilder:validation:MinLength=9
 	// +kubebuilder:validation:MaxLength=256
-	// +kubebuilder:validation:Pattern=`^[A-Za-z0-9*/,?-]+(\s+[A-Za-z0-9*/,?-]+){4}$`
+	// +kubebuilder:validation:Pattern=`^[A-Za-z0-9*/,?-]+(\s+[A-Za-z0-9*/,?-]+){4,6}$`
 	CronSchedule *string `json:"cronSchedule,omitempty"`
 }
 

@@ -5,9 +5,9 @@ go 1.26.0
 toolchain go1.26.5
 
 require (
+	github.com/adhocore/gronx v1.20.0
 	github.com/onsi/ginkgo/v2 v2.32.0
 	github.com/onsi/gomega v1.42.1
-	github.com/robfig/cron/v3 v3.0.1
 	github.com/stretchr/testify v1.11.1
 	k8s.io/api v0.36.3
 	k8s.io/apiextensions-apiserver v0.36.3

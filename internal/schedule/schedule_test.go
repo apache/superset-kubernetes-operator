@@ -148,3 +148,32 @@ func TestValidate_Invalid(t *testing.T) {
 	require.Error(t, Validate(""))
 	require.Error(t, Validate("* * *")) // too few fields
 }
+
+// The following tests cover the extended field support gronx provides beyond
+// the classic 5-field form: an optional leading seconds field (6 fields) and
+// an optional trailing year field (7 fields).
+
+func TestValidate_SecondsAndYearFields(t *testing.T) {
+	assert.NoError(t, Validate("*/30 * * * * *"))   // 6 fields: seconds precision
+	assert.NoError(t, Validate("0 0 2 * * * 2027")) // 7 fields: seconds + year
+}
+
+func TestNextTick_SecondsField(t *testing.T) {
+	now := time.Date(2026, 5, 11, 14, 30, 10, 0, time.UTC)
+	next := NextTick("*/30 * * * * *", now) // every 30 seconds
+	expected := time.Date(2026, 5, 11, 14, 30, 30, 0, time.UTC)
+	assert.Equal(t, expected, next)
+}
+
+func TestCurrentTick_SecondsField(t *testing.T) {
+	now := time.Date(2026, 5, 11, 14, 30, 10, 0, time.UTC)
+	tick := CurrentTick("*/30 * * * * *", now) // every 30 seconds
+	assert.Equal(t, "2026-05-11T14:30:00Z", tick)
+}
+
+func TestNextTick_YearField(t *testing.T) {
+	now := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	next := NextTick("0 0 2 * * * 2027", now) // 2 AM once in 2027
+	expected := time.Date(2027, 1, 1, 2, 0, 0, 0, time.UTC)
+	assert.Equal(t, expected, next)
+}
