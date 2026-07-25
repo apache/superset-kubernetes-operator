@@ -79,7 +79,7 @@ spec:
 
 ### Scheduled Execution
 
-Tasks that support scheduling (currently seed) accept a `cronSchedule` field — a standard 5-field cron expression that triggers periodic re-execution:
+Tasks that support scheduling (currently seed) accept a `cronSchedule` field — a standard cron expression (5 to 7 fields; the sixth/seventh fields add optional seconds and year precision) that triggers periodic re-execution:
 
 ```yaml
 spec:
@@ -485,7 +485,7 @@ The lifecycle pipeline runs: **seed → migrate → rotate → init → componen
 The seed task runs when its checksum changes. Two mechanisms trigger re-execution:
 
 - **`trigger` field** — an opaque string (date, UUID, CI build ID). Changing it causes a re-seed. Use this for manual or CI-driven refreshes.
-- **`cronSchedule` field** — a 5-field cron expression for periodic re-execution. When the clock crosses a cron boundary, the task checksum changes automatically.
+- **`cronSchedule` field** — a cron expression (5–7 fields, with optional seconds/year precision) for periodic re-execution. When the clock crosses a cron boundary, the task checksum changes automatically.
 
 To disable seed without removing its configuration, set `disabled: true`.
 

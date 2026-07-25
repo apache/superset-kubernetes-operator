@@ -22,66 +22,35 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/robfig/cron/v3"
+	"github.com/adhocore/gronx"
 )
 
-var parser = cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow)
-
-// CurrentTick returns the most recent past time matching the cron expression,
-// formatted as RFC3339 UTC (e.g., "2026-05-12T02:00:00Z").
-// Returns "" if the expression is invalid or no tick exists within the
-// lookback window (~2 years).
+// CurrentTick returns the most recent time matching the cron expression that is
+// at or before now, formatted as RFC3339 UTC (e.g., "2026-05-12T02:00:00Z").
+// Returns "" if the expression is invalid or no matching tick exists.
 func CurrentTick(expr string, now time.Time) string {
-	sched, err := parser.Parse(expr)
+	prev, err := gronx.PrevTickBefore(expr, now, true)
 	if err != nil {
-		return ""
-	}
-	prev := findPrevTick(sched, now)
-	if prev.IsZero() {
 		return ""
 	}
 	return prev.UTC().Format(time.RFC3339)
 }
 
-// NextTick returns the next future time matching the cron expression.
-// Returns zero time if the expression is invalid.
+// NextTick returns the next future time matching the cron expression (strictly
+// after now). Returns zero time if the expression is invalid.
 func NextTick(expr string, now time.Time) time.Time {
-	sched, err := parser.Parse(expr)
+	next, err := gronx.NextTickAfter(expr, now, false)
 	if err != nil {
 		return time.Time{}
 	}
-	return sched.Next(now)
+	return next
 }
 
 // Validate checks whether a cron expression is parseable.
 // Returns an error describing the problem, or nil if valid.
 func Validate(expr string) error {
-	_, err := parser.Parse(expr)
-	if err != nil {
-		return fmt.Errorf("invalid cron expression %q: %w", expr, err)
+	if !gronx.IsValid(expr) {
+		return fmt.Errorf("invalid cron expression %q", expr)
 	}
 	return nil
-}
-
-// findPrevTick finds the most recent time matching the schedule that is <= now.
-// Uses geometric doubling of the lookback window for efficiency.
-func findPrevTick(sched cron.Schedule, now time.Time) time.Time {
-	lookback := time.Minute
-	for range 20 {
-		start := now.Add(-lookback)
-		t := sched.Next(start)
-		if !t.After(now) {
-			// Found a tick in the window. Iterate forward to find the latest one <= now.
-			prev := t
-			for {
-				t = sched.Next(t)
-				if t.After(now) {
-					return prev
-				}
-				prev = t
-			}
-		}
-		lookback *= 2
-	}
-	return time.Time{}
 }

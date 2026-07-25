@@ -19368,7 +19368,7 @@ spec:
                       cronSchedule:
                         maxLength: 256
                         minLength: 9
-                        pattern: ^[A-Za-z0-9*/,?-]+(\s+[A-Za-z0-9*/,?-]+){4}$
+                        pattern: ^[A-Za-z0-9*/,?-]+(\s+[A-Za-z0-9*/,?-]+){4,6}$
                         type: string
                       disabled:
                         type: boolean

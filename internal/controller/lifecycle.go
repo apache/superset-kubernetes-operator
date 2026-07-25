@@ -305,9 +305,9 @@ func lifecycleParentPhase(upgradeInProgress bool) string {
 
 // gateOnInvalidSeedSchedule returns a terminal result when the user
 // configured seed with a malformed cron schedule. CRD pattern validation only
-// covers the structural shape (5 whitespace-separated fields of allowed
+// covers the structural shape (5-7 whitespace-separated fields of allowed
 // characters); out-of-range values like "99 99 99 99 99" still pass admission
-// and only fail at runtime when robfig/cron parses them. Without this gate,
+// and only fail at runtime when gronx parses them. Without this gate,
 // IsEnabled would treat seed as disabled and downstream tasks would run
 // against the wrong data set.
 func (r *SupersetReconciler) gateOnInvalidSeedSchedule(superset *supersetv1alpha1.Superset) (lifecycleResult, bool) {
