@@ -241,9 +241,10 @@ test-integration: manifests generate fmt vet setup-envtest ## Run integration te
 fuzz: ## Run all fuzz targets for a bounded duration (FUZZTIME per target, default 30s).
 	@FUZZTIME=$${FUZZTIME:-30s}; \
 	set -e; \
-	go test ./internal/config/     -run '^$$' -fuzz '^FuzzPyQuote$$'         -fuzztime $$FUZZTIME; \
-	go test ./internal/config/     -run '^$$' -fuzz '^FuzzRenderConfig$$'    -fuzztime $$FUZZTIME; \
-	go test ./internal/resolution/ -run '^$$' -fuzz '^FuzzMergeMaps$$'       -fuzztime $$FUZZTIME
+	go test ./internal/config/     -run '^$$' -fuzz '^FuzzPyQuote$$'            -fuzztime $$FUZZTIME; \
+	go test ./internal/config/     -run '^$$' -fuzz '^FuzzRenderConfig$$'       -fuzztime $$FUZZTIME; \
+	go test ./internal/resolution/ -run '^$$' -fuzz '^FuzzMergeMaps$$'          -fuzztime $$FUZZTIME; \
+	go test ./internal/controller/ -run '^$$' -fuzz '^FuzzRedactCredentials$$' -fuzztime $$FUZZTIME
 
 # E2E tests live under test/e2e/ and assume Kind is pre-installed; the manager
 # image is built and side-loaded into the cluster. CertManager is installed by

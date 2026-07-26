@@ -37,6 +37,10 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 - **Breaking:** downgrade blocking is removed. Any change to the lifecycle image tag now re-runs the migrate task (`superset db upgrade`) regardless of direction — the operator no longer performs semver comparison or sets `status.phase: Blocked` on a version decrease. The migrate task only runs `superset db upgrade` (Superset's down migrations are poorly tested and often break, so the operator never runs them), so take a database backup before an upgrade if you may need to revert. The `direction` field is removed from `status.lifecycle.upgrade`, and the `VersionComparisonSkipped` warning event no longer fires.
 - **Breaking:** the lifecycle `clone` task is renamed to `seed`. Rename `spec.lifecycle.clone` to `spec.lifecycle.seed` (and its `postCloneSQL` field to `postSeedSQL`) in your Superset resources. The task Job name suffix changes from `-clone` to `-seed`, and the lifecycle status phase from `Cloning` to `Seeding`. Custom `seed.command` scripts must read the renamed `SUPERSET_OPERATOR__SEED_SRC_*` environment variables.
 
+### Security
+
+- **Credential redaction in task failure output.** Lifecycle task failure messages are now scrubbed with best-effort pattern-based redaction before being persisted to the parent Superset status and Kubernetes Events: passwords embedded in connection URIs and common credential assignments (`password=...`, `token=...`, etc.) are masked. This mitigates the known limitation where a failing task command could leak credential fragments into status ([@younsl](https://github.com/younsl)).
+
 ## 0.1.1 - 2026-06-29
 
 ### Fixed

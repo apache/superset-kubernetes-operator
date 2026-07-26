@@ -266,6 +266,7 @@ func (r *SupersetReconciler) handleStuckTaskPod(
 	if !stuck {
 		return lifecycleResult{}, false, nil
 	}
+	msg = redactCredentials(msg)
 
 	desiredHash := podSpecHash(buildInitPod(flatSpec))
 	if existingJob.Annotations[naming.AnnotationTaskPodSpecHash] != desiredHash {
@@ -563,10 +564,10 @@ func jobFailureMessage(job *batchv1.Job) string {
 	for _, condition := range job.Status.Conditions {
 		if condition.Type == batchv1.JobFailed && condition.Status == corev1.ConditionTrue {
 			if condition.Message != "" {
-				return truncateFailureMessage(condition.Message)
+				return truncateFailureMessage(redactCredentials(condition.Message))
 			}
 			if condition.Reason != "" {
-				return truncateFailureMessage(condition.Reason)
+				return truncateFailureMessage(redactCredentials(condition.Reason))
 			}
 		}
 	}
