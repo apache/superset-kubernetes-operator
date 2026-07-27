@@ -43,6 +43,10 @@ spec:
     spec:
       serviceAccountName: {{ include "superset-operator.serviceAccountName" . }}
       terminationGracePeriodSeconds: 10
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}

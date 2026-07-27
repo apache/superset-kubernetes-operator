@@ -24,6 +24,9 @@ image:
   tag: v9.9.9-test
   pullPolicy: Always
 
+imagePullSecrets:
+  - name: superset-operator-registry
+
 replicas: 2
 
 revisionHistoryLimit: 5

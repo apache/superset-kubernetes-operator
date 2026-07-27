@@ -91,6 +91,8 @@ renders the full install manifests:
                 - mountPath: /tmp/k8s-metrics-server/metrics-certs
                   name: metrics-certs
                   readOnly: true
+          imagePullSecrets:
+            - name: superset-operator-registry
           nodeSelector:
             kubernetes.io/os: linux
           securityContext:
