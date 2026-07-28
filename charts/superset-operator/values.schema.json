@@ -22,6 +22,18 @@
         }
       }
     },
+    "imagePullSecrets": {
+      "description": "References to Secrets in the release namespace used to pull the operator image from a private registry. See https://pkg.go.dev/k8s.io/api/core/v1#LocalObjectReference",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1 }
+        },
+        "required": ["name"]
+      }
+    },
     "replicas": { "type": "integer", "minimum": 0 },
     "revisionHistoryLimit": { "type": ["integer", "null"], "minimum": 0 },
     "resources": {

@@ -6,6 +6,9 @@ image:
   # -- Image pull policy.
   pullPolicy: IfNotPresent
 
+# -- Existing Secrets used to pull the operator image from a private registry.
+imagePullSecrets: []
+
 # -- Number of operator manager replicas.
 replicas: 1
 

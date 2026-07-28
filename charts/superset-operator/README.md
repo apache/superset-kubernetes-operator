@@ -55,6 +55,7 @@ Full documentation is available at <https://apache.github.io/superset-kubernetes
 | image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
 | image.repository | string | `"ghcr.io/apache/superset-kubernetes-operator"` | Docker image repository for the operator manager. |
 | image.tag | string | `""` | Image tag. Defaults to the chart's appVersion when empty. |
+| imagePullSecrets | list | `[]` | Existing Secrets used to pull the operator image from a private registry. |
 | leaderElection.enabled | bool | `true` | Enable leader election so only one replica is active at a time. |
 | logLevel | string | `""` | Operator log verbosity (`--zap-log-level`). Leave empty for the default (`info`). Set to `debug` (alias `1`) for per-reconcile progress logs, or `2` for trace-level internals. |
 | metrics.certSecretName | string | `""` | Name of a Secret containing `tls.crt`, `tls.key`, and `ca.crt` to use for the metrics server instead of the built-in self-signed certificate. Typically written by cert-manager. |
