@@ -2,8 +2,8 @@ apiVersion: v2
 name: superset-operator
 description: The official Helm chart for deploying and managing Apache Superset with the Superset Kubernetes Operator
 type: application
-version: 0.0.0-dev
-appVersion: "dev"
+version: 0.2.0
+appVersion: "0.2.0"
 home: https://apache.github.io/superset-kubernetes-operator/
 icon: https://superset.apache.org/img/superset-logo-icon-only.png
 sources:
