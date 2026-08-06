@@ -23,6 +23,8 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 
 ## Unreleased
 
+## 0.2.0
+
 ### Added
 
 - **Seconds and year precision in `cronSchedule`.** Lifecycle task `cronSchedule` fields now accept 6- and 7-field cron expressions in addition to the classic 5-field form — an optional leading seconds field and/or trailing year field (e.g. `*/30 * * * * *` every 30 seconds, `0 0 2 * * * 2027`). Existing 5-field schedules are unaffected ([#238](https://github.com/apache/superset-kubernetes-operator/pull/238), [@villebro](https://github.com/villebro)).
