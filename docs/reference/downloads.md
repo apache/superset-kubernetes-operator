@@ -89,7 +89,7 @@ cosign verify \
 
 ## Helm Chart
 
-The Helm chart is published as an OCI artifact to the GitHub Container Registry on every merge to `main` and on version tags.
+The Helm chart is published as an OCI artifact to the GitHub Container Registry on every merge to `main` and on version tags. It is also indexed on [Artifact Hub](https://artifacthub.io/packages/helm/superset-kubernetes-operator/superset-operator).
 
 ### Install from OCI
 
