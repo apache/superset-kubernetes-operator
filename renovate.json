@@ -15,6 +15,19 @@
       "groupName": "Go dependencies"
     },
     {
+      "description": "Keep the Go toolchain in lockstep: the go.mod `go` directive (gomod manager) and the golang base image (dockerfile manager) are separate deps that would otherwise open separate PRs. Group them so a Go release bumps both together in one PR.",
+      "matchManagers": ["gomod", "dockerfile"],
+      "matchDepNames": ["go", "golang"],
+      "groupName": "Go toolchain"
+    },
+    {
+      "description": "Go toolchain security fixes ship as patch releases; the 7-day minimumReleaseAge would leave govulncheck failing on new stdlib advisories until it clears. Bypass the soak for Go toolchain patch/digest bumps; minor/major Go bumps still soak.",
+      "matchManagers": ["gomod", "dockerfile"],
+      "matchDepNames": ["go", "golang"],
+      "matchUpdateTypes": ["patch", "digest"],
+      "minimumReleaseAge": "0"
+    },
+    {
       "matchPackageNames": ["kubernetes-sigs/kind"],
       "addLabels": ["review:supported-k8s"],
       "prBodyNotes": [
