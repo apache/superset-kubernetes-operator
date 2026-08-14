@@ -390,7 +390,7 @@ GOLANGCI_LINT_VERSION ?= v2.12.2
 # renovate: datasource=go depName=github.com/elastic/crd-ref-docs
 CRD_REF_DOCS_VERSION ?= v0.3.0
 # renovate: datasource=go depName=golang.org/x/vuln
-GOVULNCHECK_VERSION ?= v1.6.0
+GOVULNCHECK_VERSION ?= v1.7.0
 # renovate: datasource=github-releases depName=rvben/rumdl
 RUMDL_VERSION ?= v0.2.55
 # renovate: datasource=go depName=github.com/norwoodj/helm-docs
