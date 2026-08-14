@@ -1,8 +1,6 @@
 module github.com/apache/superset-kubernetes-operator
 
-go 1.26.0
-
-toolchain go1.26.5
+go 1.26.6
 
 require (
 	github.com/adhocore/gronx v1.20.1
