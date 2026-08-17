@@ -185,7 +185,7 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 			return lifecycleCheckpoint(), nil
 		}
 
-		if result, handled, err := r.handleStuckTaskPod(ctx, superset, existingJob, taskType, taskName, flatSpec, taskRef); handled || err != nil {
+		if result, handled, err := r.handleStuckTaskPod(ctx, superset, existingJob, taskType, flatSpec, taskRef); handled || err != nil {
 			return result, err
 		}
 
@@ -253,13 +253,13 @@ func (r *SupersetReconciler) handleStuckTaskPod(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
 	existingJob *batchv1.Job,
-	taskType, taskName string,
+	taskType string,
 	flatSpec *supersetv1alpha1.FlatComponentSpec,
 	taskRef *supersetv1alpha1.TaskRefStatus,
 ) (lifecycleResult, bool, error) {
 	log := logf.FromContext(ctx)
 
-	msg, stuck, err := r.taskPodStartupError(ctx, superset, taskName)
+	msg, stuck, err := r.taskPodStartupError(ctx, superset, existingJob)
 	if err != nil {
 		return lifecycleResult{}, false, err
 	}
@@ -299,15 +299,26 @@ func (r *SupersetReconciler) handleStuckTaskPod(
 
 // taskPodStartupError lists the Pods of a lifecycle task Job and returns the
 // first un-startable one's reason, if any.
-func (r *SupersetReconciler) taskPodStartupError(ctx context.Context, superset *supersetv1alpha1.Superset, taskName string) (string, bool, error) {
+//
+// The label list is only a discovery pre-filter: the
+// superset.apache.org/instance label is forced on lifecycle task pods but can
+// be forged by any pod author in the namespace (e.g. via another Superset
+// CR's component podTemplate.labels). A pod's state is attributed to the task
+// only when the pod is controller-owned by that task's Job, so a foreign pod
+// carrying a spoofed label can never pollute this CR's status, conditions, or
+// events.
+func (r *SupersetReconciler) taskPodStartupError(ctx context.Context, superset *supersetv1alpha1.Superset, job *batchv1.Job) (string, bool, error) {
 	pods := &corev1.PodList{}
 	if err := r.List(ctx, pods,
 		client.InNamespace(superset.Namespace),
-		client.MatchingLabels{labelInitInstance: taskName},
+		client.MatchingLabels{labelInitInstance: job.Name},
 	); err != nil {
-		return "", false, fmt.Errorf("listing task pods for %s: %w", taskName, err)
+		return "", false, fmt.Errorf("listing task pods for %s: %w", job.Name, err)
 	}
 	for i := range pods.Items {
+		if !metav1.IsControlledBy(&pods.Items[i], job) {
+			continue
+		}
 		if msg, stuck := podStartupError(&pods.Items[i]); stuck {
 			return msg, true, nil
 		}

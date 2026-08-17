@@ -34,6 +34,7 @@ import (
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	naming "github.com/apache/superset-kubernetes-operator/internal/common"
+	"github.com/apache/superset-kubernetes-operator/internal/resolution"
 )
 
 const (
@@ -347,6 +348,21 @@ func buildMaintenanceFlatSpec(parentName string, spec *supersetv1alpha1.Maintena
 		DeploymentTemplate: spec.DeploymentTemplate.DeepCopy(),
 		PodTemplate:        spec.PodTemplate.DeepCopy(),
 	}
+
+	// Force the operator-managed pod labels (including superset.apache.org/parent)
+	// and strip any user-supplied superset.apache.org/* labels. Unlike the regular
+	// components, the maintenance page does not go through the resolution engine
+	// (MergePodTemplate), so without this a maintenance podTemplate could carry a
+	// forged parent label and land inside another instance's NetworkPolicy ingress
+	// isolation. Mirrors the reserved-label handling ResolveComponentSpec applies
+	// to every other pod.
+	if flat.PodTemplate == nil {
+		flat.PodTemplate = &supersetv1alpha1.PodTemplate{}
+	}
+	flat.PodTemplate.Labels = resolution.ForceOperatorPodLabels(
+		flat.PodTemplate.Labels,
+		podOperatorLabels(string(naming.ComponentMaintenancePage), parentName, parentName),
+	)
 
 	// Build env vars from content fields.
 	var envVars []corev1.EnvVar

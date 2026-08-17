@@ -20,11 +20,48 @@ package resolution
 
 import (
 	"maps"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 )
+
+// reservedLabelPrefix is the label namespace the operator relies on for pod
+// discovery and isolation (superset.apache.org/parent for instance-scoped
+// NetworkPolicy selectors, superset.apache.org/instance and
+// superset.apache.org/init-task for lifecycle task pod tracking). User-supplied
+// pod labels under this prefix are dropped during resolution: the operator
+// selects and attributes pods by these labels, so a CR author must not be able
+// to forge them onto arbitrary pods (e.g. tagging their own pods with another
+// instance's identity).
+const reservedLabelPrefix = "superset.apache.org/"
+
+// stripReservedLabels returns labels without any key under
+// reservedLabelPrefix. Returns nil when nothing remains.
+func stripReservedLabels(labels map[string]string) map[string]string {
+	var result map[string]string
+	for k, v := range labels {
+		if strings.HasPrefix(k, reservedLabelPrefix) {
+			continue
+		}
+		if result == nil {
+			result = make(map[string]string, len(labels))
+		}
+		result[k] = v
+	}
+	return result
+}
+
+// ForceOperatorPodLabels folds operator-managed labels into user-supplied pod
+// labels: every user key under the reserved superset.apache.org/ prefix is
+// dropped first, then operatorLabels are applied last so they always win.
+// Callers that build a pod template outside MergePodTemplate (e.g. the
+// maintenance-page path) use this to get the same unforgeable-reserved-label
+// guarantee the resolver gives every other pod. Returns nil when empty.
+func ForceOperatorPodLabels(userLabels, operatorLabels map[string]string) map[string]string {
+	return MergeMaps(stripReservedLabels(userLabels), operatorLabels)
+}
 
 // MergeMaps merges multiple string maps. Later maps take precedence on key conflict.
 // Returns nil if the result is empty.
@@ -141,8 +178,12 @@ func MergePodTemplate(comp, tl *supersetv1alpha1.PodTemplate, operatorLabels map
 	t := orEmpty(tl)
 
 	return &supersetv1alpha1.PodTemplate{
-		Annotations:                   MergeMaps(t.Annotations, c.Annotations),
-		Labels:                        MergeMaps(t.Labels, c.Labels, operatorLabels),
+		Annotations: MergeMaps(t.Annotations, c.Annotations),
+		// Reserved operator labels are stripped from user input before the
+		// merge (and operatorLabels still win on any remaining conflict), so
+		// no podTemplate can smuggle superset.apache.org/* discovery labels
+		// onto pods the operator did not stamp them on.
+		Labels:                        MergeMaps(stripReservedLabels(t.Labels), stripReservedLabels(c.Labels), operatorLabels),
 		NodeSelector:                  MergeMaps(t.NodeSelector, c.NodeSelector),
 		Affinity:                      ResolveOverridableValue(c.Affinity, t.Affinity),
 		PodSecurityContext:            ResolveOverridableValue(c.PodSecurityContext, t.PodSecurityContext),

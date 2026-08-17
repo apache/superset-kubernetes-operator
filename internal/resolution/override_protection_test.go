@@ -95,6 +95,43 @@ func TestMergePodTemplate_OperatorLabelsNotOverridable(t *testing.T) {
 	}
 }
 
+// TestMergePodTemplate_ReservedLabelPrefixStripped guards that user-supplied
+// pod labels in the operator's reserved superset.apache.org/ namespace are
+// dropped entirely, not merely overridden. Overriding only protects the keys
+// the operator happens to force on a given pod kind; reserved keys that are
+// forced elsewhere (e.g. superset.apache.org/instance, forced only on
+// lifecycle task Jobs) would otherwise survive onto component pods and let a
+// CR author impersonate another instance's task pods.
+func TestMergePodTemplate_ReservedLabelPrefixStripped(t *testing.T) {
+	comp := &supersetv1alpha1.PodTemplate{
+		Labels: map[string]string{
+			"superset.apache.org/instance":  "victim-migrate",
+			"superset.apache.org/init-task": "migrate",
+			"team":                          "data",
+		},
+	}
+	tl := &supersetv1alpha1.PodTemplate{
+		Labels: map[string]string{common.LabelKeyParent: "victim"},
+	}
+	operatorLabels := map[string]string{common.LabelKeyParent: "real-parent"}
+
+	result := MergePodTemplate(comp, tl, operatorLabels, &OperatorInjected{})
+
+	if got := result.Labels[common.LabelKeyParent]; got != "real-parent" {
+		t.Errorf("label %s = %q, want real-parent (operator value must win)", common.LabelKeyParent, got)
+	}
+	if got, ok := result.Labels["superset.apache.org/instance"]; ok {
+		t.Errorf("reserved label superset.apache.org/instance survived the merge with value %q", got)
+	}
+	if got, ok := result.Labels["superset.apache.org/init-task"]; ok {
+		t.Errorf("reserved label superset.apache.org/init-task survived the merge with value %q", got)
+	}
+	// Non-reserved user labels still merge through.
+	if got := result.Labels["team"]; got != "data" {
+		t.Errorf("label team = %q, want data (user label preserved)", got)
+	}
+}
+
 func secretEnvSource(name, key string) *corev1.EnvVarSource {
 	return &corev1.EnvVarSource{
 		SecretKeyRef: &corev1.SecretKeySelector{
