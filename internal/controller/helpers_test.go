@@ -19,8 +19,16 @@ limitations under the License.
 package controller
 
 import (
+	"context"
 	"testing"
 
+	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
@@ -82,4 +90,78 @@ func TestMergeAnnotations(t *testing.T) {
 	if mergeAnnotations(nil, nil) != nil {
 		t.Error("expected nil for both-nil input")
 	}
+}
+
+func TestDeleteIfNotForeignOwned(t *testing.T) {
+	// Regression test: name-derived cleanup must never delete a resource that
+	// is controller-owned by a foreign owner, even when it collides with a
+	// managed name. Unowned and CR-owned resources are still cleaned up.
+	ctx := context.Background()
+	scheme := testScheme(t)
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+	}
+	name := common.ResourceBaseName("test", common.ComponentWebServer)
+
+	newDeploy := func(refs []metav1.OwnerReference) *appsv1.Deployment {
+		return &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
+			Name: name, Namespace: "default", OwnerReferences: refs,
+		}}
+	}
+	get := func(c client.Client) error {
+		return c.Get(ctx, client.ObjectKey{Name: name, Namespace: "default"}, &appsv1.Deployment{})
+	}
+
+	t.Run("deletes unowned resource at managed name", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(newDeploy(nil)).Build()
+		if err := deleteIfNotForeignOwned(ctx, c, superset, &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+		}); err != nil {
+			t.Fatalf("deleteIfNotForeignOwned: %v", err)
+		}
+		if err := get(c); !errors.IsNotFound(err) {
+			t.Errorf("expected unowned Deployment deleted, got %v", err)
+		}
+	})
+
+	t.Run("deletes resource owned by the CR", func(t *testing.T) {
+		owned := newDeploy([]metav1.OwnerReference{{
+			APIVersion: supersetv1alpha1.GroupVersion.String(), Kind: "Superset",
+			Name: "test", UID: "uid-1", Controller: boolPtr(true),
+		}})
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owned).Build()
+		if err := deleteIfNotForeignOwned(ctx, c, superset, &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+		}); err != nil {
+			t.Fatalf("deleteIfNotForeignOwned: %v", err)
+		}
+		if err := get(c); !errors.IsNotFound(err) {
+			t.Errorf("expected CR-owned Deployment deleted, got %v", err)
+		}
+	})
+
+	t.Run("skips resource controller-owned by a foreign owner", func(t *testing.T) {
+		foreign := newDeploy([]metav1.OwnerReference{{
+			APIVersion: "apps.example.com/v1", Kind: "ForeignApp",
+			Name: "billing", UID: "foreign-uid", Controller: boolPtr(true),
+		}})
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(foreign).Build()
+		if err := deleteIfNotForeignOwned(ctx, c, superset, &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+		}); err != nil {
+			t.Fatalf("deleteIfNotForeignOwned: %v", err)
+		}
+		if err := get(c); err != nil {
+			t.Errorf("expected foreign controller-owned Deployment preserved, got %v", err)
+		}
+	})
+
+	t.Run("missing object is not an error", func(t *testing.T) {
+		c := fake.NewClientBuilder().WithScheme(scheme).Build()
+		if err := deleteIfNotForeignOwned(ctx, c, superset, &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+		}); err != nil {
+			t.Fatalf("deleteIfNotForeignOwned: %v", err)
+		}
+	})
 }

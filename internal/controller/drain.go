@@ -165,7 +165,7 @@ func (r *SupersetReconciler) drainComponents(ctx context.Context, superset *supe
 		deleteNamed := func(obj client.Object) error {
 			obj.SetName(resourceBaseName)
 			obj.SetNamespace(superset.Namespace)
-			return client.IgnoreNotFound(r.Delete(ctx, obj))
+			return deleteIfNotForeignOwned(ctx, r.Client, superset, obj)
 		}
 		if err := deleteNamed(&appsv1.Deployment{}); err != nil {
 			return false, fmt.Errorf("deleting Deployment for drain %s: %w", desc.componentType, err)

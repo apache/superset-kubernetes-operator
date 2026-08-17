@@ -469,15 +469,19 @@ func (r *SupersetReconciler) deleteTaskJobs(ctx context.Context, superset *super
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{Name: taskName, Namespace: superset.Namespace},
 	}
-	if err := r.deleteLifecycleJob(ctx, job); err != nil {
+	if err := r.deleteLifecycleJob(ctx, superset, job); err != nil {
 		return fmt.Errorf("deleting lifecycle task job: %w", err)
 	}
 	return nil
 }
 
-func (r *SupersetReconciler) deleteLifecycleJob(ctx context.Context, job *batchv1.Job) error {
-	err := r.Delete(ctx, job, client.PropagationPolicy(metav1.DeletePropagationForeground))
-	return client.IgnoreNotFound(err)
+// deleteLifecycleJob foreground-deletes a lifecycle task Job, but only when
+// the live Job is not controller-owned by a foreign owner: task Job names are
+// derived from the CR name, so a colliding Job belonging to someone else
+// (e.g. a CronJob-owned Job named {cr}-init) must not be deleted.
+func (r *SupersetReconciler) deleteLifecycleJob(ctx context.Context, superset *supersetv1alpha1.Superset, job *batchv1.Job) error {
+	return deleteIfNotForeignOwned(ctx, r.Client, superset, job,
+		client.PropagationPolicy(metav1.DeletePropagationForeground))
 }
 
 func (r *SupersetReconciler) cleanupLifecycleTaskJobsByRetention(ctx context.Context, superset *supersetv1alpha1.Superset) error {
@@ -512,7 +516,7 @@ func (r *SupersetReconciler) cleanupTaskJobsByRetention(ctx context.Context, sup
 			continue
 		}
 		if ShouldDeletePod(policy, phase) {
-			if err := r.deleteLifecycleJob(ctx, job); err != nil {
+			if err := r.deleteLifecycleJob(ctx, superset, job); err != nil {
 				return fmt.Errorf("deleting retained lifecycle task job %s: %w", job.Name, err)
 			}
 		}

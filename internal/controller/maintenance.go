@@ -247,7 +247,7 @@ func (r *SupersetReconciler) deleteMaintenanceResources(ctx context.Context, sup
 			Namespace: superset.Namespace,
 		},
 	}
-	if err := r.Delete(ctx, deploy); err != nil && !errors.IsNotFound(err) {
+	if err := deleteIfNotForeignOwned(ctx, r.Client, superset, deploy); err != nil {
 		return fmt.Errorf("deleting maintenance Deployment: %w", err)
 	}
 
@@ -257,7 +257,7 @@ func (r *SupersetReconciler) deleteMaintenanceResources(ctx context.Context, sup
 			Namespace: superset.Namespace,
 		},
 	}
-	if err := r.Delete(ctx, cm); err != nil && !errors.IsNotFound(err) {
+	if err := deleteIfNotForeignOwned(ctx, r.Client, superset, cm); err != nil {
 		return fmt.Errorf("deleting maintenance ConfigMap: %w", err)
 	}
 	return nil
