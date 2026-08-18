@@ -78,14 +78,16 @@ docker pull ghcr.io/apache/superset-kubernetes-operator:dev
 
 ### Image Signing
 
-All images are signed with [cosign](https://docs.sigstore.dev/cosign/overview/) using keyless OIDC signing via GitHub Actions. To verify:
+All images are signed with [cosign](https://docs.sigstore.dev/cosign/overview/) using keyless OIDC signing via GitHub Actions. The release workflow also signs throwaway dev builds (pushes to `main` and `workflow_dispatch` runs) under the same workflow identity, and those builds are **not** gated on release CI — so the verification command must pin the identity to the tag-triggered release ref, not just the repository. To verify a release:
 
 ```bash
 cosign verify \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  --certificate-identity-regexp 'github\.com/apache/superset-kubernetes-operator' \
+  --certificate-identity-regexp '^https://github\.com/apache/superset-kubernetes-operator/\.github/workflows/release\.yml@refs/tags/v.*$' \
   ghcr.io/apache/superset-kubernetes-operator:<tag>
 ```
+
+Images whose signing certificate identity ends in `@refs/heads/main` are ungated development builds; do not accept them as releases.
 
 ## Helm Chart
 
