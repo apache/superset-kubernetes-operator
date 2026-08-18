@@ -67,8 +67,6 @@ github:
           - Apache Rat
       required_pull_request_reviews:
         dismiss_stale_reviews: false
-        # No CODEOWNERS file in this repo, so code-owner review is not required;
-        # any one committer's approval satisfies the gate.
         require_code_owner_reviews: false
         required_approving_review_count: 1
       required_signatures: false
