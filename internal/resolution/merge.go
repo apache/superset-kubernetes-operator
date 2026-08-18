@@ -178,11 +178,7 @@ func MergePodTemplate(comp, tl *supersetv1alpha1.PodTemplate, operatorLabels map
 	t := orEmpty(tl)
 
 	return &supersetv1alpha1.PodTemplate{
-		Annotations: MergeMaps(t.Annotations, c.Annotations),
-		// Reserved operator labels are stripped from user input before the
-		// merge (and operatorLabels still win on any remaining conflict), so
-		// no podTemplate can smuggle superset.apache.org/* discovery labels
-		// onto pods the operator did not stamp them on.
+		Annotations:                   MergeMaps(t.Annotations, c.Annotations),
 		Labels:                        MergeMaps(stripReservedLabels(t.Labels), stripReservedLabels(c.Labels), operatorLabels),
 		NodeSelector:                  MergeMaps(t.NodeSelector, c.NodeSelector),
 		Affinity:                      ResolveOverridableValue(c.Affinity, t.Affinity),
