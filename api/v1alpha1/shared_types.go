@@ -658,9 +658,13 @@ type ComponentServiceSpec struct {
 	// Service labels; merged with operator-managed labels.
 	// +optional
 	Labels map[string]string `json:"labels,omitempty"`
-	// URL path prefix for this component's HTTPRoute rule.
-	// Only used when spec.networking.gateway is set.
-	// Defaults: /ws (websocket), /mcp (MCP server), /flower (Celery Flower).
+	// URL path prefix for this component's HTTPRoute/Ingress rule.
+	// Used when spec.networking.gateway or spec.networking.ingress is set.
+	// Default paths when the component is published: /ws (websocket), /mcp
+	// (MCP server), /flower (Celery Flower). For Celery Flower this field also
+	// gates external publication in Production: because Flower ships without
+	// authentication, it is fanned out onto the Ingress/Gateway surface only
+	// when this field is set (Development and Staging publish it by default).
 	// +optional
 	// +kubebuilder:validation:Pattern=`^/[a-zA-Z0-9/_.-]+$`
 	GatewayPath *string `json:"gatewayPath,omitempty"`

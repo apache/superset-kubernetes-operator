@@ -56,7 +56,7 @@ The operator creates an `HTTPRoute` with path-based routing:
 |---|---|---|---|
 | 1 (most specific) | `/ws` | websocket-server Service | websocketServer enabled |
 | 2 | `/mcp` | mcp-server Service | mcpServer enabled |
-| 3 | `/flower` | celery-flower Service | celeryFlower enabled |
+| 3 | `/flower` | celery-flower Service | celeryFlower enabled **and** published (see the Flower note below) |
 | 4 (catch-all) | `/` | web-server Service | webServer enabled |
 
 More specific paths are listed first to ensure correct routing priority. Paths are configurable via `service.gatewayPath` on each component spec.
@@ -70,11 +70,15 @@ spec:
       gatewayPath: /monitoring
 ```
 
+!!! warning "Celery Flower ships unauthenticated"
+
+    The operator's default Flower command carries no authentication, and the Flower dashboard discloses task names, arguments, and results metadata — for Superset that includes other users' async SQL Lab statements and alert/report payloads. To avoid exposing it unauthenticated on the end-user hostname, Flower is **not** published on the Ingress/Gateway surface in `Production` unless you explicitly set `celeryFlower.service.gatewayPath`. In `Development` and `Staging` it is published by default for convenience. Setting `gatewayPath` is your assertion that authentication sits in front of Flower — for example inject Flower's `FLOWER_BASIC_AUTH` environment variable from a Kubernetes Secret via `celeryFlower.podTemplate.container.env` (`valueFrom.secretKeyRef`), or enforce authentication at the ingress-controller layer for the Flower path.
+
 ## Ingress (Legacy)
 
 Gateway API and Ingress are mutually exclusive — set one or the other, not both.
 
-Ingress uses the **same per-component path routing** as Gateway API: a host with no explicit `paths` is expanded by the operator into one rule per present component (`/` → web server, plus `/flower`, `/mcp`, `/ws` for the components that are enabled), reusing each component's `service.gatewayPath`. Requests are forwarded as-is (no path rewrite), so each component owns its subpath the same way it does under Gateway API (e.g. Flower via its `--url_prefix`).
+Ingress uses the **same per-component path routing** as Gateway API: a host with no explicit `paths` is expanded by the operator into one rule per present component (`/` → web server, plus `/mcp` and `/ws` for the components that are enabled, and `/flower` when Flower is published — see the Flower note above), reusing each component's `service.gatewayPath`. Requests are forwarded as-is (no path rewrite), so each component owns its subpath the same way it does under Gateway API (e.g. Flower via its `--url_prefix`).
 
 ```yaml
 spec:
@@ -227,7 +231,7 @@ spec:
 Creates per-component NetworkPolicies that:
 
 - Allow ingress from other pods of the same Superset instance on **any port** (matched by `app.kubernetes.io/name: superset` + `superset.apache.org/parent` labels — multiple Superset instances in the same namespace are isolated from each other). The same-instance rule is intentionally port-unrestricted so internal traffic between components (sidecar metrics scraping, the websocket server fanning out to web pods, etc.) is not silently blocked.
-- Allow ingress on the service port from any source for externally-facing components (web server, Celery Flower, websocket server, MCP server) — this is necessary because ingress controllers and load balancers typically reside outside the namespace and cannot be matched with a pod selector.
+- Allow ingress on the service port from any source for externally-facing components (web server, websocket server, MCP server, and Celery Flower once it is published — see the Flower note above) — this is necessary because ingress controllers and load balancers typically reside outside the namespace and cannot be matched with a pod selector.
 - Allow all egress (for database/cache access)
 - Support custom `extraIngress` and `extraEgress` rules
 
@@ -238,7 +242,7 @@ Creates per-component NetworkPolicies that:
 | WebServer | any port | port 8088 | all |
 | CeleryWorker | any port | — | all |
 | CeleryBeat | any port | — | all |
-| CeleryFlower | any port | port 5555 | all |
+| CeleryFlower | any port | port 5555 (only when published; see the Flower note above) | all |
 | WebsocketServer | any port | port 8080 | all |
 | McpServer | any port | port 8088 | all |
 

@@ -285,6 +285,32 @@ type componentRoute struct {
 	path    string
 }
 
+// flowerRoutePublished reports whether Celery Flower is exposed on the external
+// Ingress/Gateway surface. Flower's default command ships without authentication
+// and its dashboard discloses task args/kwargs — for Superset that includes other
+// users' async SQL Lab statements and alert/report payloads — so in Production it
+// is published only when the CR author explicitly sets celeryFlower.service.gatewayPath,
+// which is their assertion that authentication is in front of Flower (e.g.
+// FLOWER_BASIC_AUTH injected from a Secret via podTemplate env). Development and
+// Staging keep the convenient auto-publish. See
+// docs/user-guide/networking-and-monitoring.md.
+func flowerRoutePublished(superset *supersetv1alpha1.Superset) bool {
+	if superset.Spec.CeleryFlower == nil {
+		return false
+	}
+	if svc := superset.Spec.CeleryFlower.Service; svc != nil && svc.GatewayPath != nil && *svc.GatewayPath != "" {
+		return true
+	}
+	return !isProductionEnvironment(superset)
+}
+
+// isProductionEnvironment reports whether the CR runs in the hardened Production
+// mode. Production is the default, so an unset environment is treated as such.
+func isProductionEnvironment(superset *supersetv1alpha1.Superset) bool {
+	env := superset.Spec.Environment
+	return env == nil || *env == common.EnvironmentProd
+}
+
 // componentRoutes returns the path routes for every present routable component,
 // ordered most-specific first so the web server's "/" catch-all is last.
 func componentRoutes(superset *supersetv1alpha1.Superset) []componentRoute {
@@ -303,7 +329,7 @@ func componentRoutes(superset *supersetv1alpha1.Superset) []componentRoute {
 			path:    resolveGatewayPath(superset.Spec.McpServer.Service, "/mcp"),
 		})
 	}
-	if superset.Spec.CeleryFlower != nil {
+	if flowerRoutePublished(superset) {
 		routes = append(routes, componentRoute{
 			svcName: celeryFlowerDescriptor.resourceBaseName(&superset.Spec, superset.Name),
 			port:    resolveServicePort(superset.Spec.CeleryFlower.Service, common.PortCeleryFlower),
