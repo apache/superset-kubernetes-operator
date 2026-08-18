@@ -104,11 +104,12 @@
     },
     {
       "customType": "regex",
-      "description": "Track the version-only helm-unittest plugin pin (no checksum; installed via helm plugin install)",
+      "description": "Track the version-only helm-unittest pin in install-helm-unittest.sh (per-platform archive digests live in hack/tool-checksums.txt, resynced via `make sync-tool-checksums`)",
       "managerFilePatterns": ["/^scripts\\/install-helm-unittest\\.sh$/"],
       "matchStrings": [
-        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\s+\\S+_VERSION=\"\\$\\{\\S+_VERSION:-(?<currentValue>[^\\\"]+)\\}\""
-      ]
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( versioning=(?<versioning>\\S+))?\\s+\\S+_VERSION=\"\\$\\{\\S+_VERSION:-(?<currentValue>[^\\\"]+)\\}\""
+      ],
+      "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver-coerced{{/if}}"
     }
   ]
 }
