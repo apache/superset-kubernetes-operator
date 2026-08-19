@@ -31,10 +31,10 @@
 # and commit the result. rumdl, operator-sdk, and helm-unittest hashes are
 # cross-checked against the upstream per-release checksum manifests; opm
 # publishes no manifest, so its binaries are hashed locally.
-7bddb23415f94c6503fe77f382d4c2398a2b36a78d936a434a8c71c3711da21b  v0.2.55/rumdl-v0.2.55-x86_64-unknown-linux-gnu.tar.gz
-144488f129c4d35eb22ae0dd93eb5018988228b442a31f163805cb92f71ceca9  v0.2.55/rumdl-v0.2.55-aarch64-unknown-linux-gnu.tar.gz
-8dadf1b9aeda17f8a41ab4fcdd2a7f7dfb6eda8981ddce3ebf61b72e3d1d3f89  v0.2.55/rumdl-v0.2.55-x86_64-apple-darwin.tar.gz
-98dd5620e7eb8ba8fd77830fe1f313530ae2a6368ae867149f7de13dbebde6e3  v0.2.55/rumdl-v0.2.55-aarch64-apple-darwin.tar.gz
+7c16817f4beb3e1f105eb592fcf077b74b24788d100ee862f0015d1373f9ee03  v0.2.57/rumdl-v0.2.57-x86_64-unknown-linux-gnu.tar.gz
+9f12fadfbe6abbf53fb8383be1f8611860841f4887bd839cc68771a1769571be  v0.2.57/rumdl-v0.2.57-aarch64-unknown-linux-gnu.tar.gz
+a3078143433656b526cfee5eb7cd1cc10c78aeedeb49d2045993408c6c94c344  v0.2.57/rumdl-v0.2.57-x86_64-apple-darwin.tar.gz
+01d5804656fbef86f8323145ef3024f34c0e4646f6289f2afc17e03e04b7ac7a  v0.2.57/rumdl-v0.2.57-aarch64-apple-darwin.tar.gz
 887a3bb0d63ccc4ca47a522d0c8ffac56d9d5246f6a2bd886b4ed23eb2e2672f  v1.42.3/operator-sdk_linux_amd64
 6db93cd821b429f0bb514cea4bbb5553827d273fc8aa211f13e14798599d31cd  v1.42.3/operator-sdk_linux_arm64
 7cb0f24bb63b6383a117291ee4c808953c5dd789d5877da98051aa68b41f40ac  v1.42.3/operator-sdk_darwin_amd64
