@@ -835,3 +835,149 @@ func TestReconcileWebServerService_DeletesWhenWebServerRemoved(t *testing.T) {
 		t.Fatalf("reconcileWebServerService (absent): %v", err)
 	}
 }
+
+func TestReconcileWebServerService_DoesNotSeizeForeignOwnedService(t *testing.T) {
+	// Regression test: a Service that happens to sit at the derived
+	// {name}-web-server name but is controller-owned by a different controller
+	// must never be adopted or rewritten. The reconcile must surface
+	// AlreadyOwnedError and leave the foreign Service untouched.
+	ctx := context.Background()
+	scheme := testScheme(t)
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "billing", Namespace: "default", UID: "uid-1"},
+		Spec: supersetv1alpha1.SupersetSpec{
+			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
+		},
+	}
+	svcName, _ := webServerServiceRef(superset)
+	foreign := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      svcName,
+			Namespace: "default",
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: "apps/v1",
+				Kind:       "Deployment",
+				Name:       "billing-web-server",
+				UID:        "foreign-uid",
+				Controller: boolPtr(true),
+			}},
+		},
+		Spec: corev1.ServiceSpec{Selector: map[string]string{"app": "billing"}},
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, foreign).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	if err := r.reconcileWebServerService(ctx, superset); err == nil {
+		t.Fatal("expected error adopting a foreign controller-owned Service, got nil")
+	}
+
+	svc := &corev1.Service{}
+	if err := c.Get(ctx, client.ObjectKey{Name: svcName, Namespace: "default"}, svc); err != nil {
+		t.Fatalf("get service: %v", err)
+	}
+	if len(svc.OwnerReferences) != 1 || svc.OwnerReferences[0].UID != "foreign-uid" {
+		t.Errorf("expected foreign ownerReference preserved, got %+v", svc.OwnerReferences)
+	}
+	if svc.Spec.Selector["app"] != "billing" {
+		t.Errorf("expected foreign selector preserved, got %v", svc.Spec.Selector)
+	}
+}
+
+func TestReconcileWebServerService_AdoptsLegacySupersetOwnedService(t *testing.T) {
+	// Upgrade path: ownerReferences left behind by earlier Superset-operator
+	// versions (same API group) are stripped and the Service is re-owned by
+	// the current parent CR without an AlreadyOwnedError.
+	ctx := context.Background()
+	scheme := testScheme(t)
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Spec: supersetv1alpha1.SupersetSpec{
+			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
+		},
+	}
+	svcName, _ := webServerServiceRef(superset)
+	legacy := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      svcName,
+			Namespace: "default",
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: supersetv1alpha1.GroupVersion.String(),
+				Kind:       "Superset",
+				Name:       "test",
+				UID:        "legacy-uid",
+				Controller: boolPtr(true),
+			}},
+		},
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, legacy).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	if err := r.reconcileWebServerService(ctx, superset); err != nil {
+		t.Fatalf("reconcileWebServerService (legacy owner): %v", err)
+	}
+
+	svc := &corev1.Service{}
+	if err := c.Get(ctx, client.ObjectKey{Name: svcName, Namespace: "default"}, svc); err != nil {
+		t.Fatalf("get service: %v", err)
+	}
+	if !isOwnedBy(svc, superset) {
+		t.Error("expected legacy Service re-owned by current parent CR")
+	}
+	for _, ref := range svc.OwnerReferences {
+		if ref.UID == "legacy-uid" {
+			t.Errorf("expected legacy ownerReference stripped, got %+v", svc.OwnerReferences)
+		}
+	}
+}
+
+func TestStripLegacySupersetOwnerRefs(t *testing.T) {
+	// Selectivity is the security-critical property: only ownerReferences in the
+	// operator's own API group (left by earlier operator versions) may be
+	// stripped so the Service can be re-adopted; every other reference — a
+	// foreign controller's, or one with an unparseable apiVersion — must survive
+	// so SetControllerReference still rejects adoption via AlreadyOwnedError.
+	supersetRef := metav1.OwnerReference{
+		APIVersion: supersetv1alpha1.GroupVersion.String(), Kind: "Superset",
+		Name: "legacy", UID: "legacy-uid", Controller: boolPtr(true),
+	}
+	// Same operator group, different (hypothetical) version — still ours.
+	supersetOtherVersion := metav1.OwnerReference{
+		APIVersion: supersetv1alpha1.GroupVersion.Group + "/v1beta1", Kind: "Superset",
+		Name: "legacy2", UID: "legacy2-uid",
+	}
+	foreignRef := metav1.OwnerReference{
+		APIVersion: "apps/v1", Kind: "Deployment",
+		Name: "billing", UID: "foreign-uid", Controller: boolPtr(true),
+	}
+	coreRef := metav1.OwnerReference{APIVersion: "v1", Kind: "ConfigMap", Name: "cm", UID: "cm-uid"}
+
+	uids := func(refs []metav1.OwnerReference) []string {
+		out := make([]string, 0, len(refs))
+		for _, r := range refs {
+			out = append(out, string(r.UID))
+		}
+		return out
+	}
+
+	tests := []struct {
+		name     string
+		in       []metav1.OwnerReference
+		wantUIDs []string
+	}{
+		{"nil is nil", nil, []string{}},
+		{"only legacy stripped to empty", []metav1.OwnerReference{supersetRef}, []string{}},
+		{"foreign preserved", []metav1.OwnerReference{foreignRef}, []string{"foreign-uid"}},
+		{
+			"mixed: only foreign survives",
+			[]metav1.OwnerReference{supersetRef, foreignRef, coreRef, supersetOtherVersion},
+			[]string{"foreign-uid", "cm-uid"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := uids(stripLegacySupersetOwnerRefs(tt.in)); !reflect.DeepEqual(got, tt.wantUIDs) {
+				t.Errorf("stripLegacySupersetOwnerRefs() UIDs = %v, want %v", got, tt.wantUIDs)
+			}
+		})
+	}
+}

@@ -448,7 +448,7 @@ func reconcileParentOwnedConfigMap(
 		cm := &corev1.ConfigMap{}
 		cm.Name = cmName
 		cm.Namespace = parent.Namespace
-		return client.IgnoreNotFound(c.Delete(ctx, cm))
+		return deleteIfNotForeignOwned(ctx, c, parent, cm)
 	}
 
 	cm := &corev1.ConfigMap{

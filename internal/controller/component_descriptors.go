@@ -333,7 +333,7 @@ func (r *SupersetReconciler) deleteComponentResources(ctx context.Context, super
 	deleteNamed := func(obj client.Object) error {
 		obj.SetName(resourceBaseName)
 		obj.SetNamespace(superset.Namespace)
-		return client.IgnoreNotFound(r.Delete(ctx, obj))
+		return deleteIfNotForeignOwned(ctx, r.Client, superset, obj)
 	}
 
 	if err := deleteNamed(&appsv1.Deployment{}); err != nil {

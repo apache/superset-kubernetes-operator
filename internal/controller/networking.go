@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -96,7 +97,7 @@ func (r *SupersetReconciler) reconcileWebServerService(ctx context.Context, supe
 		svc := &corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{Name: svcName, Namespace: superset.Namespace},
 		}
-		if err := r.Delete(ctx, svc); err != nil && !errors.IsNotFound(err) {
+		if err := deleteIfNotForeignOwned(ctx, r.Client, superset, svc); err != nil && !errors.IsNotFound(err) {
 			return fmt.Errorf("deleting web-server Service: %w", err)
 		}
 		return nil
@@ -122,9 +123,7 @@ func (r *SupersetReconciler) reconcileWebServerService(ctx context.Context, supe
 	webServerLabels := componentLabels(string(common.ComponentWebServer), superset.Name)
 
 	_, err := createOrUpdateWithRetry(ctx, r.Client, svc, func() error {
-		// Clear existing owner references to handle upgrades from earlier
-		// versions where the Service may have been owned by another controller.
-		svc.OwnerReferences = nil
+		svc.OwnerReferences = stripLegacySupersetOwnerRefs(svc.OwnerReferences)
 		if err := controllerutil.SetControllerReference(superset, svc, r.Scheme); err != nil {
 			return err
 		}
@@ -142,6 +141,24 @@ func (r *SupersetReconciler) reconcileWebServerService(ctx context.Context, supe
 		return nil
 	})
 	return err
+}
+
+// stripLegacySupersetOwnerRefs removes ownerReferences that belong to this
+// operator's API group (left behind by earlier operator versions that owned
+// the web-server Service through a different Superset-operator resource) while
+// preserving every other ownerReference. Keeping foreign references intact is
+// load-bearing: it is what lets SetControllerReference reject adoption of a
+// Service that is controller-owned by a different controller.
+func stripLegacySupersetOwnerRefs(refs []metav1.OwnerReference) []metav1.OwnerReference {
+	var kept []metav1.OwnerReference
+	for _, ref := range refs {
+		gv, err := schema.ParseGroupVersion(ref.APIVersion)
+		if err == nil && gv.Group == supersetv1alpha1.GroupVersion.Group {
+			continue
+		}
+		kept = append(kept, ref)
+	}
+	return kept
 }
 
 // resolveWebServerPort returns the resolved web-server container port, taking

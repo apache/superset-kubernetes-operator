@@ -21,9 +21,11 @@ package controller
 import (
 	"context"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/retry"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/apache/superset-kubernetes-operator/internal/common"
 	"github.com/apache/superset-kubernetes-operator/internal/resolution"
@@ -53,6 +55,33 @@ func createOrUpdateWithRetry(
 		return innerErr
 	})
 	return op, err
+}
+
+// deleteIfNotForeignOwned deletes the object whose name/namespace are already
+// populated on obj, unless the live object is controller-owned by an owner
+// other than the given parent Superset CR. Cleanup paths derive resource names
+// purely from the CR name, so a resource that belongs to another controller
+// can collide with a managed name; deleting it would turn the operator's
+// namespace-wide delete RBAC into a deletion oracle for resources the CR
+// author holds no permissions over. Per the documented adoption/cleanup
+// semantics (docs/reference/security.md, "Managed resource adoption and
+// cleanup"), only resources owned by this CR or unowned resources at a managed
+// name may be deleted. A missing object is not an error.
+func deleteIfNotForeignOwned(ctx context.Context, c client.Client, owner client.Object, obj client.Object, opts ...client.DeleteOption) error {
+	if err := c.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
+		return client.IgnoreNotFound(err)
+	}
+	if ref := metav1.GetControllerOf(obj); ref != nil && ref.UID != owner.GetUID() {
+		logf.FromContext(ctx).Info("Skipping cleanup of resource controller-owned by a foreign owner",
+			"name", obj.GetName(), "namespace", obj.GetNamespace(),
+			"ownerKind", ref.Kind, "ownerName", ref.Name)
+		return nil
+	}
+	// Precondition on the observed UID so an object recreated by its
+	// legitimate owner between the Get and the Delete is not deleted.
+	uid := obj.GetUID()
+	opts = append(opts, client.Preconditions{UID: &uid})
+	return client.IgnoreNotFound(c.Delete(ctx, obj, opts...))
 }
 
 // parentLabels returns the operator-managed labels for parent-owned resources
