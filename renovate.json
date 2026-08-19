@@ -15,6 +15,12 @@
       "groupName": "Go dependencies"
     },
     {
+      "description": "Renovate disables indirect (transitive) Go modules by default, so minimal-version-selection floats them up only when a direct parent bumps — leaving them below their latest supported SemVer and behind version-based advisories (OpenSSF Scorecard / OSV) that reachability-based govulncheck never flags. Track indirect deps at latest; every bump is gated by CI (build, tests, govulncheck, Trivy), so a breaking transitive update fails its PR rather than merging. To hold a specific module below latest after a genuine breakage, add a per-package rule pinning it via allowedVersions or enabled:false.",
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["indirect"],
+      "enabled": true
+    },
+    {
       "description": "Keep the Go toolchain in lockstep: the go.mod `go` directive (gomod manager), the golang base image (dockerfile manager), and the devcontainer golang image (devcontainer manager) are separate deps that would otherwise open separate PRs. Group them so a Go release bumps all together in one PR.",
       "matchManagers": ["gomod", "dockerfile", "devcontainer"],
       "matchDepNames": ["go", "golang"],
