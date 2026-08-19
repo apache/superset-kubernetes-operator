@@ -260,10 +260,14 @@ func TestReconcileHTTPRoute_WithCeleryFlower(t *testing.T) {
 	superset := &supersetv1alpha1.Superset{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
 		Spec: supersetv1alpha1.SupersetSpec{
-			Image:        supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
-			WebServer:    &supersetv1alpha1.WebServerComponentSpec{},
-			CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{},
-			Lifecycle:    &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
+			// Flower is published on the external surface only via this explicit
+			// opt-in (its default command ships without authentication).
+			CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{
+				Service: &supersetv1alpha1.ComponentServiceSpec{GatewayPath: common.Ptr("/flower")},
+			},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Gateway: &supersetv1alpha1.GatewaySpec{
 					GatewayRef: gatewayv1.ParentReference{
@@ -414,9 +418,11 @@ func TestComponentRoutes(t *testing.T) {
 	superset := &supersetv1alpha1.Superset{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
 		Spec: supersetv1alpha1.SupersetSpec{
-			WebServer:    &supersetv1alpha1.WebServerComponentSpec{},
-			McpServer:    &supersetv1alpha1.McpServerComponentSpec{},
-			CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{},
+			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
+			McpServer: &supersetv1alpha1.McpServerComponentSpec{},
+			CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{
+				Service: &supersetv1alpha1.ComponentServiceSpec{GatewayPath: common.Ptr("/flower")},
+			},
 		},
 	}
 	want := []componentRoute{
@@ -437,11 +443,13 @@ func TestReconcileIngress_MultiComponentFanout(t *testing.T) {
 	superset := &supersetv1alpha1.Superset{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
 		Spec: supersetv1alpha1.SupersetSpec{
-			Image:        supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
-			WebServer:    &supersetv1alpha1.WebServerComponentSpec{},
-			McpServer:    &supersetv1alpha1.McpServerComponentSpec{},
-			CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{},
-			Lifecycle:    &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
+			McpServer: &supersetv1alpha1.McpServerComponentSpec{},
+			CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{
+				Service: &supersetv1alpha1.ComponentServiceSpec{GatewayPath: common.Ptr("/flower")},
+			},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Ingress: &supersetv1alpha1.IngressSpec{Host: "superset.example.com"},
 			},
@@ -482,10 +490,14 @@ func TestReconcileIngress_ExplicitPathsRouteToWebServer(t *testing.T) {
 	superset := &supersetv1alpha1.Superset{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
 		Spec: supersetv1alpha1.SupersetSpec{
-			Image:        supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
-			WebServer:    &supersetv1alpha1.WebServerComponentSpec{},
-			CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{},
-			Lifecycle:    &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
+			// Flower is published on the external surface only via this explicit
+			// opt-in (its default command ships without authentication).
+			CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{
+				Service: &supersetv1alpha1.ComponentServiceSpec{GatewayPath: common.Ptr("/flower")},
+			},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Ingress: &supersetv1alpha1.IngressSpec{
 					Hosts: []supersetv1alpha1.IngressHost{
@@ -977,6 +989,47 @@ func TestStripLegacySupersetOwnerRefs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := uids(stripLegacySupersetOwnerRefs(tt.in)); !reflect.DeepEqual(got, tt.wantUIDs) {
 				t.Errorf("stripLegacySupersetOwnerRefs() UIDs = %v, want %v", got, tt.wantUIDs)
+			}
+		})
+	}
+}
+
+func TestFlowerRoutePublished_EnvironmentAware(t *testing.T) {
+	// Flower ships without authentication, so it is published on the external
+	// surface only when explicitly opted in (any environment) or when running
+	// outside the hardened Production mode. Production is the default, so an unset
+	// environment must behave as Production.
+	withEnv := func(env *string, gatewayPath *string) *supersetv1alpha1.Superset {
+		var svc *supersetv1alpha1.ComponentServiceSpec
+		if gatewayPath != nil {
+			svc = &supersetv1alpha1.ComponentServiceSpec{GatewayPath: gatewayPath}
+		}
+		return &supersetv1alpha1.Superset{
+			Spec: supersetv1alpha1.SupersetSpec{
+				Environment:  env,
+				CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{Service: svc},
+			},
+		}
+	}
+	empty := ""
+	path := "/flower"
+	tests := []struct {
+		name string
+		s    *supersetv1alpha1.Superset
+		want bool
+	}{
+		{"flower absent", &supersetv1alpha1.Superset{}, false},
+		{"production default, no opt-in", withEnv(nil, nil), false},
+		{"production explicit, no opt-in", withEnv(common.Ptr(common.EnvironmentProd), nil), false},
+		{"production empty gatewayPath is not opt-in", withEnv(common.Ptr(common.EnvironmentProd), &empty), false},
+		{"production with opt-in", withEnv(common.Ptr(common.EnvironmentProd), &path), true},
+		{"development auto-publishes", withEnv(common.Ptr(common.EnvironmentDev), nil), true},
+		{"staging auto-publishes", withEnv(common.Ptr(common.EnvironmentStaging), nil), true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := flowerRoutePublished(tt.s); got != tt.want {
+				t.Errorf("flowerRoutePublished() = %v, want %v", got, tt.want)
 			}
 		})
 	}

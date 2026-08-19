@@ -245,7 +245,7 @@ _Appears in:_
 | `nodePort` _integer_ | Fixed NodePort number when type=NodePort (30000-32767). If omitted, Kubernetes auto-assigns. |  | Maximum: 32767 <br />Minimum: 30000 <br />Optional: \{\} <br /> |
 | `annotations` _object (keys:string, values:string)_ | Service annotations (e.g., for cloud load balancer configuration). |  | Optional: \{\} <br /> |
 | `labels` _object (keys:string, values:string)_ | Service labels; merged with operator-managed labels. |  | Optional: \{\} <br /> |
-| `gatewayPath` _string_ | URL path prefix for this component's HTTPRoute rule.<br />Only used when spec.networking.gateway is set.<br />Defaults: /ws (websocket), /mcp (MCP server), /flower (Celery Flower). |  | Pattern: `^/[a-zA-Z0-9/_.-]+$` <br />Optional: \{\} <br /> |
+| `gatewayPath` _string_ | URL path prefix for this component's HTTPRoute/Ingress rule.<br />Used when spec.networking.gateway or spec.networking.ingress is set.<br />Default paths when the component is published: /ws (websocket), /mcp<br />(MCP server), /flower (Celery Flower). For Celery Flower this field also<br />gates external publication in Production: because Flower ships without<br />authentication, it is fanned out onto the Ingress/Gateway surface only<br />when this field is set (Development and Staging publish it by default). |  | Pattern: `^/[a-zA-Z0-9/_.-]+$` <br />Optional: \{\} <br /> |
 
 
 #### ComponentSpec

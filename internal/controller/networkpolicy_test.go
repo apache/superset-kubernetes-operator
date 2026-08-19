@@ -433,3 +433,35 @@ func TestNetworkPolicySelectorMatchesDeploymentLabels(t *testing.T) {
 		}
 	}
 }
+
+func TestFlowerExternalPort_GatedByPublish(t *testing.T) {
+	// The all-sources ingress rule on Flower's port is only installed when Flower
+	// is published on the external surface (unauthenticated by default), mirroring
+	// flowerRoutePublished: Production requires the gatewayPath opt-in; Development
+	// auto-publishes.
+	prodNoOptIn := &supersetv1alpha1.Superset{
+		Spec: supersetv1alpha1.SupersetSpec{CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{}},
+	}
+	if got := flowerExternalPort(prodNoOptIn, nil); got != 0 {
+		t.Errorf("flowerExternalPort() = %d, want 0 in Production without opt-in", got)
+	}
+
+	prodOptIn := &supersetv1alpha1.Superset{
+		Spec: supersetv1alpha1.SupersetSpec{CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{
+			Service: &supersetv1alpha1.ComponentServiceSpec{GatewayPath: common.Ptr("/flower")},
+		}},
+	}
+	if got := flowerExternalPort(prodOptIn, nil); got != common.PortCeleryFlower {
+		t.Errorf("flowerExternalPort() = %d, want %d after opt-in", got, common.PortCeleryFlower)
+	}
+
+	dev := &supersetv1alpha1.Superset{
+		Spec: supersetv1alpha1.SupersetSpec{
+			Environment:  common.Ptr(common.EnvironmentDev),
+			CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{},
+		},
+	}
+	if got := flowerExternalPort(dev, nil); got != common.PortCeleryFlower {
+		t.Errorf("flowerExternalPort() = %d, want %d in Development", got, common.PortCeleryFlower)
+	}
+}

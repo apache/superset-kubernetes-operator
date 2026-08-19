@@ -62,7 +62,7 @@ func (r *SupersetReconciler) reconcileNetworkPolicies(ctx context.Context, super
 		{celeryFlowerDescriptor.resourceBaseName(&superset.Spec, superset.Name),
 			celeryFlowerDescriptor.instanceName(&superset.Spec, superset.Name),
 			string(common.ComponentCeleryFlower), superset.Spec.CeleryFlower != nil,
-			npContainerPort(common.PortCeleryFlower, topPT, scalablePT(superset.Spec.CeleryFlower))},
+			flowerExternalPort(superset, topPT)},
 		{websocketServerDescriptor.resourceBaseName(&superset.Spec, superset.Name),
 			websocketServerDescriptor.instanceName(&superset.Spec, superset.Name),
 			string(common.ComponentWebsocketServer), superset.Spec.WebsocketServer != nil,
@@ -178,6 +178,19 @@ func (r *SupersetReconciler) reconcileComponentNetworkPolicy(
 	}
 	logf.FromContext(ctx).V(2).Info("Reconciled NetworkPolicy", "name", npName, "component", component, "operation", op)
 	return nil
+}
+
+// flowerExternalPort returns the externally-open NetworkPolicy port for Celery
+// Flower, or 0 when Flower is not published on the Ingress/Gateway surface.
+// Flower's default command ships without authentication, so the all-sources
+// ingress rule (which admits any in-cluster pod, not just ingress controllers) is
+// only installed when Flower is actually published — matching flowerRoutePublished.
+// Unpublished Flower stays reachable from same-instance pods via the baseline rule.
+func flowerExternalPort(superset *supersetv1alpha1.Superset, topPT *supersetv1alpha1.PodTemplate) int32 {
+	if !flowerRoutePublished(superset) {
+		return 0
+	}
+	return npContainerPort(common.PortCeleryFlower, topPT, scalablePT(superset.Spec.CeleryFlower))
 }
 
 // npContainerPort resolves the container port for NetworkPolicy rules using the
