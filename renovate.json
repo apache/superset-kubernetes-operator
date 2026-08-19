@@ -15,14 +15,14 @@
       "groupName": "Go dependencies"
     },
     {
-      "description": "Keep the Go toolchain in lockstep: the go.mod `go` directive (gomod manager) and the golang base image (dockerfile manager) are separate deps that would otherwise open separate PRs. Group them so a Go release bumps both together in one PR.",
-      "matchManagers": ["gomod", "dockerfile"],
+      "description": "Keep the Go toolchain in lockstep: the go.mod `go` directive (gomod manager), the golang base image (dockerfile manager), and the devcontainer golang image (devcontainer manager) are separate deps that would otherwise open separate PRs. Group them so a Go release bumps all together in one PR.",
+      "matchManagers": ["gomod", "dockerfile", "devcontainer"],
       "matchDepNames": ["go", "golang"],
       "groupName": "Go toolchain"
     },
     {
       "description": "Go toolchain security fixes ship as patch releases; the 7-day minimumReleaseAge would leave govulncheck failing on new stdlib advisories until it clears. Bypass the soak for Go toolchain patch/digest bumps; minor/major Go bumps still soak.",
-      "matchManagers": ["gomod", "dockerfile"],
+      "matchManagers": ["gomod", "dockerfile", "devcontainer"],
       "matchDepNames": ["go", "golang"],
       "matchUpdateTypes": ["patch", "digest"],
       "minimumReleaseAge": "0"
