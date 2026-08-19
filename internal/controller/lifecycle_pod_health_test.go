@@ -153,6 +153,7 @@ func TestHandleStuckTaskPod_SelfHealsWhenSpecChanged(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "test-migrate",
 			Namespace:   "default",
+			UID:         taskJobUID,
 			Annotations: map[string]string{common.AnnotationTaskPodSpecHash: "stale-hash"},
 		},
 	}
@@ -164,7 +165,7 @@ func TestHandleStuckTaskPod_SelfHealsWhenSpecChanged(t *testing.T) {
 	flatSpec := &supersetv1alpha1.FlatComponentSpec{Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"}}
 	taskRef := &supersetv1alpha1.TaskRefStatus{State: taskStateRunning, MaxRetries: 3}
 
-	res, handled, err := r.handleStuckTaskPod(ctx, superset, job, taskTypeMigrate, "test-migrate", flatSpec, taskRef)
+	res, handled, err := r.handleStuckTaskPod(ctx, superset, job, taskTypeMigrate, flatSpec, taskRef)
 	if err != nil {
 		t.Fatalf("handleStuckTaskPod: %v", err)
 	}
@@ -198,6 +199,7 @@ func TestHandleStuckTaskPod_SurfacesWhenSpecUnchanged(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        "test-migrate",
 			Namespace:   "default",
+			UID:         taskJobUID,
 			Annotations: map[string]string{common.AnnotationTaskPodSpecHash: matchingHash},
 		},
 	}
@@ -208,7 +210,7 @@ func TestHandleStuckTaskPod_SurfacesWhenSpecUnchanged(t *testing.T) {
 
 	taskRef := &supersetv1alpha1.TaskRefStatus{State: taskStateRunning, MaxRetries: 3}
 
-	_, handled, err := r.handleStuckTaskPod(ctx, superset, job, taskTypeMigrate, "test-migrate", flatSpec, taskRef)
+	_, handled, err := r.handleStuckTaskPod(ctx, superset, job, taskTypeMigrate, flatSpec, taskRef)
 	if err != nil {
 		t.Fatalf("handleStuckTaskPod: %v", err)
 	}
@@ -230,22 +232,69 @@ func TestHandleStuckTaskPod_NotStuckPassesThrough(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"}}
-	job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "test-migrate", Namespace: "default"}}
+	job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "test-migrate", Namespace: "default", UID: taskJobUID}}
 	// A healthy (running) pod must not be treated as stuck.
 	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-migrate-x", Namespace: "default", Labels: map[string]string{labelInitInstance: "test-migrate"}},
-		Status:     corev1.PodStatus{Phase: corev1.PodRunning},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            "test-migrate-x",
+			Namespace:       "default",
+			Labels:          map[string]string{labelInitInstance: "test-migrate"},
+			OwnerReferences: []metav1.OwnerReference{taskJobOwnerRef("test-migrate")},
+		},
+		Status: corev1.PodStatus{Phase: corev1.PodRunning},
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, job, pod).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	flatSpec := &supersetv1alpha1.FlatComponentSpec{Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"}}
-	_, handled, err := r.handleStuckTaskPod(ctx, superset, job, taskTypeMigrate, "test-migrate", flatSpec, &supersetv1alpha1.TaskRefStatus{})
+	_, handled, err := r.handleStuckTaskPod(ctx, superset, job, taskTypeMigrate, flatSpec, &supersetv1alpha1.TaskRefStatus{})
 	if err != nil {
 		t.Fatalf("handleStuckTaskPod: %v", err)
 	}
 	if handled {
 		t.Error("expected handled=false for a healthy pod so normal handling proceeds")
+	}
+}
+
+func TestHandleStuckTaskPod_IgnoresForeignPodWithSpoofedLabel(t *testing.T) {
+	// The superset.apache.org/instance label used to discover task pods can be
+	// forged by any pod author in the namespace (e.g. another Superset CR's
+	// component podTemplate.labels). A wedged pod carrying the spoofed label
+	// but not controller-owned by this task's Job must not be attributed to
+	// the task: its kubelet message must not land in the CR's status,
+	// conditions, or events.
+	ctx := context.Background()
+	scheme := testScheme(t)
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+	}
+	flatSpec := &supersetv1alpha1.FlatComponentSpec{Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"}}
+	job := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "test-migrate",
+			Namespace:   "default",
+			UID:         taskJobUID,
+			Annotations: map[string]string{common.AnnotationTaskPodSpecHash: podSpecHash(buildInitPod(flatSpec))},
+		},
+	}
+	// Foreign wedged pod: spoofed instance label, no owner reference to the Job.
+	foreign := wedgedTaskPod("test-migrate", "ImagePullBackOff")
+	foreign.Name = "attacker-web-0"
+	foreign.OwnerReferences = nil
+
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, job, foreign).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	taskRef := &supersetv1alpha1.TaskRefStatus{State: taskStateRunning, MaxRetries: 3}
+	_, handled, err := r.handleStuckTaskPod(ctx, superset, job, taskTypeMigrate, flatSpec, taskRef)
+	if err != nil {
+		t.Fatalf("handleStuckTaskPod: %v", err)
+	}
+	if handled {
+		t.Error("expected handled=false: a pod not owned by the task Job must not be attributed to the task")
+	}
+	if taskRef.Message != "" {
+		t.Errorf("expected no foreign-pod message on the task status, got %q", taskRef.Message)
 	}
 }
 
@@ -288,12 +337,29 @@ func TestTaskPodSpecChanged(t *testing.T) {
 	})
 }
 
+// taskJobUID is the UID stamped on task Job fixtures so pod fixtures can
+// carry the controller owner reference the real Job controller would set.
+const taskJobUID = "job-uid-1"
+
+// taskJobOwnerRef mirrors the controller owner reference the Job controller
+// stamps on the pods it creates for a lifecycle task Job.
+func taskJobOwnerRef(taskName string) metav1.OwnerReference {
+	return metav1.OwnerReference{
+		APIVersion: "batch/v1",
+		Kind:       "Job",
+		Name:       taskName,
+		UID:        taskJobUID,
+		Controller: common.Ptr(true),
+	}
+}
+
 func wedgedTaskPod(taskName, reason string) *corev1.Pod {
 	return &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      taskName + "-abcde",
-			Namespace: "default",
-			Labels:    map[string]string{labelInitInstance: taskName},
+			Name:            taskName + "-abcde",
+			Namespace:       "default",
+			Labels:          map[string]string{labelInitInstance: taskName},
+			OwnerReferences: []metav1.OwnerReference{taskJobOwnerRef(taskName)},
 		},
 		Status: corev1.PodStatus{
 			Phase: corev1.PodPending,

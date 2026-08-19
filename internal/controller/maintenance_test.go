@@ -223,6 +223,35 @@ func TestBuildMaintenanceFlatSpec(t *testing.T) {
 	})
 }
 
+// TestBuildMaintenanceFlatSpec_ForcesReservedLabels guards the f003 fix: the
+// maintenance page does not go through the resolution engine, so its pod labels
+// must be sanitized directly. A user-supplied superset.apache.org/parent (or any
+// reserved-prefix label) must be dropped and replaced with the real parent, so a
+// maintenance podTemplate cannot spoof another instance's identity and land inside
+// its NetworkPolicy ingress isolation. Non-reserved user labels still pass through.
+func TestBuildMaintenanceFlatSpec_ForcesReservedLabels(t *testing.T) {
+	flat := buildMaintenanceFlatSpec("real-parent", &supersetv1alpha1.MaintenancePageSpec{
+		PodTemplate: &supersetv1alpha1.PodTemplate{
+			Labels: map[string]string{
+				common.LabelKeyParent:           "victim",
+				common.LabelKeyInitInstance:     "victim-migrate",
+				"superset.apache.org/init-task": "migrate",
+				"team":                          "data",
+			},
+		},
+	})
+
+	require.NotNil(t, flat.PodTemplate)
+	labels := flat.PodTemplate.Labels
+	assert.Equal(t, "real-parent", labels[common.LabelKeyParent],
+		"parent label must be forced to the real instance, not the user-supplied value")
+	assert.NotContains(t, labels, common.LabelKeyInitInstance,
+		"reserved superset.apache.org/instance label must be stripped from user input")
+	assert.NotContains(t, labels, "superset.apache.org/init-task",
+		"reserved superset.apache.org/init-task label must be stripped from user input")
+	assert.Equal(t, "data", labels["team"], "non-reserved user labels must be preserved")
+}
+
 // maintenanceEnvByName indexes the maintenance container's env vars by name,
 // tolerating a nil pod/container template.
 func maintenanceEnvByName(flat supersetv1alpha1.FlatComponentSpec) map[string]string {
