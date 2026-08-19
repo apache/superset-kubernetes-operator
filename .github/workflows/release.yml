@@ -112,8 +112,15 @@ jobs:
           annotations: ${{ steps.meta.outputs.annotations }}
           sbom: true
           provenance: mode=max
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Tag (release) builds must be hermetic: the GHA BuildKit cache is
+          # writable by any run in the default-branch scope and is not
+          # content-addressed against source, so a poisoned cache entry would
+          # be silently laundered into the image that is then cosign-signed
+          # and shipped with SLSA provenance. Cache is therefore used only for
+          # throwaway main/workflow_dispatch dev builds; tag-triggered builds
+          # rebuild every layer from source (accepting the extra build time).
+          cache-from: ${{ github.ref_type != 'tag' && 'type=gha' || '' }}
+          cache-to: ${{ github.ref_type != 'tag' && 'type=gha,mode=max' || '' }}
 
       - name: Install cosign
         uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad # v4.0.0
@@ -148,8 +155,18 @@ jobs:
           helm package charts/superset-operator
 
       - name: Push Helm chart to GHCR OCI
+        id: chart-push
         run: |
-          helm push superset-operator-*.tgz ${{ env.HELM_REGISTRY }}
+          # Capture the digest helm push reports so the signing step below
+          # signs exactly the bytes this workflow produced — not whatever the
+          # mutable version tag happens to resolve to at signing time.
+          helm push superset-operator-*.tgz ${{ env.HELM_REGISTRY }} 2>&1 | tee helm-push.log
+          DIGEST="$(awk '$1 == "Digest:" {print $2}' helm-push.log)"
+          if ! [[ "${DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "Failed to capture chart digest from helm push output" >&2
+            exit 1
+          fi
+          echo "digest=${DIGEST}" >> "${GITHUB_OUTPUT}"
 
       - name: Push Artifact Hub repository metadata
         run: |
@@ -160,6 +177,10 @@ jobs:
 
       - name: Sign Helm chart with cosign
         run: |
-          CHART_VERSION="$(grep '^version:' charts/superset-operator/Chart.yaml | awk '{print $2}')"
-          CHART_REF="${{ env.HELM_REGISTRY }}/superset-operator:${CHART_VERSION}"
+          # Sign by immutable digest, mirroring the image signing step above.
+          # Signing a tag reference is a TOCTOU hazard: cosign resolves the
+          # tag at signing time, so anyone with registry write access could
+          # swap the chart between push and sign and receive a valid keyless
+          # signature under this workflow's identity.
+          CHART_REF="${{ env.HELM_REGISTRY }}/superset-operator@${{ steps.chart-push.outputs.digest }}"
           cosign sign --yes "${CHART_REF#oci://}"

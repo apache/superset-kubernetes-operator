@@ -281,13 +281,27 @@ case "$MODE" in
     : "${OUT_DIR:=dist/${VERSION}}"
     mkdir -p "$OUT_DIR"
 
-    # Locate the RC tarball and derive the final filename from the version arg.
-    # The glob matches both the current naming (`-rc<n>.tar.gz`) and the legacy
-    # `-rc<n>-source.tar.gz` used before the `-source` suffix was dropped, so a
-    # final can still be promoted from a pre-existing RC artifact.
-    RC_TARBALL=$(find "$RC_DIR" -maxdepth 1 -type f \
-                  -name "${PROJECT}-${VERSION}-rc*.tar.gz" | head -1)
-    [[ -n "$RC_TARBALL" ]] || die "no RC tarball found in ${RC_DIR}"
+    # Locate the tarball of the *voted* RC (the RC tag on HEAD) and derive the
+    # final filename from the version arg. The names match both the current
+    # naming (`-rc<n>.tar.gz`) and the legacy `-rc<n>-source.tar.gz` used
+    # before the `-source` suffix was dropped, so a final can still be
+    # promoted from a pre-existing RC artifact. Only rc${RC} is eligible:
+    # promoting any other tarball staged in --rc-dir (e.g. a failed earlier
+    # RC) would publish bytes the PMC never voted on, and ambiguity is a hard
+    # error rather than an arbitrary pick.
+    [[ "$RC" =~ ^[1-9][0-9]*$ ]] \
+      || die "cannot determine the voted RC number for finalize (got: '${RC}')"
+    RC_TARBALL=""
+    while IFS= read -r candidate; do
+      if [[ -n "$RC_TARBALL" ]]; then
+        die "multiple rc${RC} tarballs found in ${RC_DIR} ($(basename "$RC_TARBALL"), $(basename "$candidate"), ...); remove all but the voted artifact"
+      fi
+      RC_TARBALL="$candidate"
+    done < <(find "$RC_DIR" -maxdepth 1 -type f \
+              \( -name "${PROJECT}-${VERSION}-rc${RC}.tar.gz" \
+                 -o -name "${PROJECT}-${VERSION}-rc${RC}-source.tar.gz" \) \
+              | sort)
+    [[ -n "$RC_TARBALL" ]] || die "no rc${RC} tarball found in ${RC_DIR}"
     RC_BASE=$(basename "$RC_TARBALL")
     [[ -f "${RC_TARBALL}.asc" ]]    || die "missing detached signature: ${RC_BASE}.asc"
     [[ -f "${RC_TARBALL}.sha512" ]] || die "missing checksum file: ${RC_BASE}.sha512"
