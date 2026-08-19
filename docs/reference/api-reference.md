@@ -54,7 +54,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `minReplicas` _integer_ | Minimum replica count (defaults to 1). |  | Minimum: 1 <br />Optional: \{\} <br /> |
 | `maxReplicas` _integer_ | Maximum replica count; HPA will not scale above this. |  | Maximum: 100 <br />Minimum: 1 <br /> |
-| `metrics` _[MetricSpec](https://pkg.go.dev/k8s.io/api/autoscaling/v2#MetricSpec) array_ | Metrics for the HPA. Supports CPU, memory, custom, and external metrics.<br />When empty, Kubernetes defaults to 80% average CPU utilization. |  | Optional: \{\} <br /> |
+| `metrics` _[MetricSpec](https://pkg.go.dev/k8s.io/api/autoscaling/v2#MetricSpec) array_ | Metrics for the HPA. Supports CPU, memory, custom, and external metrics. When empty, Kubernetes defaults to 80% average CPU utilization. |  | Optional: \{\} <br /> |
 
 
 #### BaseTaskSpec
@@ -75,8 +75,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
-| `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task Job, preventing database connection conflicts. Drain is<br />skipped when the task is already complete for the current checksum, or when<br />no configured component has desired replicas greater than zero.<br />Defaults vary per task type: true for seed, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
+| `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -98,11 +98,11 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Deployment-level overrides (strategy, revision history). Replica count<br />is fixed at 1 by the controller and cannot be overridden. |  | Optional: \{\} <br /> |
+| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Deployment-level overrides (strategy, revision history). Replica count is fixed at 1 by the controller and cannot be overridden. |  | Optional: \{\} <br /> |
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for Celery beat pods. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
-| `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an<br />empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
+| `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
 
 
@@ -126,7 +126,7 @@ _Appears in:_
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
-| `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an<br />empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
+| `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration (type, port, annotations). |  | Optional: \{\} <br /> |
 
 
@@ -150,7 +150,7 @@ _Appears in:_
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
-| `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an<br />empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
+| `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
 | `celery` _[CeleryWorkerProcessSpec](#celeryworkerprocessspec)_ | Celery worker execution configuration. Controls concurrency, pool type, and related parameters. |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
 
@@ -170,7 +170,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `preset` _string_ | Preset controlling concurrency and pool defaults.<br />Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
+| `preset` _string_ | Preset controlling concurrency and pool defaults. Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
 | `concurrency` _integer_ | Number of concurrent task workers (maps to celery -c flag). |  | Minimum: 1 <br />Optional: \{\} <br /> |
 | `pool` _string_ | Celery pool implementation. |  | Enum: [prefork threads gevent eventlet solo] <br />Optional: \{\} <br /> |
 | `optimization` _string_ | Task distribution optimization strategy. |  | Enum: [default fair] <br />Optional: \{\} <br /> |
@@ -195,13 +195,13 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `phase` _string_ | Phase summarizes the component workload state. |  | Enum: [Pending Progressing Ready Unavailable Drained] <br />Optional: \{\} <br /> |
-| `resources` _[ComponentResourceStatus](#componentresourcestatus) array_ | Resources lists the Kubernetes resources currently expected for this<br />component and whether the operator can observe them. |  | Optional: \{\} <br /> |
+| `resources` _[ComponentResourceStatus](#componentresourcestatus) array_ | Resources lists the Kubernetes resources currently expected for this component and whether the operator can observe them. |  | Optional: \{\} <br /> |
 | `image` _string_ | Image currently configured on the component's main container. |  | Optional: \{\} <br /> |
 | `replicas` _integer_ | Desired replica count used for status reporting. |  | Optional: \{\} <br /> |
 | `readyReplicas` _integer_ | ReadyReplicas is the number of ready component pods. |  | Optional: \{\} <br /> |
 | `updatedReplicas` _integer_ | UpdatedReplicas is the number of pods updated to the current template. |  | Optional: \{\} <br /> |
 | `availableReplicas` _integer_ | AvailableReplicas is the number of available component pods. |  | Optional: \{\} <br /> |
-| `configChecksum` _string_ | Checksum stamped on the component pod template by the parent. Drives<br />rolling restarts; surfaced here so users can see which revision each<br />component is reconciling against. |  | Optional: \{\} <br /> |
+| `configChecksum` _string_ | Checksum stamped on the component pod template by the parent. Drives rolling restarts; surfaced here so users can see which revision each component is reconciling against. |  | Optional: \{\} <br /> |
 | `message` _string_ | Message gives a short human-oriented reason when the component is not ready. |  | Optional: \{\} <br /> |
 
 
@@ -245,7 +245,7 @@ _Appears in:_
 | `nodePort` _integer_ | Fixed NodePort number when type=NodePort (30000-32767). If omitted, Kubernetes auto-assigns. |  | Maximum: 32767 <br />Minimum: 30000 <br />Optional: \{\} <br /> |
 | `annotations` _object (keys:string, values:string)_ | Service annotations (e.g., for cloud load balancer configuration). |  | Optional: \{\} <br /> |
 | `labels` _object (keys:string, values:string)_ | Service labels; merged with operator-managed labels. |  | Optional: \{\} <br /> |
-| `gatewayPath` _string_ | URL path prefix for this component's HTTPRoute/Ingress rule.<br />Used when spec.networking.gateway or spec.networking.ingress is set.<br />Default paths when the component is published: /ws (websocket), /mcp<br />(MCP server), /flower (Celery Flower). For Celery Flower this field also<br />gates external publication in Production: because Flower ships without<br />authentication, it is fanned out onto the Ingress/Gateway surface only<br />when this field is set (Development and Staging publish it by default). |  | Pattern: `^/[a-zA-Z0-9/_.-]+$` <br />Optional: \{\} <br /> |
+| `gatewayPath` _string_ | URL path prefix for this component's HTTPRoute/Ingress rule. Used when spec.networking.gateway or spec.networking.ingress is set. Default paths when the component is published: /ws (websocket), /mcp (MCP server), /flower (Celery Flower). For Celery Flower this field also gates external publication in Production: because Flower ships without authentication, it is fanned out onto the Ingress/Gateway surface only when this field is set (Development and Staging publish it by default). |  | Pattern: `^/[a-zA-Z0-9/_.-]+$` <br />Optional: \{\} <br /> |
 
 
 #### ComponentSpec
@@ -369,7 +369,7 @@ _Appears in:_
 | `minReadySeconds` _integer_ | Minimum seconds a pod must be ready before considered available. |  | Optional: \{\} <br /> |
 | `progressDeadlineSeconds` _integer_ | Maximum seconds for a deployment to make progress before considered failed. |  | Optional: \{\} <br /> |
 | `strategy` _[DeploymentStrategy](https://pkg.go.dev/k8s.io/api/apps/v1#DeploymentStrategy)_ | Deployment update strategy. |  | Optional: \{\} <br /> |
-| `labels` _object (keys:string, values:string)_ | Deployment metadata labels (merged with operator-managed labels which<br />cannot be overridden). |  | Optional: \{\} <br /> |
+| `labels` _object (keys:string, values:string)_ | Deployment metadata labels (merged with operator-managed labels which cannot be overridden). |  | Optional: \{\} <br /> |
 | `annotations` _object (keys:string, values:string)_ | Deployment metadata annotations. |  | Optional: \{\} <br /> |
 
 
@@ -407,7 +407,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `preset` _string_ | Preset controlling workers, threads, and workerClass defaults.<br />Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
+| `preset` _string_ | Preset controlling workers, threads, and workerClass defaults. Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
 | `workers` _integer_ | Number of Gunicorn worker processes. |  | Minimum: 1 <br />Optional: \{\} <br /> |
 | `threads` _integer_ | Number of threads per worker (only effective with gthread worker class). |  | Minimum: 1 <br />Optional: \{\} <br /> |
 | `workerClass` _string_ | Gunicorn worker class. |  | Enum: [sync gthread gevent eventlet] <br />Optional: \{\} <br /> |
@@ -535,13 +535,13 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
-| `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task Job, preventing database connection conflicts. Drain is<br />skipped when the task is already complete for the current checksum, or when<br />no configured component has desired replicas greater than zero.<br />Defaults vary per task type: true for seed, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
+| `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
-| `adminUser` _[AdminUserSpec](#adminuserspec)_ | Admin user to create during initialization. Only allowed in Development mode.<br />When set, the operator appends a superset fab create-admin step to the init command. |  | Optional: \{\} <br /> |
-| `loadExamples` _boolean_ | Load example dashboards and data during initialization. Only allowed in Development mode.<br />When true, the operator appends a superset load-examples step to the init command. |  | Optional: \{\} <br /> |
+| `adminUser` _[AdminUserSpec](#adminuserspec)_ | Admin user to create during initialization. Only allowed in Development mode. When set, the operator appends a superset fab create-admin step to the init command. |  | Optional: \{\} <br /> |
+| `loadExamples` _boolean_ | Load example dashboards and data during initialization. Only allowed in Development mode. When true, the operator appends a superset load-examples step to the init command. |  | Optional: \{\} <br /> |
 
 
 #### LifecycleSpec
@@ -558,18 +558,18 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `upgradeMode` _string_ | UpgradeMode controls whether upgrades require manual approval.<br />Automatic runs immediately on image change; Supervised waits for an<br />approval annotation matching the recorded upgrade token before proceeding. | Automatic | Enum: [Automatic Supervised] <br />Optional: \{\} <br /> |
+| `upgradeMode` _string_ | UpgradeMode controls whether upgrades require manual approval. Automatic runs immediately on image change; Supervised waits for an approval annotation matching the recorded upgrade token before proceeding. | Automatic | Enum: [Automatic Supervised] <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Set to true to skip all lifecycle tasks entirely. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image override for lifecycle task Jobs. |  | Optional: \{\} <br /> |
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for lifecycle task Jobs. |  | Optional: \{\} <br /> |
 | `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Retention policy for completed lifecycle task Jobs and their Pods. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-lifecycle raw Python appended after top-level config. |  | Optional: \{\} <br /> |
-| `bootstrapScript` _string_ | Bootstrap script for lifecycle migrate, rotate, and init task Jobs.<br />Overrides spec.bootstrapScript. Set to an empty string to disable inherited<br />bootstrap for lifecycle tasks. |  | Optional: \{\} <br /> |
+| `bootstrapScript` _string_ | Bootstrap script for lifecycle migrate, rotate, and init task Jobs. Overrides spec.bootstrapScript. Set to an empty string to disable inherited bootstrap for lifecycle tasks. |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-lifecycle SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
-| `maintenancePage` _[MaintenancePageSpec](#maintenancepagespec)_ | MaintenancePage configures a lightweight maintenance page served during<br />lifecycle drain and task execution. Presence enables the feature when a<br />drain will actually run and an existing web-server workload is present.<br />In managed mode (no image override), an nginx:alpine container serves<br />a default or custom HTML page. In custom mode (image set), the user's<br />image handles serving, and content fields are passed as env vars. |  | Optional: \{\} <br /> |
-| `seed` _[SeedTaskSpec](#seedtaskspec)_ | Seed configures database seeding from an external source before running<br />migrations. The seed target is always spec.metastore. Only allowed in<br />Development or Staging mode. |  | Optional: \{\} <br /> |
+| `maintenancePage` _[MaintenancePageSpec](#maintenancepagespec)_ | MaintenancePage configures a lightweight maintenance page served during lifecycle drain and task execution. Presence enables the feature when a drain will actually run and an existing web-server workload is present. In managed mode (no image override), an nginx:alpine container serves a default or custom HTML page. In custom mode (image set), the user's image handles serving, and content fields are passed as env vars. |  | Optional: \{\} <br /> |
+| `seed` _[SeedTaskSpec](#seedtaskspec)_ | Seed configures database seeding from an external source before running migrations. The seed target is always spec.metastore. Only allowed in Development or Staging mode. |  | Optional: \{\} <br /> |
 | `migrate` _[MigrateTaskSpec](#migratetaskspec)_ | Database migration task configuration. |  | Optional: \{\} <br /> |
-| `rotate` _[RotateTaskSpec](#rotatetaskspec)_ | Secret key rotation task configuration. Runs after migrate and before init.<br />Presence enables the task; absence disables it. |  | Optional: \{\} <br /> |
+| `rotate` _[RotateTaskSpec](#rotatetaskspec)_ | Secret key rotation task configuration. Runs after migrate and before init. Presence enables the task; absence disables it. |  | Optional: \{\} <br /> |
 | `init` _[InitTaskSpec](#inittaskspec)_ | Application initialization task configuration. |  | Optional: \{\} <br /> |
 
 
@@ -587,8 +587,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `phase` _string_ | Phase of the lifecycle: Seeding, Draining, Migrating, Rotating, Initializing, Restoring, Complete, Blocked, AwaitingApproval. |  | Optional: \{\} <br /> |
-| `maintenanceActive` _boolean_ | MaintenanceActive indicates the maintenance page is currently serving traffic<br />via the web-server Service. |  | Optional: \{\} <br /> |
-| `lastCompletedChecksums` _object (keys:string, values:string)_ | LastCompletedChecksums maps task type to its task checksum at last<br />successful completion. Used to detect input drift when task status refs<br />are absent. |  | Optional: \{\} <br /> |
+| `maintenanceActive` _boolean_ | MaintenanceActive indicates the maintenance page is currently serving traffic via the web-server Service. |  | Optional: \{\} <br /> |
+| `lastCompletedChecksums` _object (keys:string, values:string)_ | LastCompletedChecksums maps task type to its task checksum at last successful completion. Used to detect input drift when task status refs are absent. |  | Optional: \{\} <br /> |
 | `seed` _[TaskRefStatus](#taskrefstatus)_ | Seed task status summary. |  | Optional: \{\} <br /> |
 | `migrate` _[TaskRefStatus](#taskrefstatus)_ | Migrate task status summary. |  | Optional: \{\} <br /> |
 | `rotate` _[TaskRefStatus](#taskrefstatus)_ | Rotate task status summary. |  | Optional: \{\} <br /> |
@@ -615,12 +615,12 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `title` _string_ | Title displayed on the maintenance page heading (managed mode).<br />In custom mode, passed as env var SUPERSET_OPERATOR__MAINTENANCE_TITLE. |  | Optional: \{\} <br /> |
-| `message` _string_ | Message displayed below the title (managed mode).<br />In custom mode, passed as env var SUPERSET_OPERATOR__MAINTENANCE_MESSAGE. |  | Optional: \{\} <br /> |
-| `body` _string_ | Full HTML page content. When set in managed mode, title and message are<br />ignored and this value is served as the complete page.<br />In custom mode, passed as env var SUPERSET_OPERATOR__MAINTENANCE_BODY. |  | Optional: \{\} <br /> |
-| `image` _[ContainerImageSpec](#containerimagespec)_ | Image for the maintenance page container. When set, switches to custom<br />mode: no nginx config is injected, and the user's image is responsible<br />for serving HTTP traffic on the web-server port (default 8088). The port<br />must match the web-server Service's target port since the maintenance page<br />takes over that Service during lifecycle tasks.<br />When unset, defaults to nginx:alpine (managed mode). Partial specs (e.g.,<br />only `tag` set) inherit the nginx default for the omitted fields. |  | Optional: \{\} <br /> |
+| `title` _string_ | Title displayed on the maintenance page heading (managed mode). In custom mode, passed as env var SUPERSET_OPERATOR__MAINTENANCE_TITLE. |  | Optional: \{\} <br /> |
+| `message` _string_ | Message displayed below the title (managed mode). In custom mode, passed as env var SUPERSET_OPERATOR__MAINTENANCE_MESSAGE. |  | Optional: \{\} <br /> |
+| `body` _string_ | Full HTML page content. When set in managed mode, title and message are ignored and this value is served as the complete page. In custom mode, passed as env var SUPERSET_OPERATOR__MAINTENANCE_BODY. |  | Optional: \{\} <br /> |
+| `image` _[ContainerImageSpec](#containerimagespec)_ | Image for the maintenance page container. When set, switches to custom mode: no nginx config is injected, and the user's image is responsible for serving HTTP traffic on the web-server port (default 8088). The port must match the web-server Service's target port since the maintenance page takes over that Service during lifecycle tasks. When unset, defaults to nginx:alpine (managed mode). Partial specs (e.g., only `tag` set) inherit the nginx default for the omitted fields. |  | Optional: \{\} <br /> |
 | `replicas` _integer_ | Number of maintenance page pod replicas. | 1 | Optional: \{\} <br /> |
-| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Deployment-level overrides for the maintenance page (strategy, revision history).<br />For pod-level settings, use PodTemplate. |  | Optional: \{\} <br /> |
+| `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Deployment-level overrides for the maintenance page (strategy, revision history). For pod-level settings, use PodTemplate. |  | Optional: \{\} <br /> |
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod template for the maintenance page pod. |  | Optional: \{\} <br /> |
 
 
@@ -644,7 +644,7 @@ _Appears in:_
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
-| `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an<br />empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
+| `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration (type, port, annotations). |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
 
@@ -664,17 +664,17 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `uri` _string_ | Full SQLAlchemy database URI. Mutually exclusive with structured fields and uriFrom.<br />In Staging or Production, CRD validation rejects plain text URIs — use uriFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
-| `uriFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the full SQLAlchemy URI.<br />Mutually exclusive with uri and structured fields. |  | Optional: \{\} <br /> |
+| `uri` _string_ | Full SQLAlchemy database URI. Mutually exclusive with structured fields and uriFrom. In Staging or Production, CRD validation rejects plain text URIs — use uriFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
+| `uriFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the full SQLAlchemy URI. Mutually exclusive with uri and structured fields. |  | Optional: \{\} <br /> |
 | `type` _string_ | Database type. Determines the SQLAlchemy dialect and default driver. | PostgreSQL | Enum: [PostgreSQL MySQL] <br />Optional: \{\} <br /> |
-| `driver` _string_ | SQLAlchemy driver name for structured mode. When omitted, PostgreSQL uses<br />psycopg2 and MySQL uses mysqldb. Set this to a driver installed in the<br />Superset image, such as psycopg, pg8000, pymysql, or mysqlconnector. The<br />operator selects the SQLAlchemy scheme only; it does not install Python<br />driver packages into the image. |  | Pattern: `^[A-Za-z0-9_]+$` <br />Optional: \{\} <br /> |
+| `driver` _string_ | SQLAlchemy driver name for structured mode. When omitted, PostgreSQL uses psycopg2 and MySQL uses mysqldb. Set this to a driver installed in the Superset image, such as psycopg, pg8000, pymysql, or mysqlconnector. The operator selects the SQLAlchemy scheme only; it does not install Python driver packages into the image. |  | Pattern: `^[A-Za-z0-9_]+$` <br />Optional: \{\} <br /> |
 | `host` _string_ | Database hostname. |  | Optional: \{\} <br /> |
 | `port` _integer_ | Database port. Defaults per type (5432 for PostgreSQL, 3306 for MySQL). |  | Optional: \{\} <br /> |
 | `database` _string_ | Database name. |  | Optional: \{\} <br /> |
 | `username` _string_ | Database username. |  | Optional: \{\} <br /> |
 | `password` _string_ | Database password. In Staging or Production, CRD validation rejects plain text passwords — use passwordFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
-| `passwordFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the database password.<br />Mutually exclusive with password. |  | Optional: \{\} <br /> |
-| `createDatabase` _boolean_ | CreateDatabase, when true, instructs the operator to attach a one-shot<br />init container to the migrate Job that issues `CREATE DATABASE` against<br />the server before `superset db upgrade` runs. Existing databases are<br />detected and the step becomes a no-op. Requires the configured metastore<br />user to hold CREATEDB (PostgreSQL) or CREATE (MySQL) privilege on the<br />server. Only valid with structured metastore (host/database/username);<br />rejected when uri or uriFrom is set. |  | Optional: \{\} <br /> |
+| `passwordFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the database password. Mutually exclusive with password. |  | Optional: \{\} <br /> |
+| `createDatabase` _boolean_ | CreateDatabase, when true, instructs the operator to attach a one-shot init container to the migrate Job that issues `CREATE DATABASE` against the server before `superset db upgrade` runs. Existing databases are detected and the step becomes a no-op. Requires the configured metastore user to hold CREATEDB (PostgreSQL) or CREATE (MySQL) privilege on the server. Only valid with structured metastore (host/database/username); rejected when uri or uriFrom is set. |  | Optional: \{\} <br /> |
 
 
 #### MigrateTaskSpec
@@ -692,8 +692,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
-| `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task Job, preventing database connection conflicts. Drain is<br />skipped when the task is already complete for the current checksum, or when<br />no configured component has desired replicas greater than zero.<br />Defaults vary per task type: true for seed, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
+| `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -786,7 +786,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `policy` _string_ | Retention policy: Delete removes Jobs and Pods after completion, Retain keeps all,<br />RetainOnFailure (the default) keeps only failed Jobs and Pods for debugging and<br />deletes successful ones to reduce noise. Retained Jobs and Pods are automatically<br />deleted when the task is reset or disabled, and garbage-collected when the<br />parent Superset CR is deleted. | RetainOnFailure | Enum: [Delete Retain RetainOnFailure] <br />Optional: \{\} <br /> |
+| `policy` _string_ | Retention policy: Delete removes Jobs and Pods after completion, Retain keeps all, RetainOnFailure (the default) keeps only failed Jobs and Pods for debugging and deletes successful ones to reduce noise. Retained Jobs and Pods are automatically deleted when the task is reset or disabled, and garbage-collected when the parent Superset CR is deleted. | RetainOnFailure | Enum: [Delete Retain RetainOnFailure] <br />Optional: \{\} <br /> |
 
 
 #### PodTemplate
@@ -830,7 +830,7 @@ _Appears in:_
 | `runtimeClassName` _string_ | RuntimeClass for pods. |  | Optional: \{\} <br /> |
 | `shareProcessNamespace` _boolean_ | Share a single process namespace between all containers in a pod. |  | Optional: \{\} <br /> |
 | `enableServiceLinks` _boolean_ | Controls whether service environment variables are injected into pods. |  | Optional: \{\} <br /> |
-| `resources` _[ResourceRequirements](https://pkg.go.dev/k8s.io/api/core/v1#ResourceRequirements)_ | Pod-level resource requirements (CPU, memory). When set, defines the total<br />resources for the entire pod, enabling resource sharing among containers.<br />Requires Kubernetes 1.34+ with the PodLevelResources feature gate. |  | Optional: \{\} <br /> |
+| `resources` _[ResourceRequirements](https://pkg.go.dev/k8s.io/api/core/v1#ResourceRequirements)_ | Pod-level resource requirements (CPU, memory). When set, defines the total resources for the entire pod, enabling resource sharing among containers. Requires Kubernetes 1.34+ with the PodLevelResources feature gate. |  | Optional: \{\} <br /> |
 | `container` _[ContainerTemplate](#containertemplate)_ | Main container configuration. |  | Optional: \{\} <br /> |
 
 
@@ -851,8 +851,8 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
-| `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task Job, preventing database connection conflicts. Drain is<br />skipped when the task is already complete for the current checksum, or when<br />no configured component has desired replicas greater than zero.<br />Defaults vary per task type: true for seed, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
+| `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -878,7 +878,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `preset` _string_ | Preset for connection pool behavior. "disabled" suppresses rendering entirely.<br />"conservative" uses NullPool (no persistent connections).<br />"balanced" through "aggressive" use QueuePool with increasing pool sizes.<br />Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
+| `preset` _string_ | Preset for connection pool behavior. "disabled" suppresses rendering entirely. "conservative" uses NullPool (no persistent connections). "balanced" through "aggressive" use QueuePool with increasing pool sizes. Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
 | `poolSize` _integer_ | Number of persistent connections in the pool. Overrides preset calculation. |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `maxOverflow` _integer_ | Maximum overflow connections beyond poolSize (-1 = unlimited). |  | Optional: \{\} <br /> |
 | `poolRecycle` _integer_ | Connection max-age in seconds before recycling. |  | Minimum: 0 <br />Optional: \{\} <br /> |
@@ -929,12 +929,12 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
-| `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task Job, preventing database connection conflicts. Drain is<br />skipped when the task is already complete for the current checksum, or when<br />no configured component has desired replicas greater than zero.<br />Defaults vary per task type: true for seed, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
+| `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
-| `cronSchedule` _string_ | CronSchedule is a cron expression that triggers periodic re-execution of<br />this task and all downstream tasks. When the clock crosses a cron<br />boundary, the task checksum changes and the lifecycle pipeline re-runs.<br />Uses standard cron syntax with 5 to 7 whitespace-separated fields: the<br />5-field form is "minute hour day-of-month month day-of-week"; an optional<br />leading seconds field and/or trailing year field extend it to 6 or 7<br />fields. Examples: "0 2 * * *" (daily 2 AM UTC), "0 */6 * * *" (every 6<br />hours), "30 1 * * 1" (Mondays 1:30 AM UTC), "*/30 * * * * *" (every 30<br />seconds).<br />Predefined schedules (e.g. "@daily") are not accepted; use an explicit<br />field form. Pattern validation rejects only malformed *shape* at<br />admission (e.g. fewer than five or more than seven fields, disallowed<br />characters); out-of-range values like "99 99 99 99 99" still pass<br />admission and are caught by the runtime parser, which blocks the<br />lifecycle pipeline with an InvalidCronSchedule condition until the<br />expression is corrected. |  | MaxLength: 256 <br />MinLength: 9 <br />Pattern: `^[A-Za-z0-9*/,?-]+(\s+[A-Za-z0-9*/,?-]+)\{4,6\}$` <br />Optional: \{\} <br /> |
+| `cronSchedule` _string_ | CronSchedule is a cron expression that triggers periodic re-execution of this task and all downstream tasks. When the clock crosses a cron boundary, the task checksum changes and the lifecycle pipeline re-runs. Uses standard cron syntax with 5 to 7 whitespace-separated fields: the 5-field form is "minute hour day-of-month month day-of-week"; an optional leading seconds field and/or trailing year field extend it to 6 or 7 fields. Examples: "0 2 * * *" (daily 2 AM UTC), "0 */6 * * *" (every 6 hours), "30 1 * * 1" (Mondays 1:30 AM UTC), "*/30 * * * * *" (every 30 seconds). Predefined schedules (e.g. "@daily") are not accepted; use an explicit field form. Pattern validation rejects only malformed *shape* at admission (e.g. fewer than five or more than seven fields, disallowed characters); out-of-range values like "99 99 99 99 99" still pass admission and are caught by the runtime parser, which blocks the lifecycle pipeline with an InvalidCronSchedule condition until the expression is corrected. |  | MaxLength: 256 <br />MinLength: 9 <br />Pattern: `^[A-Za-z0-9*/,?-]+(\s+[A-Za-z0-9*/,?-]+)\{4,6\}$` <br />Optional: \{\} <br /> |
 
 
 #### SeedSourceSpec
@@ -955,7 +955,7 @@ _Appears in:_
 | `port` _integer_ | Source database port. Defaults to 5432 (postgresql) or 3306 (mysql). |  | Optional: \{\} <br /> |
 | `database` _string_ | Database name on the source server. |  |  |
 | `username` _string_ | Username for the source database (should have read-only access). |  |  |
-| `password` _string_ | Password for the source database (Development mode only). In Staging,<br />use passwordFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
+| `password` _string_ | Password for the source database (Development mode only). In Staging, use passwordFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
 | `passwordFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | PasswordFrom references a Secret containing the source database password. |  | Optional: \{\} <br /> |
 
 
@@ -977,17 +977,17 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
-| `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this<br />task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this<br />task runs. When true, the operator removes component workloads before<br />executing the task Job, preventing database connection conflicts. Drain is<br />skipped when the task is already complete for the current checksum, or when<br />no configured component has desired replicas greater than zero.<br />Defaults vary per task type: true for seed, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
+| `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
-| `cronSchedule` _string_ | CronSchedule is a cron expression that triggers periodic re-execution of<br />this task and all downstream tasks. When the clock crosses a cron<br />boundary, the task checksum changes and the lifecycle pipeline re-runs.<br />Uses standard cron syntax with 5 to 7 whitespace-separated fields: the<br />5-field form is "minute hour day-of-month month day-of-week"; an optional<br />leading seconds field and/or trailing year field extend it to 6 or 7<br />fields. Examples: "0 2 * * *" (daily 2 AM UTC), "0 */6 * * *" (every 6<br />hours), "30 1 * * 1" (Mondays 1:30 AM UTC), "*/30 * * * * *" (every 30<br />seconds).<br />Predefined schedules (e.g. "@daily") are not accepted; use an explicit<br />field form. Pattern validation rejects only malformed *shape* at<br />admission (e.g. fewer than five or more than seven fields, disallowed<br />characters); out-of-range values like "99 99 99 99 99" still pass<br />admission and are caught by the runtime parser, which blocks the<br />lifecycle pipeline with an InvalidCronSchedule condition until the<br />expression is corrected. |  | MaxLength: 256 <br />MinLength: 9 <br />Pattern: `^[A-Za-z0-9*/,?-]+(\s+[A-Za-z0-9*/,?-]+)\{4,6\}$` <br />Optional: \{\} <br /> |
+| `cronSchedule` _string_ | CronSchedule is a cron expression that triggers periodic re-execution of this task and all downstream tasks. When the clock crosses a cron boundary, the task checksum changes and the lifecycle pipeline re-runs. Uses standard cron syntax with 5 to 7 whitespace-separated fields: the 5-field form is "minute hour day-of-month month day-of-week"; an optional leading seconds field and/or trailing year field extend it to 6 or 7 fields. Examples: "0 2 * * *" (daily 2 AM UTC), "0 */6 * * *" (every 6 hours), "30 1 * * 1" (Mondays 1:30 AM UTC), "*/30 * * * * *" (every 30 seconds). Predefined schedules (e.g. "@daily") are not accepted; use an explicit field form. Pattern validation rejects only malformed *shape* at admission (e.g. fewer than five or more than seven fields, disallowed characters); out-of-range values like "99 99 99 99 99" still pass admission and are caught by the runtime parser, which blocks the lifecycle pipeline with an InvalidCronSchedule condition until the expression is corrected. |  | MaxLength: 256 <br />MinLength: 9 <br />Pattern: `^[A-Za-z0-9*/,?-]+(\s+[A-Za-z0-9*/,?-]+)\{4,6\}$` <br />Optional: \{\} <br /> |
 | `source` _[SeedSourceSpec](#seedsourcespec)_ | Source database to seed from (typically production, read-only user). |  |  |
 | `excludeTables` _string array_ | Tables to exclude entirely from the dump (schema and data). |  | Optional: \{\} <br /> |
-| `excludeTableData` _string array_ | Tables where schema is dumped but data is not. Useful for large tables<br />needed by migrations but not for testing (e.g., "logs", "query"). |  | Optional: \{\} <br /> |
-| `postSeedSQL` _string array_ | SQL statements to execute against the target database after seeding.<br />Useful for sanitizing seeded data (e.g., disabling alerts, deleting<br />OAuth tokens, masking PII). |  | Optional: \{\} <br /> |
-| `image` _[ContainerImageSpec](#containerimagespec)_ | Image for the seed Job. Defaults to postgres:17-alpine (PostgreSQL)<br />or mysql:8-alpine (MySQL) based on source.type. Partial specs (e.g.,<br />only `tag` set) inherit the type-appropriate default for omitted fields. |  | Optional: \{\} <br /> |
+| `excludeTableData` _string array_ | Tables where schema is dumped but data is not. Useful for large tables needed by migrations but not for testing (e.g., "logs", "query"). |  | Optional: \{\} <br /> |
+| `postSeedSQL` _string array_ | SQL statements to execute against the target database after seeding. Useful for sanitizing seeded data (e.g., disabling alerts, deleting OAuth tokens, masking PII). |  | Optional: \{\} <br /> |
+| `image` _[ContainerImageSpec](#containerimagespec)_ | Image for the seed Job. Defaults to postgres:17-alpine (PostgreSQL) or mysql:8-alpine (MySQL) based on source.type. Partial specs (e.g., only `tag` set) inherit the type-appropriate default for omitted fields. |  | Optional: \{\} <br /> |
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for the seed task Job. |  | Optional: \{\} <br /> |
 | `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Retention policy for completed seed Jobs and their Pods. |  | Optional: \{\} <br /> |
 
@@ -1066,22 +1066,22 @@ _Appears in:_
 | `replicas` _integer_ | Default replica count for all scalable components; per-component replicas override this. |  | Optional: \{\} <br /> |
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Default autoscaling for all scalable components (component-level overrides this). |  | Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | Default pod disruption budget for all scalable components (component-level overrides this). |  | Optional: \{\} <br /> |
-| `environment` _string_ | Environment mode: "Development", "Staging", or "Production". Controls validation strictness.<br />In Production mode, CRD validation rejects plain text secrets and disallows seeding.<br />In Staging mode, secrets are enforced (like Production) but seeding is allowed.<br />In Development mode, plain text secrets, seeding, admin user, and load examples are all permitted. | Production | Enum: [Development Staging Production] <br />Optional: \{\} <br /> |
-| `secretKey` _string_ | Plain text secret key for session signing. Only allowed in Development mode.<br />In Staging or Production, use secretKeyFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
-| `secretKeyFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the secret key for session signing.<br />Mutually exclusive with secretKey. |  | Optional: \{\} <br /> |
-| `previousSecretKey` _string_ | Plain text previous secret key for key rotation. Only allowed in Development mode.<br />When set, rendered as PREVIOUS_SECRET_KEY in superset_config.py for all<br />Python components, enabling fallback decryption during key transitions. |  | Optional: \{\} <br /> |
-| `previousSecretKeyFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the previous secret key for rotation.<br />Mutually exclusive with previousSecretKey. |  | Optional: \{\} <br /> |
+| `environment` _string_ | Environment mode: "Development", "Staging", or "Production". Controls validation strictness. In Production mode, CRD validation rejects plain text secrets and disallows seeding. In Staging mode, secrets are enforced (like Production) but seeding is allowed. In Development mode, plain text secrets, seeding, admin user, and load examples are all permitted. | Production | Enum: [Development Staging Production] <br />Optional: \{\} <br /> |
+| `secretKey` _string_ | Plain text secret key for session signing. Only allowed in Development mode. In Staging or Production, use secretKeyFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
+| `secretKeyFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the secret key for session signing. Mutually exclusive with secretKey. |  | Optional: \{\} <br /> |
+| `previousSecretKey` _string_ | Plain text previous secret key for key rotation. Only allowed in Development mode. When set, rendered as PREVIOUS_SECRET_KEY in superset_config.py for all Python components, enabling fallback decryption during key transitions. |  | Optional: \{\} <br /> |
+| `previousSecretKeyFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the previous secret key for rotation. Mutually exclusive with previousSecretKey. |  | Optional: \{\} <br /> |
 | `metastore` _[MetastoreSpec](#metastorespec)_ | Metastore database connection configuration. |  | Optional: \{\} <br /> |
 | `valkey` _[ValkeySpec](#valkeyspec)_ | Valkey cache, broker, and results backend configuration. |  | Optional: \{\} <br /> |
 | `config` _string_ | Raw Python appended after operator-generated superset_config.py. |  | Optional: \{\} <br /> |
-| `bootstrapScript` _string_ | Shell script mounted as superset_bootstrap.sh and sourced before the<br />default command for Python components and lifecycle tasks. This is trusted<br />executable input; prefer custom images for production dependency installs.<br />Per-component bootstrapScript overrides this value. Set an override to an<br />empty string to disable inherited bootstrap for that component. |  | Optional: \{\} <br /> |
-| `featureFlags` _object (keys:string, values:boolean)_ | Feature flags toggled in superset_config.py via FEATURE_FLAGS = \{...\}.<br />Keys conventionally use UPPER_SNAKE_CASE (e.g. ALERT_REPORTS); values are booleans. |  | Optional: \{\} <br /> |
-| `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | SQLAlchemy engine options for connection pooling. Inherited by all Python<br />components; per-component sqlaEngineOptions overrides this entirely.<br />When unset, the operator computes balanced defaults per component. |  | Optional: \{\} <br /> |
+| `bootstrapScript` _string_ | Shell script mounted as superset_bootstrap.sh and sourced before the default command for Python components and lifecycle tasks. This is trusted executable input; prefer custom images for production dependency installs. Per-component bootstrapScript overrides this value. Set an override to an empty string to disable inherited bootstrap for that component. |  | Optional: \{\} <br /> |
+| `featureFlags` _object (keys:string, values:boolean)_ | Feature flags toggled in superset_config.py via FEATURE_FLAGS = \{...\}. Keys conventionally use UPPER_SNAKE_CASE (e.g. ALERT_REPORTS); values are booleans. |  | Optional: \{\} <br /> |
+| `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | SQLAlchemy engine options for connection pooling. Inherited by all Python components; per-component sqlaEngineOptions overrides this entirely. When unset, the operator computes balanced defaults per component. |  | Optional: \{\} <br /> |
 | `webServer` _[WebServerComponentSpec](#webservercomponentspec)_ | Web server (gunicorn) component. Presence enables it; absence disables. |  | Optional: \{\} <br /> |
-| `celeryWorker` _[CeleryWorkerComponentSpec](#celeryworkercomponentspec)_ | Celery async task worker component. Uses spec.valkey as broker/backend when set;<br />otherwise the broker must be configured manually via spec.config. |  | Optional: \{\} <br /> |
-| `celeryBeat` _[CeleryBeatComponentSpec](#celerybeatcomponentspec)_ | Celery periodic task scheduler (singleton, always 1 replica). Uses spec.valkey<br />as broker/backend when set; otherwise the broker must be configured manually<br />via spec.config. |  | Optional: \{\} <br /> |
+| `celeryWorker` _[CeleryWorkerComponentSpec](#celeryworkercomponentspec)_ | Celery async task worker component. Uses spec.valkey as broker/backend when set; otherwise the broker must be configured manually via spec.config. |  | Optional: \{\} <br /> |
+| `celeryBeat` _[CeleryBeatComponentSpec](#celerybeatcomponentspec)_ | Celery periodic task scheduler (singleton, always 1 replica). Uses spec.valkey as broker/backend when set; otherwise the broker must be configured manually via spec.config. |  | Optional: \{\} <br /> |
 | `celeryFlower` _[CeleryFlowerComponentSpec](#celeryflowercomponentspec)_ | Celery Flower monitoring UI component. |  | Optional: \{\} <br /> |
-| `websocketServer` _[WebsocketServerComponentSpec](#websocketservercomponentspec)_ | WebSocket server for real-time updates (Node.js, no Python config).<br />Experimental: the websocket server is not yet well supported and is<br />pending security hardening — it may exhibit gaps in the operator (e.g.<br />unvalidated gateway/ingress routing) or upstream in the Superset/websocket<br />image. It requires a custom Node.js image. Treat it as subject to change<br />and avoid enabling it in production until it is hardened. |  | Optional: \{\} <br /> |
+| `websocketServer` _[WebsocketServerComponentSpec](#websocketservercomponentspec)_ | WebSocket server for real-time updates (Node.js, no Python config). Experimental: the websocket server is not yet well supported and is pending security hardening — it may exhibit gaps in the operator (e.g. unvalidated gateway/ingress routing) or upstream in the Superset/websocket image. It requires a custom Node.js image. Treat it as subject to change and avoid enabling it in production until it is hardened. |  | Optional: \{\} <br /> |
 | `mcpServer` _[McpServerComponentSpec](#mcpservercomponentspec)_ | FastMCP server component for AI tooling integration. |  | Optional: \{\} <br /> |
 | `lifecycle` _[LifecycleSpec](#lifecyclespec)_ | Lifecycle configuration (database migration, init, upgrade mode). |  | Optional: \{\} <br /> |
 | `networking` _[NetworkingSpec](#networkingspec)_ | Networking configuration (Ingress or Gateway API). |  | Optional: \{\} <br /> |
@@ -1089,7 +1089,7 @@ _Appears in:_
 | `networkPolicy` _[NetworkPolicySpec](#networkpolicyspec)_ | Network policy configuration. |  | Optional: \{\} <br /> |
 | `serviceAccount` _[ServiceAccountSpec](#serviceaccountspec)_ | ServiceAccount configuration. |  | Optional: \{\} <br /> |
 | `suspend` _boolean_ | Suspend stops reconciliation when true. |  | Optional: \{\} <br /> |
-| `forceReload` _string_ | ForceReload is an opaque string injected into all pod templates. Changing its value<br />triggers a rolling restart of all components. Use a timestamp or incrementing value<br />(e.g. "2026-04-24T12:00:00Z") to force a restart after rotating referenced Secrets. |  | Optional: \{\} <br /> |
+| `forceReload` _string_ | ForceReload is an opaque string injected into all pod templates. Changing its value triggers a rolling restart of all components. Use a timestamp or incrementing value (e.g. "2026-04-24T12:00:00Z") to force a restart after rotating referenced Secrets. |  | Optional: \{\} <br /> |
 
 
 #### SupersetStatus
@@ -1107,10 +1107,10 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ |  |  | Optional: \{\} <br /> |
 | `observedGeneration` _integer_ |  |  | Optional: \{\} <br /> |
-| `ready` _string_ | Ready summarizes ready component replicas across all enabled components<br />in "ready/desired" format. |  | Optional: \{\} <br /> |
+| `ready` _string_ | Ready summarizes ready component replicas across all enabled components in "ready/desired" format. |  | Optional: \{\} <br /> |
 | `components` _[ComponentStatusMap](#componentstatusmap)_ |  |  | Optional: \{\} <br /> |
 | `lifecycle` _[LifecycleStatus](#lifecyclestatus)_ | Lifecycle tracks the current lifecycle state. |  | Optional: \{\} <br /> |
-| `lastLifecycleImage` _string_ | Last image (repository:tag) that successfully completed the lifecycle.<br />Used to detect image changes on subsequent reconciles. |  | Optional: \{\} <br /> |
+| `lastLifecycleImage` _string_ | Last image (repository:tag) that successfully completed the lifecycle. Used to detect image changes on subsequent reconciles. |  | Optional: \{\} <br /> |
 | `tag` _string_ | Tag is the resolved image tag currently reconciled. |  | Optional: \{\} <br /> |
 | `configChecksum` _string_ |  |  | Optional: \{\} <br /> |
 | `phase` _string_ | High-level phase. |  | Enum: [Initializing Upgrading Running Degraded Suspended Blocked AwaitingApproval] <br />Optional: \{\} <br /> |
@@ -1136,9 +1136,9 @@ _Appears in:_
 | `maxRetries` _integer_ | Maximum number of attempts before the task is considered permanently failed. |  | Optional: \{\} <br /> |
 | `image` _string_ |  |  | Optional: \{\} <br /> |
 | `message` _string_ |  |  | Optional: \{\} <br /> |
-| `nextAttemptAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ | NextAttemptAt is the earliest time the operator may retry this task after<br />a failure or timeout. |  | Optional: \{\} <br /> |
-| `desiredChecksum` _string_ | DesiredChecksum is the checksum for the task inputs the operator is<br />currently trying to execute. |  | Optional: \{\} <br /> |
-| `completedChecksum` _string_ | CompletedChecksum is the task input checksum that last reached a terminal<br />Complete or Failed state. |  | Optional: \{\} <br /> |
+| `nextAttemptAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ | NextAttemptAt is the earliest time the operator may retry this task after a failure or timeout. |  | Optional: \{\} <br /> |
+| `desiredChecksum` _string_ | DesiredChecksum is the checksum for the task inputs the operator is currently trying to execute. |  | Optional: \{\} <br /> |
+| `completedChecksum` _string_ | CompletedChecksum is the task input checksum that last reached a terminal Complete or Failed state. |  | Optional: \{\} <br /> |
 | `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ |  |  | Optional: \{\} <br /> |
 | `lastScheduledAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ | LastScheduledAt is the cron tick that triggered the most recent scheduled run. |  | Optional: \{\} <br /> |
 | `nextScheduleAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ | NextScheduleAt is the next future cron tick when the schedule will fire. |  | Optional: \{\} <br /> |
@@ -1176,7 +1176,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `disabled` _boolean_ | Disable this cache section. When true, the operator does not render<br />this config — Superset falls back to its built-in default. |  | Optional: \{\} <br /> |
+| `disabled` _boolean_ | Disable this cache section. When true, the operator does not render this config — Superset falls back to its built-in default. |  | Optional: \{\} <br /> |
 | `database` _integer_ | Valkey database number. |  | Optional: \{\} <br /> |
 | `keyPrefix` _string_ | Cache key prefix. |  | Optional: \{\} <br /> |
 | `defaultTimeout` _integer_ | Default cache timeout in seconds. |  | Optional: \{\} <br /> |
@@ -1255,14 +1255,14 @@ _Appears in:_
 | `port` _integer_ | Valkey server port. | 6379 | Optional: \{\} <br /> |
 | `username` _string_ | Valkey username. Useful for Redis ACL or managed Redis-compatible services. |  | Optional: \{\} <br /> |
 | `password` _string_ | Plain text password. Only allowed in Development mode — use passwordFrom in Staging or Production. |  | Optional: \{\} <br /> |
-| `passwordFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the Valkey password.<br />Mutually exclusive with password. |  | Optional: \{\} <br /> |
+| `passwordFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the Valkey password. Mutually exclusive with password. |  | Optional: \{\} <br /> |
 | `ssl` _[ValkeySSLSpec](#valkeysslspec)_ | SSL/TLS configuration. When set, enables SSL for the Valkey connection. |  | Optional: \{\} <br /> |
 | `cache` _[ValkeyCacheSpec](#valkeycachespec)_ | General cache (CACHE_CONFIG). Default: db=1, prefix="superset_", timeout=300s. |  | Optional: \{\} <br /> |
 | `dataCache` _[ValkeyCacheSpec](#valkeycachespec)_ | Data/query results cache (DATA_CACHE_CONFIG). Default: db=2, prefix="superset_data_", timeout=86400s. |  | Optional: \{\} <br /> |
 | `filterStateCache` _[ValkeyCacheSpec](#valkeycachespec)_ | Dashboard filter state cache (FILTER_STATE_CACHE_CONFIG). Default: db=3, prefix="superset_filter_", timeout=3600s. |  | Optional: \{\} <br /> |
 | `exploreFormDataCache` _[ValkeyCacheSpec](#valkeycachespec)_ | Chart builder form state cache (EXPLORE_FORM_DATA_CACHE_CONFIG). Default: db=4, prefix="superset_explore_", timeout=3600s. |  | Optional: \{\} <br /> |
 | `thumbnailCache` _[ValkeyCacheSpec](#valkeycachespec)_ | Thumbnail cache (THUMBNAIL_CACHE_CONFIG). Default: db=5, prefix="superset_thumbnail_", timeout=3600s. |  | Optional: \{\} <br /> |
-| `distributedCoordination` _[ValkeyCacheSpec](#valkeycachespec)_ | Distributed coordination backend (DISTRIBUTED_COORDINATION_CONFIG). Backs<br />real-time pub/sub messaging, atomic distributed locks, and Global Task<br />Framework signaling. Recommended for production deployments. Default:<br />db=7, prefix="coordination_", timeout=300s. |  | Optional: \{\} <br /> |
+| `distributedCoordination` _[ValkeyCacheSpec](#valkeycachespec)_ | Distributed coordination backend (DISTRIBUTED_COORDINATION_CONFIG). Backs real-time pub/sub messaging, atomic distributed locks, and Global Task Framework signaling. Recommended for production deployments. Default: db=7, prefix="coordination_", timeout=300s. |  | Optional: \{\} <br /> |
 | `celeryBroker` _[ValkeyCelerySpec](#valkeyceleryspec)_ | Celery broker (CeleryConfig.broker_url). Default: db=0. |  | Optional: \{\} <br /> |
 | `celeryResultBackend` _[ValkeyCelerySpec](#valkeyceleryspec)_ | Celery result backend (CeleryConfig.result_backend). Default: db=0. |  | Optional: \{\} <br /> |
 | `resultsBackend` _[ValkeyResultsBackendSpec](#valkeyresultsbackendspec)_ | SQL Lab async results backend (RESULTS_BACKEND). Default: db=6, prefix="superset_results_". |  | Optional: \{\} <br /> |
@@ -1288,7 +1288,7 @@ _Appears in:_
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
-| `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an<br />empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
+| `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration (type, port, annotations). |  | Optional: \{\} <br /> |
 | `gunicorn` _[GunicornSpec](#gunicornspec)_ | Gunicorn worker configuration. Controls worker processes, threads, and related parameters. |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
@@ -1319,8 +1319,8 @@ _Appears in:_
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling. |  | Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
-| `config` _[JSON](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#json-v1-apiextensions-k8s-io)_ | Inline config.json content for the websocket server. Only allowed in<br />Development mode because this config commonly contains jwtSecret or Redis<br />credentials. In Production, use configFrom to mount an existing Secret key. |  | Type: object <br />Optional: \{\} <br /> |
-| `configFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing websocket server config.json.<br />The operator mounts the selected key at /home/superset-websocket/config.json<br />without reading or copying the Secret. |  | Optional: \{\} <br /> |
+| `config` _[JSON](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#json-v1-apiextensions-k8s-io)_ | Inline config.json content for the websocket server. Only allowed in Development mode because this config commonly contains jwtSecret or Redis credentials. In Production, use configFrom to mount an existing Secret key. |  | Type: object <br />Optional: \{\} <br /> |
+| `configFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing websocket server config.json. The operator mounts the selected key at /home/superset-websocket/config.json without reading or copying the Secret. |  | Optional: \{\} <br /> |
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration (type, port, annotations). |  | Optional: \{\} <br /> |
 
 
