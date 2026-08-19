@@ -59,11 +59,28 @@ acquire_rat_jar () {
   printf "Done downloading.\n"
 }
 
+# Verify the cached jar against the in-repo pin on every invocation, not only
+# at download time: the cache survives across runs, so a jar planted or
+# replaced at the cache path after download would otherwise be executed
+# without any integrity check.
+verify_rat_jar () {
+  local actual_sha256
+  actual_sha256=$(shasum -a 256 "$rat_jar" | cut -d' ' -f1)
+  if [ "$actual_sha256" != "$RAT_SHA256" ]; then
+    printf "SHA256 mismatch for cached apache-rat jar at %s (expected %s, got %s). Delete it and re-run.\n" \
+      "$rat_jar" "$RAT_SHA256" "$actual_sha256"
+    exit 1
+  fi
+}
+
 # Go to the project root directory
 FWDIR="$(cd "`dirname "$0"`"/..; pwd)"
 cd "$FWDIR"
 
-TMP_DIR=/tmp
+# Cache under a user-owned directory. A fixed path in world-writable /tmp let
+# any local user on a shared machine pre-plant a jar at the well-known path,
+# which would then be executed under the victim's account.
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/superset-kubernetes-operator"
 
 if test -x "$JAVA_HOME/bin/java"; then
     declare java_cmd="$JAVA_HOME/bin/java"
@@ -73,14 +90,18 @@ fi
 
 export RAT_VERSION=0.16.1
 export RAT_SHA256=7021c0da25bf92539428427eefbfa1194673b7e4eea7688a17813cb075731431
-export rat_jar="${TMP_DIR}"/lib/apache-rat-${RAT_VERSION}.jar
-mkdir -p ${TMP_DIR}/lib
+export rat_jar="${CACHE_DIR}"/lib/apache-rat-${RAT_VERSION}.jar
+mkdir -p "${CACHE_DIR}/lib"
 
 
 [[ -f "$rat_jar" ]] || acquire_rat_jar || {
     echo "Download failed. Obtain the rat jar manually and place it at $rat_jar"
     exit 1
 }
+
+# Integrity-check the jar at use time, whether it was just downloaded or
+# already cached from an earlier run.
+verify_rat_jar
 
 echo "Running license checks. This can take a while."
 

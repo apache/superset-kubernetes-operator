@@ -165,6 +165,14 @@ sync-helm-checksum: ## Sync the pinned Helm tarball SHA-256 in install-helm.sh w
 verify-helm-checksum: ## Verify install-helm.sh pins the correct Helm tarball SHA-256 for its HELM_VERSION.
 	./scripts/sync-helm-checksum.sh --check
 
+.PHONY: sync-tool-checksums
+sync-tool-checksums: ## Sync hack/tool-checksums.txt with the pinned rumdl/operator-sdk/opm release checksums.
+	./scripts/sync-tool-checksums.sh --write
+
+.PHONY: verify-tool-checksums
+verify-tool-checksums: ## Verify hack/tool-checksums.txt matches the pinned rumdl/operator-sdk/opm releases.
+	./scripts/sync-tool-checksums.sh --check
+
 ##@ Helm
 
 HELM_CHART_DIR ?= charts/superset-operator
@@ -468,11 +476,10 @@ $(RUMDL): $(LOCALBIN)
 	BASE=https://github.com/rvben/rumdl/releases/download/$(RUMDL_VERSION) ;\
 	echo "Downloading $$TARBALL" ;\
 	curl -fsSL -o "$(LOCALBIN)/$$TARBALL" "$$BASE/$$TARBALL" ;\
-	curl -fsSL -o "$(LOCALBIN)/$$TARBALL.sha256" "$$BASE/$$TARBALL.sha256" ;\
-	(cd $(LOCALBIN) && shasum -a 256 -c "$$TARBALL.sha256") ;\
+	./scripts/verify-tool-checksum.sh "$(LOCALBIN)/$$TARBALL" "$(RUMDL_VERSION)/$$TARBALL" ;\
 	tar -xzf "$(LOCALBIN)/$$TARBALL" -C $(LOCALBIN) rumdl ;\
 	mv $(LOCALBIN)/rumdl $(RUMDL)-$(RUMDL_VERSION) ;\
-	rm -f "$(LOCALBIN)/$$TARBALL" "$(LOCALBIN)/$$TARBALL.sha256" ;\
+	rm -f "$(LOCALBIN)/$$TARBALL" ;\
 	} ;\
 	ln -sf $(RUMDL)-$(RUMDL_VERSION) $(RUMDL)
 
@@ -491,8 +498,10 @@ ifeq (, $(shell which operator-sdk 2>/dev/null))
 	set -e ;\
 	mkdir -p $(dir $(OPERATOR_SDK)) ;\
 	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
-	curl -sSLo $(OPERATOR_SDK) https://github.com/operator-framework/operator-sdk/releases/download/$(OPERATOR_SDK_VERSION)/operator-sdk_$${OS}_$${ARCH} ;\
-	chmod +x $(OPERATOR_SDK) ;\
+	curl -sSLo $(OPERATOR_SDK).download https://github.com/operator-framework/operator-sdk/releases/download/$(OPERATOR_SDK_VERSION)/operator-sdk_$${OS}_$${ARCH} ;\
+	./scripts/verify-tool-checksum.sh $(OPERATOR_SDK).download "$(OPERATOR_SDK_VERSION)/operator-sdk_$${OS}_$${ARCH}" ;\
+	chmod +x $(OPERATOR_SDK).download ;\
+	mv $(OPERATOR_SDK).download $(OPERATOR_SDK) ;\
 	}
 else
 OPERATOR_SDK = $(shell which operator-sdk)
@@ -516,6 +525,8 @@ bundle-push: ## Push the bundle image.
 
 .PHONY: opm
 OPM = $(LOCALBIN)/opm
+# renovate: datasource=github-releases depName=operator-framework/operator-registry
+OPM_VERSION ?= v1.55.0
 opm: ## Download opm locally if necessary.
 ifeq (,$(wildcard $(OPM)))
 ifeq (,$(shell which opm 2>/dev/null))
@@ -523,8 +534,10 @@ ifeq (,$(shell which opm 2>/dev/null))
 	set -e ;\
 	mkdir -p $(dir $(OPM)) ;\
 	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
-	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/v1.55.0/$${OS}-$${ARCH}-opm ;\
-	chmod +x $(OPM) ;\
+	curl -sSLo $(OPM).download https://github.com/operator-framework/operator-registry/releases/download/$(OPM_VERSION)/$${OS}-$${ARCH}-opm ;\
+	./scripts/verify-tool-checksum.sh $(OPM).download "$(OPM_VERSION)/$${OS}-$${ARCH}-opm" ;\
+	chmod +x $(OPM).download ;\
+	mv $(OPM).download $(OPM) ;\
 	}
 else
 OPM = $(shell which opm)
