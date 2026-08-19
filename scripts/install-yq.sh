@@ -21,8 +21,8 @@
 set -euo pipefail
 
 # renovate: datasource=github-release-attachments depName=mikefarah/yq
-YQ_VERSION="${YQ_VERSION:-v4.53.3}"
-YQ_SHA256="${YQ_SHA256:-fa52a4e758c63d38299163fbdd1edfb4c4963247918bf9c1c5d31d84789eded4}"
+YQ_VERSION="${YQ_VERSION:-v4.53.4}"
+YQ_SHA256="${YQ_SHA256:-f67d8a6a2dc2308c961f83d5ba8707fd4c7c44ad77902fef87eb3a4646cdfa2a}"
 YQ_PLATFORM="${YQ_PLATFORM:-linux_amd64}"
 
 asset="yq_${YQ_PLATFORM}"
