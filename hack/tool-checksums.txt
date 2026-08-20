@@ -31,18 +31,18 @@
 # and commit the result. rumdl, operator-sdk, and helm-unittest hashes are
 # cross-checked against the upstream per-release checksum manifests; opm
 # publishes no manifest, so its binaries are hashed locally.
-7c16817f4beb3e1f105eb592fcf077b74b24788d100ee862f0015d1373f9ee03  v0.2.57/rumdl-v0.2.57-x86_64-unknown-linux-gnu.tar.gz
-9f12fadfbe6abbf53fb8383be1f8611860841f4887bd839cc68771a1769571be  v0.2.57/rumdl-v0.2.57-aarch64-unknown-linux-gnu.tar.gz
-a3078143433656b526cfee5eb7cd1cc10c78aeedeb49d2045993408c6c94c344  v0.2.57/rumdl-v0.2.57-x86_64-apple-darwin.tar.gz
-01d5804656fbef86f8323145ef3024f34c0e4646f6289f2afc17e03e04b7ac7a  v0.2.57/rumdl-v0.2.57-aarch64-apple-darwin.tar.gz
+00409350e66a44b7cec80834d58584056f21c14310a129eb43256e3c8a399156  v0.2.58/rumdl-v0.2.58-x86_64-unknown-linux-gnu.tar.gz
+3c99025f8861fa70119c50e6a4d9143a0c3e2da4e9d0a5c00b18bbaaeb5699f7  v0.2.58/rumdl-v0.2.58-aarch64-unknown-linux-gnu.tar.gz
+ccb430f5469711c844bd6a841f058beb9b41fc1837af82bc4c3702c6c92f4323  v0.2.58/rumdl-v0.2.58-x86_64-apple-darwin.tar.gz
+d443a981997e522f53094b1f3799777be8d712e47aa6f83986935912f1adf5b0  v0.2.58/rumdl-v0.2.58-aarch64-apple-darwin.tar.gz
 887a3bb0d63ccc4ca47a522d0c8ffac56d9d5246f6a2bd886b4ed23eb2e2672f  v1.42.3/operator-sdk_linux_amd64
 6db93cd821b429f0bb514cea4bbb5553827d273fc8aa211f13e14798599d31cd  v1.42.3/operator-sdk_linux_arm64
 7cb0f24bb63b6383a117291ee4c808953c5dd789d5877da98051aa68b41f40ac  v1.42.3/operator-sdk_darwin_amd64
 098ae8b9dbe7dfd557e8e7ed0f1996736922dd4b984621df2aa033f225cae161  v1.42.3/operator-sdk_darwin_arm64
-eed05ce8d6c21bb4acf4683f270ea7fd69ecf492cb58459c5689575c80800921  v1.55.0/linux-amd64-opm
-4048b965d25a96bdaca5c2ca4e45418ba286391f960708e774760c7abfa509ad  v1.55.0/linux-arm64-opm
-69d13eab1faf88031ce3cdcc91aa0a430e1e15f3f96294660a0e29cba17751eb  v1.55.0/darwin-amd64-opm
-7b8f4e904888f4551289793d0a5c43dfb37985ee1ad6d1b6db2d1859e60d3f37  v1.55.0/darwin-arm64-opm
+cc0768c3ca915ad1fb72f88ad7cfcb533870fdbb6af83de290b66a5439a28140  v1.73.0/linux-amd64-opm
+e6996b9d87d7a6844b721e055bb8cdf8437c4eaeed1e824a26860acab933cf94  v1.73.0/linux-arm64-opm
+4450ec3486a857c86f263f1776b5ca97dd9e209f6711687de2d0e1641d248e76  v1.73.0/darwin-amd64-opm
+4fc7d0c692e94f1c9e79b6c5b18006901f750bd730412860f77e2b49c83ddd26  v1.73.0/darwin-arm64-opm
 de03d6b7ba7683282064702d0b36fbbe812ab2a22691fa3a8b2ce57c2682609c  v1.1.2/helm-unittest-linux-amd64-1.1.2.tgz
 5f8d24d163b65a9244c4371078bfecaa236f7f6807fd8e923700783db78c1626  v1.1.2/helm-unittest-linux-arm64-1.1.2.tgz
 40757889f5a5a84334ae6b433724fdd50d73390e522bc233a525c076eb3e90aa  v1.1.2/helm-unittest-macos-amd64-1.1.2.tgz

@@ -400,7 +400,7 @@ CRD_REF_DOCS_VERSION ?= v0.3.0
 # renovate: datasource=go depName=golang.org/x/vuln
 GOVULNCHECK_VERSION ?= v1.7.0
 # renovate: datasource=github-releases depName=rvben/rumdl
-RUMDL_VERSION ?= v0.2.57
+RUMDL_VERSION ?= v0.2.58
 # renovate: datasource=go depName=github.com/norwoodj/helm-docs
 HELM_DOCS_VERSION ?= v1.14.2
 
