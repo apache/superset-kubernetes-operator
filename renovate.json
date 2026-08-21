@@ -34,6 +34,12 @@
       "minimumReleaseAge": "0"
     },
     {
+      "description": "Renovate parses the go.mod `go` directive with go-mod-directive versioning, which treats `go 1.27.0` as a `>=1.27.0` minimum constraint rather than an exact pin. Under the default `replace` rangeStrategy Renovate only rewrites a range when the new version falls outside it, so every newer Go still satisfies the constraint and the directive never moves — drifting behind the golang image/devcontainer pins (which are exact and bump freely). Use `bump` so a Go release raises the directive to the latest in lockstep; the Go-toolchain group above then carries it in the same PR as the image bumps.",
+      "matchManagers": ["gomod"],
+      "matchDepNames": ["go"],
+      "rangeStrategy": "bump"
+    },
+    {
       "matchPackageNames": ["kubernetes-sigs/kind"],
       "addLabels": ["review:supported-k8s"],
       "prBodyNotes": [
