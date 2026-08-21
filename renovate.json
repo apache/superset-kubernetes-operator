@@ -21,6 +21,13 @@
       "enabled": true
     },
     {
+      "description": "Path-versioned Go modules (…/v5, go.yaml.in/yaml/v3, gopkg.in/…​.v4) coexist at multiple majors, and an indirect module's major is owned by whichever upstream direct dep pins it — not by this repo. Renovate's 'major indirect' bump just rewrites the import-path major segment: the new major collides with the copy already pulled in transitively (producing a duplicate `require` directive and an invalid go.mod) or lands as an unused extra require while the old major is still needed, and it can even downgrade a sibling module. These majors advance only when the upstream consumer migrates, so suppress major indirect bumps; minor/patch indirect bumps stay enabled.",
+      "matchManagers": ["gomod"],
+      "matchDepTypes": ["indirect"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    },
+    {
       "description": "Keep the Go toolchain in lockstep: the go.mod `go` directive (gomod manager), the golang base image (dockerfile manager), and the devcontainer golang image (devcontainer manager) are separate deps that would otherwise open separate PRs. Group them so a Go release bumps all together in one PR.",
       "matchManagers": ["gomod", "dockerfile", "devcontainer"],
       "matchDepNames": ["go", "golang"],
