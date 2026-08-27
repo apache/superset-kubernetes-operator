@@ -14,27 +14,36 @@
 # limitations under the License.
 #
 # In-repo SHA-256 pins for tool binaries downloaded by Makefile recipes
-# (rumdl, operator-sdk, opm) and by scripts/install-helm-unittest.sh. Those
-# recipes and the installer verify every download against this file via
-# scripts/verify-tool-checksum.sh and fail closed when an artifact is unpinned
-# or does not match, so a compromised upstream release or a moved tag is
-# detected instead of silently executed.
+# (rumdl, golangci-lint, controller-gen, operator-sdk, opm) and by
+# scripts/install-helm-unittest.sh. Those recipes and the installer verify every
+# download against this file via scripts/verify-tool-checksum.sh and fail closed
+# when an artifact is unpinned or does not match, so a compromised upstream
+# release or a moved tag is detected instead of silently executed.
 #
 # Entry format (one per line): <sha256>  <version>/<asset-name>
 #
-# Regenerate after bumping RUMDL_VERSION, OPERATOR_SDK_VERSION, or OPM_VERSION
-# in the Makefile, or HELM_UNITTEST_VERSION in
-# scripts/install-helm-unittest.sh:
+# Regenerate after bumping RUMDL_VERSION, GOLANGCI_LINT_VERSION,
+# CONTROLLER_TOOLS_VERSION, OPERATOR_SDK_VERSION, or OPM_VERSION in the
+# Makefile, or HELM_UNITTEST_VERSION in scripts/install-helm-unittest.sh:
 #
 #   make sync-tool-checksums
 #
-# and commit the result. rumdl, operator-sdk, and helm-unittest hashes are
-# cross-checked against the upstream per-release checksum manifests; opm
-# publishes no manifest, so its binaries are hashed locally.
+# and commit the result. rumdl, golangci-lint, operator-sdk, and helm-unittest
+# hashes are cross-checked against the upstream per-release checksum manifests;
+# controller-gen and opm publish no manifest, so their binaries are hashed
+# locally.
 00409350e66a44b7cec80834d58584056f21c14310a129eb43256e3c8a399156  v0.2.58/rumdl-v0.2.58-x86_64-unknown-linux-gnu.tar.gz
 3c99025f8861fa70119c50e6a4d9143a0c3e2da4e9d0a5c00b18bbaaeb5699f7  v0.2.58/rumdl-v0.2.58-aarch64-unknown-linux-gnu.tar.gz
 ccb430f5469711c844bd6a841f058beb9b41fc1837af82bc4c3702c6c92f4323  v0.2.58/rumdl-v0.2.58-x86_64-apple-darwin.tar.gz
 d443a981997e522f53094b1f3799777be8d712e47aa6f83986935912f1adf5b0  v0.2.58/rumdl-v0.2.58-aarch64-apple-darwin.tar.gz
+b17bfbc9d4aaa48be7f4f1ce3240bc3d8200c870c072bacf15c26219e2cfb9cc  v2.13.1/golangci-lint-2.13.1-linux-amd64.tar.gz
+908317c23db18448f924e853b3d8a659fd919614cd438f224810a4053daa2607  v2.13.1/golangci-lint-2.13.1-linux-arm64.tar.gz
+2c373363953e4e0bee2a03b7fe864a5eb6a3822927cb077d9ca33f2ae3cb2da2  v2.13.1/golangci-lint-2.13.1-darwin-amd64.tar.gz
+0c9818baf6fb8ad26c6d2ef51b68d5a1e260ef07727036b1431647cc44637c7c  v2.13.1/golangci-lint-2.13.1-darwin-arm64.tar.gz
+3ec7994b7a41515a7ad8aef8e517429c0a78060df59d5587ac8662db6a8b035f  v0.21.0/controller-gen-linux-amd64
+1af64bb144658c61f1b61c6392e17d56dd4f7364497625613ff435d7e468f60b  v0.21.0/controller-gen-linux-arm64
+96fc4e98d7144e37bae90b73631c9dad944ccfb69002fc7c9d1ab448babb207d  v0.21.0/controller-gen-darwin-amd64
+13ac7abcd90dd2129da972024bea7da5be7df2c5404c8f715010490996f4ab43  v0.21.0/controller-gen-darwin-arm64
 887a3bb0d63ccc4ca47a522d0c8ffac56d9d5246f6a2bd886b4ed23eb2e2672f  v1.42.3/operator-sdk_linux_amd64
 6db93cd821b429f0bb514cea4bbb5553827d273fc8aa211f13e14798599d31cd  v1.42.3/operator-sdk_linux_arm64
 7cb0f24bb63b6383a117291ee4c808953c5dd789d5877da98051aa68b41f40ac  v1.42.3/operator-sdk_darwin_amd64
