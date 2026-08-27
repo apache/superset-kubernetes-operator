@@ -1,18 +1,19 @@
 {
   "kind_version": "v0.33.0",
-  "kind_checksum": "50030de23cf40a18505f20426f6a8506bedf13c6e509244bd1fa9463721b0f54",
+  "kind_checksum": "aee6151561422756b764a4ae28e7f44cda5af5a9eead3cc9985112b1de8d8e0d",
   "supported": [
     {
+      "minor": "1.37",
+      "node_image": "kindest/node:v1.37.0@sha256:a1ed56cfb0e7b93589bdf97c8cd566405a265939e3620fc4f5de89adff580ae5"
+    },
+    {
       "minor": "1.36",
-      "node_image": "kindest/node:v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5"
+      "node_image": "kindest/node:v1.36.4@sha256:099e049362a1526b2db71494e1947aae99bd16290d7c895f2b7ea312e3cbfaed"
     },
     {
       "minor": "1.35",
-      "node_image": "kindest/node:v1.35.5@sha256:ce977ae6d65918d0b58a5f8b5e940429c2ce42fa3a5619ec2bbc60b949c0ac95"
+      "node_image": "kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0"
     }
   ],
-  "next": {
-    "minor": "1.37",
-    "version": "v1.37.0"
-  }
+  "next": null
 }

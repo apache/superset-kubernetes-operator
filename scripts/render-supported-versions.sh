@@ -24,7 +24,7 @@
 # Prose files that need just the version list inline (not the full block) use a
 # same-line inline sentinel instead:
 #
-#   ... <!-- BEGIN SUPPORTED-K8S-INLINE -->1.36, 1.35<!-- END SUPPORTED-K8S-INLINE --> ...
+#   ... <!-- BEGIN SUPPORTED-K8S-INLINE -->1.37, 1.36, 1.35<!-- END SUPPORTED-K8S-INLINE --> ...
 
 set -euo pipefail
 

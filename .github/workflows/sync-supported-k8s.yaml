@@ -53,8 +53,8 @@ jobs:
 
             The sync script (`scripts/sync-supported-versions.sh`) recomputes:
 
-            - `supported` — newest two Kubernetes minors with a `kindest/node` image published by the currently pinned kind release.
-            - `next` — newest stable Kubernetes release if its minor isn't already covered by kind; otherwise `null`.
+            - `supported` — newest three Kubernetes minors with a `kindest/node` image published by the currently pinned kind release.
+            - `next` — reserved experimental placeholder, kept as `null` unless explicitly re-enabled.
 
             **Heads up:** PRs opened by `GITHUB_TOKEN` don't trigger CI. Close + reopen this PR (or push an empty commit) to run the required checks before merging.
           labels: |
