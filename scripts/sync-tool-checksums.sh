@@ -16,8 +16,8 @@
 #
 # Sync hack/tool-checksums.txt with the SHA-256 checksums of the tool binaries
 # pinned in the Makefile (RUMDL_VERSION, GOLANGCI_LINT_VERSION,
-# OPERATOR_SDK_VERSION, OPM_VERSION) and in scripts/install-helm-unittest.sh
-# (HELM_UNITTEST_VERSION).
+# CONTROLLER_TOOLS_VERSION, OPERATOR_SDK_VERSION, OPM_VERSION) and in
+# scripts/install-helm-unittest.sh (HELM_UNITTEST_VERSION).
 # Makefile recipes and install-helm-unittest.sh verify every download against
 # that file via scripts/verify-tool-checksum.sh, so these binaries — executed in
 # the CI lint/helm-lint jobs, the pre-commit hook, on developer machines, and on
@@ -29,9 +29,9 @@
 # Renovate/release notes, and commit the regenerated file.
 #
 # rumdl, golangci-lint, operator-sdk, and helm-unittest publish per-release
-# checksum manifests, which this script fetches; operator-registry (opm) does
-# not, so its binaries are downloaded and hashed locally (a few hundred MB —
-# sync runs are rare).
+# checksum manifests, which this script fetches; controller-gen and
+# operator-registry (opm) do not, so their binaries are downloaded and hashed
+# locally (a few hundred MB — sync runs are rare).
 #
 # Usage:
 #   sync-tool-checksums.sh [--check|--write]
@@ -57,10 +57,12 @@ read_version() {
 
 RUMDL_VERSION="$(read_version RUMDL_VERSION)"
 GOLANGCI_LINT_VERSION="$(read_version GOLANGCI_LINT_VERSION)"
+CONTROLLER_TOOLS_VERSION="$(read_version CONTROLLER_TOOLS_VERSION)"
 OPERATOR_SDK_VERSION="$(read_version OPERATOR_SDK_VERSION)"
 OPM_VERSION="$(read_version OPM_VERSION)"
 [ -n "${RUMDL_VERSION}" ]        || { echo "could not read RUMDL_VERSION from ${MAKEFILE}" >&2; exit 1; }
 [ -n "${GOLANGCI_LINT_VERSION}" ] || { echo "could not read GOLANGCI_LINT_VERSION from ${MAKEFILE}" >&2; exit 1; }
+[ -n "${CONTROLLER_TOOLS_VERSION}" ] || { echo "could not read CONTROLLER_TOOLS_VERSION from ${MAKEFILE}" >&2; exit 1; }
 [ -n "${OPERATOR_SDK_VERSION}" ] || { echo "could not read OPERATOR_SDK_VERSION from ${MAKEFILE}" >&2; exit 1; }
 [ -n "${OPM_VERSION}" ]          || { echo "could not read OPM_VERSION from ${MAKEFILE}" >&2; exit 1; }
 
@@ -95,6 +97,22 @@ for platform in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64; do
   sha="$(printf '%s\n' "${gcl_manifest}" | awk -v a="${asset}" '$2 == a {print $1; exit}')"
   require_sha "${sha}" "${asset}"
   printf '%s  %s/%s\n' "${sha}" "${GOLANGCI_LINT_VERSION}" "${asset}" >> "${out}"
+done
+
+# controller-gen: no published checksum manifest — download the binaries and
+# hash them locally.
+for platform in linux-amd64 linux-arm64 darwin-amd64 darwin-arm64; do
+  asset="controller-gen-${platform}"
+  curl -fsSL -o "${tmpdir}/${asset}" \
+    "https://github.com/kubernetes-sigs/controller-tools/releases/download/${CONTROLLER_TOOLS_VERSION}/${asset}"
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha="$(sha256sum "${tmpdir}/${asset}" | awk '{print $1}')"
+  else
+    sha="$(shasum -a 256 "${tmpdir}/${asset}" | awk '{print $1}')"
+  fi
+  require_sha "${sha}" "${asset}"
+  printf '%s  %s/%s\n' "${sha}" "${CONTROLLER_TOOLS_VERSION}" "${asset}" >> "${out}"
+  rm -f "${tmpdir}/${asset}"
 done
 
 # operator-sdk: a single checksums.txt manifest covers all release assets.
@@ -145,7 +163,7 @@ case "${mode}" in
       echo "hack/tool-checksums.txt already pins the correct checksums"
     else
       cp "${out}" "${CHECKSUMS}"
-      echo "updated hack/tool-checksums.txt for rumdl ${RUMDL_VERSION}, golangci-lint ${GOLANGCI_LINT_VERSION}, operator-sdk ${OPERATOR_SDK_VERSION}, opm ${OPM_VERSION}, helm-unittest ${HELM_UNITTEST_VERSION}"
+      echo "updated hack/tool-checksums.txt for rumdl ${RUMDL_VERSION}, golangci-lint ${GOLANGCI_LINT_VERSION}, controller-tools ${CONTROLLER_TOOLS_VERSION}, operator-sdk ${OPERATOR_SDK_VERSION}, opm ${OPM_VERSION}, helm-unittest ${HELM_UNITTEST_VERSION}"
     fi
     ;;
   --check)

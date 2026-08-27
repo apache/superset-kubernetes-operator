@@ -412,7 +412,22 @@ $(KUSTOMIZE): $(LOCALBIN)
 .PHONY: controller-gen
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
 $(CONTROLLER_GEN): $(LOCALBIN)
-	$(call go-install-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen,$(CONTROLLER_TOOLS_VERSION))
+	@[ -f "$(CONTROLLER_GEN)-$(CONTROLLER_TOOLS_VERSION)" ] || { \
+	set -e ;\
+	OS=$$(go env GOOS); ARCH=$$(go env GOARCH) ;\
+	case "$$OS-$$ARCH" in \
+	  linux-amd64|linux-arm64|darwin-amd64|darwin-arm64) PLATFORM=$$OS-$$ARCH ;; \
+	  *) echo "unsupported platform $$OS-$$ARCH for controller-gen"; exit 1 ;; \
+	esac ;\
+	ASSET=controller-gen-$$PLATFORM ;\
+	BASE=https://github.com/kubernetes-sigs/controller-tools/releases/download/$(CONTROLLER_TOOLS_VERSION) ;\
+	echo "Downloading $$ASSET" ;\
+	curl -fsSL -o "$(LOCALBIN)/$$ASSET" "$$BASE/$$ASSET" ;\
+	./scripts/verify-tool-checksum.sh "$(LOCALBIN)/$$ASSET" "$(CONTROLLER_TOOLS_VERSION)/$$ASSET" ;\
+	chmod +x "$(LOCALBIN)/$$ASSET" ;\
+	mv "$(LOCALBIN)/$$ASSET" "$(CONTROLLER_GEN)-$(CONTROLLER_TOOLS_VERSION)" ;\
+	} ;\
+	ln -sf $(CONTROLLER_GEN)-$(CONTROLLER_TOOLS_VERSION) $(CONTROLLER_GEN)
 
 .PHONY: setup-envtest
 setup-envtest: envtest ## Download the binaries required for ENVTEST in the local bin directory.

@@ -16,10 +16,11 @@
 name: Sync tool checksums
 
 # Keeps hack/tool-checksums.txt in sync with the pinned rumdl / golangci-lint /
-# operator-sdk / opm / helm-unittest versions. The in-repo download recipes fail
-# closed when a version has no matching pin, so a bump without a resync surfaces
-# at use time; this scheduled job additionally regenerates the pins and opens a
-# PR so the file cannot drift silently (mirrors the supported-k8s auto-sync).
+# controller-gen / operator-sdk / opm / helm-unittest versions. The in-repo
+# download recipes fail closed when a version has no matching pin, so a bump
+# without a resync surfaces at use time; this scheduled job additionally
+# regenerates the pins and opens a PR so the file cannot drift silently
+# (mirrors the supported-k8s auto-sync).
 
 on:
   schedule:
@@ -54,7 +55,8 @@ jobs:
           title: 'chore(ci): sync tool checksums'
           body: |
             Automated resync of `hack/tool-checksums.txt` with the pinned
-            rumdl / golangci-lint / operator-sdk / opm / helm-unittest versions
+            rumdl / golangci-lint / controller-gen / operator-sdk / opm /
+            helm-unittest versions
             (`scripts/sync-tool-checksums.sh`). A diff here means a pinned tool
             version changed without its in-repo SHA-256 pins being regenerated.
 
