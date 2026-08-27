@@ -23,6 +23,10 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 
 ## Unreleased
 
+### Changed
+
+- Kubernetes support now covers the three newest `kind`-published minor versions instead of two. CI tests Kubernetes 1.37, 1.36, and 1.35 natively, with the experimental `next` lane disabled again ([#317](https://github.com/apache/superset-kubernetes-operator/pull/317)).
+
 ### Security
 
 - **Breaking:** Celery Flower is no longer published on the Ingress/Gateway surface in `Production` by default. Flower's default command ships without authentication and its dashboard discloses task names and arguments — for Superset, other users' async SQL Lab statements and alert/report payloads. In `Production` (the default) Flower is fanned out onto the end-user host — and its port opened in the built-in NetworkPolicy — only when you explicitly set `celeryFlower.service.gatewayPath`; `Development` and `Staging` continue to publish it by default. To keep exposing Flower in Production, set `celeryFlower.service.gatewayPath` (e.g. `/flower`) after placing authentication in front of it (e.g. `FLOWER_BASIC_AUTH` injected from a Secret via `celeryFlower.podTemplate.container.env`) ([#279](https://github.com/apache/superset-kubernetes-operator/pull/279), [@villebro](https://github.com/villebro)).
