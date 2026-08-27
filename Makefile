@@ -166,11 +166,11 @@ verify-helm-checksum: ## Verify install-helm.sh pins the correct Helm tarball SH
 	./scripts/sync-helm-checksum.sh --check
 
 .PHONY: sync-tool-checksums
-sync-tool-checksums: ## Sync hack/tool-checksums.txt with the pinned rumdl/operator-sdk/opm release checksums.
+sync-tool-checksums: ## Sync hack/tool-checksums.txt with the pinned binary tool checksums.
 	./scripts/sync-tool-checksums.sh --write
 
 .PHONY: verify-tool-checksums
-verify-tool-checksums: ## Verify hack/tool-checksums.txt matches the pinned rumdl/operator-sdk/opm releases.
+verify-tool-checksums: ## Verify hack/tool-checksums.txt matches the pinned binary tool releases.
 	./scripts/sync-tool-checksums.sh --check
 
 ##@ Helm
@@ -430,7 +430,24 @@ $(ENVTEST): $(LOCALBIN)
 .PHONY: golangci-lint
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
-	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/v2/cmd/golangci-lint,$(GOLANGCI_LINT_VERSION))
+	@[ -f "$(GOLANGCI_LINT)-$(GOLANGCI_LINT_VERSION)" ] || { \
+	set -e ;\
+	OS=$$(go env GOOS); ARCH=$$(go env GOARCH) ;\
+	case "$$OS-$$ARCH" in \
+	  linux-amd64|linux-arm64|darwin-amd64|darwin-arm64) PLATFORM=$$OS-$$ARCH ;; \
+	  *) echo "unsupported platform $$OS-$$ARCH for golangci-lint"; exit 1 ;; \
+	esac ;\
+	VERSION_NO_V=$$(printf '%s' "$(GOLANGCI_LINT_VERSION)" | sed 's/^v//') ;\
+	TARBALL=golangci-lint-$$VERSION_NO_V-$$PLATFORM.tar.gz ;\
+	BASE=https://github.com/golangci/golangci-lint/releases/download/$(GOLANGCI_LINT_VERSION) ;\
+	echo "Downloading $$TARBALL" ;\
+	curl -fsSL -o "$(LOCALBIN)/$$TARBALL" "$$BASE/$$TARBALL" ;\
+	./scripts/verify-tool-checksum.sh "$(LOCALBIN)/$$TARBALL" "$(GOLANGCI_LINT_VERSION)/$$TARBALL" ;\
+	tar -xzf "$(LOCALBIN)/$$TARBALL" -C "$(LOCALBIN)" ;\
+	mv "$(LOCALBIN)/golangci-lint-$$VERSION_NO_V-$$PLATFORM/golangci-lint" "$(GOLANGCI_LINT)-$(GOLANGCI_LINT_VERSION)" ;\
+	rm -rf "$(LOCALBIN)/golangci-lint-$$VERSION_NO_V-$$PLATFORM" "$(LOCALBIN)/$$TARBALL" ;\
+	} ;\
+	ln -sf $(GOLANGCI_LINT)-$(GOLANGCI_LINT_VERSION) $(GOLANGCI_LINT)
 
 .PHONY: crd-ref-docs
 crd-ref-docs: $(CRD_REF_DOCS) ## Download crd-ref-docs locally if necessary.

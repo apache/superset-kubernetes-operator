@@ -151,8 +151,8 @@ kind delete cluster --name superset
 | `make verify-supported-versions` | Verify supported-k8s.json matches the pinned kind release and docs are up to date. |
 | `make sync-helm-checksum` | Sync the pinned Helm tarball SHA-256 in install-helm.sh with the published checksum for HELM_VERSION. |
 | `make verify-helm-checksum` | Verify install-helm.sh pins the correct Helm tarball SHA-256 for its HELM_VERSION. |
-| `make sync-tool-checksums` | Sync hack/tool-checksums.txt with the pinned rumdl/operator-sdk/opm release checksums. |
-| `make verify-tool-checksums` | Verify hack/tool-checksums.txt matches the pinned rumdl/operator-sdk/opm releases. |
+| `make sync-tool-checksums` | Sync hack/tool-checksums.txt with the pinned binary tool checksums. |
+| `make verify-tool-checksums` | Verify hack/tool-checksums.txt matches the pinned binary tool releases. |
 
 ### Helm
 
