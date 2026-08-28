@@ -151,9 +151,9 @@ sync-supported-versions: ## Sync .github/supported-k8s.json with the pinned kind
 verify-supported-versions: ## Verify supported-k8s.json matches the pinned kind release and docs are up to date.
 	./scripts/sync-supported-versions.sh --check
 	$(MAKE) supported-versions
-	@if [ -n "$$(git status --porcelain README.md docs/index.md docs/user-guide/installation.md)" ]; then \
+	@if [ -n "$$(git status --porcelain README.md docs/index.md docs/user-guide/installation.md docs/getting-started.md)" ]; then \
 		echo "Supported-versions table is stale. Run 'make supported-versions' and commit."; \
-		git diff README.md docs/index.md docs/user-guide/installation.md; \
+		git diff README.md docs/index.md docs/user-guide/installation.md docs/getting-started.md; \
 		exit 1; \
 	fi
 
