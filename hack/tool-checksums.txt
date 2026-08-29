@@ -32,10 +32,10 @@
 # hashes are cross-checked against the upstream per-release checksum manifests;
 # controller-gen and opm publish no manifest, so their binaries are hashed
 # locally.
-00409350e66a44b7cec80834d58584056f21c14310a129eb43256e3c8a399156  v0.2.58/rumdl-v0.2.58-x86_64-unknown-linux-gnu.tar.gz
-3c99025f8861fa70119c50e6a4d9143a0c3e2da4e9d0a5c00b18bbaaeb5699f7  v0.2.58/rumdl-v0.2.58-aarch64-unknown-linux-gnu.tar.gz
-ccb430f5469711c844bd6a841f058beb9b41fc1837af82bc4c3702c6c92f4323  v0.2.58/rumdl-v0.2.58-x86_64-apple-darwin.tar.gz
-d443a981997e522f53094b1f3799777be8d712e47aa6f83986935912f1adf5b0  v0.2.58/rumdl-v0.2.58-aarch64-apple-darwin.tar.gz
+84fc96856d21203b6482b7284aff5b539b7329a5cc078d7a94c55ae40d88752f  v0.2.60/rumdl-v0.2.60-x86_64-unknown-linux-gnu.tar.gz
+02a34cc98282f0f0799dcf9d3b5eac0cc84f98cda85df1c6486178dbc5451c54  v0.2.60/rumdl-v0.2.60-aarch64-unknown-linux-gnu.tar.gz
+bbd0618d6b2e3b4de94d85b228614b45462754a27e62c5560fb3c208e4aa719d  v0.2.60/rumdl-v0.2.60-x86_64-apple-darwin.tar.gz
+f195e442ffa87fca71b3362333fd0c7b4818913ee84421917fa1a9638693b01f  v0.2.60/rumdl-v0.2.60-aarch64-apple-darwin.tar.gz
 b17bfbc9d4aaa48be7f4f1ce3240bc3d8200c870c072bacf15c26219e2cfb9cc  v2.13.1/golangci-lint-2.13.1-linux-amd64.tar.gz
 908317c23db18448f924e853b3d8a659fd919614cd438f224810a4053daa2607  v2.13.1/golangci-lint-2.13.1-linux-arm64.tar.gz
 2c373363953e4e0bee2a03b7fe864a5eb6a3822927cb077d9ca33f2ae3cb2da2  v2.13.1/golangci-lint-2.13.1-darwin-amd64.tar.gz
