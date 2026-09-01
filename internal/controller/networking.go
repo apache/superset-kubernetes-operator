@@ -54,13 +54,13 @@ func (r *SupersetReconciler) reconcileNetworking(ctx context.Context, superset *
 
 	// Clean up resources not in use.
 	if !gatewayEnabled {
-		if err := r.deleteByLabels(ctx, superset.Namespace, parentLbls,
+		if err := r.deleteByLabels(ctx, superset, superset.Namespace, parentLbls,
 			func() client.ObjectList { return &gatewayv1.HTTPRouteList{} }, ""); err != nil {
 			return err
 		}
 	}
 	if !ingressEnabled {
-		if err := r.deleteByLabels(ctx, superset.Namespace, parentLbls,
+		if err := r.deleteByLabels(ctx, superset, superset.Namespace, parentLbls,
 			func() client.ObjectList { return &networkingv1.IngressList{} }, ""); err != nil {
 			return err
 		}

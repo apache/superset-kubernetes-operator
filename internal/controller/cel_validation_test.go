@@ -542,10 +542,52 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		})
 	})
 
+	// --- ServiceAccount (operator-created names must derive from the CR name) ---
+
+	Describe("ServiceAccount", func() {
+		It("rejects create=true with a name different from metadata.name", func() {
+			cr := validProdSuperset("sa-name-mismatch")
+			cr.Spec.ServiceAccount = &supersetv1alpha1.ServiceAccountSpec{
+				Create: boolPtr(true),
+				Name:   "some-other-name",
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("serviceAccount.name must equal metadata.name"))
+		})
+
+		It("rejects unset create (defaults to true) with a mismatched name", func() {
+			cr := validProdSuperset("sa-name-default-create")
+			cr.Spec.ServiceAccount = &supersetv1alpha1.ServiceAccountSpec{
+				Name: "some-other-name",
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("serviceAccount.name must equal metadata.name"))
+		})
+
+		It("allows create=true with a name equal to metadata.name", func() {
+			cr := validProdSuperset("sa-name-match")
+			cr.Spec.ServiceAccount = &supersetv1alpha1.ServiceAccountSpec{
+				Create: boolPtr(true),
+				Name:   "sa-name-match",
+			}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+
+		It("allows create=false with an arbitrary pre-existing name", func() {
+			cr := validProdSuperset("sa-preexisting")
+			cr.Spec.ServiceAccount = &supersetv1alpha1.ServiceAccountSpec{
+				Create: boolPtr(false),
+				Name:   "some-other-name",
+			}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+	})
+
 	// --- Websocket server (experimental; config carries a JWT secret) ---
 
-	Describe("Websocket", func() {
-		// A valid image override is set so the image-required rule does not fire,
+	Describe("Websocket", func() {		// A valid image override is set so the image-required rule does not fire,
 		// isolating the rule under test.
 		wsImage := func() supersetv1alpha1.ComponentSpec {
 			return supersetv1alpha1.ComponentSpec{

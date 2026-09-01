@@ -116,9 +116,19 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 			return lifecycleWait(), nil
 		}
 
+		// A Job at this managed task name that is controller-owned by a foreign
+		// owner (e.g. a CronJob-owned Job named {cr}-init) must never be deleted
+		// or read as this CR's task state: task Job names are derived from the CR
+		// name, so an unrelated Job can collide with one. Block on the collision
+		// rather than turning the operator's delete RBAC into a deletion oracle
+		// or misattributing the foreign Job's status as task state.
+		if ref := metav1.GetControllerOf(existingJob); ref != nil && ref.UID != superset.GetUID() {
+			return r.handleTaskNameCollision(superset, existingJob, taskType, ref, taskRef), nil
+		}
+
 		if !r.taskJobMatchesChecksum(existingJob, taskChecksum) {
 			log.Info("Deleting stale lifecycle task job", "task", taskType, "job", existingJob.Name)
-			if err := r.Delete(ctx, existingJob); client.IgnoreNotFound(err) != nil {
+			if err := r.deleteLifecycleJob(ctx, superset, existingJob); err != nil {
 				return lifecycleResult{}, err
 			}
 			return lifecycleWait(), nil
@@ -129,26 +139,13 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 		}
 
 		if jobComplete(existingJob) {
-			now := metav1.Now()
-			if completed := jobConditionTransitionTime(existingJob, batchv1.JobComplete); completed != nil {
-				now = *completed
-			}
-			taskRef.State = taskStateComplete
-			taskRef.CompletedAt = &now
-			if taskRef.StartedAt == nil && existingJob.Status.StartTime != nil {
-				taskRef.StartedAt = existingJob.Status.StartTime
-			}
-			taskRef.Message = "Completed successfully"
-			taskRef.CompletedChecksum = taskChecksum
-			setCondition(&taskRef.Conditions, supersetv1alpha1.ConditionTypeTaskComplete,
-				metav1.ConditionTrue, "TaskComplete", "Task completed successfully", superset.Generation)
 			log.Info("Lifecycle task completed", "task", taskType)
-			return lifecycleCheckpoint(), nil
+			return r.recordTaskCompletion(superset, existingJob, taskChecksum, taskRef), nil
 		}
 
 		if jobFailed(existingJob) {
 			if taskRef.State == taskStatePending && taskRef.Attempts > 0 && taskRef.NextAttemptAt == nil {
-				if err := r.Delete(ctx, existingJob); client.IgnoreNotFound(err) != nil {
+				if err := r.deleteLifecycleJob(ctx, superset, existingJob); err != nil {
 					return lifecycleResult{}, err
 				}
 				return lifecycleWait(), nil
@@ -232,9 +229,65 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 	return lifecycleWait(), nil
 }
 
+// recordTaskCompletion stamps a successfully completed task's status onto its
+// TaskRefStatus and returns a checkpoint result so the pipeline persists the
+// completion before advancing.
+func (r *SupersetReconciler) recordTaskCompletion(
+	superset *supersetv1alpha1.Superset,
+	existingJob *batchv1.Job,
+	taskChecksum string,
+	taskRef *supersetv1alpha1.TaskRefStatus,
+) lifecycleResult {
+	now := metav1.Now()
+	if completed := jobConditionTransitionTime(existingJob, batchv1.JobComplete); completed != nil {
+		now = *completed
+	}
+	taskRef.State = taskStateComplete
+	taskRef.CompletedAt = &now
+	if taskRef.StartedAt == nil && existingJob.Status.StartTime != nil {
+		taskRef.StartedAt = existingJob.Status.StartTime
+	}
+	taskRef.Message = "Completed successfully"
+	taskRef.CompletedChecksum = taskChecksum
+	setCondition(&taskRef.Conditions, supersetv1alpha1.ConditionTypeTaskComplete,
+		metav1.ConditionTrue, "TaskComplete", "Task completed successfully", superset.Generation)
+	return lifecycleCheckpoint()
+}
+
 // reasonTaskCannotStart is the condition reason and event reason used when a
 // task Pod is wedged (un-startable) and the controller cannot self-heal it.
 const reasonTaskCannotStart = "TaskCannotStart"
+
+// reasonTaskNameCollision is the condition/event reason used when a Job at a
+// managed task name is controller-owned by a foreign owner. The operator
+// refuses to delete or adopt it and blocks the task until the collision clears.
+const reasonTaskNameCollision = "TaskNameCollision"
+
+// handleTaskNameCollision surfaces a blocking condition and event when a Job at
+// a managed task name is controller-owned by someone other than this CR. It
+// never deletes the foreign Job and never reads its status as task state; the
+// task simply waits and re-checks until the collision is resolved.
+func (r *SupersetReconciler) handleTaskNameCollision(
+	superset *supersetv1alpha1.Superset,
+	existingJob *batchv1.Job,
+	taskType string,
+	ref *metav1.OwnerReference,
+	taskRef *supersetv1alpha1.TaskRefStatus,
+) lifecycleResult {
+	msg := fmt.Sprintf("Job %q is controller-owned by %s/%s, not this Superset; refusing to delete or adopt it",
+		existingJob.Name, ref.Kind, ref.Name)
+	taskRef.Message = msg
+	if !hasLifecycleConditionReason(superset, reasonTaskNameCollision) {
+		r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, reasonTaskNameCollision, "Lifecycle",
+			"%s task blocked: %s", taskType, msg)
+	}
+	setCondition(&taskRef.Conditions, supersetv1alpha1.ConditionTypeTaskComplete,
+		metav1.ConditionFalse, reasonTaskNameCollision, msg, superset.Generation)
+	setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
+		metav1.ConditionFalse, reasonTaskNameCollision,
+		fmt.Sprintf("%s task blocked: %s", taskType, msg), superset.Generation)
+	return lifecycleWait()
+}
 
 // handleStuckTaskPod detects a wedged task Pod (one that cannot start its
 // containers without intervention) and either self-heals or surfaces it.
@@ -272,7 +325,7 @@ func (r *SupersetReconciler) handleStuckTaskPod(
 	if existingJob.Annotations[naming.AnnotationTaskPodSpecHash] != desiredHash {
 		log.Info("Task pod cannot start and pod spec changed; recreating task job",
 			"task", taskType, "reason", msg)
-		if err := r.Delete(ctx, existingJob); client.IgnoreNotFound(err) != nil {
+		if err := r.deleteLifecycleJob(ctx, superset, existingJob); err != nil {
 			return lifecycleResult{}, false, fmt.Errorf("deleting wedged task job %s: %w", existingJob.Name, err)
 		}
 		taskRef.State = taskStatePending
@@ -435,7 +488,7 @@ func (r *SupersetReconciler) reconcileTaskJobImage(
 	if existingImage != "" && existingImage != image {
 		log := logf.FromContext(ctx)
 		log.Info("Lifecycle task job image changed, deleting stale job", "task", taskType, "old", existingImage, "new", image)
-		if err := r.Delete(ctx, existingJob); client.IgnoreNotFound(err) != nil {
+		if err := r.deleteLifecycleJob(ctx, superset, existingJob); err != nil {
 			return lifecycleResult{}, false, err
 		}
 		taskRef.State = taskStatePending

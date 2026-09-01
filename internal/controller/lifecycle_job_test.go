@@ -220,6 +220,63 @@ func TestReconcileLifecycleTaskJob_ConcurrentCreateProducesOneJob(t *testing.T) 
 	}
 }
 
+// TestReconcileLifecycleTaskJob_ForeignOwnedJobIsNotDeleted verifies that a Job
+// at a managed task name controller-owned by a foreign owner (e.g. a
+// CronJob-owned {cr}-init Job) is never deleted or read as this CR's task state.
+// Instead the task blocks with a TaskNameCollision condition.
+func TestReconcileLifecycleTaskJob_ForeignOwnedJobIsNotDeleted(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+	taskChecksum := "sha256:test"
+
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+	}
+	// A completed, foreign-owned Job at the derived task name, with no operator
+	// config-checksum annotation (as a real foreign Job would have).
+	foreign := &batchv1.Job{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-migrate",
+			Namespace: "default",
+			UID:       "foreign-job-uid",
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: "batch/v1", Kind: "CronJob", Name: "nightly",
+				UID: "cronjob-uid", Controller: boolPtr(true),
+			}},
+		},
+	}
+	foreign.Status.Succeeded = 1
+	foreign.Status.Conditions = []batchv1.JobCondition{{
+		Type: batchv1.JobComplete, Status: corev1.ConditionTrue, LastTransitionTime: metav1.Now(),
+	}}
+
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, foreign).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	flatSpec := &supersetv1alpha1.FlatComponentSpec{
+		Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+	}
+	taskRef := &supersetv1alpha1.TaskRefStatus{MaxRetries: 3}
+	result, err := r.reconcileLifecycleTaskJob(ctx, superset, "test-migrate", taskTypeMigrate, flatSpec, taskChecksum, taskRef)
+	if err != nil {
+		t.Fatalf("reconcileLifecycleTaskJob: %v", err)
+	}
+	if result.Complete || result.TerminalFailure {
+		t.Fatalf("expected a wait result on name collision, got %#v", result)
+	}
+
+	// The foreign Job must survive and must not be read as task state.
+	if err := c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, &batchv1.Job{}); err != nil {
+		t.Fatalf("foreign Job must not be deleted: %v", err)
+	}
+	if taskRef.State == taskStateComplete {
+		t.Fatalf("foreign Job status must not be attributed to this task; got state=%q", taskRef.State)
+	}
+	if !hasLifecycleConditionReason(superset, reasonTaskNameCollision) {
+		t.Fatalf("expected a %s condition on the Superset status", reasonTaskNameCollision)
+	}
+}
+
 func TestReconcileLifecycleTaskJob_StaleStatusImageDoesNotDeleteMatchingJob(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
