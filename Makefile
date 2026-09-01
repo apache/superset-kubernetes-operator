@@ -167,11 +167,11 @@ verify-helm-checksum: ## Verify install-helm.sh pins the correct Helm tarball SH
 
 .PHONY: sync-tool-checksums
 sync-tool-checksums: ## Sync hack/tool-checksums.txt with the pinned binary tool checksums.
-	./scripts/sync-tool-checksums.sh --write
+	./scripts/sync-tool-checksums.sh --write $(ARGS)
 
 .PHONY: verify-tool-checksums
 verify-tool-checksums: ## Verify hack/tool-checksums.txt matches the pinned binary tool releases.
-	./scripts/sync-tool-checksums.sh --check
+	./scripts/sync-tool-checksums.sh --check $(ARGS)
 
 ##@ Helm
 
@@ -389,8 +389,11 @@ HELM_DOCS ?= $(LOCALBIN)/helm-docs
 KUSTOMIZE_VERSION ?= v5.8.1
 # renovate: datasource=go depName=sigs.k8s.io/controller-tools
 CONTROLLER_TOOLS_VERSION ?= v0.22.0
-#ENVTEST_VERSION is the version of controller-runtime release branch to fetch the envtest setup script (i.e. release-0.20)
-ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
+# ENVTEST_VERSION pins setup-envtest to the exact tagged controller-runtime
+# version resolved from go.mod (e.g. v0.24.1), rather than a mutable
+# release-X.Y branch ref. This keeps the fetch immutable and sumdb-verified,
+# bumped through reviewed Renovate go.mod updates like every other Go tool.
+ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime)
 #ENVTEST_K8S_VERSION is the version of Kubernetes to use for setting up ENVTEST binaries (i.e. 1.31)
 ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
 # renovate: datasource=github-releases depName=golangci/golangci-lint
