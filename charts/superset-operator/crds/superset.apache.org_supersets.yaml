@@ -31133,6 +31133,8 @@ spec:
                       disabled:
                         type: boolean
                       keyPrefix:
+                        maxLength: 128
+                        pattern: ^[A-Za-z0-9._:-]*$
                         type: string
                     type: object
                   celeryBroker:
@@ -31162,6 +31164,8 @@ spec:
                       disabled:
                         type: boolean
                       keyPrefix:
+                        maxLength: 128
+                        pattern: ^[A-Za-z0-9._:-]*$
                         type: string
                     type: object
                   distributedCoordination:
@@ -31175,6 +31179,8 @@ spec:
                       disabled:
                         type: boolean
                       keyPrefix:
+                        maxLength: 128
+                        pattern: ^[A-Za-z0-9._:-]*$
                         type: string
                     type: object
                   exploreFormDataCache:
@@ -31188,6 +31194,8 @@ spec:
                       disabled:
                         type: boolean
                       keyPrefix:
+                        maxLength: 128
+                        pattern: ^[A-Za-z0-9._:-]*$
                         type: string
                     type: object
                   filterStateCache:
@@ -31201,6 +31209,8 @@ spec:
                       disabled:
                         type: boolean
                       keyPrefix:
+                        maxLength: 128
+                        pattern: ^[A-Za-z0-9._:-]*$
                         type: string
                     type: object
                   host:
@@ -31232,6 +31242,8 @@ spec:
                       disabled:
                         type: boolean
                       keyPrefix:
+                        maxLength: 128
+                        pattern: ^[A-Za-z0-9._:-]*$
                         type: string
                     type: object
                   ssl:
@@ -31261,6 +31273,8 @@ spec:
                       disabled:
                         type: boolean
                       keyPrefix:
+                        maxLength: 128
+                        pattern: ^[A-Za-z0-9._:-]*$
                         type: string
                     type: object
                   username:

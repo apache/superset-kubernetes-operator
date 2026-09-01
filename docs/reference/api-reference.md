@@ -1178,7 +1178,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `disabled` _boolean_ | Disable this cache section. When true, the operator does not render this config — Superset falls back to its built-in default. |  | Optional: \{\} <br /> |
 | `database` _integer_ | Valkey database number. |  | Optional: \{\} <br /> |
-| `keyPrefix` _string_ | Cache key prefix. |  | Optional: \{\} <br /> |
+| `keyPrefix` _string_ | Cache key prefix. |  | MaxLength: 128 <br />Pattern: `^[A-Za-z0-9._:-]*$` <br />Optional: \{\} <br /> |
 | `defaultTimeout` _integer_ | Default cache timeout in seconds. |  | Optional: \{\} <br /> |
 
 
@@ -1214,7 +1214,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `disabled` _boolean_ | Disable the results backend. When true, the operator does not render this config. |  | Optional: \{\} <br /> |
 | `database` _integer_ | Valkey database number. |  | Optional: \{\} <br /> |
-| `keyPrefix` _string_ | Cache key prefix for results. |  | Optional: \{\} <br /> |
+| `keyPrefix` _string_ | Cache key prefix for results. |  | MaxLength: 128 <br />Pattern: `^[A-Za-z0-9._:-]*$` <br />Optional: \{\} <br /> |
 
 
 #### ValkeySSLSpec
