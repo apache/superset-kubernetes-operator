@@ -237,11 +237,21 @@ func resolveValkeyResults(spec *supersetv1alpha1.ValkeyResultsBackendSpec, defau
 // collectSecretEnvVars gathers env vars for SECRET_KEY, metastore fields, valkey, and the
 // instance name. The instance name is exposed so admins can compute instance-scoped values
 // (e.g. Celery queue names) from raw Python in spec.config.
+// isDevEnvironment reports whether the CR is in Development mode. Inline secret
+// literals are only honored in Development. Re-checking here (not only via CEL)
+// keeps the controller defensive against a CR that slips past admission —
+// upgrades from older CRD versions, direct etcd writes, or an apiserver without
+// CEL — so such a CR can never materialize an inline secret into a pod spec.
+// Mirrors the defensive createDatabaseEnabled precedent.
+func isDevEnvironment(spec *supersetv1alpha1.SupersetSpec) bool {
+	return spec.Environment != nil && *spec.Environment == naming.EnvironmentDev
+}
+
 func collectSecretEnvVars(spec *supersetv1alpha1.SupersetSpec, parentName string) []corev1.EnvVar {
 	envs := []corev1.EnvVar{
 		{Name: naming.EnvInstanceName, Value: parentName},
 	}
-	isDev := spec.Environment != nil && *spec.Environment == naming.EnvironmentDev
+	isDev := isDevEnvironment(spec)
 
 	// SUPERSET_OPERATOR__SECRET_KEY — rendered into superset_config.py as SECRET_KEY.
 	if isDev && spec.SecretKey != nil {
@@ -271,7 +281,7 @@ func collectSecretEnvVars(spec *supersetv1alpha1.SupersetSpec, parentName string
 
 	// Metastore env vars.
 	if spec.Metastore != nil {
-		if spec.Metastore.URI != nil {
+		if isDev && spec.Metastore.URI != nil {
 			envs = append(envs, corev1.EnvVar{
 				Name:  naming.EnvDatabaseURI,
 				Value: *spec.Metastore.URI,
@@ -294,7 +304,7 @@ func collectSecretEnvVars(spec *supersetv1alpha1.SupersetSpec, parentName string
 			if spec.Metastore.Username != nil {
 				envs = append(envs, corev1.EnvVar{Name: naming.EnvDBUser, Value: *spec.Metastore.Username})
 			}
-			if spec.Metastore.Password != nil {
+			if isDev && spec.Metastore.Password != nil {
 				envs = append(envs, corev1.EnvVar{Name: naming.EnvDBPass, Value: *spec.Metastore.Password})
 			} else if spec.Metastore.PasswordFrom != nil {
 				envs = append(envs, corev1.EnvVar{
