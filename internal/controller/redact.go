@@ -50,6 +50,19 @@ var (
 	// "password=hunter2", "PGPASSWORD: hunter2", or "secret_key = hunter2".
 	// The key may carry prefixes/suffixes (DB_PASSWORD, api-key-prod).
 	credentialAssignmentRe = regexp.MustCompile(`(?i)([A-Za-z0-9_-]*(?:password|passwd|pwd|secret|token|api[_-]?key|credential|passphrase)[A-Za-z0-9_-]*\s*[=:]\s*)(\S+)`)
+
+	// quotedKeyCredentialRe matches quoted-key credential assignments as emitted
+	// by JSON payloads and Python dict/traceback reprs, e.g.
+	// {"password": "hunter2"} or {'db_password': 'hunter2'}. credentialAssignmentRe
+	// cannot match these — the closing quote sits between the keyword and the
+	// separator, which its key class does not allow — so quoted-key forms are a
+	// whole serialization class it systematically misses. The value is matched as
+	// a quoted string of either style (RE2 has no backreferences, so both quote
+	// styles are spelled out) and masked in full, including embedded whitespace.
+	// "authorization" is included because authorizationHeaderRe is equally
+	// quote-blind. The value is replaced with a bare placeholder so a re-run
+	// finds no quoted value to match (idempotent).
+	quotedKeyCredentialRe = regexp.MustCompile(`(?i)(["'][A-Za-z0-9_-]*(?:password|passwd|pwd|secret|token|api[_-]?key|credential|passphrase|authorization)[A-Za-z0-9_-]*["']\s*[=:]\s*)("[^"]*"|'[^']*')`)
 )
 
 // redactCredentials masks credential-shaped substrings in free-form task
@@ -65,5 +78,11 @@ func redactCredentials(msg string) string {
 	msg = authorizationHeaderRe.ReplaceAllString(msg, "${1}"+redactedPlaceholder)
 	msg = bareBearerRe.ReplaceAllString(msg, "${1}"+redactedPlaceholder)
 	msg = credentialAssignmentRe.ReplaceAllString(msg, "${1}"+redactedPlaceholder)
+	// Quoted-key forms (JSON, Python dict repr) must run too — the unquoted
+	// assignment pattern above cannot match them. Mask the whole quoted value
+	// with a bare placeholder (not a re-quoted string) so a second pass finds no
+	// quoted value to match, keeping redaction idempotent even on adversarial,
+	// unbalanced-quote input.
+	msg = quotedKeyCredentialRe.ReplaceAllString(msg, "${1}"+redactedPlaceholder)
 	return msg
 }

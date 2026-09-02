@@ -34,6 +34,7 @@ import (
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
+	"github.com/apache/superset-kubernetes-operator/internal/resolution"
 )
 
 // componentReconcilerConfig captures the component-specific parameters needed
@@ -190,7 +191,7 @@ func reconcileComponentService(
 			userLabels = svcSpec.Labels
 			userAnnotations = svcSpec.Annotations
 		}
-		svc.Labels = mergeLabels(userLabels, labels)
+		svc.Labels = mergeLabels(resolution.StripReservedLabels(userLabels), labels)
 		svc.Annotations = mergeAnnotations(nil, userAnnotations)
 		return nil
 	})

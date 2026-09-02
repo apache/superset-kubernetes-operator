@@ -30,6 +30,7 @@ import (
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
+	"github.com/apache/superset-kubernetes-operator/internal/resolution"
 )
 
 // +kubebuilder:rbac:groups=monitoring.coreos.com,resources=servicemonitors,verbs=get;list;watch;create;update;patch;delete
@@ -71,7 +72,7 @@ func (r *SupersetReconciler) reconcileServiceMonitor(ctx context.Context, supers
 
 		operatorLabels := parentLabels(superset.Name)
 		operatorLabels[common.LabelKeyInstance] = superset.Name
-		labels := mergeLabels(sm.Labels, operatorLabels)
+		labels := mergeLabels(resolution.StripReservedLabels(sm.Labels), operatorLabels)
 		obj.SetLabels(labels)
 
 		endpoint := map[string]interface{}{

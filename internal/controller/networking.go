@@ -136,7 +136,7 @@ func (r *SupersetReconciler) reconcileWebServerService(ctx context.Context, supe
 			userLabels = svcSpec.Labels
 			userAnnotations = svcSpec.Annotations
 		}
-		svc.Labels = mergeLabels(userLabels, webServerLabels)
+		svc.Labels = mergeLabels(resolution.StripReservedLabels(userLabels), webServerLabels)
 		svc.Annotations = mergeAnnotations(nil, userAnnotations)
 		return nil
 	})
@@ -197,7 +197,7 @@ func (r *SupersetReconciler) reconcileHTTPRoute(ctx context.Context, superset *s
 			return err
 		}
 
-		route.Labels = mergeLabels(gw.Labels, parentLabels(superset.Name))
+		route.Labels = mergeLabels(resolution.StripReservedLabels(gw.Labels), parentLabels(superset.Name))
 		route.Annotations = mergeAnnotations(nil, gw.Annotations)
 
 		// Rules are ordered most-specific first (web "/" last) by componentRoutes.
@@ -379,7 +379,7 @@ func (r *SupersetReconciler) reconcileIngress(ctx context.Context, superset *sup
 			return err
 		}
 
-		ingress.Labels = mergeLabels(ing.Labels, parentLabels(superset.Name))
+		ingress.Labels = mergeLabels(resolution.StripReservedLabels(ing.Labels), parentLabels(superset.Name))
 		ingress.Annotations = mergeAnnotations(nil, ing.Annotations)
 
 		ingress.Spec = networkingv1.IngressSpec{
