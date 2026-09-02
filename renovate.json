@@ -28,24 +28,40 @@
       "enabled": false
     },
     {
-      "description": "Keep the Go toolchain in lockstep: the go.mod `go` directive (gomod manager), the golang base image (dockerfile manager), and the devcontainer golang image (devcontainer manager) are separate deps that would otherwise open separate PRs. Group them so a Go release bumps all together in one PR. Require at least two updates so a go.mod-only Go release waits for the matching Docker image, while Dockerfile+devcontainer digest refreshes can still proceed together.",
-      "matchManagers": ["gomod", "dockerfile", "devcontainer"],
-      "matchDepNames": ["go", "golang"],
+      "description": "The native gomod manager tracks the go.mod `go` directive from Go releases, which can appear before the matching golang Docker image. A custom regex manager below tracks this directive from Docker Hub tags instead, so Go version PRs are created only when the builder image exists.",
+      "matchManagers": ["gomod"],
+      "matchDepNames": ["go"],
+      "enabled": false
+    },
+    {
+      "description": "The custom go.mod Go directive tracker uses the Docker datasource only for tag availability. Do not try to add Docker digests to go.mod.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["go.mod"],
+      "matchDepNames": ["golang"],
+      "pinDigests": false
+    },
+    {
+      "description": "Keep Go version updates in lockstep: go.mod, the Dockerfile builder image, and the devcontainer image must all move together.",
+      "matchManagers": ["custom.regex", "dockerfile", "devcontainer"],
+      "matchDepNames": ["golang"],
+      "matchUpdateTypes": ["major", "minor", "patch"],
       "groupName": "Go toolchain",
+      "minimumGroupSize": 3
+    },
+    {
+      "description": "Keep digest-only refreshes of the Go image in lockstep across the Dockerfile and devcontainer.",
+      "matchManagers": ["dockerfile", "devcontainer"],
+      "matchDepNames": ["golang"],
+      "matchUpdateTypes": ["digest"],
+      "groupName": "Go image digest",
       "minimumGroupSize": 2
     },
     {
       "description": "Go toolchain security fixes ship as patch releases; the 7-day minimumReleaseAge would leave govulncheck failing on new stdlib advisories until it clears. Bypass the soak for Go toolchain patch/digest bumps; minor/major Go bumps still soak.",
-      "matchManagers": ["gomod", "dockerfile", "devcontainer"],
-      "matchDepNames": ["go", "golang"],
+      "matchManagers": ["custom.regex", "dockerfile", "devcontainer"],
+      "matchDepNames": ["golang"],
       "matchUpdateTypes": ["patch", "digest"],
       "minimumReleaseAge": "0"
-    },
-    {
-      "description": "Renovate parses the go.mod `go` directive with go-mod-directive versioning, which treats `go 1.27.0` as a `>=1.27.0` minimum constraint rather than an exact pin. Under the default `replace` rangeStrategy Renovate only rewrites a range when the new version falls outside it, so every newer Go still satisfies the constraint and the directive never moves — drifting behind the golang image/devcontainer pins (which are exact and bump freely). Use `bump` so a Go release raises the directive to the latest in lockstep; the Go-toolchain group above then carries it in the same PR as the image bumps.",
-      "matchManagers": ["gomod"],
-      "matchDepNames": ["go"],
-      "rangeStrategy": "bump"
     },
     {
       "matchPackageNames": ["kubernetes-sigs/kind"],
@@ -74,6 +90,15 @@
     }
   ],
   "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Track go.mod's Go directive from Docker Hub golang image tags.",
+      "managerFilePatterns": ["/^go\\.mod$/"],
+      "matchStrings": ["(?:^|\\n)go (?<currentValue>\\d+\\.\\d+\\.\\d+)\\n"],
+      "depNameTemplate": "golang",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
+    },
     {
       "customType": "regex",
       "description": "Track sigs.k8s.io/kind release pin in supported-k8s.json",
