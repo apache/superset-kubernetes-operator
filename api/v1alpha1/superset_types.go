@@ -34,11 +34,13 @@ import (
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.lifecycle) || !has(self.lifecycle.init) || !has(self.lifecycle.init.adminUser)",message="lifecycle.init.adminUser is only allowed when environment is Development"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.lifecycle) || !has(self.lifecycle.init) || !has(self.lifecycle.init.loadExamples)",message="lifecycle.init.loadExamples is only allowed when environment is Development"
 // +kubebuilder:validation:XValidation:rule="!has(self.networking) || !has(self.networking.ingress) || has(self.webServer)",message="spec.networking.ingress requires spec.webServer to be set (it provides the catch-all '/' route; other components are routed by path)"
-// +kubebuilder:validation:XValidation:rule="!has(self.realtime) || !has(self.realtime.asyncQueries) || has(self.valkey)",message="realtime.asyncQueries requires spec.valkey (Global Async Queries needs a distributed coordination backend; keep spec.valkey.distributedCoordination enabled)"
-// +kubebuilder:validation:XValidation:rule="!has(self.realtime) || !has(self.realtime.webSocket) || (has(self.websocketServer) && has(self.valkey))",message="realtime.webSocket requires spec.websocketServer (the workload) and spec.valkey (the coordination backend)"
+// +kubebuilder:validation:XValidation:rule="!has(self.realtime) || !has(self.realtime.asyncQueries) || (has(self.valkey) && (!has(self.valkey.distributedCoordination) || !has(self.valkey.distributedCoordination.disabled) || !self.valkey.distributedCoordination.disabled))",message="realtime.asyncQueries requires spec.valkey with distributedCoordination enabled (Global Async Queries needs the coordination backend; do not set spec.valkey.distributedCoordination.disabled)"
+// +kubebuilder:validation:XValidation:rule="!has(self.realtime) || !has(self.realtime.asyncQueries) || (has(self.celeryWorker) && has(self.celeryBeat))",message="realtime.asyncQueries requires spec.celeryWorker and spec.celeryBeat (GAQ tasks execute on a Celery worker; the reap_orphaned_tasks job runs on Celery beat)"
+// +kubebuilder:validation:XValidation:rule="!has(self.realtime) || !has(self.realtime.asyncQueries) || !has(self.valkey) || !has(self.valkey.celeryBroker) || !has(self.valkey.celeryBroker.disabled) || !self.valkey.celeryBroker.disabled",message="realtime.asyncQueries requires the managed Celery broker (do not set spec.valkey.celeryBroker.disabled); the async_queries import and reap_orphaned_tasks schedule are rendered into the operator-managed CeleryConfig"
+// +kubebuilder:validation:XValidation:rule="!has(self.realtime) || !has(self.realtime.webSocket) || (has(self.websocketServer) && has(self.valkey) && (!has(self.valkey.distributedCoordination) || !has(self.valkey.distributedCoordination.disabled) || !self.valkey.distributedCoordination.disabled))",message="realtime.webSocket requires spec.websocketServer (the workload) and spec.valkey with distributedCoordination enabled (the coordination backend; do not set spec.valkey.distributedCoordination.disabled)"
 // +kubebuilder:validation:XValidation:rule="!has(self.websocketServer) || (has(self.realtime) && has(self.realtime.webSocket))",message="spec.websocketServer requires spec.realtime.webSocket (the transport wiring: shared JWT secret and URL)"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.realtime) || !has(self.realtime.webSocket) || !has(self.realtime.webSocket.jwtSecret)",message="realtime.webSocket.jwtSecret is only allowed when environment is Development; use realtime.webSocket.jwtSecretFrom in Staging or Production"
-// +kubebuilder:validation:XValidation:rule="!has(self.realtime) || !has(self.realtime.webSocket) || has(self.realtime.webSocket.url) || has(self.baseUrl) || has(self.networking)",message="realtime.webSocket requires realtime.webSocket.url, spec.baseUrl, or spec.networking (the browser-visible websocket URL is derived from the base URL / networking host when url is unset)"
+// +kubebuilder:validation:XValidation:rule="!has(self.realtime) || !has(self.realtime.webSocket) || has(self.realtime.webSocket.url) || has(self.baseUrl) || (has(self.networking) && ((has(self.networking.ingress) && ((has(self.networking.ingress.host) && size(self.networking.ingress.host) > 0) || (has(self.networking.ingress.hosts) && size(self.networking.ingress.hosts) > 0))) || (has(self.networking.gateway) && has(self.networking.gateway.hostnames) && size(self.networking.gateway.hostnames) > 0)))",message="realtime.webSocket requires a resolvable websocket host: set realtime.webSocket.url, spec.baseUrl, or a spec.networking host (ingress.host/hosts or gateway.hostnames)"
 // +kubebuilder:validation:XValidation:rule="!has(self.networking) || !has(self.networking.gateway) || has(self.webServer) || has(self.websocketServer) || has(self.mcpServer) || has(self.celeryFlower)",message="spec.networking.gateway requires at least one component with a routable service (webServer, websocketServer, mcpServer, or celeryFlower)"
 // +kubebuilder:validation:XValidation:rule="!has(self.monitoring) || !has(self.monitoring.serviceMonitor) || has(self.webServer)",message="spec.monitoring.serviceMonitor requires spec.webServer to be set (scrapes the web server service)"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && (self.environment == 'Development' || self.environment == 'Staging')) || !has(self.lifecycle) || !has(self.lifecycle.seed) || (has(self.lifecycle.seed.disabled) && self.lifecycle.seed.disabled)",message="lifecycle.seed is only allowed when environment is Development or Staging; seeding performs a destructive DROP DATABASE on the target metastore"
@@ -334,17 +336,19 @@ type WebSocketTransportSpec struct {
 
 	// URL is the browser-visible websocket endpoint (WEBSOCKET_URL). When unset,
 	// the operator derives it from spec.baseUrl, else from spec.networking and
-	// the websocket route path.
+	// the websocket route path. Must be a ws:// or wss:// URL with a host.
 	// +optional
+	// +kubebuilder:validation:Pattern=`^wss?://.+`
 	URL *string `json:"url,omitempty"`
 
 	// AllowedOrigins restricts which browser origins may open a websocket
 	// connection (the server's ALLOWED_ORIGINS, mitigating Cross-Site WebSocket
 	// Hijacking). When unset, the operator defaults it to the single origin of
 	// the resolved websocket URL (spec.baseUrl / networking). Set explicitly to
-	// permit additional origins.
+	// permit additional origins. Each entry must be an http:// or https:// origin.
 	// +optional
 	// +listType=atomic
+	// +kubebuilder:validation:items:Pattern=`^https?://.+`
 	AllowedOrigins []string `json:"allowedOrigins,omitempty"`
 
 	// CookieName overrides the JWT cookie name shared by the app and the server

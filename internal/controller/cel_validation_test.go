@@ -622,6 +622,8 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		It("accepts a full realtime config in Production", func() {
 			cr := validProdSuperset("rt-valid")
 			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
+			cr.Spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{}
+			cr.Spec.CeleryBeat = &supersetv1alpha1.CeleryBeatComponentSpec{}
 			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
 			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
 				AsyncQueries: &supersetv1alpha1.AsyncQueriesSpec{},
@@ -631,6 +633,33 @@ var _ = Describe("CEL Validation", Ordered, func() {
 				},
 			}
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+
+		It("rejects realtime.asyncQueries without celeryWorker and celeryBeat", func() {
+			cr := validProdSuperset("rt-async-no-celery")
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
+			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+				AsyncQueries: &supersetv1alpha1.AsyncQueriesSpec{},
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("realtime.asyncQueries requires spec.celeryWorker and spec.celeryBeat"))
+		})
+
+		It("rejects realtime with distributedCoordination disabled", func() {
+			cr := validProdSuperset("rt-coord-disabled")
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
+				Host:                    "valkey",
+				DistributedCoordination: &supersetv1alpha1.ValkeyCacheSpec{Disabled: boolPtr(true)},
+			}
+			cr.Spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{}
+			cr.Spec.CeleryBeat = &supersetv1alpha1.CeleryBeatComponentSpec{}
+			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+				AsyncQueries: &supersetv1alpha1.AsyncQueriesSpec{},
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("distributedCoordination enabled"))
 		})
 
 		It("accepts realtime.webSocket when spec.baseUrl provides the URL", func() {

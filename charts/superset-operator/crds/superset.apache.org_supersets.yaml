@@ -31066,6 +31066,7 @@ spec:
                     properties:
                       allowedOrigins:
                         items:
+                          pattern: ^https?://.+
                           type: string
                         type: array
                         x-kubernetes-list-type: atomic
@@ -31090,6 +31091,7 @@ spec:
                         type: object
                         x-kubernetes-map-type: atomic
                       url:
+                        pattern: ^wss?://.+
                         type: string
                     type: object
                     x-kubernetes-validations:
@@ -39359,14 +39361,30 @@ spec:
             - message: spec.networking.ingress requires spec.webServer to be set (it
                 provides the catch-all '/' route; other components are routed by path)
               rule: '!has(self.networking) || !has(self.networking.ingress) || has(self.webServer)'
-            - message: realtime.asyncQueries requires spec.valkey (Global Async Queries
-                needs a distributed coordination backend; keep spec.valkey.distributedCoordination
-                enabled)
-              rule: '!has(self.realtime) || !has(self.realtime.asyncQueries) || has(self.valkey)'
+            - message: realtime.asyncQueries requires spec.valkey with distributedCoordination
+                enabled (Global Async Queries needs the coordination backend; do not
+                set spec.valkey.distributedCoordination.disabled)
+              rule: '!has(self.realtime) || !has(self.realtime.asyncQueries) || (has(self.valkey)
+                && (!has(self.valkey.distributedCoordination) || !has(self.valkey.distributedCoordination.disabled)
+                || !self.valkey.distributedCoordination.disabled))'
+            - message: realtime.asyncQueries requires spec.celeryWorker and spec.celeryBeat
+                (GAQ tasks execute on a Celery worker; the reap_orphaned_tasks job
+                runs on Celery beat)
+              rule: '!has(self.realtime) || !has(self.realtime.asyncQueries) || (has(self.celeryWorker)
+                && has(self.celeryBeat))'
+            - message: realtime.asyncQueries requires the managed Celery broker (do
+                not set spec.valkey.celeryBroker.disabled); the async_queries import
+                and reap_orphaned_tasks schedule are rendered into the operator-managed
+                CeleryConfig
+              rule: '!has(self.realtime) || !has(self.realtime.asyncQueries) || !has(self.valkey)
+                || !has(self.valkey.celeryBroker) || !has(self.valkey.celeryBroker.disabled)
+                || !self.valkey.celeryBroker.disabled'
             - message: realtime.webSocket requires spec.websocketServer (the workload)
-                and spec.valkey (the coordination backend)
+                and spec.valkey with distributedCoordination enabled (the coordination
+                backend; do not set spec.valkey.distributedCoordination.disabled)
               rule: '!has(self.realtime) || !has(self.realtime.webSocket) || (has(self.websocketServer)
-                && has(self.valkey))'
+                && has(self.valkey) && (!has(self.valkey.distributedCoordination)
+                || !has(self.valkey.distributedCoordination.disabled) || !self.valkey.distributedCoordination.disabled))'
             - message: 'spec.websocketServer requires spec.realtime.webSocket (the
                 transport wiring: shared JWT secret and URL)'
               rule: '!has(self.websocketServer) || (has(self.realtime) && has(self.realtime.webSocket))'
@@ -39375,11 +39393,15 @@ spec:
                 Production
               rule: (has(self.environment) && self.environment == 'Development') ||
                 !has(self.realtime) || !has(self.realtime.webSocket) || !has(self.realtime.webSocket.jwtSecret)
-            - message: realtime.webSocket requires realtime.webSocket.url, spec.baseUrl,
-                or spec.networking (the browser-visible websocket URL is derived from
-                the base URL / networking host when url is unset)
+            - message: 'realtime.webSocket requires a resolvable websocket host: set
+                realtime.webSocket.url, spec.baseUrl, or a spec.networking host (ingress.host/hosts
+                or gateway.hostnames)'
               rule: '!has(self.realtime) || !has(self.realtime.webSocket) || has(self.realtime.webSocket.url)
-                || has(self.baseUrl) || has(self.networking)'
+                || has(self.baseUrl) || (has(self.networking) && ((has(self.networking.ingress)
+                && ((has(self.networking.ingress.host) && size(self.networking.ingress.host)
+                > 0) || (has(self.networking.ingress.hosts) && size(self.networking.ingress.hosts)
+                > 0))) || (has(self.networking.gateway) && has(self.networking.gateway.hostnames)
+                && size(self.networking.gateway.hostnames) > 0)))'
             - message: spec.networking.gateway requires at least one component with
                 a routable service (webServer, websocketServer, mcpServer, or celeryFlower)
               rule: '!has(self.networking) || !has(self.networking.gateway) || has(self.webServer)

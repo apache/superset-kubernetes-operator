@@ -396,11 +396,12 @@ const (
 // collectWebsocketEnvVars builds the env for the websocket server: the shared
 // JWT secret plus a Redis connection pointing at the same coordination backend
 // (DISTRIBUTED_COORDINATION_CONFIG) the Python app uses.
-func collectWebsocketEnvVars(spec *supersetv1alpha1.SupersetSpec) []corev1.EnvVar {
+func collectWebsocketEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVar {
+	spec := &superset.Spec
 	isDev := spec.Environment != nil && *spec.Environment == naming.EnvironmentDev
 
 	envs := []corev1.EnvVar{
-		{Name: envWSPort, Value: fmt.Sprintf("%d", naming.PortWebsocket)},
+		{Name: envWSPort, Value: fmt.Sprintf("%d", resolveWebsocketPort(superset))},
 	}
 
 	if origins := deriveWebSocketAllowedOrigins(spec); len(origins) > 0 {

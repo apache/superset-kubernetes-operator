@@ -408,7 +408,7 @@ spec:
         key: jwt-secret
 ```
 
-The same `jwtSecretFrom` value is rendered as `WEBSOCKET_JWT_SECRET` for the Python components (which mint the cookie) and injected as `JWT_SECRET` for the server (which validates it). In Development you may inline `jwtSecret` instead. Extra server settings (for example `ALLOWED_ORIGINS`) go under `websocketServer.podTemplate` container env.
+The same `jwtSecretFrom` value is rendered as `WEBSOCKET_JWT_SECRET` for the Python components (which mint the cookie) and injected as `JWT_SECRET` for the server (which validates it). In Development you may inline `jwtSecret` instead. The origin allowlist is set via `realtime.webSocket.allowedOrigins` (the operator injects `ALLOWED_ORIGINS` and its value wins over `podTemplate` env); other server settings such as connection caps go under `websocketServer.podTemplate` container env.
 
 ## Websocket Routing
 

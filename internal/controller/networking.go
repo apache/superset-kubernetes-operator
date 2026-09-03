@@ -183,6 +183,25 @@ func resolveWebServerPort(superset *supersetv1alpha1.Superset) int32 {
 	return common.PortWebServer
 }
 
+// resolveWebsocketPort returns the resolved websocket-server container port,
+// honoring per-component pod template port overrides, so the injected PORT env
+// var matches the container port the Service and probes target.
+func resolveWebsocketPort(superset *supersetv1alpha1.Superset) int32 {
+	if superset == nil || superset.Spec.WebsocketServer == nil {
+		return common.PortWebsocket
+	}
+	topLevel := convertTopLevelSpec(&superset.Spec)
+	accessor := websocketServerDescriptor.extract(&superset.Spec)
+	flat := resolution.ResolveComponentSpec(
+		common.ComponentWebsocketServer, topLevel, convertComponent(accessor),
+		nil, &resolution.OperatorInjected{},
+	)
+	if flat != nil && flat.PodTemplate != nil && flat.PodTemplate.Container != nil && len(flat.PodTemplate.Container.Ports) > 0 {
+		return flat.PodTemplate.Container.Ports[0].ContainerPort
+	}
+	return common.PortWebsocket
+}
+
 func (r *SupersetReconciler) reconcileHTTPRoute(ctx context.Context, superset *supersetv1alpha1.Superset) error {
 	gw := superset.Spec.Networking.Gateway
 

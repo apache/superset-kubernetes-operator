@@ -98,6 +98,9 @@ spec:
   celeryFlower: {}
   websocketServer: {}
   mcpServer: {}
+  # Realtime needs a Superset 7.0+ image to actually run; on this pinned image
+  # the suite only asserts the operator renders the resources/wiring, not that
+  # the websocket workload becomes ready.
   realtime:
     asyncQueries: {}
     webSocket:

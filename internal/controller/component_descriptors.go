@@ -236,7 +236,13 @@ func (r *SupersetReconciler) reconcileComponent(
 	}
 
 	if desc.componentType == naming.ComponentWebsocketServer {
-		wsEnv := collectWebsocketEnvVars(&superset.Spec)
+		// The GA websocket server is configured via env vars, not a ConfigMap.
+		// Delete any legacy <name>-websocket-server-config left by the removed
+		// config.json model so an in-place upgrade doesn't strand it.
+		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, "", "", resourceBaseName, nil); err != nil {
+			return fmt.Errorf("deleting legacy websocket ConfigMap: %w", err)
+		}
+		wsEnv := collectWebsocketEnvVars(superset)
 		operatorInjected.Env = append(operatorInjected.Env, wsEnv...)
 		workloadChecksum = computeChecksum(wsEnv)
 	}
@@ -326,7 +332,10 @@ func (r *SupersetReconciler) deleteComponentResources(ctx context.Context, super
 		}
 	}
 
-	if desc.hasPythonConfig {
+	if desc.hasPythonConfig || desc.componentType == naming.ComponentWebsocketServer {
+		// Python components own a rendered config ConfigMap; the websocket
+		// component may have a legacy config.json ConfigMap from before the GA
+		// env-var model. Both are named <base>-config and deleted the same way.
 		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, "", "", resourceBaseName, nil); err != nil {
 			return fmt.Errorf("deleting ConfigMap for disabled %s: %w", desc.componentType, err)
 		}
