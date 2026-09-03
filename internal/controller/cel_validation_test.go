@@ -616,7 +616,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			}
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("realtime.webSocket requires realtime.webSocket.url, spec.baseUrl, or spec.networking"))
+			Expect(err.Error()).To(ContainSubstring("realtime.webSocket requires a resolvable websocket host"))
 		})
 
 		It("accepts a full realtime config in Production", func() {
