@@ -558,7 +558,7 @@ bundle-push: ## Push the bundle image.
 .PHONY: opm
 OPM = $(LOCALBIN)/opm
 # renovate: datasource=github-releases depName=operator-framework/operator-registry
-OPM_VERSION ?= v1.73.0
+OPM_VERSION ?= v1.74.0
 opm: ## Download opm locally if necessary.
 ifeq (,$(wildcard $(OPM)))
 ifeq (,$(shell which opm 2>/dev/null))
