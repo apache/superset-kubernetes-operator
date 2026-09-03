@@ -80,6 +80,8 @@ spec:
     key: secret-key
   metastore:
     uri: postgresql+psycopg2://superset:superset@postgres:5432/superset
+  valkey:
+    host: valkey
   featureFlags:
     ENABLE_TEMPLATE_PROCESSING: true
   webServer:
@@ -94,11 +96,12 @@ spec:
       CELERY_ANNOTATIONS = {}
   celeryBeat: {}
   celeryFlower: {}
-  websocketServer:
-    image:
-      repository: oneacrefund/superset-websocket
-      tag: latest
+  websocketServer: {}
   mcpServer: {}
+  realtime:
+    asyncQueries: {}
+    webSocket:
+      jwtSecret: e2e-websocket-jwt-secret-change-me-0123456789
   networking:
     ingress:
       className: e2e

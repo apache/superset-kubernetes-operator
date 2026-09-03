@@ -607,7 +607,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			Expect(err.Error()).To(ContainSubstring("exactly one of jwtSecret"))
 		})
 
-		It("rejects realtime.webSocket without url or networking", func() {
+		It("rejects realtime.webSocket without a URL source", func() {
 			cr := validProdSuperset("rt-ws-no-url")
 			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
 			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
@@ -616,7 +616,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			}
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("realtime.webSocket requires either realtime.webSocket.url or spec.networking"))
+			Expect(err.Error()).To(ContainSubstring("realtime.webSocket requires realtime.webSocket.url, spec.baseUrl, or spec.networking"))
 		})
 
 		It("accepts a full realtime config in Production", func() {
