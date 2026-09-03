@@ -36,10 +36,10 @@
 57e0d1eb14ffb28e67473f37d9f1aa8c10626ac8c433e6d8ecce3ef80f8fc36b  v0.2.61/rumdl-v0.2.61-aarch64-unknown-linux-gnu.tar.gz
 0b50f411855fd81c5a08742036eee1c20a16bc9e24f94458dc2aac3021dc8a23  v0.2.61/rumdl-v0.2.61-x86_64-apple-darwin.tar.gz
 e085746013509d547b157cf91c8ec24c61a90c48eca3ca79d0c1666f4046164f  v0.2.61/rumdl-v0.2.61-aarch64-apple-darwin.tar.gz
-b17bfbc9d4aaa48be7f4f1ce3240bc3d8200c870c072bacf15c26219e2cfb9cc  v2.13.1/golangci-lint-2.13.1-linux-amd64.tar.gz
-908317c23db18448f924e853b3d8a659fd919614cd438f224810a4053daa2607  v2.13.1/golangci-lint-2.13.1-linux-arm64.tar.gz
-2c373363953e4e0bee2a03b7fe864a5eb6a3822927cb077d9ca33f2ae3cb2da2  v2.13.1/golangci-lint-2.13.1-darwin-amd64.tar.gz
-0c9818baf6fb8ad26c6d2ef51b68d5a1e260ef07727036b1431647cc44637c7c  v2.13.1/golangci-lint-2.13.1-darwin-arm64.tar.gz
+2277d43b98ec0054280f2ac26b53268bae97682444678a59a657dd565da021d6  v2.13.2/golangci-lint-2.13.2-linux-amd64.tar.gz
+a2a4e0065aa41be71f7c5ac90f271b61751331e5d04314e62afe4027855f0893  v2.13.2/golangci-lint-2.13.2-linux-arm64.tar.gz
+8a13aaf9cbbb1dee52824e862cf0d0720e5bb97c1f4260d1e51623a09492b57b  v2.13.2/golangci-lint-2.13.2-darwin-amd64.tar.gz
+f4bf83f0b64f055c42b28fc9a38861839f69c096e61c788e72dfaae412011789  v2.13.2/golangci-lint-2.13.2-darwin-arm64.tar.gz
 3ec7994b7a41515a7ad8aef8e517429c0a78060df59d5587ac8662db6a8b035f  v0.21.0/controller-gen-linux-amd64
 1af64bb144658c61f1b61c6392e17d56dd4f7364497625613ff435d7e468f60b  v0.21.0/controller-gen-linux-arm64
 96fc4e98d7144e37bae90b73631c9dad944ccfb69002fc7c9d1ab448babb207d  v0.21.0/controller-gen-darwin-amd64
