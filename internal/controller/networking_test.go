@@ -1034,3 +1034,120 @@ func TestFlowerRoutePublished_EnvironmentAware(t *testing.T) {
 		})
 	}
 }
+
+func TestDeriveWebSocketURL(t *testing.T) {
+	wsWithPath := func(path string) *supersetv1alpha1.WebsocketServerComponentSpec {
+		return &supersetv1alpha1.WebsocketServerComponentSpec{
+			Service: &supersetv1alpha1.ComponentServiceSpec{GatewayPath: common.Ptr(path)},
+		}
+	}
+	tests := []struct {
+		name string
+		spec supersetv1alpha1.SupersetSpec
+		want string
+	}{
+		{
+			name: "explicit url wins over networking",
+			spec: supersetv1alpha1.SupersetSpec{
+				Realtime:   &supersetv1alpha1.RealtimeSpec{WebSocket: &supersetv1alpha1.WebSocketTransportSpec{URL: common.Ptr("wss://custom/socket")}},
+				Networking: &supersetv1alpha1.NetworkingSpec{Ingress: &supersetv1alpha1.IngressSpec{Host: "ignored.example.com"}},
+			},
+			want: "wss://custom/socket",
+		},
+		{
+			name: "baseUrl wins over networking and sets scheme",
+			spec: supersetv1alpha1.SupersetSpec{
+				BaseURL:    common.Ptr("https://superset.example.com"),
+				Realtime:   &supersetv1alpha1.RealtimeSpec{WebSocket: &supersetv1alpha1.WebSocketTransportSpec{}},
+				Networking: &supersetv1alpha1.NetworkingSpec{Ingress: &supersetv1alpha1.IngressSpec{Host: "ignored.example.com"}},
+			},
+			want: "wss://superset.example.com/ws",
+		},
+		{
+			name: "gateway host uses wss",
+			spec: supersetv1alpha1.SupersetSpec{
+				Realtime:   &supersetv1alpha1.RealtimeSpec{WebSocket: &supersetv1alpha1.WebSocketTransportSpec{}},
+				Networking: &supersetv1alpha1.NetworkingSpec{Gateway: &supersetv1alpha1.GatewaySpec{Hostnames: []gatewayv1.Hostname{"superset.example.com"}}},
+			},
+			want: "wss://superset.example.com/ws",
+		},
+		{
+			name: "ingress without tls uses ws",
+			spec: supersetv1alpha1.SupersetSpec{
+				Realtime:   &supersetv1alpha1.RealtimeSpec{WebSocket: &supersetv1alpha1.WebSocketTransportSpec{}},
+				Networking: &supersetv1alpha1.NetworkingSpec{Ingress: &supersetv1alpha1.IngressSpec{Host: "superset.example.com"}},
+			},
+			want: "ws://superset.example.com/ws",
+		},
+		{
+			name: "ingress with tls uses wss and honors custom gateway path",
+			spec: supersetv1alpha1.SupersetSpec{
+				Realtime:        &supersetv1alpha1.RealtimeSpec{WebSocket: &supersetv1alpha1.WebSocketTransportSpec{}},
+				WebsocketServer: wsWithPath("/socket"),
+				Networking:      &supersetv1alpha1.NetworkingSpec{Ingress: &supersetv1alpha1.IngressSpec{Host: "superset.example.com", TLS: []networkingv1.IngressTLS{{}}}},
+			},
+			want: "wss://superset.example.com/socket",
+		},
+		{
+			name: "no networking and no override yields empty",
+			spec: supersetv1alpha1.SupersetSpec{
+				Realtime: &supersetv1alpha1.RealtimeSpec{WebSocket: &supersetv1alpha1.WebSocketTransportSpec{}},
+			},
+			want: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := deriveWebSocketURL(&tt.spec); got != tt.want {
+				t.Errorf("deriveWebSocketURL() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestDeriveWebSocketAllowedOrigins(t *testing.T) {
+	tests := []struct {
+		name string
+		spec supersetv1alpha1.SupersetSpec
+		want []string
+	}{
+		{
+			name: "explicit allowedOrigins wins",
+			spec: supersetv1alpha1.SupersetSpec{
+				BaseURL:  common.Ptr("https://superset.example.com"),
+				Realtime: &supersetv1alpha1.RealtimeSpec{WebSocket: &supersetv1alpha1.WebSocketTransportSpec{AllowedOrigins: []string{"https://a.example.com", "https://b.example.com"}}},
+			},
+			want: []string{"https://a.example.com", "https://b.example.com"},
+		},
+		{
+			name: "defaults to the single origin of the base URL",
+			spec: supersetv1alpha1.SupersetSpec{
+				BaseURL:  common.Ptr("https://superset.example.com"),
+				Realtime: &supersetv1alpha1.RealtimeSpec{WebSocket: &supersetv1alpha1.WebSocketTransportSpec{}},
+			},
+			want: []string{"https://superset.example.com"},
+		},
+		{
+			name: "derives origin from an ingress host without tls",
+			spec: supersetv1alpha1.SupersetSpec{
+				Realtime:   &supersetv1alpha1.RealtimeSpec{WebSocket: &supersetv1alpha1.WebSocketTransportSpec{}},
+				Networking: &supersetv1alpha1.NetworkingSpec{Ingress: &supersetv1alpha1.IngressSpec{Host: "superset.example.com"}},
+			},
+			want: []string{"http://superset.example.com"},
+		},
+		{
+			name: "no resolvable origin yields nil",
+			spec: supersetv1alpha1.SupersetSpec{
+				Realtime: &supersetv1alpha1.RealtimeSpec{WebSocket: &supersetv1alpha1.WebSocketTransportSpec{}},
+			},
+			want: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := deriveWebSocketAllowedOrigins(&tt.spec); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("deriveWebSocketAllowedOrigins() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

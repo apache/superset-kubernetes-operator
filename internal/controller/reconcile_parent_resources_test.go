@@ -26,7 +26,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
@@ -109,16 +109,80 @@ func TestReconcile_DisabledComponentDeletesParentOwnedResources(t *testing.T) {
 	}
 }
 
-func TestReconcile_WebsocketInlineConfigCreatesConfigMapAndMount(t *testing.T) {
+func TestReconcile_WebsocketInjectsRealtimeEnvAndUsesMainImage(t *testing.T) {
 	scheme := testScheme(t)
 
 	spec := minimalSupersetSpec()
 	spec.Environment = common.Ptr("Development")
-	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
-		ComponentSpec: supersetv1alpha1.ComponentSpec{
-			Image: &supersetv1alpha1.ImageOverrideSpec{Repository: common.Ptr("example.com/superset-websocket")},
+	spec.BaseURL = common.Ptr("https://superset.example.com")
+	spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey", Password: common.Ptr("vk-pass")}
+	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+	spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+		WebSocket: &supersetv1alpha1.WebSocketTransportSpec{JwtSecret: common.Ptr("dev-ws-secret")},
+	}
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Spec:       spec,
+	}
+
+	c := reconcileOnce(t, scheme, superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r)
+
+	deploy := &appsv1.Deployment{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server", Namespace: "default"}, deploy); err != nil {
+		t.Fatalf("expected websocket Deployment: %v", err)
+	}
+	ctr := deploy.Spec.Template.Spec.Containers[0]
+
+	// Inherits the main Superset image and launches via the alternate entrypoint.
+	if !strings.Contains(ctr.Image, "apache/superset") {
+		t.Fatalf("expected websocket to inherit the main Superset image, got %q", ctr.Image)
+	}
+	if len(ctr.Command) != 1 || ctr.Command[0] != "/app/docker/entrypoints/run-websocket.sh" {
+		t.Fatalf("expected run-websocket.sh entrypoint, got %#v", ctr.Command)
+	}
+	if ctr.ReadinessProbe == nil || ctr.ReadinessProbe.HTTPGet == nil || ctr.ReadinessProbe.HTTPGet.Path != "/ready" {
+		t.Fatalf("expected /ready readiness probe, got %#v", ctr.ReadinessProbe)
+	}
+
+	env := envSliceToMap(ctr.Env)
+	for k, want := range map[string]string{
+		"JWT_SECRET":      "dev-ws-secret",
+		"REDIS_HOST":      "valkey",
+		"REDIS_DB":        "7",
+		"PORT":            "8080",
+		"ALLOWED_ORIGINS": "https://superset.example.com",
+	} {
+		if env[k] != want {
+			t.Fatalf("websocket env %s = %q, want %q", k, env[k], want)
+		}
+	}
+
+	if deploy.Spec.Template.Annotations[common.AnnotationConfigChecksum] == "" {
+		t.Fatal("expected websocket workload checksum annotation")
+	}
+}
+
+func TestReconcile_WebsocketJwtSecretFromRendersWebsocketEnableInApp(t *testing.T) {
+	scheme := testScheme(t)
+
+	spec := minimalSupersetSpec()
+	spec.BaseURL = common.Ptr("https://superset.example.com")
+	spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
+	spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{}
+	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+	spec.Networking = &supersetv1alpha1.NetworkingSpec{
+		Ingress: &supersetv1alpha1.IngressSpec{Host: "superset.example.com", TLS: []networkingv1.IngressTLS{{}}},
+	}
+	spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+		AsyncQueries: &supersetv1alpha1.AsyncQueriesSpec{},
+		WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
+			JwtSecretFrom: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: "ws"},
+				Key:                  "jwt",
+			},
 		},
-		Config: &apiextensionsv1.JSON{Raw: []byte(`{"port":8080,"jwtSecret":"dev-secret"}`)},
 	}
 	superset := &supersetv1alpha1.Superset{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
@@ -130,69 +194,21 @@ func TestReconcile_WebsocketInlineConfigCreatesConfigMapAndMount(t *testing.T) {
 	doReconcile(t, r)
 
 	cm := &corev1.ConfigMap{}
-	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server-config", Namespace: "default"}, cm); err != nil {
-		t.Fatalf("expected websocket ConfigMap: %v", err)
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server-config", Namespace: "default"}, cm); err != nil {
+		t.Fatalf("expected web-server ConfigMap: %v", err)
 	}
-	if cm.Data[websocketConfigKey] == "" || !containsAll(cm.Data[websocketConfigKey], []string{`"port": 8080`, `"jwtSecret": "dev-secret"`}) {
-		t.Fatalf("unexpected websocket config data: %q", cm.Data[websocketConfigKey])
-	}
-
-	deploy := &appsv1.Deployment{}
-	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server", Namespace: "default"}, deploy); err != nil {
-		t.Fatalf("expected websocket Deployment: %v", err)
-	}
-	if deploy.Spec.Template.Annotations[common.AnnotationConfigChecksum] == "" {
-		t.Fatal("expected websocket config checksum annotation")
-	}
-	vol := findVolume(deploy.Spec.Template.Spec.Volumes, websocketConfigVolume)
-	if vol == nil || vol.ConfigMap == nil || vol.ConfigMap.Name != "test-websocket-server-config" {
-		t.Fatalf("expected websocket ConfigMap volume, got %#v", vol)
-	}
-	mount := findVolumeMount(deploy.Spec.Template.Spec.Containers[0].VolumeMounts, websocketConfigVolume)
-	if mount == nil || mount.MountPath != websocketConfigMountPath || mount.SubPath != websocketConfigKey {
-		t.Fatalf("expected websocket config mount, got %#v", mount)
-	}
-}
-
-func TestReconcile_WebsocketConfigFromMountsSecret(t *testing.T) {
-	scheme := testScheme(t)
-
-	spec := minimalSupersetSpec()
-	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
-		ComponentSpec: supersetv1alpha1.ComponentSpec{
-			Image: &supersetv1alpha1.ImageOverrideSpec{Repository: common.Ptr("example.com/superset-websocket")},
-		},
-		ConfigFrom: &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: "ws-config"},
-			Key:                  "config.json",
-		},
-	}
-	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
-		Spec:       spec,
-	}
-
-	c := reconcileOnce(t, scheme, superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
-	doReconcile(t, r)
-
-	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server-config", Namespace: "default"}, &corev1.ConfigMap{}); err == nil {
-		t.Fatal("did not expect an operator-owned websocket ConfigMap for configFrom")
-	}
-
-	deploy := &appsv1.Deployment{}
-	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server", Namespace: "default"}, deploy); err != nil {
-		t.Fatalf("expected websocket Deployment: %v", err)
-	}
-	if deploy.Spec.Template.Annotations[common.AnnotationConfigChecksum] == "" {
-		t.Fatal("expected websocket config reference checksum annotation")
-	}
-	vol := findVolume(deploy.Spec.Template.Spec.Volumes, websocketConfigVolume)
-	if vol == nil || vol.Secret == nil || vol.Secret.SecretName != "ws-config" {
-		t.Fatalf("expected websocket Secret volume, got %#v", vol)
-	}
-	if len(vol.Secret.Items) != 1 || vol.Secret.Items[0].Key != "config.json" || vol.Secret.Items[0].Path != websocketConfigKey {
-		t.Fatalf("expected websocket Secret key mapping, got %#v", vol.Secret.Items)
+	config := cm.Data["superset_config.py"]
+	for _, want := range []string{
+		"WEBSOCKET_ENABLE = True",
+		`WEBSOCKET_URL = "wss://superset.example.com/ws"`,
+		"WEBSOCKET_JWT_SECRET = os.environ['SUPERSET_OPERATOR__WS_JWT_SECRET']",
+		`"GLOBAL_ASYNC_QUERIES": True`,
+		`WEBDRIVER_BASEURL = "http://test-web-server:8088/"`,
+		`WEBDRIVER_BASEURL_USER_FRIENDLY = "https://superset.example.com"`,
+	} {
+		if !strings.Contains(config, want) {
+			t.Fatalf("web-server config missing %q:\n%s", want, config)
+		}
 	}
 }
 
@@ -393,31 +409,4 @@ func TestReconcile_LifecycleCreatesParentOwnedTaskJobAndStatus(t *testing.T) {
 	if jobs.Items[0].Name != "test-migrate" {
 		t.Fatalf("expected deterministic migrate Job name, got %q", jobs.Items[0].Name)
 	}
-}
-
-func containsAll(s string, needles []string) bool {
-	for _, needle := range needles {
-		if !strings.Contains(s, needle) {
-			return false
-		}
-	}
-	return true
-}
-
-func findVolume(volumes []corev1.Volume, name string) *corev1.Volume {
-	for i := range volumes {
-		if volumes[i].Name == name {
-			return &volumes[i]
-		}
-	}
-	return nil
-}
-
-func findVolumeMount(mounts []corev1.VolumeMount, name string) *corev1.VolumeMount {
-	for i := range mounts {
-		if mounts[i].Name == name {
-			return &mounts[i]
-		}
-	}
-	return nil
 }

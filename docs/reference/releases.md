@@ -23,8 +23,14 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 
 ## Unreleased
 
+### Added
+
+- **Global Async Queries and the realtime websocket transport (stable).** A new `spec.realtime` block brings first-class support for Global Async Queries (`realtime.asyncQueries`) and the realtime websocket push transport (`realtime.webSocket`). The websocket server is now GA: it ships in the official Superset image and launches via an alternate entrypoint, so it inherits `spec.image` and is configured entirely by operator-injected environment variables — no separate websocket image. The operator sets the `GLOBAL_ASYNC_QUERIES` feature flag, wires the coordination backend (`spec.valkey.distributedCoordination`), shares the `WEBSOCKET_JWT_SECRET` between the Flask app and the server, and renders the `superset.tasks.async_queries` Celery import plus the `reap_orphaned_tasks` beat schedule. Requires a Superset image with Global Async Queries on the Global Task Framework (Superset 7.0+, [apache/superset#43407](https://github.com/apache/superset/pull/43407)) ([@villebro](https://github.com/villebro)).
+- **Centralized `spec.baseUrl`.** The external, browser-visible base URL now has a single home. The operator derives the websocket URL, the websocket `ALLOWED_ORIGINS` allowlist (defaulting to that one origin to mitigate Cross-Site WebSocket Hijacking), and `WEBDRIVER_BASEURL_USER_FRIENDLY` (Alerts & Reports hyperlinks) from it. The internal `WEBDRIVER_BASEURL` render target is now operator-managed and points at the web-server Service ([@villebro](https://github.com/villebro)).
+
 ### Changed
 
+- **Breaking:** the `websocketServer` component is reconfigured for the GA websocket server (previously marked experimental). It now inherits `spec.image` and runs from the official Superset image, so the custom-image requirement and the `websocketServer.config`/`configFrom` (`config.json`) fields are removed — configure the transport through `spec.realtime.webSocket` (shared JWT secret, URL, allowed origins) instead, and run a Superset 7.0+ image. Its readiness probe now targets `/ready` (liveness stays `/health`) ([@villebro](https://github.com/villebro)).
 - Kubernetes support now covers the three newest `kind`-published minor versions instead of two. CI tests Kubernetes 1.37, 1.36, and 1.35 natively, with the experimental `next` lane disabled again ([#317](https://github.com/apache/superset-kubernetes-operator/pull/317)).
 
 ### Security

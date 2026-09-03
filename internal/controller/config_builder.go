@@ -20,6 +20,7 @@ package controller
 
 import (
 	"fmt"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -132,13 +133,45 @@ func buildConfigInput(spec *supersetv1alpha1.SupersetSpec) *supersetconfig.Confi
 
 	input.FeatureFlags = spec.FeatureFlags
 
+	if spec.Realtime != nil {
+		if spec.Realtime.AsyncQueries != nil {
+			input.AsyncQueriesEnabled = true
+			input.FeatureFlags = withFeatureFlag(spec.FeatureFlags, featureFlagGlobalAsyncQueries, true)
+		}
+		if ws := spec.Realtime.WebSocket; ws != nil {
+			input.WebSocketEnabled = true
+			input.WebSocketURL = deriveWebSocketURL(spec)
+			if ws.CookieName != nil {
+				input.WebSocketCookieName = *ws.CookieName
+			}
+			if ws.JwtExpirationSeconds != nil {
+				input.WebSocketJwtExpirationSeconds = *ws.JwtExpirationSeconds
+			}
+		}
+	}
+
 	if spec.Config != nil {
 		input.Config = *spec.Config
+	}
+
+	if spec.BaseURL != nil {
+		input.BaseURL = *spec.BaseURL
 	}
 
 	input.HasPreviousSecretKey = spec.PreviousSecretKey != nil || spec.PreviousSecretKeyFrom != nil
 
 	return input
+}
+
+// withFeatureFlag returns a copy of flags with key set to val, leaving the
+// caller's map untouched (spec.FeatureFlags is shared across components).
+func withFeatureFlag(flags map[string]bool, key string, val bool) map[string]bool {
+	merged := make(map[string]bool, len(flags)+1)
+	for k, v := range flags {
+		merged[k] = v
+	}
+	merged[key] = val
+	return merged
 }
 
 // buildValkeyInput converts the CRD ValkeySpec into a resolved ValkeyInput with defaults applied.
@@ -326,7 +359,103 @@ func collectSecretEnvVars(spec *supersetv1alpha1.SupersetSpec, parentName string
 		}
 	}
 
+	// SUPERSET_OPERATOR__WS_JWT_SECRET — the app mints the cookie the websocket
+	// server validates, so it needs the same secret.
+	if spec.Realtime != nil && spec.Realtime.WebSocket != nil {
+		ws := spec.Realtime.WebSocket
+		if isDev && ws.JwtSecret != nil {
+			envs = append(envs, corev1.EnvVar{Name: naming.EnvWSJwtSecret, Value: *ws.JwtSecret})
+		} else if ws.JwtSecretFrom != nil {
+			envs = append(envs, corev1.EnvVar{
+				Name:      naming.EnvWSJwtSecret,
+				ValueFrom: &corev1.EnvVarSource{SecretKeyRef: ws.JwtSecretFrom},
+			})
+		}
+	}
+
 	return envs
+}
+
+// Environment variables read by the bundled websocket server (superset-websocket).
+// These are the server's own contract, distinct from the SUPERSET_OPERATOR__* vars.
+const (
+	envWSPort                     = "PORT"
+	envWSJWTCookie                = "JWT_COOKIE_NAME"
+	envWSJWTSecret                = "JWT_SECRET"
+	envWSAllowedOrigins           = "ALLOWED_ORIGINS"
+	envWSRedisHost                = "REDIS_HOST"
+	envWSRedisPort                = "REDIS_PORT"
+	envWSRedisDB                  = "REDIS_DB"
+	envWSRedisUser                = "REDIS_USERNAME"
+	envWSRedisPass                = "REDIS_PASSWORD"
+	envWSRedisSSL                 = "REDIS_SSL"
+	defaultWSCookie               = "superset-ws-token"
+	featureFlagGlobalAsyncQueries = "GLOBAL_ASYNC_QUERIES"
+)
+
+// collectWebsocketEnvVars builds the env for the websocket server: the shared
+// JWT secret plus a Redis connection pointing at the same coordination backend
+// (DISTRIBUTED_COORDINATION_CONFIG) the Python app uses.
+func collectWebsocketEnvVars(spec *supersetv1alpha1.SupersetSpec) []corev1.EnvVar {
+	isDev := spec.Environment != nil && *spec.Environment == naming.EnvironmentDev
+
+	envs := []corev1.EnvVar{
+		{Name: envWSPort, Value: fmt.Sprintf("%d", naming.PortWebsocket)},
+	}
+
+	if origins := deriveWebSocketAllowedOrigins(spec); len(origins) > 0 {
+		envs = append(envs, corev1.EnvVar{Name: envWSAllowedOrigins, Value: strings.Join(origins, ",")})
+	}
+
+	if ws := realtimeWebSocket(spec); ws != nil {
+		cookie := defaultWSCookie
+		if ws.CookieName != nil {
+			cookie = *ws.CookieName
+		}
+		envs = append(envs, corev1.EnvVar{Name: envWSJWTCookie, Value: cookie})
+		if isDev && ws.JwtSecret != nil {
+			envs = append(envs, corev1.EnvVar{Name: envWSJWTSecret, Value: *ws.JwtSecret})
+		} else if ws.JwtSecretFrom != nil {
+			envs = append(envs, corev1.EnvVar{
+				Name:      envWSJWTSecret,
+				ValueFrom: &corev1.EnvVarSource{SecretKeyRef: ws.JwtSecretFrom},
+			})
+		}
+	}
+
+	if v := spec.Valkey; v != nil {
+		envs = append(envs, corev1.EnvVar{Name: envWSRedisHost, Value: v.Host})
+		port := int32(6379)
+		if v.Port != nil {
+			port = *v.Port
+		}
+		envs = append(envs, corev1.EnvVar{Name: envWSRedisPort, Value: fmt.Sprintf("%d", port)})
+		envs = append(envs, corev1.EnvVar{Name: envWSRedisDB, Value: fmt.Sprintf("%d", resolveValkeyCache(v.DistributedCoordination, 7, "coordination_", 300).Database)})
+		if v.Username != nil {
+			envs = append(envs, corev1.EnvVar{Name: envWSRedisUser, Value: *v.Username})
+		}
+		if isDev && v.Password != nil {
+			envs = append(envs, corev1.EnvVar{Name: envWSRedisPass, Value: *v.Password})
+		} else if v.PasswordFrom != nil {
+			envs = append(envs, corev1.EnvVar{
+				Name:      envWSRedisPass,
+				ValueFrom: &corev1.EnvVarSource{SecretKeyRef: v.PasswordFrom},
+			})
+		}
+		if v.SSL != nil {
+			envs = append(envs, corev1.EnvVar{Name: envWSRedisSSL, Value: "true"})
+		}
+	}
+
+	return envs
+}
+
+// realtimeWebSocket returns spec.realtime.webSocket, or nil when unset.
+func realtimeWebSocket(spec *supersetv1alpha1.SupersetSpec) *supersetv1alpha1.WebSocketTransportSpec {
+	if spec.Realtime == nil {
+		return nil
+	}
+	return spec.Realtime.WebSocket
 }
 
 func derefOrDefault(ptr *string, def string) string {

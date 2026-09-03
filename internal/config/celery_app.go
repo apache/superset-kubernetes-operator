@@ -25,8 +25,9 @@ import (
 
 // renderCeleryClass writes only the CeleryConfig fields derived from structured
 // Valkey settings. Application-level Celery behavior such as imports, task
-// annotations, and beat schedules belongs in spec.config.
-func renderCeleryClass(b *strings.Builder, v *ValkeyInput, hasSSLOpts bool) {
+// annotations, and beat schedules belongs in spec.config — except the pieces
+// Global Async Queries requires, which the operator adds when asyncQueries is on.
+func renderCeleryClass(b *strings.Builder, v *ValkeyInput, hasSSLOpts, asyncQueries bool) {
 	brokerEnabled := !v.CeleryBroker.Disabled
 	resultEnabled := !v.CeleryResultBackend.Disabled
 	if !brokerEnabled && !resultEnabled {
@@ -48,6 +49,19 @@ func renderCeleryClass(b *strings.Builder, v *ValkeyInput, hasSSLOpts bool) {
 		if resultEnabled {
 			b.WriteString("    redis_backend_use_ssl = _vk_ssl_opts\n")
 		}
+	}
+
+	// The Celery app auto-imports superset.tasks.scheduler (reap_orphaned_tasks,
+	// tasks.execute) but not async_queries, where the chart-data task lives; the
+	// reaper only runs when it has a short beat schedule.
+	if asyncQueries {
+		b.WriteString("    imports = (\"superset.tasks.async_queries\",)\n")
+		b.WriteString("    beat_schedule = {\n")
+		b.WriteString("        \"reap_orphaned_tasks\": {\n")
+		b.WriteString("            \"task\": \"reap_orphaned_tasks\",\n")
+		b.WriteString("            \"schedule\": 60.0,\n")
+		b.WriteString("        },\n")
+		b.WriteString("    }\n")
 	}
 
 	b.WriteString("CELERY_CONFIG = CeleryConfig\n")

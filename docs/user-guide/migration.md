@@ -84,10 +84,7 @@ The operator's intentional gaps each have a straightforward workaround: provisio
       celeryWorker: {}
       celeryBeat: {}
       celeryFlower: {}
-      websocketServer:
-        image:
-          repository: oneacrefund/superset-websocket   # or your own image
-          tag: latest
+      websocketServer: {}   # inherits spec.image; wire it via spec.realtime.webSocket
     ```
 
 6. Decide how the first operator reconciliation should handle lifecycle tasks. If the existing Helm deployment already migrated and initialized the database, either allow the operator to run its idempotent `migrate` and `init` tasks during a planned window, or disable lifecycle initially:
@@ -159,8 +156,8 @@ The Helm chart exposes one cache DB (`redis_cache_db`) and one Celery DB (`redis
 | `supersetCeleryBeat.enabled` | `spec.celeryBeat: {}` | Celery Beat is always a singleton. |
 | `supersetCeleryFlower.enabled` | `spec.celeryFlower: {}` | Flower gets its own Deployment and Service. |
 | `supersetCeleryFlower.service.*` | `spec.celeryFlower.service.*` | Supports service type, port, nodePort, labels, and annotations. |
-| `supersetWebsockets.enabled` | `spec.websocketServer.image.{repository,tag}` | An image override is required (CEL-validated): the default Superset image does not include `websocket_server.js`. Use a community image such as `oneacrefund/superset-websocket` or your own. |
-| `supersetWebsockets.config` | `spec.websocketServer.config` or `configFrom` | Inline `config` is Development-only. In Staging/Production, create a Secret with `config.json` and reference it with `configFrom`. |
+| `supersetWebsockets.enabled` | `spec.websocketServer` + `spec.realtime.webSocket` | The server ships in the official Superset image, so `websocketServer` inherits `spec.image` — no custom image needed. `spec.realtime.webSocket` supplies the shared JWT secret and browser URL. |
+| `supersetWebsockets.config` | `spec.realtime.webSocket` + `spec.valkey.distributedCoordination` | No `config.json`. The operator injects the server's env (JWT secret, Redis coordination connection) from these fields. Extra server settings go under `websocketServer.podTemplate` container env. |
 
 ### Lifecycle Tasks
 
@@ -397,62 +394,34 @@ spec:
 
 ## Websocket Config
 
-In Development, Helm's `supersetWebsockets.config` map can be copied under `spec.websocketServer.config`:
+The Helm chart's `supersetWebsockets.config` map (JWT secret, Redis connection) no longer has a direct equivalent — the operator generates the server's configuration from `spec.realtime.webSocket` and `spec.valkey.distributedCoordination`. Provide the shared JWT secret and let the coordination backend supply Redis:
 
 ```yaml
 spec:
-  environment: Development
-  websocketServer:
-    image:
-      repository: oneacrefund/superset-websocket
-      tag: latest
-    config:
-      port: 8080
-      logLevel: debug
-      jwtSecret: CHANGE-ME
-      jwtCookieName: async-token
-      redis:
-        host: redis.example.com
-        port: 6379
-        db: 0
+  valkey:
+    host: valkey                    # distributedCoordination enabled by default
+  websocketServer: {}               # inherits spec.image
+  realtime:
+    webSocket:
+      jwtSecretFrom:
+        name: superset-realtime
+        key: jwt-secret
 ```
 
-In Staging and Production, put the JSON in a Secret and reference the key:
-
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: superset-websocket-config
-stringData:
-  config.json: |
-    {"port":8080,"jwtSecret":"...","jwtCookieName":"async-token"}
----
-apiVersion: superset.apache.org/v1alpha1
-kind: Superset
-spec:
-  webServer: {}
-  websocketServer:
-    image:
-      repository: oneacrefund/superset-websocket
-      tag: latest
-    configFrom:
-      name: superset-websocket-config
-      key: config.json
-```
-
-The operator mounts this at `/home/superset-websocket/config.json`. When the referenced Secret content changes, update `spec.forceReload` to roll the websocket Deployment.
+The same `jwtSecretFrom` value is rendered as `WEBSOCKET_JWT_SECRET` for the Python components (which mint the cookie) and injected as `JWT_SECRET` for the server (which validates it). In Development you may inline `jwtSecret` instead. Extra server settings (for example `ALLOWED_ORIGINS`) go under `websocketServer.podTemplate` container env.
 
 ## Websocket Routing
 
-The Helm chart's `supersetWebsockets.ingress` injects a websocket rule alongside the web server. The operator does the same automatically: whenever `websocketServer` is present, both the Ingress and Gateway API reconcilers add a rule pointing at the `<superset-name>-websocket-server` Service. A bare Ingress host is enough:
+The Helm chart's `supersetWebsockets.ingress` injects a websocket rule alongside the web server. The operator does the same automatically: whenever `websocketServer` is present, both the Ingress and Gateway API reconcilers add a rule pointing at the `<superset-name>-websocket-server` Service. A bare Ingress host is enough, and `spec.realtime.webSocket.url` is derived from it (`ws(s)://<host>/ws`) when unset:
 
 ```yaml
 spec:
-  websocketServer:
-    image:
-      repository: oneacrefund/superset-websocket
-      tag: latest
+  websocketServer: {}
+  realtime:
+    webSocket:
+      jwtSecretFrom:
+        name: superset-realtime
+        key: jwt-secret
   networking:
     ingress:
       hosts:
@@ -464,11 +433,13 @@ The equivalent with Gateway API, plus a customized websocket path via `service.g
 ```yaml
 spec:
   websocketServer:
-    image:
-      repository: oneacrefund/superset-websocket
-      tag: latest
     service:
       gatewayPath: /ws
+  realtime:
+    webSocket:
+      jwtSecretFrom:
+        name: superset-realtime
+        key: jwt-secret
   networking:
     gateway:
       gatewayRef:

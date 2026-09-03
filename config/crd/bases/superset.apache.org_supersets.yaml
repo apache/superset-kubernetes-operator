@@ -330,6 +330,9 @@ spec:
                 x-kubernetes-validations:
                 - message: maxReplicas must be >= minReplicas
                   rule: '!has(self.minReplicas) || self.maxReplicas >= self.minReplicas'
+              baseUrl:
+                pattern: ^https?://.+
+                type: string
               bootstrapScript:
                 type: string
               celeryBeat:
@@ -31055,6 +31058,45 @@ spec:
                 - key
                 type: object
                 x-kubernetes-map-type: atomic
+              realtime:
+                properties:
+                  asyncQueries:
+                    type: object
+                  webSocket:
+                    properties:
+                      allowedOrigins:
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      cookieName:
+                        type: string
+                      jwtExpirationSeconds:
+                        format: int32
+                        type: integer
+                      jwtSecret:
+                        type: string
+                      jwtSecretFrom:
+                        properties:
+                          key:
+                            type: string
+                          name:
+                            default: ""
+                            type: string
+                          optional:
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                        x-kubernetes-map-type: atomic
+                      url:
+                        type: string
+                    type: object
+                    x-kubernetes-validations:
+                    - message: exactly one of jwtSecret (dev only) or jwtSecretFrom
+                        must be set
+                      rule: has(self.jwtSecret) != has(self.jwtSecretFrom)
+                type: object
               replicas:
                 format: int32
                 type: integer
@@ -35611,22 +35653,6 @@ spec:
                     x-kubernetes-validations:
                     - message: maxReplicas must be >= minReplicas
                       rule: '!has(self.minReplicas) || self.maxReplicas >= self.minReplicas'
-                  config:
-                    type: object
-                    x-kubernetes-preserve-unknown-fields: true
-                  configFrom:
-                    properties:
-                      key:
-                        type: string
-                      name:
-                        default: ""
-                        type: string
-                      optional:
-                        type: boolean
-                    required:
-                    - key
-                    type: object
-                    x-kubernetes-map-type: atomic
                   deploymentTemplate:
                     properties:
                       annotations:
@@ -39299,14 +39325,6 @@ spec:
                       rule: '!has(self.nodePort) || self.type == ''NodePort'' || self.type
                         == ''LoadBalancer'''
                 type: object
-                x-kubernetes-validations:
-                - message: 'websocketServer.image.repository is required: the default
-                    Superset image does not include websocket_server.js'
-                  rule: has(self.image) && has(self.image.repository) && size(self.image.repository)
-                    > 0
-                - message: websocketServer.config and websocketServer.configFrom are
-                    mutually exclusive
-                  rule: '!(has(self.config) && has(self.configFrom))'
             required:
             - image
             type: object
@@ -39338,14 +39356,30 @@ spec:
                 is Development
               rule: (has(self.environment) && self.environment == 'Development') ||
                 !has(self.lifecycle) || !has(self.lifecycle.init) || !has(self.lifecycle.init.loadExamples)
-            - message: websocketServer.config is only allowed when environment is
-                Development; use websocketServer.configFrom to reference a Secret
-                in Staging or Production
-              rule: (has(self.environment) && self.environment == 'Development') ||
-                !has(self.websocketServer) || !has(self.websocketServer.config)
             - message: spec.networking.ingress requires spec.webServer to be set (it
                 provides the catch-all '/' route; other components are routed by path)
               rule: '!has(self.networking) || !has(self.networking.ingress) || has(self.webServer)'
+            - message: realtime.asyncQueries requires spec.valkey (Global Async Queries
+                needs a distributed coordination backend; keep spec.valkey.distributedCoordination
+                enabled)
+              rule: '!has(self.realtime) || !has(self.realtime.asyncQueries) || has(self.valkey)'
+            - message: realtime.webSocket requires spec.websocketServer (the workload)
+                and spec.valkey (the coordination backend)
+              rule: '!has(self.realtime) || !has(self.realtime.webSocket) || (has(self.websocketServer)
+                && has(self.valkey))'
+            - message: 'spec.websocketServer requires spec.realtime.webSocket (the
+                transport wiring: shared JWT secret and URL)'
+              rule: '!has(self.websocketServer) || (has(self.realtime) && has(self.realtime.webSocket))'
+            - message: realtime.webSocket.jwtSecret is only allowed when environment
+                is Development; use realtime.webSocket.jwtSecretFrom in Staging or
+                Production
+              rule: (has(self.environment) && self.environment == 'Development') ||
+                !has(self.realtime) || !has(self.realtime.webSocket) || !has(self.realtime.webSocket.jwtSecret)
+            - message: realtime.webSocket requires realtime.webSocket.url, spec.baseUrl,
+                or spec.networking (the browser-visible websocket URL is derived from
+                the base URL / networking host when url is unset)
+              rule: '!has(self.realtime) || !has(self.realtime.webSocket) || has(self.realtime.webSocket.url)
+                || has(self.baseUrl) || has(self.networking)'
             - message: spec.networking.gateway requires at least one component with
                 a routable service (webServer, websocketServer, mcpServer, or celeryFlower)
               rule: '!has(self.networking) || !has(self.networking.gateway) || has(self.webServer)

@@ -21,6 +21,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -238,6 +239,112 @@ func resolveGatewayPath(svc *supersetv1alpha1.ComponentServiceSpec, defaultPath 
 		return *svc.GatewayPath
 	}
 	return defaultPath
+}
+
+// External URL schemes used when deriving the browser-visible websocket URL and
+// its allowed-origins allowlist.
+const (
+	schemeHTTP  = "http"
+	schemeHTTPS = "https"
+)
+
+// deriveWebSocketURL computes the browser-visible WEBSOCKET_URL. An explicit
+// realtime.webSocket.url wins; otherwise it is built from the external host
+// (spec.baseUrl, else spec.networking) and the websocket route path (default
+// /ws). The browser must reach the socket on the same host as Superset so the
+// JWT cookie is shared. Returns "" when no host is resolvable (the caller
+// renders WEBSOCKET_ENABLE without a URL and logs).
+func deriveWebSocketURL(spec *supersetv1alpha1.SupersetSpec) string {
+	if ws := realtimeWebSocket(spec); ws != nil && ws.URL != nil && *ws.URL != "" {
+		return *ws.URL
+	}
+	scheme, host := externalHostScheme(spec)
+	if host == "" {
+		return ""
+	}
+	wsScheme := "ws"
+	if scheme == schemeHTTPS {
+		wsScheme = "wss"
+	}
+	var svc *supersetv1alpha1.ComponentServiceSpec
+	if spec.WebsocketServer != nil {
+		svc = spec.WebsocketServer.Service
+	}
+	return fmt.Sprintf("%s://%s%s", wsScheme, host, resolveGatewayPath(svc, "/ws"))
+}
+
+// deriveWebSocketAllowedOrigins returns the ALLOWED_ORIGINS allowlist for the
+// websocket server. An explicit realtime.webSocket.allowedOrigins wins;
+// otherwise it defaults to the single origin of the resolved websocket URL
+// (all realtime traffic is expected from the same host as Superset). Returns
+// nil when no origin can be resolved (the server then accepts any origin).
+func deriveWebSocketAllowedOrigins(spec *supersetv1alpha1.SupersetSpec) []string {
+	if ws := realtimeWebSocket(spec); ws != nil && len(ws.AllowedOrigins) > 0 {
+		return ws.AllowedOrigins
+	}
+	wsURL := deriveWebSocketURL(spec)
+	if wsURL == "" {
+		return nil
+	}
+	u, err := url.Parse(wsURL)
+	if err != nil || u.Host == "" {
+		return nil
+	}
+	httpScheme := schemeHTTP
+	if u.Scheme == "wss" {
+		httpScheme = schemeHTTPS
+	}
+	return []string{fmt.Sprintf("%s://%s", httpScheme, u.Host)}
+}
+
+// webDriverBaseURL returns the in-cluster web-server URL the headless browser
+// uses to render Alerts & Reports and thumbnails (WEBDRIVER_BASEURL). It targets
+// the parent-owned web-server Service; empty when no web server is configured.
+func webDriverBaseURL(superset *supersetv1alpha1.Superset) string {
+	if superset.Spec.WebServer == nil {
+		return ""
+	}
+	name, port := webServerServiceRef(superset)
+	return fmt.Sprintf("http://%s:%d/", name, port)
+}
+
+// externalHostScheme returns the external HTTP scheme ("http"/"https") and
+// host[:port] for the deployment's browser-visible URL, taken from spec.baseUrl
+// when set, otherwise from spec.networking. Returns an empty host when neither
+// resolves a host.
+func externalHostScheme(spec *supersetv1alpha1.SupersetSpec) (scheme, host string) {
+	if spec.BaseURL != nil && *spec.BaseURL != "" {
+		if u, err := url.Parse(*spec.BaseURL); err == nil && u.Host != "" {
+			s := u.Scheme
+			if s == "" {
+				s = schemeHTTPS
+			}
+			return s, u.Host
+		}
+	}
+	if spec.Networking == nil {
+		return "", ""
+	}
+	switch {
+	case spec.Networking.Gateway != nil:
+		if len(spec.Networking.Gateway.Hostnames) > 0 {
+			return schemeHTTPS, string(spec.Networking.Gateway.Hostnames[0]) // Gateways typically terminate TLS.
+		}
+	case spec.Networking.Ingress != nil:
+		ing := spec.Networking.Ingress
+		h := ing.Host
+		if h == "" && len(ing.Hosts) > 0 {
+			h = ing.Hosts[0].Host
+		}
+		if h != "" {
+			s := schemeHTTP
+			if len(ing.TLS) > 0 {
+				s = schemeHTTPS
+			}
+			return s, h
+		}
+	}
+	return "", ""
 }
 
 // flowerHealthPath returns Flower's HTTP health endpoint. Flower runs with
