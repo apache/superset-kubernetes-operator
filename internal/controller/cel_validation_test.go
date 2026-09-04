@@ -587,7 +587,8 @@ var _ = Describe("CEL Validation", Ordered, func() {
 
 	// --- Websocket server (experimental; config carries a JWT secret) ---
 
-	Describe("Websocket", func() {		// A valid image override is set so the image-required rule does not fire,
+	Describe("Websocket", func() {
+		// A valid image override is set so the image-required rule does not fire,
 		// isolating the rule under test.
 		wsImage := func() supersetv1alpha1.ComponentSpec {
 			return supersetv1alpha1.ComponentSpec{
