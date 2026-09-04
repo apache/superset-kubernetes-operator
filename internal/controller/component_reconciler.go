@@ -233,7 +233,10 @@ func reconcileScaling(
 	componentName string,
 	resourceBaseName string,
 ) error {
-	labels := componentLabels(componentName, owner.GetName())
+	// Include the reserved parent label so the HPA/PDB cleanup selector cannot
+	// match — and thus never deletes — scaling objects the operator did not
+	// create. Pods carry the parent label too, so it is safe in the PDB selector.
+	labels := podOperatorLabels(componentName, owner.GetName(), owner.GetName())
 	if err := reconcileHPA(ctx, c, scheme, owner, autoscaling, labels, resourceBaseName, owner.GetNamespace()); err != nil {
 		return fmt.Errorf("reconciling HPA: %w", err)
 	}
@@ -245,9 +248,11 @@ func reconcileScaling(
 
 // deleteByLabels lists all resources matching the given labels and deletes any
 // whose name does not match keepName. Pass empty keepName to delete all matches.
+// Objects controller-owned by an owner other than the given parent are skipped.
 func deleteByLabels(
 	ctx context.Context,
 	c client.Client,
+	owner client.Object,
 	ns string,
 	labels map[string]string,
 	newList func() client.ObjectList,
@@ -260,21 +265,35 @@ func deleteByLabels(
 	); err != nil {
 		return err
 	}
-	return deleteMatches(ctx, c, list, keepName)
+	return deleteMatches(ctx, c, owner, list, keepName)
 }
 
-// deleteMatches deletes all items in the list whose name does not match keepName.
-func deleteMatches(ctx context.Context, c client.Client, list client.ObjectList, keepName string) error {
+// deleteMatches deletes all items in the list whose name does not match
+// keepName, skipping any object controller-owned by an owner other than the
+// given parent. Deleting a foreign-controller-owned resource that merely
+// collides with an operator selector would turn the operator's namespace-wide
+// delete RBAC into a deletion oracle for resources the CR author holds no
+// permissions over. Each delete is UID-preconditioned so an object recreated by
+// its legitimate owner between the List and the Delete is left alone.
+func deleteMatches(ctx context.Context, c client.Client, owner client.Object, list client.ObjectList, keepName string) error {
 	items, err := meta.ExtractList(list)
 	if err != nil {
 		return fmt.Errorf("extracting list items: %w", err)
 	}
 	for _, item := range items {
 		obj := item.(client.Object)
-		if obj.GetName() != keepName {
-			if err := client.IgnoreNotFound(c.Delete(ctx, obj)); err != nil {
-				return fmt.Errorf("deleting %s: %w", obj.GetName(), err)
-			}
+		if obj.GetName() == keepName {
+			continue
+		}
+		if ref := metav1.GetControllerOf(obj); ref != nil && owner != nil && ref.UID != owner.GetUID() {
+			logf.FromContext(ctx).Info("Skipping cleanup of resource controller-owned by a foreign owner",
+				"name", obj.GetName(), "namespace", obj.GetNamespace(),
+				"ownerKind", ref.Kind, "ownerName", ref.Name)
+			continue
+		}
+		uid := obj.GetUID()
+		if err := client.IgnoreNotFound(c.Delete(ctx, obj, client.Preconditions{UID: &uid})); err != nil {
+			return fmt.Errorf("deleting %s: %w", obj.GetName(), err)
 		}
 	}
 	return nil

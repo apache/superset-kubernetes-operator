@@ -40113,6 +40113,13 @@ spec:
             63 chars)
           rule: (has(self.spec.lifecycle) && has(self.spec.lifecycle.disabled) &&
             self.spec.lifecycle.disabled == true) || size(self.metadata.name) <= 48
+        - message: serviceAccount.name must equal metadata.name when the operator
+            creates the ServiceAccount (serviceAccount.create is true or unset); set
+            serviceAccount.create=false to reference a pre-existing ServiceAccount
+            with a different name
+          rule: '!has(self.spec.serviceAccount) || (has(self.spec.serviceAccount.create)
+            && self.spec.serviceAccount.create == false) || !has(self.spec.serviceAccount.name)
+            || self.spec.serviceAccount.name == self.metadata.name'
     served: true
     storage: true
     subresources:

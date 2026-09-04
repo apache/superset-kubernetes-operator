@@ -111,7 +111,7 @@ func (r *SupersetReconciler) reconcileServiceMonitor(ctx context.Context, supers
 func (r *SupersetReconciler) deleteServiceMonitors(ctx context.Context, superset *supersetv1alpha1.Superset) error {
 	list := &unstructured.UnstructuredList{}
 	list.SetGroupVersionKind(serviceMonitorGVK)
-	return r.deleteByLabels(ctx, superset.Namespace,
+	return r.deleteByLabels(ctx, superset, superset.Namespace,
 		parentLabels(superset.Name),
 		func() client.ObjectList { return list }, "")
 }

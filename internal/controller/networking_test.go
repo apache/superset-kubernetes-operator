@@ -742,7 +742,7 @@ func TestDeleteByLabels_SkipsUnlabeledResource(t *testing.T) {
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, unlabeledIngress).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
-	err := r.deleteByLabels(context.Background(), "default", parentLabels("test"),
+	err := r.deleteByLabels(context.Background(), superset, "default", parentLabels("test"),
 		func() client.ObjectList { return &networkingv1.IngressList{} }, "")
 	if err != nil {
 		t.Fatalf("expected no error: %v", err)
