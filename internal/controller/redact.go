@@ -58,11 +58,12 @@ var (
 	// separator, which its key class does not allow — so quoted-key forms are a
 	// whole serialization class it systematically misses. The value is matched as
 	// a quoted string of either style (RE2 has no backreferences, so both quote
-	// styles are spelled out) and masked in full, including embedded whitespace.
+	// styles are spelled out) or as a delimiter-bounded bare value, and masked in
+	// full, including embedded whitespace for quoted values.
 	// "authorization" is included because authorizationHeaderRe is equally
 	// quote-blind. The value is replaced with a bare placeholder so a re-run
 	// finds no quoted value to match (idempotent).
-	quotedKeyCredentialRe = regexp.MustCompile(`(?i)(["'][A-Za-z0-9_-]*(?:password|passwd|pwd|secret|token|api[_-]?key|credential|passphrase|authorization)[A-Za-z0-9_-]*["']\s*[=:]\s*)("[^"]*"|'[^']*')`)
+	quotedKeyCredentialRe = regexp.MustCompile(`(?i)(["'][A-Za-z0-9_-]*(?:password|passwd|pwd|secret|token|api[_-]?key|credential|passphrase|authorization)[A-Za-z0-9_-]*["']\s*[=:]\s*)("[^"]*"|'[^']*'|[^,\s}\]]+)`)
 )
 
 // redactCredentials masks credential-shaped substrings in free-form task

@@ -162,6 +162,16 @@ func TestMergeDeploymentTemplate_ReservedLabelPrefixStripped(t *testing.T) {
 	}
 }
 
+func TestStripReservedLabels_AllReservedReturnsNil(t *testing.T) {
+	result := StripReservedLabels(map[string]string{
+		common.LabelKeyParent:              "victim",
+		"superset.apache.org/custom-claim": "forged",
+	})
+	if result != nil {
+		t.Fatalf("expected nil when all labels are reserved, got %#v", result)
+	}
+}
+
 func secretEnvSource(name, key string) *corev1.EnvVarSource {
 	return &corev1.EnvVarSource{
 		SecretKeyRef: &corev1.SecretKeySelector{

@@ -126,6 +126,16 @@ func TestRedactCredentials(t *testing.T) {
 			want: `{'host': 'db', 'db_password': ***}`,
 		},
 		{
+			name: "json quoted key with bare value",
+			in:   `{"host": "db", "password": hunter2, "port": 5432}`,
+			want: `{"host": "db", "password": ***, "port": 5432}`,
+		},
+		{
+			name: "python dict repr quoted key with bare numeric value",
+			in:   "{'host': 'db', 'password': 12345}",
+			want: `{'host': 'db', 'password': ***}`,
+		},
+		{
 			name: "quoted secret_key with spaces in value is masked in full",
 			in:   `"secret_key": "two words here"`,
 			want: `"secret_key": ***`,
