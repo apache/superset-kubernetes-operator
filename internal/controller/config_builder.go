@@ -237,6 +237,7 @@ func resolveValkeyResults(spec *supersetv1alpha1.ValkeyResultsBackendSpec, defau
 // collectSecretEnvVars gathers env vars for SECRET_KEY, metastore fields, valkey, and the
 // instance name. The instance name is exposed so admins can compute instance-scoped values
 // (e.g. Celery queue names) from raw Python in spec.config.
+
 // isDevEnvironment reports whether the CR is in Development mode. Inline secret
 // literals are only honored in Development. Re-checking here (not only via CEL)
 // keeps the controller defensive against a CR that slips past admission —
