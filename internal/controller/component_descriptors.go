@@ -200,7 +200,7 @@ func (r *SupersetReconciler) reconcileComponent(
 		)
 
 		renderedConfig = supersetconfig.RenderConfig(desc.componentType, compConfigInput)
-		secretEnvVars = collectSecretEnvVars(&superset.Spec, superset.Name)
+		secretEnvVars = collectSecretEnvVars(&superset.Spec, defaultInstanceName(superset))
 		operatorInjected = buildOperatorInjected(renderedConfig, bootstrapScript, resourceBaseName, superset.Spec.ForceReload, secretEnvVars)
 		logf.FromContext(ctx).V(2).Info("Rendered component config",
 			"component", desc.componentType, "configBytes", len(renderedConfig), "envVars", len(secretEnvVars))

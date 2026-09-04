@@ -378,13 +378,22 @@ func collectSecretEnvVars(spec *supersetv1alpha1.SupersetSpec, parentName string
 }
 
 // valkeyKeyPrefix returns the Valkey namespace for this deployment: the explicit
-// spec.valkey.keyPrefix, or the CR name by default. It prefixes cache/results keys
-// and the coordination/realtime channels so instances can share one Valkey/Redis.
-func valkeyKeyPrefix(spec *supersetv1alpha1.SupersetSpec, parentName string) string {
+// spec.valkey.keyPrefix, or instanceDefault (typically <namespace>:<name>) otherwise.
+// It prefixes cache/results keys and the coordination/realtime channels so instances
+// can share one Valkey/Redis.
+func valkeyKeyPrefix(spec *supersetv1alpha1.SupersetSpec, instanceDefault string) string {
 	if spec.Valkey != nil && spec.Valkey.KeyPrefix != nil && *spec.Valkey.KeyPrefix != "" {
 		return *spec.Valkey.KeyPrefix
 	}
-	return parentName
+	return instanceDefault
+}
+
+// defaultInstanceName is the default Valkey namespace for a CR: <namespace>:<name>.
+// (namespace, name) is Kubernetes' uniqueness key, and the ":" separator is injective
+// since neither a namespace nor a name may contain it — so two CRs can never collide
+// on a shared Valkey/Redis by default.
+func defaultInstanceName(superset *supersetv1alpha1.Superset) string {
+	return superset.Namespace + ":" + superset.Name
 }
 
 // Environment variables read by the bundled websocket server (superset-websocket).
@@ -417,7 +426,7 @@ func collectWebsocketEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVa
 		// Namespace the realtime Pub/Sub channel to match the Python side
 		// (REALTIME_CHANNEL_PREFIX) so instances sharing one Valkey/Redis don't
 		// cross-deliver. Consumed by superset-websocket once the image supports it.
-		{Name: envWSRealtimeChannelPrefix, Value: valkeyKeyPrefix(spec, superset.Name) + ":"},
+		{Name: envWSRealtimeChannelPrefix, Value: valkeyKeyPrefix(spec, defaultInstanceName(superset)) + ":"},
 	}
 
 	if origins := deriveWebSocketAllowedOrigins(spec); len(origins) > 0 {

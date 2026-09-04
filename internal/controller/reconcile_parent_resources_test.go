@@ -153,7 +153,7 @@ func TestReconcile_WebsocketInjectsRealtimeEnvAndUsesMainImage(t *testing.T) {
 		"REDIS_DB":                "7",
 		"PORT":                    "8080",
 		"ALLOWED_ORIGINS":         "https://superset.example.com",
-		"REALTIME_CHANNEL_PREFIX": "test:",
+		"REALTIME_CHANNEL_PREFIX": "default:test:",
 	} {
 		if env[k] != want {
 			t.Fatalf("websocket env %s = %q, want %q", k, env[k], want)
