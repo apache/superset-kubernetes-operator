@@ -44,7 +44,7 @@ mv ./kubectl /usr/local/bin/kubectl
 #     is matched by the exact asset name so an SBOM/other asset can't be picked
 #     up). Bump via Renovate. ---
 # renovate: datasource=github-releases depName=kubernetes-sigs/kubebuilder
-KUBEBUILDER_VERSION="${KUBEBUILDER_VERSION:-v4.5.2}"
+KUBEBUILDER_VERSION="${KUBEBUILDER_VERSION:-v4.15.0}"
 kb_base="https://github.com/kubernetes-sigs/kubebuilder/releases/download/${KUBEBUILDER_VERSION}"
 curl -fsSL -o kubebuilder "${kb_base}/kubebuilder_linux_amd64"
 KUBEBUILDER_CHECKSUM="$(curl -fsSL "${kb_base}/checksums.txt" | awk '/kubebuilder_linux_amd64$/{for (i=1;i<=NF;i++) if ($i ~ /^[a-f0-9]{64}$/) {print $i; exit}}')"
