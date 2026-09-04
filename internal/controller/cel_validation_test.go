@@ -680,6 +680,63 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("baseUrl"))
 		})
+
+		It("rejects a baseUrl with an empty host", func() {
+			cr := validProdSuperset("rt-baseurl-nohost")
+			cr.Spec.BaseURL = strPtr("https:///foo")
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("baseUrl"))
+		})
+
+		It("rejects a webSocket.url with an empty host", func() {
+			cr := validProdSuperset("rt-url-nohost")
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
+			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
+					JwtSecretFrom: secretRef("ws", "jwt"),
+					URL:           strPtr("wss:///ws"),
+				},
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("webSocket.url"))
+		})
+
+		It("rejects an allowedOrigins entry with a path", func() {
+			cr := validProdSuperset("rt-origin-path")
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
+			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
+					JwtSecretFrom:  secretRef("ws", "jwt"),
+					URL:            strPtr("wss://superset.example.com/ws"),
+					AllowedOrigins: []string{"https://example.com/path"},
+				},
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("allowedOrigins"))
+		})
+
+		It("rejects webSocket relying on an ingress host that is empty", func() {
+			cr := validProdSuperset("rt-empty-ingress-host")
+			cr.Spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{}
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
+			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{JwtSecretFrom: secretRef("ws", "jwt")},
+			}
+			cr.Spec.Networking = &supersetv1alpha1.NetworkingSpec{
+				Ingress: &supersetv1alpha1.IngressSpec{
+					Hosts: []supersetv1alpha1.IngressHost{{Host: ""}},
+				},
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("resolvable websocket host"))
+		})
 	})
 
 	// --- Name length / DNS-label limits ---

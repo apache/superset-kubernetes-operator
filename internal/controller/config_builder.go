@@ -268,11 +268,12 @@ func resolveValkeyResults(spec *supersetv1alpha1.ValkeyResultsBackendSpec, defau
 // --- Secret env var collection ---
 
 // collectSecretEnvVars gathers env vars for SECRET_KEY, metastore fields, valkey, and the
-// instance name. The instance name is exposed so admins can compute instance-scoped values
-// (e.g. Celery queue names) from raw Python in spec.config.
+// instance name. The instance name (spec.valkey.keyPrefix, default the CR name) is the Valkey
+// namespace: it prefixes cache/results keys and coordination/realtime channels, and is exposed
+// so admins can compute instance-scoped values (e.g. Celery queue names) from raw Python in spec.config.
 func collectSecretEnvVars(spec *supersetv1alpha1.SupersetSpec, parentName string) []corev1.EnvVar {
 	envs := []corev1.EnvVar{
-		{Name: naming.EnvInstanceName, Value: parentName},
+		{Name: naming.EnvInstanceName, Value: valkeyKeyPrefix(spec, parentName)},
 	}
 	isDev := spec.Environment != nil && *spec.Environment == naming.EnvironmentDev
 
@@ -376,6 +377,16 @@ func collectSecretEnvVars(spec *supersetv1alpha1.SupersetSpec, parentName string
 	return envs
 }
 
+// valkeyKeyPrefix returns the Valkey namespace for this deployment: the explicit
+// spec.valkey.keyPrefix, or the CR name by default. It prefixes cache/results keys
+// and the coordination/realtime channels so instances can share one Valkey/Redis.
+func valkeyKeyPrefix(spec *supersetv1alpha1.SupersetSpec, parentName string) string {
+	if spec.Valkey != nil && spec.Valkey.KeyPrefix != nil && *spec.Valkey.KeyPrefix != "" {
+		return *spec.Valkey.KeyPrefix
+	}
+	return parentName
+}
+
 // Environment variables read by the bundled websocket server (superset-websocket).
 // These are the server's own contract, distinct from the SUPERSET_OPERATOR__* vars.
 const (
@@ -389,6 +400,7 @@ const (
 	envWSRedisUser                = "REDIS_USERNAME"
 	envWSRedisPass                = "REDIS_PASSWORD"
 	envWSRedisSSL                 = "REDIS_SSL"
+	envWSRealtimeChannelPrefix    = "REALTIME_CHANNEL_PREFIX"
 	defaultWSCookie               = "superset-ws-token"
 	featureFlagGlobalAsyncQueries = "GLOBAL_ASYNC_QUERIES"
 )
@@ -402,6 +414,10 @@ func collectWebsocketEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVa
 
 	envs := []corev1.EnvVar{
 		{Name: envWSPort, Value: fmt.Sprintf("%d", resolveWebsocketPort(superset))},
+		// Namespace the realtime Pub/Sub channel to match the Python side
+		// (REALTIME_CHANNEL_PREFIX) so instances sharing one Valkey/Redis don't
+		// cross-deliver. Consumed by superset-websocket once the image supports it.
+		{Name: envWSRealtimeChannelPrefix, Value: valkeyKeyPrefix(spec, superset.Name) + ":"},
 	}
 
 	if origins := deriveWebSocketAllowedOrigins(spec); len(origins) > 0 {

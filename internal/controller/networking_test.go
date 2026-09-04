@@ -483,15 +483,17 @@ func TestReconcileIngress_MultiComponentFanout(t *testing.T) {
 	}
 }
 
-func TestReconcileIngress_ExplicitPathsRouteToWebServer(t *testing.T) {
-	// A host WITH explicit Paths is a user-controlled override: those paths route
-	// to the web server, not the component fan-out.
+func TestReconcileIngress_ExplicitPathsKeepComponentRoutes(t *testing.T) {
+	// A host WITH explicit Paths routes those paths to the web server, but the
+	// operator-managed component routes (/ws, /flower, ...) are still exposed so
+	// custom web routing doesn't silently drop the websocket/Flower endpoints.
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
 		Spec: supersetv1alpha1.SupersetSpec{
-			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
-			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
+			Image:           supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+			WebServer:       &supersetv1alpha1.WebServerComponentSpec{},
+			WebsocketServer: &supersetv1alpha1.WebsocketServerComponentSpec{},
 			// Flower is published on the external surface only via this explicit
 			// opt-in (its default command ships without authentication).
 			CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{
@@ -502,7 +504,7 @@ func TestReconcileIngress_ExplicitPathsRouteToWebServer(t *testing.T) {
 				Ingress: &supersetv1alpha1.IngressSpec{
 					Hosts: []supersetv1alpha1.IngressHost{
 						{Host: "superset.example.com", Paths: []supersetv1alpha1.IngressPath{
-							{Path: "/", PathType: pathTypePtr(networkingv1.PathTypePrefix)},
+							{Path: "/custom", PathType: pathTypePtr(networkingv1.PathTypePrefix)},
 						}},
 					},
 				},
@@ -519,9 +521,18 @@ func TestReconcileIngress_ExplicitPathsRouteToWebServer(t *testing.T) {
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, ingress); err != nil {
 		t.Fatalf("expected Ingress: %v", err)
 	}
-	paths := ingress.Spec.Rules[0].HTTP.Paths
-	if len(paths) != 1 || paths[0].Path != "/" || paths[0].Backend.Service.Name != "test-web-server" {
-		t.Errorf("explicit paths should route to web server only, got %+v", paths)
+	backendFor := map[string]string{}
+	for _, p := range ingress.Spec.Rules[0].HTTP.Paths {
+		backendFor[p.Path] = p.Backend.Service.Name
+	}
+	if backendFor["/ws"] != "test-websocket-server" {
+		t.Errorf("expected /ws to route to the websocket server even with custom paths, got %+v", backendFor)
+	}
+	if backendFor["/flower"] != "test-celery-flower" {
+		t.Errorf("expected /flower to remain exposed, got %+v", backendFor)
+	}
+	if backendFor["/custom"] != "test-web-server" {
+		t.Errorf("expected the user's custom path to route to the web server, got %+v", backendFor)
 	}
 }
 

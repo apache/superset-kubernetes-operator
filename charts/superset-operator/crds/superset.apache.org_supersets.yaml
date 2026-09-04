@@ -331,7 +331,7 @@ spec:
                 - message: maxReplicas must be >= minReplicas
                   rule: '!has(self.minReplicas) || self.maxReplicas >= self.minReplicas'
               baseUrl:
-                pattern: ^https?://.+
+                pattern: ^https?://[^/]+
                 type: string
               bootstrapScript:
                 type: string
@@ -31066,7 +31066,7 @@ spec:
                     properties:
                       allowedOrigins:
                         items:
-                          pattern: ^https?://.+
+                          pattern: ^https?://[^/?#]+$
                           type: string
                         type: array
                         x-kubernetes-list-type: atomic
@@ -31091,7 +31091,7 @@ spec:
                         type: object
                         x-kubernetes-map-type: atomic
                       url:
-                        pattern: ^wss?://.+
+                        pattern: ^wss?://[^/]+
                         type: string
                     type: object
                     x-kubernetes-validations:
@@ -31248,6 +31248,10 @@ spec:
                         type: string
                     type: object
                   host:
+                    type: string
+                  keyPrefix:
+                    maxLength: 200
+                    pattern: ^[A-Za-z0-9._:-]+$
                     type: string
                   password:
                     type: string
@@ -39399,9 +39403,10 @@ spec:
               rule: '!has(self.realtime) || !has(self.realtime.webSocket) || has(self.realtime.webSocket.url)
                 || has(self.baseUrl) || (has(self.networking) && ((has(self.networking.ingress)
                 && ((has(self.networking.ingress.host) && size(self.networking.ingress.host)
-                > 0) || (has(self.networking.ingress.hosts) && size(self.networking.ingress.hosts)
-                > 0))) || (has(self.networking.gateway) && has(self.networking.gateway.hostnames)
-                && size(self.networking.gateway.hostnames) > 0)))'
+                > 0) || (has(self.networking.ingress.hosts) && self.networking.ingress.hosts.exists(h,
+                has(h.host) && size(h.host) > 0)))) || (has(self.networking.gateway)
+                && has(self.networking.gateway.hostnames) && self.networking.gateway.hostnames.exists(h,
+                size(h) > 0))))'
             - message: spec.networking.gateway requires at least one component with
                 a routable service (webServer, websocketServer, mcpServer, or celeryFlower)
               rule: '!has(self.networking) || !has(self.networking.gateway) || has(self.webServer)

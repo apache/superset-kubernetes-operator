@@ -2250,6 +2250,11 @@ func (in *ValkeySpec) DeepCopyInto(out *ValkeySpec) {
 		*out = new(ValkeySSLSpec)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.KeyPrefix != nil {
+		in, out := &in.KeyPrefix, &out.KeyPrefix
+		*out = new(string)
+		**out = **in
+	}
 	if in.Cache != nil {
 		in, out := &in.Cache, &out.Cache
 		*out = new(ValkeyCacheSpec)

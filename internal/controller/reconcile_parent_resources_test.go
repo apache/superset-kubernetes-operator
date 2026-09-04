@@ -148,11 +148,12 @@ func TestReconcile_WebsocketInjectsRealtimeEnvAndUsesMainImage(t *testing.T) {
 
 	env := envSliceToMap(ctr.Env)
 	for k, want := range map[string]string{
-		"JWT_SECRET":      "dev-ws-secret",
-		"REDIS_HOST":      "valkey",
-		"REDIS_DB":        "7",
-		"PORT":            "8080",
-		"ALLOWED_ORIGINS": "https://superset.example.com",
+		"JWT_SECRET":              "dev-ws-secret",
+		"REDIS_HOST":              "valkey",
+		"REDIS_DB":                "7",
+		"PORT":                    "8080",
+		"ALLOWED_ORIGINS":         "https://superset.example.com",
+		"REALTIME_CHANNEL_PREFIX": "test:",
 	} {
 		if env[k] != want {
 			t.Fatalf("websocket env %s = %q, want %q", k, env[k], want)
@@ -161,6 +162,50 @@ func TestReconcile_WebsocketInjectsRealtimeEnvAndUsesMainImage(t *testing.T) {
 
 	if deploy.Spec.Template.Annotations[common.AnnotationConfigChecksum] == "" {
 		t.Fatal("expected websocket workload checksum annotation")
+	}
+}
+
+func TestReconcile_ValkeyKeyPrefixNamespacesInstance(t *testing.T) {
+	scheme := testScheme(t)
+
+	spec := minimalSupersetSpec()
+	spec.Environment = common.Ptr("Development")
+	spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey", KeyPrefix: common.Ptr("tenant-a")}
+	spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{}
+	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+	spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+		AsyncQueries: &supersetv1alpha1.AsyncQueriesSpec{},
+		WebSocket:    &supersetv1alpha1.WebSocketTransportSpec{JwtSecret: common.Ptr("dev-ws-secret"), URL: common.Ptr("wss://x/ws")},
+	}
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Spec:       spec,
+	}
+
+	c := reconcileOnce(t, scheme, superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r)
+
+	// The web-server config keys off the custom prefix rather than the CR name.
+	cm := &corev1.ConfigMap{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server-config", Namespace: "default"}, cm); err != nil {
+		t.Fatalf("expected web-server ConfigMap: %v", err)
+	}
+	web := &appsv1.Deployment{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, web); err != nil {
+		t.Fatalf("expected web-server Deployment: %v", err)
+	}
+	if got := envSliceToMap(web.Spec.Template.Spec.Containers[0].Env)["SUPERSET_OPERATOR__INSTANCE_NAME"]; got != "tenant-a" {
+		t.Fatalf("INSTANCE_NAME = %q, want tenant-a", got)
+	}
+
+	// The websocket server's realtime channel prefix matches the same namespace.
+	ws := &appsv1.Deployment{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server", Namespace: "default"}, ws); err != nil {
+		t.Fatalf("expected websocket Deployment: %v", err)
+	}
+	if got := envSliceToMap(ws.Spec.Template.Spec.Containers[0].Env)["REALTIME_CHANNEL_PREFIX"]; got != "tenant-a:" {
+		t.Fatalf("REALTIME_CHANNEL_PREFIX = %q, want tenant-a:", got)
 	}
 }
 

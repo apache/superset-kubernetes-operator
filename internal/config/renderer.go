@@ -234,6 +234,12 @@ func RenderConfig(componentType ComponentType, input *ConfigInput) string {
 		renderWebSocket(&b, input)
 	}
 
+	// [2.85] Namespace the realtime/GTF Pub/Sub channels by the instance prefix so
+	// multiple deployments can share one Valkey/Redis (Pub/Sub is not DB-scoped).
+	if input.AsyncQueriesEnabled || input.WebSocketEnabled {
+		renderRealtimeChannels(&b)
+	}
+
 	// [2.9] Alerts & Reports / thumbnail render URLs. WEBDRIVER_BASEURL is the
 	// operator-managed in-cluster target; USER_FRIENDLY is the external URL for
 	// report hyperlinks.
@@ -397,6 +403,19 @@ func renderEngineOptions(b *strings.Builder, opts *EngineOptionsInput) {
 		fmt.Fprintf(b, "    \"pool_timeout\": %d,\n", opts.PoolTimeout)
 	}
 	b.WriteString("}\n\n")
+}
+
+// renderRealtimeChannels namespaces the realtime browser channel and the GTF
+// coordination signal channels by the instance prefix (INSTANCE_NAME), so
+// deployments sharing one Valkey/Redis don't cross-deliver. REALTIME_CHANNEL_PREFIX
+// is consumed by the Superset producer and the websocket server once the image
+// supports it; the TASKS_*_CHANNEL_PREFIX knobs already exist upstream.
+func renderRealtimeChannels(b *strings.Builder) {
+	b.WriteString("# Realtime / GTF coordination channel namespacing\n")
+	fmt.Fprintf(b, "_superset_instance = os.environ['%s']\n", common.EnvInstanceName)
+	b.WriteString("REALTIME_CHANNEL_PREFIX = f\"{_superset_instance}:\"\n")
+	b.WriteString("TASKS_ABORT_CHANNEL_PREFIX = f\"{_superset_instance}:gtf:abort:\"\n")
+	b.WriteString("TASKS_COMPLETION_CHANNEL_PREFIX = f\"{_superset_instance}:gtf:complete:\"\n\n")
 }
 
 // renderWebSocket writes the realtime websocket transport config. The JWT secret

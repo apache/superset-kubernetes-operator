@@ -619,6 +619,25 @@ func TestRenderConfig_CeleryClass(t *testing.T) {
 	})
 }
 
+func TestRenderConfig_RealtimeChannels(t *testing.T) {
+	t.Run("namespaces realtime and GTF channels when realtime is enabled", func(t *testing.T) {
+		result := RenderConfig(ComponentCeleryWorker, &ConfigInput{
+			MetastoreMode:       MetastorePassthrough,
+			AsyncQueriesEnabled: true,
+		})
+		assertContains(t, result, `_superset_instance = os.environ['SUPERSET_OPERATOR__INSTANCE_NAME']`)
+		assertContains(t, result, `REALTIME_CHANNEL_PREFIX = f"{_superset_instance}:"`)
+		assertContains(t, result, `TASKS_ABORT_CHANNEL_PREFIX = f"{_superset_instance}:gtf:abort:"`)
+		assertContains(t, result, `TASKS_COMPLETION_CHANNEL_PREFIX = f"{_superset_instance}:gtf:complete:"`)
+	})
+
+	t.Run("omits channel namespacing when realtime is not enabled", func(t *testing.T) {
+		result := RenderConfig(ComponentWebServer, &ConfigInput{MetastoreMode: MetastorePassthrough})
+		assertNotContains(t, result, "REALTIME_CHANNEL_PREFIX")
+		assertNotContains(t, result, "TASKS_ABORT_CHANNEL_PREFIX")
+	})
+}
+
 func TestRenderConfig_AsyncQueriesCelery(t *testing.T) {
 	result := RenderConfig(ComponentCeleryWorker, &ConfigInput{
 		MetastoreMode:       MetastorePassthrough,

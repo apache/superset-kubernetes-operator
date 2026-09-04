@@ -473,6 +473,21 @@ func componentRoutes(superset *supersetv1alpha1.Superset) []componentRoute {
 	return routes
 }
 
+// componentRoutesExcludingWebServer returns the operator-managed component routes
+// (/ws, /mcp, /flower for present components) without the web server's "/" catch-all.
+// These are always exposed on an Ingress host, even one with user-defined paths, so
+// the websocket/MCP/Flower routes aren't lost when a host overrides the web routing.
+func componentRoutesExcludingWebServer(superset *supersetv1alpha1.Superset) []componentRoute {
+	webSvc := webServerDescriptor.resourceBaseName(&superset.Spec, superset.Name)
+	var routes []componentRoute
+	for _, rt := range componentRoutes(superset) {
+		if rt.svcName != webSvc {
+			routes = append(routes, rt)
+		}
+	}
+	return routes
+}
+
 // ingressPath builds a single Ingress HTTP path rule pointing at a Service.
 func ingressPath(path string, pathType networkingv1.PathType, svcName string, port int32) networkingv1.HTTPIngressPath {
 	pt := pathType
@@ -521,18 +536,22 @@ func (r *SupersetReconciler) reconcileIngress(ctx context.Context, superset *sup
 			}
 		}
 
-		// Build rules from hosts. A host without explicit Paths gets the full
-		// per-component fan-out (web "/" plus /flower, /mcp, /ws for present
-		// components), mirroring the Gateway HTTPRoute. A host with explicit
-		// Paths is treated as a user-controlled override and routes those paths
-		// to the web server.
-		routes := componentRoutes(superset)
+		// Build rules from hosts. Operator-managed component routes (/ws, /mcp,
+		// /flower) are always exposed. A host without explicit Paths also gets the
+		// web server's "/" catch-all; a host with explicit Paths routes those paths
+		// to the web server instead (user-controlled web routing), while still
+		// keeping the component routes above.
+		componentRoutes := componentRoutesExcludingWebServer(superset)
 		for _, h := range hosts {
 			rule := networkingv1.IngressRule{
 				Host: h.Host,
 				IngressRuleValue: networkingv1.IngressRuleValue{
 					HTTP: &networkingv1.HTTPIngressRuleValue{},
 				},
+			}
+
+			for _, rt := range componentRoutes {
+				rule.HTTP.Paths = append(rule.HTTP.Paths, ingressPath(rt.path, networkingv1.PathTypePrefix, rt.svcName, rt.port))
 			}
 
 			if len(h.Paths) > 0 {
@@ -544,9 +563,7 @@ func (r *SupersetReconciler) reconcileIngress(ctx context.Context, superset *sup
 					rule.HTTP.Paths = append(rule.HTTP.Paths, ingressPath(p.Path, pathType, webServerSvcName, webServerPort))
 				}
 			} else {
-				for _, rt := range routes {
-					rule.HTTP.Paths = append(rule.HTTP.Paths, ingressPath(rt.path, networkingv1.PathTypePrefix, rt.svcName, rt.port))
-				}
+				rule.HTTP.Paths = append(rule.HTTP.Paths, ingressPath("/", networkingv1.PathTypePrefix, webServerSvcName, webServerPort))
 			}
 
 			ingress.Spec.Rules = append(ingress.Spec.Rules, rule)
