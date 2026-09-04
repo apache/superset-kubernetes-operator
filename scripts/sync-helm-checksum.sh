@@ -71,7 +71,13 @@ case "${mode}" in
       echo "install-helm.sh HELM_SHA256 is out of sync with Helm ${HELM_VERSION} (${HELM_PLATFORM})." >&2
       echo "  pinned:    ${CURRENT_SHA}" >&2
       echo "  published: ${NEW_SHA}" >&2
-      echo "Run 'make sync-helm-checksum' to update." >&2
+      echo >&2
+      echo "If you JUST bumped HELM_VERSION, regenerate the pin: make sync-helm-checksum" >&2
+      echo "If HELM_VERSION is UNCHANGED, this is a potential compromise or corruption" >&2
+      echo "of get.helm.sh (the checksum is served from the same origin as the tarball," >&2
+      echo "so it cannot be trusted on its own). Do NOT overwrite the pin: verify the" >&2
+      echo "release out-of-band against Helm's GPG-signed checksums and involve security" >&2
+      echo "contacts before changing HELM_SHA256." >&2
       exit 1
     fi
     ;;

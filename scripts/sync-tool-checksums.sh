@@ -46,7 +46,11 @@ MAKEFILE="${REPO_ROOT}/Makefile"
 CHECKSUMS="${REPO_ROOT}/hack/tool-checksums.txt"
 
 mode="${1:---check}"
-case "${mode}" in --check|--write) ;; *) echo "usage: $0 [--check|--write]" >&2; exit 2 ;; esac
+allow_same_version="${2:-}"
+case "${mode}" in --check|--write) ;; *) echo "usage: $0 [--check|--write] [--allow-same-version-hash-change]" >&2; exit 2 ;; esac
+if [ -n "${allow_same_version}" ] && [ "${allow_same_version}" != "--allow-same-version-hash-change" ]; then
+  echo "usage: $0 [--check|--write] [--allow-same-version-hash-change]" >&2; exit 2
+fi
 
 command -v curl >/dev/null || { echo "curl required" >&2; exit 1; }
 
@@ -157,6 +161,32 @@ for plat in linux-amd64 linux-arm64 macos-amd64 macos-arm64; do
   printf '%s  %s/%s\n' "${sha}" "${HELM_UNITTEST_VERSION}" "${asset}" >> "${out}"
 done
 
+# Detect a checksum change for a tool version that did NOT change — the
+# signature of an upstream release-asset swap, which is exactly the compromise
+# these in-repo pins exist to catch. Entries are "<sha>  <version>/<asset>", so
+# a same-version swap shows up as a matching path with a differing hash (a real
+# version bump changes the path and is treated as new, not a swap).
+same_version_swaps=""
+while read -r old_sha old_path; do
+  [ -n "${old_path}" ] || continue
+  new_sha="$(awk -v p="${old_path}" '$2 == p {print $1; exit}' "${out}")"
+  if [ -n "${new_sha}" ] && [ "${new_sha}" != "${old_sha}" ]; then
+    same_version_swaps+="  ${old_path}: pinned ${old_sha} -> upstream ${new_sha}"$'\n'
+  fi
+done < <(awk '$1 ~ /^[a-f0-9]{64}$/ {print $1, $2}' "${CHECKSUMS}")
+
+if [ -n "${same_version_swaps}" ] && [ "${allow_same_version}" != "--allow-same-version-hash-change" ]; then
+  {
+    echo "POSSIBLE UPSTREAM ASSET SWAP: upstream checksum(s) changed for tool version(s) that did NOT change:"
+    printf '%s' "${same_version_swaps}"
+    echo "A same-version hash change is the exact compromise signal these pins exist to catch."
+    echo "Do NOT merge this as a routine sync. Verify the affected release(s) out-of-band, and"
+    echo "only if confirmed legitimate rerun with:"
+    echo "  make sync-tool-checksums ARGS=--allow-same-version-hash-change"
+  } >&2
+  exit 3
+fi
+
 case "${mode}" in
   --write)
     if cmp -s "${out}" "${CHECKSUMS}"; then
@@ -169,7 +199,7 @@ case "${mode}" in
   --check)
     if ! diff -u "${CHECKSUMS}" "${out}"; then
       echo "hack/tool-checksums.txt is out of sync with the pinned tool versions." >&2
-      echo "Run 'make sync-tool-checksums' to update." >&2
+      echo "Run 'make sync-tool-checksums' to update (after a deliberate version bump)." >&2
       exit 1
     fi
     ;;
