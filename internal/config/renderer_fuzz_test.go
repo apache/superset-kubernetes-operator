@@ -113,6 +113,12 @@ func FuzzRenderConfig(f *testing.F) {
 			if second := RenderConfig(ct, input); first != second {
 				t.Fatalf("RenderConfig(%q) is non-deterministic:\nfirst:\n%s\nsecond:\n%s", ct, first, second)
 			}
+			// A user-controlled keyPrefix must never be interpolated into the
+			// instance f-string: braces after "{_superset_instance}_" would mean
+			// the prefix is evaluated as a Python expression at config import.
+			if strings.Contains(first, `f"{_superset_instance}_{`) {
+				t.Fatalf("RenderConfig(%q) interpolated keyPrefix %q into an f-string:\n%s", ct, keyPrefix, first)
+			}
 		}
 	})
 }

@@ -81,16 +81,16 @@ PGPASSWORD="$SUPERSET_OPERATOR__DB_PASS" createdb -h "$SUPERSET_OPERATOR__DB_HOS
 PGPASSWORD="$SUPERSET_OPERATOR__SEED_SRC_PASS" pg_dump -h "$SUPERSET_OPERATOR__SEED_SRC_HOST" -p "$SUPERSET_OPERATOR__SEED_SRC_PORT" -U "$SUPERSET_OPERATOR__SEED_SRC_USER" --no-owner --no-privileges`)
 
 	for _, t := range seed.ExcludeTables {
-		fmt.Fprintf(&b, ` --exclude-table=%q`, t)
+		fmt.Fprintf(&b, ` --exclude-table=%s`, shellQuote(t))
 	}
 	for _, t := range seed.ExcludeTableData {
-		fmt.Fprintf(&b, ` --exclude-table-data=%q`, t)
+		fmt.Fprintf(&b, ` --exclude-table-data=%s`, shellQuote(t))
 	}
 
 	b.WriteString(` "$SUPERSET_OPERATOR__SEED_SRC_DB" | PGPASSWORD="$SUPERSET_OPERATOR__DB_PASS" psql -h "$SUPERSET_OPERATOR__DB_HOST" -p "$SUPERSET_OPERATOR__DB_PORT" -U "$SUPERSET_OPERATOR__DB_USER" "$SUPERSET_OPERATOR__DB_NAME"`)
 
 	for _, sql := range seed.PostSeedSQL {
-		fmt.Fprintf(&b, "\nPGPASSWORD=\"$SUPERSET_OPERATOR__DB_PASS\" psql -h \"$SUPERSET_OPERATOR__DB_HOST\" -p \"$SUPERSET_OPERATOR__DB_PORT\" -U \"$SUPERSET_OPERATOR__DB_USER\" \"$SUPERSET_OPERATOR__DB_NAME\" -c %q", sql)
+		fmt.Fprintf(&b, "\nPGPASSWORD=\"$SUPERSET_OPERATOR__DB_PASS\" psql -h \"$SUPERSET_OPERATOR__DB_HOST\" -p \"$SUPERSET_OPERATOR__DB_PORT\" -U \"$SUPERSET_OPERATOR__DB_USER\" \"$SUPERSET_OPERATOR__DB_NAME\" -c %s", shellQuote(sql))
 	}
 
 	return b.String()
@@ -134,22 +134,22 @@ mysql -h "$SUPERSET_OPERATOR__DB_HOST" -P "$SUPERSET_OPERATOR__DB_PORT" -u "$SUP
 		fmt.Fprintf(&b, "%s --single-transaction --no-data", mysqldumpHead)
 		b.WriteString(` "$SUPERSET_OPERATOR__SEED_SRC_DB"`)
 		for _, t := range seed.ExcludeTableData {
-			fmt.Fprintf(&b, ` %q`, t)
+			fmt.Fprintf(&b, ` %s`, shellQuote(t))
 		}
 		b.WriteString(" ; ")
 	}
 
 	fmt.Fprintf(&b, "%s --single-transaction --routines --triggers", mysqldumpHead)
 	for _, t := range seed.ExcludeTables {
-		fmt.Fprintf(&b, ` --ignore-table="$SUPERSET_OPERATOR__SEED_SRC_DB".%q`, t)
+		fmt.Fprintf(&b, ` --ignore-table="$SUPERSET_OPERATOR__SEED_SRC_DB".%s`, shellQuote(t))
 	}
 	for _, t := range seed.ExcludeTableData {
-		fmt.Fprintf(&b, ` --ignore-table="$SUPERSET_OPERATOR__SEED_SRC_DB".%q`, t)
+		fmt.Fprintf(&b, ` --ignore-table="$SUPERSET_OPERATOR__SEED_SRC_DB".%s`, shellQuote(t))
 	}
 	b.WriteString(` "$SUPERSET_OPERATOR__SEED_SRC_DB" ) | mysql -h "$SUPERSET_OPERATOR__DB_HOST" -P "$SUPERSET_OPERATOR__DB_PORT" -u "$SUPERSET_OPERATOR__DB_USER" "$SUPERSET_OPERATOR__DB_NAME"`)
 
 	for _, sql := range seed.PostSeedSQL {
-		fmt.Fprintf(&b, "\nmysql -h \"$SUPERSET_OPERATOR__DB_HOST\" -P \"$SUPERSET_OPERATOR__DB_PORT\" -u \"$SUPERSET_OPERATOR__DB_USER\" \"$SUPERSET_OPERATOR__DB_NAME\" -e %q", sql)
+		fmt.Fprintf(&b, "\nmysql -h \"$SUPERSET_OPERATOR__DB_HOST\" -P \"$SUPERSET_OPERATOR__DB_PORT\" -u \"$SUPERSET_OPERATOR__DB_USER\" \"$SUPERSET_OPERATOR__DB_NAME\" -e %s", shellQuote(sql))
 	}
 
 	return b.String()

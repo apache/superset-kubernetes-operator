@@ -20,7 +20,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -85,16 +84,16 @@ func TestBuildSeedScript(t *testing.T) {
 
 		script := buildPostgresSeedScript(seed)
 
-		if !strings.Contains(script, `--exclude-table="logs"`) {
+		if !strings.Contains(script, `--exclude-table='logs'`) {
 			t.Errorf("expected --exclude-table for logs, got: %s", script)
 		}
-		if !strings.Contains(script, `--exclude-table="tab_state"`) {
+		if !strings.Contains(script, `--exclude-table='tab_state'`) {
 			t.Errorf("expected --exclude-table for tab_state, got: %s", script)
 		}
-		if !strings.Contains(script, `--exclude-table-data="query"`) {
+		if !strings.Contains(script, `--exclude-table-data='query'`) {
 			t.Errorf("expected --exclude-table-data for query, got: %s", script)
 		}
-		if !strings.Contains(script, `--exclude-table-data="saved_query"`) {
+		if !strings.Contains(script, `--exclude-table-data='saved_query'`) {
 			t.Errorf("expected --exclude-table-data for saved_query, got: %s", script)
 		}
 	})
@@ -173,10 +172,10 @@ func TestBuildSeedScript(t *testing.T) {
 
 		script := buildMySQLSeedScript(seed)
 
-		if !strings.Contains(script, `--ignore-table="$SUPERSET_OPERATOR__SEED_SRC_DB"."logs"`) {
+		if !strings.Contains(script, `--ignore-table="$SUPERSET_OPERATOR__SEED_SRC_DB".'logs'`) {
 			t.Errorf("expected --ignore-table for logs, got: %s", script)
 		}
-		if !strings.Contains(script, `--ignore-table="$SUPERSET_OPERATOR__SEED_SRC_DB"."tab_state"`) {
+		if !strings.Contains(script, `--ignore-table="$SUPERSET_OPERATOR__SEED_SRC_DB".'tab_state'`) {
 			t.Errorf("expected --ignore-table for tab_state, got: %s", script)
 		}
 	})
@@ -203,13 +202,13 @@ func TestBuildSeedScript(t *testing.T) {
 		if strings.Contains(script, "--skip-triggers") {
 			t.Errorf("schema-only pass must preserve triggers (mirrors Postgres --exclude-table-data which keeps schema objects), got: %s", script)
 		}
-		if !strings.Contains(script, `"$SUPERSET_OPERATOR__SEED_SRC_DB" "logs" "query"`) {
+		if !strings.Contains(script, `"$SUPERSET_OPERATOR__SEED_SRC_DB" 'logs' 'query'`) {
 			t.Errorf("expected schema-only dump to list logs and query tables, got: %s", script)
 		}
 
 		// Data pass should --ignore-table both ExcludeTables and ExcludeTableData.
 		for _, table := range []string{"tab_state", "logs", "query"} {
-			needle := `--ignore-table="$SUPERSET_OPERATOR__SEED_SRC_DB".` + fmt.Sprintf("%q", table)
+			needle := `--ignore-table="$SUPERSET_OPERATOR__SEED_SRC_DB".` + shellQuote(table)
 			if !strings.Contains(script, needle) {
 				t.Errorf("expected --ignore-table for %q in data pass, got: %s", table, script)
 			}
@@ -256,10 +255,10 @@ func TestBuildSeedScript(t *testing.T) {
 			if !strings.Contains(script, `psql`) {
 				t.Fatal("expected psql in script")
 			}
-			if !strings.Contains(script, `-c "UPDATE report_schedule SET active = false"`) {
+			if !strings.Contains(script, `-c 'UPDATE report_schedule SET active = false'`) {
 				t.Errorf("expected first postSeedSQL statement, got: %s", script)
 			}
-			if !strings.Contains(script, `-c "DELETE FROM oauth2_token"`) {
+			if !strings.Contains(script, `-c 'DELETE FROM oauth2_token'`) {
 				t.Errorf("expected second postSeedSQL statement, got: %s", script)
 			}
 		})
@@ -275,10 +274,40 @@ func TestBuildSeedScript(t *testing.T) {
 
 			script := buildMySQLSeedScript(seed)
 
-			if !strings.Contains(script, `-e "UPDATE report_schedule SET active = 0"`) {
+			if !strings.Contains(script, `-e 'UPDATE report_schedule SET active = 0'`) {
 				t.Errorf("expected postSeedSQL statement in mysql script, got: %s", script)
 			}
 		})
+	})
+
+	t.Run("shell metacharacters in table/SQL fields are inert", func(t *testing.T) {
+		mysqlType := "MySQL"
+		// $(...) command substitution and backticks would execute inside a
+		// double-quoted shell context; single-quoting via shellQuote neutralizes
+		// them while passing the value verbatim to the dump/restore tools.
+		payloads := []string{"x$(id)", "y`whoami`", `z"$(touch /tmp/pwn)"`}
+		for _, p := range payloads {
+			pg := buildPostgresSeedScript(&supersetv1alpha1.SeedTaskSpec{
+				Source:        supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"},
+				ExcludeTables: []string{p},
+				PostSeedSQL:   []string{p},
+			})
+			my := buildMySQLSeedScript(&supersetv1alpha1.SeedTaskSpec{
+				Source:        supersetv1alpha1.SeedSourceSpec{Type: &mysqlType, Host: "h", Database: "d", Username: "u"},
+				ExcludeTables: []string{p},
+				PostSeedSQL:   []string{p},
+			})
+			for _, script := range []string{pg, my} {
+				// The value must appear only inside a single-quoted argument.
+				if !strings.Contains(script, shellQuote(p)) {
+					t.Errorf("expected single-quoted payload %q, got: %s", p, script)
+				}
+				// It must never appear as a bare, shell-active token.
+				if strings.Contains(script, "=\""+p+"\"") || strings.Contains(script, " "+p+" ") {
+					t.Errorf("payload %q must not appear shell-active, got: %s", p, script)
+				}
+			}
+		}
 	})
 }
 

@@ -301,7 +301,7 @@ func renderValkey(b *strings.Builder, v *ValkeyInput) {
 		fmt.Fprintf(b, "%s = {\n", s.pythonVar)
 		b.WriteString("    \"CACHE_TYPE\": \"RedisCache\",\n")
 		fmt.Fprintf(b, "    \"CACHE_DEFAULT_TIMEOUT\": %d,\n", s.input.DefaultTimeout)
-		fmt.Fprintf(b, "    \"CACHE_KEY_PREFIX\": f\"{_superset_instance}_%s\",\n", pyQuote(s.input.KeyPrefix))
+		fmt.Fprintf(b, "    \"CACHE_KEY_PREFIX\": f\"{_superset_instance}_\" + \"%s\",\n", pyQuote(s.input.KeyPrefix))
 		fmt.Fprintf(b, "    \"CACHE_REDIS_URL\": f\"{_vk_base}/%d\",\n", s.input.Database)
 		if hasSSLOpts {
 			b.WriteString("    \"CACHE_OPTIONS\": _vk_ssl_opts,\n")
@@ -320,7 +320,7 @@ func renderValkey(b *strings.Builder, v *ValkeyInput) {
 		fmt.Fprintf(b, "    username=os.environ.get(\"%s\") or None,\n", common.EnvValkeyUser)
 		fmt.Fprintf(b, "    password=os.environ.get(\"%s\", \"\"),\n", common.EnvValkeyPass)
 		fmt.Fprintf(b, "    db=%d,\n", v.ResultsBackend.Database)
-		fmt.Fprintf(b, "    key_prefix=f\"{_superset_instance}_%s\",\n", pyQuote(v.ResultsBackend.KeyPrefix))
+		fmt.Fprintf(b, "    key_prefix=f\"{_superset_instance}_\" + \"%s\",\n", pyQuote(v.ResultsBackend.KeyPrefix))
 		if v.SSL {
 			b.WriteString("    ssl=True,\n")
 		}
@@ -381,6 +381,12 @@ func renderFeatureFlags(b *strings.Builder, flags map[string]bool) {
 // pyQuote returns s escaped for use inside a Python double-quoted string literal.
 // It strips the surrounding quotes from strconv.Quote so callers embed the result
 // in their own quoting context: fmt.Fprintf(b, `"CACHE_KEY_PREFIX": "%s"`, pyQuote(s)).
+//
+// It escapes quotes, backslashes, and control characters but NOT braces, so its
+// output is only safe inside a plain (non-f) string literal. To place a quoted
+// value adjacent to an f-string, concatenate a separate plain literal
+// (f"{x}_" + "<pyQuoted>") rather than interpolating it into the f-string, where
+// braces would be evaluated as expressions.
 func pyQuote(s string) string {
 	q := strconv.Quote(s)
 	return q[1 : len(q)-1]
