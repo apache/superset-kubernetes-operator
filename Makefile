@@ -293,11 +293,13 @@ lint-fix: lint-go-fix lint-md-fix ## Auto-fix all linters that support it (Go, M
 
 .PHONY: lint-go
 lint-go: golangci-lint ## Run the Go linter (golangci-lint).
+	$(GOLANGCI_LINT) fmt --diff
 	$(GOLANGCI_LINT) run
 
 .PHONY: lint-go-fix
 lint-go-fix: golangci-lint ## Run the Go linter and apply fixes.
 	$(GOLANGCI_LINT) run --fix
+	$(GOLANGCI_LINT) fmt
 
 .PHONY: lint-go-config
 lint-go-config: golangci-lint ## Verify the golangci-lint configuration.
