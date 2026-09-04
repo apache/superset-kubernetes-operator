@@ -172,6 +172,15 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		return blockResult, nil
 	}
 
+	// Block the pipeline when seed is configured outside Development/Staging.
+	// CEL already forbids this, but the default seed script begins with a
+	// destructive DROP DATABASE, so the controller re-checks defensively against
+	// a CR that slips past admission (older CRD, direct etcd write, apiserver
+	// without CEL), mirroring createDatabaseEnabled.
+	if blockResult, blocked := r.gateOnSeedEnvironment(superset); blocked {
+		return blockResult, nil
+	}
+
 	// Resolve the current lifecycle image.
 	var imageOverride *supersetv1alpha1.ImageOverrideSpec
 	if superset.Spec.Lifecycle != nil {
@@ -332,6 +341,33 @@ func (r *SupersetReconciler) gateOnInvalidSeedSchedule(superset *supersetv1alpha
 		metav1.ConditionFalse, "InvalidCronSchedule", message, superset.Generation)
 	r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "InvalidCronSchedule", "Lifecycle",
 		"Lifecycle blocked: seed cronSchedule %q is invalid", expr)
+	return lifecycleTerminal(), true
+}
+
+// gateOnSeedEnvironment blocks the pipeline when seed is configured but the
+// environment is not Development or Staging. The CRD CEL rule already forbids
+// this, but the default seed script opens with a destructive DROP DATABASE, so
+// the controller re-checks defensively against a CR that slips past admission
+// (older CRD version, direct etcd write, apiserver without CEL). Mirrors the
+// createDatabaseEnabled precedent.
+func (r *SupersetReconciler) gateOnSeedEnvironment(superset *supersetv1alpha1.Superset) (lifecycleResult, bool) {
+	if superset.Spec.Lifecycle == nil || superset.Spec.Lifecycle.Seed == nil {
+		return lifecycleResult{}, false
+	}
+	if isDisabled(superset.Spec.Lifecycle.Seed.Disabled) {
+		return lifecycleResult{}, false
+	}
+	env := superset.Spec.Environment
+	if env != nil && (*env == naming.EnvironmentDev || *env == naming.EnvironmentStaging) {
+		return lifecycleResult{}, false
+	}
+	message := "seed is only allowed when environment is Development or Staging; refusing to run the destructive seed"
+	superset.Status.Lifecycle.Phase = lifecyclePhaseBlocked
+	superset.Status.Phase = phaseBlocked
+	setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
+		metav1.ConditionFalse, "SeedEnvironmentNotAllowed", message, superset.Generation)
+	r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "SeedEnvironmentNotAllowed", "Lifecycle",
+		"Lifecycle blocked: %s", message)
 	return lifecycleTerminal(), true
 }
 

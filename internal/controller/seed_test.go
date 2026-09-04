@@ -487,6 +487,7 @@ func TestCollectSeedEnvVars(t *testing.T) {
 	port := int32(5432)
 
 	superset := &supersetv1alpha1.Superset{}
+	superset.Spec.Environment = common.Ptr(common.EnvironmentDev)
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 		Seed: &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
@@ -1772,4 +1773,86 @@ func TestIsTaskEnabled_InvalidCronScheduleGatesSeed(t *testing.T) {
 	if !r.isTaskEnabled(superset, taskTypeSeed) {
 		t.Fatal("expected seed to be enabled when no CronSchedule is set")
 	}
+}
+
+// TestCollectSeedEnvVars_ProductionDropsInlinePasswords verifies the inline
+// seed source and target password literals are dropped outside Development
+// (defense in depth behind CEL), falling back to the *From reference.
+func TestCollectSeedEnvVars_ProductionDropsInlinePasswords(t *testing.T) {
+	superset := &supersetv1alpha1.Superset{}
+	superset.Spec.Environment = common.Ptr(common.EnvironmentProd)
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		Seed: &supersetv1alpha1.SeedTaskSpec{
+			Source: supersetv1alpha1.SeedSourceSpec{
+				Host: "pg-prod.svc", Database: "d", Username: "u",
+				Password: common.Ptr("inline-src"),
+			},
+		},
+	}
+	superset.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+		Host: common.Ptr("pg-staging.svc"), Database: common.Ptr("d"), Username: common.Ptr("u"),
+		Password: common.Ptr("inline-target"),
+	}
+
+	for _, e := range collectSeedEnvVars(superset) {
+		if e.Name == common.EnvSeedSrcPass && e.Value != "" {
+			t.Errorf("inline seed source password must be dropped outside Development, got %q", e.Value)
+		}
+		if e.Name == common.EnvDBPass && e.Value != "" {
+			t.Errorf("inline seed target password must be dropped outside Development, got %q", e.Value)
+		}
+	}
+}
+
+func TestGateOnSeedEnvironment(t *testing.T) {
+	newSuperset := func(env string, seedDisabled *bool) *supersetv1alpha1.Superset {
+		s := &supersetv1alpha1.Superset{
+			ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+			Spec: supersetv1alpha1.SupersetSpec{
+				Lifecycle: &supersetv1alpha1.LifecycleSpec{
+					Seed: &supersetv1alpha1.SeedTaskSpec{
+						Disabled: seedDisabled,
+						Source:   supersetv1alpha1.SeedSourceSpec{Host: "src"},
+					},
+				},
+			},
+		}
+		if env != "" {
+			s.Spec.Environment = common.Ptr(env)
+		}
+		s.Status.Lifecycle = &supersetv1alpha1.LifecycleStatus{}
+		return s
+	}
+	r := &SupersetReconciler{Recorder: events.NewFakeRecorder(10)}
+
+	t.Run("blocks in production", func(t *testing.T) {
+		s := newSuperset(common.EnvironmentProd, nil)
+		res, blocked := r.gateOnSeedEnvironment(s)
+		if !blocked || !res.TerminalFailure {
+			t.Fatalf("expected block+terminal in Production, got blocked=%v res=%#v", blocked, res)
+		}
+		if !hasLifecycleConditionReason(s, "SeedEnvironmentNotAllowed") {
+			t.Fatal("expected SeedEnvironmentNotAllowed condition")
+		}
+	})
+	t.Run("blocks when environment unset (defaults to Production)", func(t *testing.T) {
+		if _, blocked := r.gateOnSeedEnvironment(newSuperset("", nil)); !blocked {
+			t.Fatal("expected block when environment unset")
+		}
+	})
+	t.Run("allows in staging", func(t *testing.T) {
+		if _, blocked := r.gateOnSeedEnvironment(newSuperset(common.EnvironmentStaging, nil)); blocked {
+			t.Fatal("expected no block in Staging")
+		}
+	})
+	t.Run("allows in development", func(t *testing.T) {
+		if _, blocked := r.gateOnSeedEnvironment(newSuperset(common.EnvironmentDev, nil)); blocked {
+			t.Fatal("expected no block in Development")
+		}
+	})
+	t.Run("no-op when seed disabled", func(t *testing.T) {
+		if _, blocked := r.gateOnSeedEnvironment(newSuperset(common.EnvironmentProd, common.Ptr(true))); blocked {
+			t.Fatal("expected no block when seed disabled")
+		}
+	})
 }

@@ -161,6 +161,7 @@ func collectSeedEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVar {
 	var envs []corev1.EnvVar
 	seed := superset.Spec.Lifecycle.Seed
 	spec := &superset.Spec
+	isDev := isDevEnvironment(spec)
 
 	// Source env vars.
 	envs = append(envs, corev1.EnvVar{Name: naming.EnvSeedSrcHost, Value: seed.Source.Host})
@@ -173,7 +174,7 @@ func collectSeedEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVar {
 	envs = append(envs, corev1.EnvVar{Name: naming.EnvSeedSrcDB, Value: seed.Source.Database})
 	envs = append(envs, corev1.EnvVar{Name: naming.EnvSeedSrcUser, Value: seed.Source.Username})
 
-	if seed.Source.Password != nil {
+	if isDev && seed.Source.Password != nil {
 		envs = append(envs, corev1.EnvVar{Name: naming.EnvSeedSrcPass, Value: *seed.Source.Password})
 	} else if seed.Source.PasswordFrom != nil {
 		envs = append(envs, corev1.EnvVar{
@@ -196,7 +197,7 @@ func collectSeedEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVar {
 		if spec.Metastore.Username != nil {
 			envs = append(envs, corev1.EnvVar{Name: naming.EnvDBUser, Value: *spec.Metastore.Username})
 		}
-		if spec.Metastore.Password != nil {
+		if isDev && spec.Metastore.Password != nil {
 			envs = append(envs, corev1.EnvVar{Name: naming.EnvDBPass, Value: *spec.Metastore.Password})
 		} else if spec.Metastore.PasswordFrom != nil {
 			envs = append(envs, corev1.EnvVar{

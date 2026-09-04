@@ -40134,6 +40134,13 @@ spec:
           rule: '!has(self.spec.serviceAccount) || (has(self.spec.serviceAccount.create)
             && self.spec.serviceAccount.create == false) || !has(self.spec.serviceAccount.name)
             || self.spec.serviceAccount.name == self.metadata.name'
+        - message: environment cannot be changed from Production to Development or
+            Staging in place (it would re-arm inline secrets and the destructive seed
+            against production references); delete and recreate the Superset to change
+            environment out of Production
+          rule: '!((!has(oldSelf.spec.environment) || oldSelf.spec.environment ==
+            ''Production'') && (has(self.spec.environment) && self.spec.environment
+            != ''Production''))'
     served: true
     storage: true
     subresources:

@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
@@ -582,6 +583,45 @@ var _ = Describe("CEL Validation", Ordered, func() {
 				Name:   "some-other-name",
 			}
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+	})
+
+	// --- Environment transitions (no in-place downgrade out of Production) ---
+
+	Describe("Environment transitions", func() {
+		It("rejects in-place downgrade from Production to Development", func() {
+			cr := validProdSuperset("env-downgrade-dev")
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+
+			// A live controller reconciles this CR and patches its status, bumping
+			// the resourceVersion; retry the read-modify-update so it lands on a
+			// current version and the CEL transition rule (not an optimistic-lock
+			// conflict) is what rejects the change.
+			Eventually(func(g Gomega) {
+				fetched := &supersetv1alpha1.Superset{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cr), fetched)).To(Succeed())
+				dev := common.EnvironmentDev
+				fetched.Spec.Environment = &dev
+				err := k8sClient.Update(ctx, fetched)
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(err.Error()).To(ContainSubstring("environment cannot be changed from Production"))
+			}).Should(Succeed())
+		})
+
+		It("allows upgrade from Staging to Production", func() {
+			cr := validProdSuperset("env-upgrade-prod")
+			staging := common.EnvironmentStaging
+			cr.Spec.Environment = &staging
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+
+			// Retry read-modify-update around controller-driven status churn.
+			Eventually(func(g Gomega) {
+				fetched := &supersetv1alpha1.Superset{}
+				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cr), fetched)).To(Succeed())
+				prod := common.EnvironmentProd
+				fetched.Spec.Environment = &prod
+				g.Expect(k8sClient.Update(ctx, fetched)).To(Succeed())
+			}).Should(Succeed())
 		})
 	})
 
