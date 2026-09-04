@@ -116,9 +116,44 @@ func TestRedactCredentials(t *testing.T) {
 			want: "ssl passphrase=*** rejected",
 		},
 		{
+			name: "json quoted key and value",
+			in:   `{"host": "db", "password": "hunter2"}`,
+			want: `{"host": "db", "password": ***}`,
+		},
+		{
+			name: "python dict repr single quotes",
+			in:   "{'host': 'db', 'db_password': 'hunter2'}",
+			want: `{'host': 'db', 'db_password': ***}`,
+		},
+		{
+			name: "json quoted key with bare value",
+			in:   `{"host": "db", "password": hunter2, "port": 5432}`,
+			want: `{"host": "db", "password": ***, "port": 5432}`,
+		},
+		{
+			name: "python dict repr quoted key with bare numeric value",
+			in:   "{'host': 'db', 'password': 12345}",
+			want: `{'host': 'db', 'password': ***}`,
+		},
+		{
+			name: "quoted secret_key with spaces in value is masked in full",
+			in:   `"secret_key": "two words here"`,
+			want: `"secret_key": ***`,
+		},
+		{
+			name: "quoted authorization value",
+			in:   `"authorization": "Bearer eyJ.abc.def"`,
+			want: `"authorization": ***`,
+		},
+		{
 			name: "idempotent on already-redacted output",
 			in:   "postgresql://superset:***@db:5432/superset password=*** Authorization: Bearer ***",
 			want: "postgresql://superset:***@db:5432/superset password=*** Authorization: Bearer ***",
+		},
+		{
+			name: "idempotent on already-redacted quoted value",
+			in:   `{"password": ***}`,
+			want: `{"password": ***}`,
 		},
 	}
 

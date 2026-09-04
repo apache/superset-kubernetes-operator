@@ -156,6 +156,97 @@ func TestReconcileNetworking_GatewayEnabled_CreatesHTTPRoute(t *testing.T) {
 	}
 }
 
+// TestReconcileNetworking_StripsReservedLabelsOnHTTPRoute verifies a CR author
+// cannot forge a reserved superset.apache.org/* label onto the HTTPRoute via
+// gateway.labels. Uses a reserved key the operator does NOT force (instance),
+// so it proves stripping, not just merge order.
+func TestReconcileNetworking_StripsReservedLabelsOnHTTPRoute(t *testing.T) {
+	scheme := testScheme(t)
+	gwNamespace := gatewayv1.Namespace("gateway-system")
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Spec: supersetv1alpha1.SupersetSpec{
+			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Networking: &supersetv1alpha1.NetworkingSpec{
+				Gateway: &supersetv1alpha1.GatewaySpec{
+					GatewayRef: gatewayv1.ParentReference{Name: "my-gateway", Namespace: &gwNamespace},
+					Hostnames:  []gatewayv1.Hostname{"superset.example.com"},
+					Labels: map[string]string{
+						"superset.apache.org/instance": "victim",
+						"team":                         "data",
+					},
+				},
+			},
+		},
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	if err := r.reconcileNetworking(context.Background(), superset); err != nil {
+		t.Fatalf("reconcileNetworking: %v", err)
+	}
+	route := &gatewayv1.HTTPRoute{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, route); err != nil {
+		t.Fatalf("expected HTTPRoute: %v", err)
+	}
+	if _, ok := route.Labels["superset.apache.org/instance"]; ok {
+		t.Errorf("forged reserved label survived on HTTPRoute: %v", route.Labels)
+	}
+	if route.Labels[common.LabelKeyParent] != "test" {
+		t.Errorf("operator parent label must be forced, got %q", route.Labels[common.LabelKeyParent])
+	}
+	if route.Labels["team"] != "data" {
+		t.Errorf("non-reserved user label should survive, got %q", route.Labels["team"])
+	}
+}
+
+// TestReconcileNetworking_StripsReservedLabelsOnIngress is the Ingress twin.
+func TestReconcileNetworking_StripsReservedLabelsOnIngress(t *testing.T) {
+	scheme := testScheme(t)
+	className := "nginx"
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Spec: supersetv1alpha1.SupersetSpec{
+			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Networking: &supersetv1alpha1.NetworkingSpec{
+				Ingress: &supersetv1alpha1.IngressSpec{
+					ClassName: &className,
+					Labels: map[string]string{
+						"superset.apache.org/instance": "victim",
+						"team":                         "data",
+					},
+					Hosts: []supersetv1alpha1.IngressHost{
+						{Host: "superset.example.com", Paths: []supersetv1alpha1.IngressPath{
+							{Path: "/", PathType: pathTypePtr(networkingv1.PathTypePrefix)},
+						}},
+					},
+				},
+			},
+		},
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	if err := r.reconcileIngress(context.Background(), superset); err != nil {
+		t.Fatalf("reconcileIngress: %v", err)
+	}
+	ing := &networkingv1.Ingress{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, ing); err != nil {
+		t.Fatalf("expected Ingress: %v", err)
+	}
+	if _, ok := ing.Labels["superset.apache.org/instance"]; ok {
+		t.Errorf("forged reserved label survived on Ingress: %v", ing.Labels)
+	}
+	if ing.Labels[common.LabelKeyParent] != "test" {
+		t.Errorf("operator parent label must be forced, got %q", ing.Labels[common.LabelKeyParent])
+	}
+	if ing.Labels["team"] != "data" {
+		t.Errorf("non-reserved user label should survive, got %q", ing.Labels["team"])
+	}
+}
+
 func TestReconcileHTTPRoute_WithWebsocket(t *testing.T) {
 	scheme := testScheme(t)
 

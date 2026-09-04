@@ -159,6 +159,54 @@ func TestReconcileMonitoring_ServiceMonitorShape(t *testing.T) {
 	}
 }
 
+// TestReconcileMonitoring_StripsReservedLabels verifies a forged reserved
+// superset.apache.org/* label on serviceMonitor.labels does not survive onto
+// the ServiceMonitor. Uses a reserved key the operator does NOT force
+// (init-task), so it proves stripping rather than merge order.
+func TestReconcileMonitoring_StripsReservedLabels(t *testing.T) {
+	scheme := testScheme(t)
+	superset := &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Spec: supersetv1alpha1.SupersetSpec{
+			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Monitoring: &supersetv1alpha1.MonitoringSpec{
+				ServiceMonitor: &supersetv1alpha1.ServiceMonitorSpec{
+					Labels: map[string]string{
+						"superset.apache.org/init-task": "victim",
+						"release":                       "prometheus",
+					},
+				},
+			},
+		},
+	}
+	seed := &unstructured.Unstructured{}
+	seed.SetGroupVersionKind(serviceMonitorGVK)
+	seed.SetName("test")
+	seed.SetNamespace("default")
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, seed).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	if err := r.reconcileMonitoring(context.Background(), superset); err != nil {
+		t.Fatalf("reconcileMonitoring: %v", err)
+	}
+	sm := &unstructured.Unstructured{}
+	sm.SetGroupVersionKind(serviceMonitorGVK)
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, sm); err != nil {
+		t.Fatalf("get ServiceMonitor: %v", err)
+	}
+	labels := sm.GetLabels()
+	if _, ok := labels["superset.apache.org/init-task"]; ok {
+		t.Errorf("forged reserved label survived on ServiceMonitor: %v", labels)
+	}
+	if labels["release"] != "prometheus" {
+		t.Errorf("non-reserved user label should survive, got %q", labels["release"])
+	}
+	if labels[common.LabelKeyParent] != "test" {
+		t.Errorf("operator parent label must be forced, got %q", labels[common.LabelKeyParent])
+	}
+}
+
 func TestDeleteServiceMonitors(t *testing.T) {
 	scheme := testScheme(t)
 

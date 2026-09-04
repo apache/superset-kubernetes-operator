@@ -53,6 +53,15 @@ func stripReservedLabels(labels map[string]string) map[string]string {
 	return result
 }
 
+// StripReservedLabels returns labels without any key under the reserved
+// superset.apache.org/ prefix. Callers outside this package (e.g. Service /
+// Deployment metadata merges in the controller) use it so user-supplied labels
+// cannot forge the operator's reserved identity labels on any operator-written
+// object, not only pod templates.
+func StripReservedLabels(labels map[string]string) map[string]string {
+	return stripReservedLabels(labels)
+}
+
 // ForceOperatorPodLabels folds operator-managed labels into user-supplied pod
 // labels: every user key under the reserved superset.apache.org/ prefix is
 // dropped first, then operatorLabels are applied last so they always win.
@@ -160,7 +169,7 @@ func MergeDeploymentTemplate(comp, tl *supersetv1alpha1.DeploymentTemplate) *sup
 		MinReadySeconds:         ResolveOverridableValue(c.MinReadySeconds, t.MinReadySeconds),
 		ProgressDeadlineSeconds: ResolveOverridableValue(c.ProgressDeadlineSeconds, t.ProgressDeadlineSeconds),
 		Strategy:                ResolveOverridableValue(c.Strategy, t.Strategy),
-		Labels:                  MergeMaps(t.Labels, c.Labels),
+		Labels:                  MergeMaps(stripReservedLabels(t.Labels), stripReservedLabels(c.Labels)),
 		Annotations:             MergeMaps(t.Annotations, c.Annotations),
 	}
 	if result.RevisionHistoryLimit == nil && result.MinReadySeconds == nil &&

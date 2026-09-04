@@ -19,6 +19,7 @@ limitations under the License.
 package resolution
 
 import (
+	"strings"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -129,6 +130,45 @@ func TestMergePodTemplate_ReservedLabelPrefixStripped(t *testing.T) {
 	// Non-reserved user labels still merge through.
 	if got := result.Labels["team"]; got != "data" {
 		t.Errorf("label team = %q, want data (user label preserved)", got)
+	}
+}
+
+// TestMergeDeploymentTemplate_ReservedLabelPrefixStripped verifies that reserved
+// superset.apache.org/ labels are unforgeable on Deployment object metadata too,
+// not only pod templates: a CR author must not be able to stamp another
+// instance's parent label onto their Deployment/Service metadata.
+func TestMergeDeploymentTemplate_ReservedLabelPrefixStripped(t *testing.T) {
+	comp := &supersetv1alpha1.DeploymentTemplate{
+		Labels: map[string]string{
+			common.LabelKeyParent: "victim",
+			"team":                "data",
+		},
+	}
+	tl := &supersetv1alpha1.DeploymentTemplate{
+		Labels: map[string]string{"superset.apache.org/instance": "victim-web-server"},
+	}
+
+	result := MergeDeploymentTemplate(comp, tl)
+	if result == nil {
+		t.Fatal("expected a non-nil merged template")
+	}
+	for k := range result.Labels {
+		if strings.HasPrefix(k, "superset.apache.org/") {
+			t.Errorf("reserved label %q survived the deployment-template merge", k)
+		}
+	}
+	if got := result.Labels["team"]; got != "data" {
+		t.Errorf("label team = %q, want data (non-reserved user label preserved)", got)
+	}
+}
+
+func TestStripReservedLabels_AllReservedReturnsNil(t *testing.T) {
+	result := StripReservedLabels(map[string]string{
+		common.LabelKeyParent:              "victim",
+		"superset.apache.org/custom-claim": "forged",
+	})
+	if result != nil {
+		t.Fatalf("expected nil when all labels are reserved, got %#v", result)
 	}
 }
 
