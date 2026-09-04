@@ -21,7 +21,6 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
@@ -34,8 +33,14 @@ import (
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.valkey) || !has(self.valkey.password)",message="valkey.password is only allowed when environment is Development; use valkey.passwordFrom in Staging or Production"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.lifecycle) || !has(self.lifecycle.init) || !has(self.lifecycle.init.adminUser)",message="lifecycle.init.adminUser is only allowed when environment is Development"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.lifecycle) || !has(self.lifecycle.init) || !has(self.lifecycle.init.loadExamples)",message="lifecycle.init.loadExamples is only allowed when environment is Development"
-// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.websocketServer) || !has(self.websocketServer.config)",message="websocketServer.config is only allowed when environment is Development; use websocketServer.configFrom to reference a Secret in Staging or Production"
 // +kubebuilder:validation:XValidation:rule="!has(self.networking) || !has(self.networking.ingress) || has(self.webServer)",message="spec.networking.ingress requires spec.webServer to be set (it provides the catch-all '/' route; other components are routed by path)"
+// +kubebuilder:validation:XValidation:rule="!has(self.realtime) || !has(self.realtime.asyncQueries) || (has(self.valkey) && (!has(self.valkey.distributedCoordination) || !has(self.valkey.distributedCoordination.disabled) || !self.valkey.distributedCoordination.disabled))",message="realtime.asyncQueries requires spec.valkey with distributedCoordination enabled (Global Async Queries needs the coordination backend; do not set spec.valkey.distributedCoordination.disabled)"
+// +kubebuilder:validation:XValidation:rule="!has(self.realtime) || !has(self.realtime.asyncQueries) || (has(self.celeryWorker) && has(self.celeryBeat))",message="realtime.asyncQueries requires spec.celeryWorker and spec.celeryBeat (GAQ tasks execute on a Celery worker; the reap_orphaned_tasks job runs on Celery beat)"
+// +kubebuilder:validation:XValidation:rule="!has(self.realtime) || !has(self.realtime.asyncQueries) || !has(self.valkey) || !has(self.valkey.celeryBroker) || !has(self.valkey.celeryBroker.disabled) || !self.valkey.celeryBroker.disabled",message="realtime.asyncQueries requires the managed Celery broker (do not set spec.valkey.celeryBroker.disabled); the async_queries import and reap_orphaned_tasks schedule are rendered into the operator-managed CeleryConfig"
+// +kubebuilder:validation:XValidation:rule="!has(self.realtime) || !has(self.realtime.webSocket) || (has(self.websocketServer) && has(self.valkey) && (!has(self.valkey.distributedCoordination) || !has(self.valkey.distributedCoordination.disabled) || !self.valkey.distributedCoordination.disabled))",message="realtime.webSocket requires spec.websocketServer (the workload) and spec.valkey with distributedCoordination enabled (the coordination backend; do not set spec.valkey.distributedCoordination.disabled)"
+// +kubebuilder:validation:XValidation:rule="!has(self.websocketServer) || (has(self.realtime) && has(self.realtime.webSocket))",message="spec.websocketServer requires spec.realtime.webSocket (the transport wiring: shared JWT secret and URL)"
+// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.realtime) || !has(self.realtime.webSocket) || !has(self.realtime.webSocket.jwtSecret)",message="realtime.webSocket.jwtSecret is only allowed when environment is Development; use realtime.webSocket.jwtSecretFrom in Staging or Production"
+// +kubebuilder:validation:XValidation:rule="!has(self.realtime) || !has(self.realtime.webSocket) || has(self.realtime.webSocket.url) || has(self.baseUrl) || (has(self.networking) && ((has(self.networking.ingress) && ((has(self.networking.ingress.host) && size(self.networking.ingress.host) > 0) || (has(self.networking.ingress.hosts) && self.networking.ingress.hosts.exists(h, has(h.host) && size(h.host) > 0)))) || (has(self.networking.gateway) && has(self.networking.gateway.hostnames) && self.networking.gateway.hostnames.exists(h, size(h) > 0))))",message="realtime.webSocket requires a resolvable websocket host: set realtime.webSocket.url, spec.baseUrl, or a spec.networking host (ingress.host/hosts or gateway.hostnames)"
 // +kubebuilder:validation:XValidation:rule="!has(self.networking) || !has(self.networking.gateway) || has(self.webServer) || has(self.websocketServer) || has(self.mcpServer) || has(self.celeryFlower)",message="spec.networking.gateway requires at least one component with a routable service (webServer, websocketServer, mcpServer, or celeryFlower)"
 // +kubebuilder:validation:XValidation:rule="!has(self.monitoring) || !has(self.monitoring.serviceMonitor) || has(self.webServer)",message="spec.monitoring.serviceMonitor requires spec.webServer to be set (scrapes the web server service)"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && (self.environment == 'Development' || self.environment == 'Staging')) || !has(self.lifecycle) || !has(self.lifecycle.seed) || (has(self.lifecycle.seed.disabled) && self.lifecycle.seed.disabled)",message="lifecycle.seed is only allowed when environment is Development or Staging; seeding performs a destructive DROP DATABASE on the target metastore"
@@ -140,12 +145,10 @@ type SupersetSpec struct {
 	// Celery Flower monitoring UI component.
 	// +optional
 	CeleryFlower *CeleryFlowerComponentSpec `json:"celeryFlower,omitempty"`
-	// WebSocket server for real-time updates (Node.js, no Python config).
-	// Experimental: the websocket server is not yet well supported and is
-	// pending security hardening — it may exhibit gaps in the operator (e.g.
-	// unvalidated gateway/ingress routing) or upstream in the Superset/websocket
-	// image. It requires a custom Node.js image. Treat it as subject to change
-	// and avoid enabling it in production until it is hardened.
+	// WebSocket server for realtime updates (Node.js). Ships in the official
+	// Superset image and is launched via an alternate entrypoint, so it inherits
+	// spec.image like every other component. Presence deploys the workload;
+	// configure the transport (JWT secret, URL) under spec.realtime.webSocket.
 	// +optional
 	WebsocketServer *WebsocketServerComponentSpec `json:"websocketServer,omitempty"`
 	// FastMCP server component for AI tooling integration.
@@ -155,6 +158,21 @@ type SupersetSpec struct {
 	// Lifecycle configuration (database migration, init, upgrade mode).
 	// +optional
 	Lifecycle *LifecycleSpec `json:"lifecycle,omitempty"`
+
+	// BaseURL is the external, browser-visible base URL of this deployment
+	// (e.g. "https://superset.example.com"). When set, the operator derives the
+	// realtime websocket URL and its allowed-origins allowlist from it, and
+	// renders WEBDRIVER_BASEURL_USER_FRIENDLY (the URL used in Alerts & Reports
+	// hyperlinks). Must start with http:// or https://.
+	// +optional
+	// +kubebuilder:validation:Pattern=`^https?://[^/]+`
+	BaseURL *string `json:"baseUrl,omitempty"`
+
+	// Realtime configuration: Global Async Queries (async chart data) and the
+	// realtime websocket transport. Centralizes the feature wiring that spans
+	// multiple components; the websocket workload itself is spec.websocketServer.
+	// +optional
+	Realtime *RealtimeSpec `json:"realtime,omitempty"`
 
 	// Networking configuration (Ingress or Gateway API).
 	// +optional
@@ -268,32 +286,80 @@ type CeleryFlowerComponentSpec struct {
 }
 
 // WebsocketServerComponentSpec defines the websocket server component on the parent CRD.
-// The websocket server is a Node.js app — the default Superset image does not contain
-// websocket_server.js, so an image override is required.
-//
-// Experimental: this component is not yet well supported. It requires a custom
-// Node.js image, and path-based gateway/ingress routing to it has not been
-// validated. The shape and behavior may change in a future release.
-// +kubebuilder:validation:XValidation:rule="has(self.image) && has(self.image.repository) && size(self.image.repository) > 0",message="websocketServer.image.repository is required: the default Superset image does not include websocket_server.js"
-// +kubebuilder:validation:XValidation:rule="!(has(self.config) && has(self.configFrom))",message="websocketServer.config and websocketServer.configFrom are mutually exclusive"
+// The server ships in the official Superset image (launched via an alternate
+// entrypoint), so it inherits spec.image and is configured entirely through
+// operator-injected environment variables derived from spec.realtime.webSocket
+// and spec.valkey.distributedCoordination.
 type WebsocketServerComponentSpec struct {
 	ScalableComponentSpec `json:",inline"`
 	ComponentSpec         `json:",inline"`
-	// Inline config.json content for the websocket server. Only allowed in
-	// Development mode because this config commonly contains jwtSecret or Redis
-	// credentials. In Production, use configFrom to mount an existing Secret key.
-	// +optional
-	// +kubebuilder:validation:Type=object
-	// +kubebuilder:pruning:PreserveUnknownFields
-	Config *apiextensionsv1.JSON `json:"config,omitempty"`
-	// Reference to a Secret key containing websocket server config.json.
-	// The operator mounts the selected key at /home/superset-websocket/config.json
-	// without reading or copying the Secret.
-	// +optional
-	ConfigFrom *corev1.SecretKeySelector `json:"configFrom,omitempty"`
 	// Service configuration (type, port, annotations).
 	// +optional
 	Service *ComponentServiceSpec `json:"service,omitempty"`
+}
+
+// RealtimeSpec centralizes the realtime feature wiring that spans multiple
+// components: Global Async Queries (async chart data) and the websocket
+// transport. The websocket workload itself is spec.websocketServer.
+type RealtimeSpec struct {
+	// AsyncQueries enables Global Async Queries. Presence sets the
+	// GLOBAL_ASYNC_QUERIES feature flag (which auto-enables the Global Task
+	// Framework upstream). Requires spec.valkey for distributed coordination.
+	// +optional
+	AsyncQueries *AsyncQueriesSpec `json:"asyncQueries,omitempty"`
+
+	// WebSocket configures the realtime websocket transport. Presence sets
+	// WEBSOCKET_ENABLE and wires the shared JWT secret and browser-visible URL.
+	// Requires spec.websocketServer (the workload) and spec.valkey.
+	// +optional
+	WebSocket *WebSocketTransportSpec `json:"webSocket,omitempty"`
+}
+
+// AsyncQueriesSpec is a presence marker enabling Global Async Queries. Tuning
+// knobs (polling cadence, cache TTL floors, query timeouts) are set via
+// spec.config until promoted to first-class fields.
+type AsyncQueriesSpec struct{}
+
+// WebSocketTransportSpec configures the realtime websocket transport shared by
+// the Flask app and the websocket server.
+// +kubebuilder:validation:XValidation:rule="has(self.jwtSecret) != has(self.jwtSecretFrom)",message="exactly one of jwtSecret (dev only) or jwtSecretFrom must be set"
+type WebSocketTransportSpec struct {
+	// JwtSecret is the plain-text WEBSOCKET_JWT_SECRET. Only allowed in
+	// Development mode; use jwtSecretFrom in Staging or Production.
+	// +optional
+	JwtSecret *string `json:"jwtSecret,omitempty"`
+
+	// JwtSecretFrom references a Secret key holding the WEBSOCKET_JWT_SECRET.
+	// Mutually exclusive with jwtSecret.
+	// +optional
+	JwtSecretFrom *corev1.SecretKeySelector `json:"jwtSecretFrom,omitempty"`
+
+	// URL is the browser-visible websocket endpoint (WEBSOCKET_URL). When unset,
+	// the operator derives it from spec.baseUrl, else from spec.networking and
+	// the websocket route path. Must be a ws:// or wss:// URL with a host.
+	// +optional
+	// +kubebuilder:validation:Pattern=`^wss?://[^/]+`
+	URL *string `json:"url,omitempty"`
+
+	// AllowedOrigins restricts which browser origins may open a websocket
+	// connection (the server's ALLOWED_ORIGINS, mitigating Cross-Site WebSocket
+	// Hijacking). When unset, the operator defaults it to the single origin of
+	// the resolved websocket URL (spec.baseUrl / networking). Set explicitly to
+	// permit additional origins. Each entry must be an http:// or https:// origin.
+	// +optional
+	// +listType=atomic
+	// +kubebuilder:validation:items:Pattern=`^https?://[^/?#]+$`
+	AllowedOrigins []string `json:"allowedOrigins,omitempty"`
+
+	// CookieName overrides the JWT cookie name shared by the app and the server
+	// (WEBSOCKET_JWT_COOKIE_NAME). Defaults to "superset-ws-token".
+	// +optional
+	CookieName *string `json:"cookieName,omitempty"`
+
+	// JwtExpirationSeconds overrides the websocket JWT lifetime
+	// (WEBSOCKET_JWT_EXPIRATION_SECONDS). Defaults to 900 (15 minutes) upstream.
+	// +optional
+	JwtExpirationSeconds *int32 `json:"jwtExpirationSeconds,omitempty"`
 }
 
 // McpServerComponentSpec defines the MCP server component on the parent CRD.

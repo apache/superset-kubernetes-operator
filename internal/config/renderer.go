@@ -111,6 +111,29 @@ type ConfigInput struct {
 	// FeatureFlags map rendered as FEATURE_FLAGS = {...}. Empty/nil omits the block.
 	FeatureFlags map[string]bool
 
+	// AsyncQueriesEnabled adds the async_queries Celery import and the
+	// reap_orphaned_tasks beat schedule that Global Async Queries needs.
+	AsyncQueriesEnabled bool
+
+	// WebSocketEnabled renders WEBSOCKET_ENABLE and the transport settings below.
+	WebSocketEnabled bool
+	// WebSocketURL is the browser-visible endpoint (WEBSOCKET_URL). May be empty
+	// when it could not be derived; the block still renders WEBSOCKET_ENABLE.
+	WebSocketURL string
+	// WebSocketCookieName overrides WEBSOCKET_JWT_COOKIE_NAME when set.
+	WebSocketCookieName string
+	// WebSocketJwtExpirationSeconds overrides WEBSOCKET_JWT_EXPIRATION_SECONDS when > 0.
+	WebSocketJwtExpirationSeconds int32
+
+	// BaseURL, when set, renders WEBDRIVER_BASEURL_USER_FRIENDLY (the external URL
+	// embedded in Alerts & Reports hyperlinks).
+	BaseURL string
+
+	// WebDriverBaseURL is the in-cluster web-server URL the headless browser
+	// navigates to for Alerts & Reports and thumbnails (WEBDRIVER_BASEURL).
+	// Operator-managed; empty when there is no web server.
+	WebDriverBaseURL string
+
 	// Engine options for SQLALCHEMY_ENGINE_OPTIONS. Nil = do not render.
 	EngineOptions *EngineOptionsInput
 
@@ -206,9 +229,33 @@ func RenderConfig(componentType ComponentType, input *ConfigInput) string {
 		renderFeatureFlags(&b, input.FeatureFlags)
 	}
 
+	// [2.8] Realtime websocket transport
+	if input.WebSocketEnabled {
+		renderWebSocket(&b, input)
+	}
+
+	// [2.85] Namespace the realtime/GTF Pub/Sub channels by the instance prefix so
+	// multiple deployments can share one Valkey/Redis (Pub/Sub is not DB-scoped).
+	if input.AsyncQueriesEnabled || input.WebSocketEnabled {
+		renderRealtimeChannels(&b)
+	}
+
+	// [2.9] Alerts & Reports / thumbnail render URLs. WEBDRIVER_BASEURL is the
+	// operator-managed in-cluster target; USER_FRIENDLY is the external URL for
+	// report hyperlinks.
+	if input.WebDriverBaseURL != "" {
+		fmt.Fprintf(&b, "WEBDRIVER_BASEURL = \"%s\"\n", pyQuote(input.WebDriverBaseURL))
+	}
+	if input.BaseURL != "" {
+		fmt.Fprintf(&b, "WEBDRIVER_BASEURL_USER_FRIENDLY = \"%s\"\n", pyQuote(input.BaseURL))
+	}
+	if input.WebDriverBaseURL != "" || input.BaseURL != "" {
+		b.WriteString("\n")
+	}
+
 	// [3] Valkey cache config
 	if input.Valkey != nil {
-		renderValkey(&b, input.Valkey)
+		renderValkey(&b, input.Valkey, input.AsyncQueriesEnabled)
 	}
 
 	// [4] Base config (spec.config)
@@ -235,7 +282,7 @@ func writeConfigSection(b *strings.Builder, label, content string) {
 }
 
 // renderValkey writes the Valkey cache/broker/results Python configuration.
-func renderValkey(b *strings.Builder, v *ValkeyInput) {
+func renderValkey(b *strings.Builder, v *ValkeyInput, asyncQueries bool) {
 	b.WriteString("# Valkey cache config\n")
 
 	// Connection helpers using operator-injected env vars.
@@ -310,7 +357,7 @@ func renderValkey(b *strings.Builder, v *ValkeyInput) {
 	}
 
 	// Celery config.
-	renderCeleryClass(b, v, hasSSLOpts)
+	renderCeleryClass(b, v, hasSSLOpts, asyncQueries)
 
 	// Results backend (CacheLib RedisCache).
 	if !v.ResultsBackend.Disabled {
@@ -356,6 +403,38 @@ func renderEngineOptions(b *strings.Builder, opts *EngineOptionsInput) {
 		fmt.Fprintf(b, "    \"pool_timeout\": %d,\n", opts.PoolTimeout)
 	}
 	b.WriteString("}\n\n")
+}
+
+// renderRealtimeChannels namespaces the realtime browser channel and the GTF
+// coordination signal channels by the instance prefix (INSTANCE_NAME), so
+// deployments sharing one Valkey/Redis don't cross-deliver. REALTIME_CHANNEL_PREFIX
+// is consumed by the Superset producer and the websocket server once the image
+// supports it; the TASKS_*_CHANNEL_PREFIX knobs already exist upstream.
+func renderRealtimeChannels(b *strings.Builder) {
+	b.WriteString("# Realtime / GTF coordination channel namespacing\n")
+	fmt.Fprintf(b, "_superset_instance = os.environ['%s']\n", common.EnvInstanceName)
+	b.WriteString("REALTIME_CHANNEL_PREFIX = f\"{_superset_instance}:\"\n")
+	b.WriteString("TASKS_ABORT_CHANNEL_PREFIX = f\"{_superset_instance}:gtf:abort:\"\n")
+	b.WriteString("TASKS_COMPLETION_CHANNEL_PREFIX = f\"{_superset_instance}:gtf:complete:\"\n\n")
+}
+
+// renderWebSocket writes the realtime websocket transport config. The JWT secret
+// is always read from the operator-injected env var so it stays out of the
+// ConfigMap; the app mints the cookie the websocket server validates.
+func renderWebSocket(b *strings.Builder, input *ConfigInput) {
+	b.WriteString("# Realtime websocket transport\n")
+	b.WriteString("WEBSOCKET_ENABLE = True\n")
+	if input.WebSocketURL != "" {
+		fmt.Fprintf(b, "WEBSOCKET_URL = \"%s\"\n", pyQuote(input.WebSocketURL))
+	}
+	fmt.Fprintf(b, "WEBSOCKET_JWT_SECRET = os.environ['%s']\n", common.EnvWSJwtSecret)
+	if input.WebSocketCookieName != "" {
+		fmt.Fprintf(b, "WEBSOCKET_JWT_COOKIE_NAME = \"%s\"\n", pyQuote(input.WebSocketCookieName))
+	}
+	if input.WebSocketJwtExpirationSeconds > 0 {
+		fmt.Fprintf(b, "WEBSOCKET_JWT_EXPIRATION_SECONDS = %d\n", input.WebSocketJwtExpirationSeconds)
+	}
+	b.WriteString("\n")
 }
 
 // renderFeatureFlags writes the FEATURE_FLAGS Python dict. Keys are sorted

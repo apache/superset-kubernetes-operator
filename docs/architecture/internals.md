@@ -130,7 +130,7 @@ The parent computes a config checksum and stamps it directly on component Deploy
 
 **CeleryBeat** is a singleton — the controller forces `replicas: 1` regardless of the spec, and does not create an HPA or PDB.
 
-**WebsocketServer** is Node.js-based and does not get a `superset_config.py` ConfigMap. When `websocketServer.config` is set, the controller creates a component ConfigMap containing `config.json`; when `configFrom` is set, the Deployment mounts the referenced Secret key directly.
+**WebsocketServer** is Node.js-based and gets no `superset_config.py`. It ships in the official Superset image (inheriting `spec.image`) and is launched via the alternate entrypoint `/app/docker/entrypoints/run-websocket.sh`, listening on port 8080 with a `/ready` readiness probe and `/health` liveness probe. The controller configures it entirely through injected environment variables — the shared JWT secret and the Redis coordination connection — derived from `spec.realtime.webSocket` and `spec.valkey.distributedCoordination`.
 
 ### Deployment Builder
 

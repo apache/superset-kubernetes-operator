@@ -67,7 +67,7 @@ func (r *SupersetReconciler) initInputs(superset *supersetv1alpha1.Superset) any
 // re-run signal, and the prior configChecksum-based behavior also did not
 // re-run init on forceReload changes.
 func initTaskEnv(superset *supersetv1alpha1.Superset) []corev1.EnvVar {
-	env := collectSecretEnvVars(&superset.Spec, superset.Name)
+	env := collectSecretEnvVars(&superset.Spec, defaultInstanceName(superset))
 	return append(env, collectLifecycleInitEnvVars(superset.Spec.Lifecycle)...)
 }
 

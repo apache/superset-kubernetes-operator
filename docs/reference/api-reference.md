@@ -33,6 +33,21 @@ _Appears in:_
 | `email` _string_ | Admin email. | admin@example.com | Optional: \{\} <br /> |
 
 
+#### AsyncQueriesSpec
+
+
+
+AsyncQueriesSpec is a presence marker enabling Global Async Queries. Tuning
+knobs (polling cadence, cache TTL floors, query timeouts) are set via
+spec.config until promoted to first-class fields.
+
+
+
+_Appears in:_
+- [RealtimeSpec](#realtimespec)
+
+
+
 #### AutoscalingSpec
 
 
@@ -834,6 +849,25 @@ _Appears in:_
 | `container` _[ContainerTemplate](#containertemplate)_ | Main container configuration. |  | Optional: \{\} <br /> |
 
 
+#### RealtimeSpec
+
+
+
+RealtimeSpec centralizes the realtime feature wiring that spans multiple
+components: Global Async Queries (async chart data) and the websocket
+transport. The websocket workload itself is spec.websocketServer.
+
+
+
+_Appears in:_
+- [SupersetSpec](#supersetspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `asyncQueries` _[AsyncQueriesSpec](#asyncqueriesspec)_ | AsyncQueries enables Global Async Queries. Presence sets the GLOBAL_ASYNC_QUERIES feature flag (which auto-enables the Global Task Framework upstream). Requires spec.valkey for distributed coordination. |  | Optional: \{\} <br /> |
+| `webSocket` _[WebSocketTransportSpec](#websockettransportspec)_ | WebSocket configures the realtime websocket transport. Presence sets WEBSOCKET_ENABLE and wires the shared JWT secret and browser-visible URL. Requires spec.websocketServer (the workload) and spec.valkey. |  | Optional: \{\} <br /> |
+
+
 #### RotateTaskSpec
 
 
@@ -1081,9 +1115,11 @@ _Appears in:_
 | `celeryWorker` _[CeleryWorkerComponentSpec](#celeryworkercomponentspec)_ | Celery async task worker component. Uses spec.valkey as broker/backend when set; otherwise the broker must be configured manually via spec.config. |  | Optional: \{\} <br /> |
 | `celeryBeat` _[CeleryBeatComponentSpec](#celerybeatcomponentspec)_ | Celery periodic task scheduler (singleton, always 1 replica). Uses spec.valkey as broker/backend when set; otherwise the broker must be configured manually via spec.config. |  | Optional: \{\} <br /> |
 | `celeryFlower` _[CeleryFlowerComponentSpec](#celeryflowercomponentspec)_ | Celery Flower monitoring UI component. |  | Optional: \{\} <br /> |
-| `websocketServer` _[WebsocketServerComponentSpec](#websocketservercomponentspec)_ | WebSocket server for real-time updates (Node.js, no Python config). Experimental: the websocket server is not yet well supported and is pending security hardening — it may exhibit gaps in the operator (e.g. unvalidated gateway/ingress routing) or upstream in the Superset/websocket image. It requires a custom Node.js image. Treat it as subject to change and avoid enabling it in production until it is hardened. |  | Optional: \{\} <br /> |
+| `websocketServer` _[WebsocketServerComponentSpec](#websocketservercomponentspec)_ | WebSocket server for realtime updates (Node.js). Ships in the official Superset image and is launched via an alternate entrypoint, so it inherits spec.image like every other component. Presence deploys the workload; configure the transport (JWT secret, URL) under spec.realtime.webSocket. |  | Optional: \{\} <br /> |
 | `mcpServer` _[McpServerComponentSpec](#mcpservercomponentspec)_ | FastMCP server component for AI tooling integration. |  | Optional: \{\} <br /> |
 | `lifecycle` _[LifecycleSpec](#lifecyclespec)_ | Lifecycle configuration (database migration, init, upgrade mode). |  | Optional: \{\} <br /> |
+| `baseUrl` _string_ | BaseURL is the external, browser-visible base URL of this deployment (e.g. "https://superset.example.com"). When set, the operator derives the realtime websocket URL and its allowed-origins allowlist from it, and renders WEBDRIVER_BASEURL_USER_FRIENDLY (the URL used in Alerts & Reports hyperlinks). Must start with http:// or https://. |  | Pattern: `^https?://[^/]+` <br />Optional: \{\} <br /> |
+| `realtime` _[RealtimeSpec](#realtimespec)_ | Realtime configuration: Global Async Queries (async chart data) and the realtime websocket transport. Centralizes the feature wiring that spans multiple components; the websocket workload itself is spec.websocketServer. |  | Optional: \{\} <br /> |
 | `networking` _[NetworkingSpec](#networkingspec)_ | Networking configuration (Ingress or Gateway API). |  | Optional: \{\} <br /> |
 | `monitoring` _[MonitoringSpec](#monitoringspec)_ | Monitoring configuration. |  | Optional: \{\} <br /> |
 | `networkPolicy` _[NetworkPolicySpec](#networkpolicyspec)_ | Network policy configuration. |  | Optional: \{\} <br /> |
@@ -1257,6 +1293,7 @@ _Appears in:_
 | `password` _string_ | Plain text password. Only allowed in Development mode — use passwordFrom in Staging or Production. |  | Optional: \{\} <br /> |
 | `passwordFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the Valkey password. Mutually exclusive with password. |  | Optional: \{\} <br /> |
 | `ssl` _[ValkeySSLSpec](#valkeysslspec)_ | SSL/TLS configuration. When set, enables SSL for the Valkey connection. |  | Optional: \{\} <br /> |
+| `keyPrefix` _string_ | KeyPrefix namespaces this deployment's Valkey usage so multiple Superset instances can safely share one Valkey/Redis. It is prepended to every cache and results-backend key prefix, the Global Task Framework coordination channels, and (once the Superset image supports REALTIME_CHANNEL_PREFIX) the realtime Pub/Sub channel. Defaults to "<namespace>:<name>" (the CR's Kubernetes identity, which is unique cluster-wide). Note that Redis Pub/Sub is not scoped by database number, so isolating the realtime channel requires this prefix (or a dedicated instance); Celery queues are namespaced only by database number, not by this prefix. |  | MaxLength: 200 <br />Pattern: `^[A-Za-z0-9._:-]+$` <br />Optional: \{\} <br /> |
 | `cache` _[ValkeyCacheSpec](#valkeycachespec)_ | General cache (CACHE_CONFIG). Default: db=1, prefix="superset_", timeout=300s. |  | Optional: \{\} <br /> |
 | `dataCache` _[ValkeyCacheSpec](#valkeycachespec)_ | Data/query results cache (DATA_CACHE_CONFIG). Default: db=2, prefix="superset_data_", timeout=86400s. |  | Optional: \{\} <br /> |
 | `filterStateCache` _[ValkeyCacheSpec](#valkeycachespec)_ | Dashboard filter state cache (FILTER_STATE_CACHE_CONFIG). Default: db=3, prefix="superset_filter_", timeout=3600s. |  | Optional: \{\} <br /> |
@@ -1294,17 +1331,37 @@ _Appears in:_
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
 
 
+#### WebSocketTransportSpec
+
+
+
+WebSocketTransportSpec configures the realtime websocket transport shared by
+the Flask app and the websocket server.
+
+
+
+_Appears in:_
+- [RealtimeSpec](#realtimespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `jwtSecret` _string_ | JwtSecret is the plain-text WEBSOCKET_JWT_SECRET. Only allowed in Development mode; use jwtSecretFrom in Staging or Production. |  | Optional: \{\} <br /> |
+| `jwtSecretFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | JwtSecretFrom references a Secret key holding the WEBSOCKET_JWT_SECRET. Mutually exclusive with jwtSecret. |  | Optional: \{\} <br /> |
+| `url` _string_ | URL is the browser-visible websocket endpoint (WEBSOCKET_URL). When unset, the operator derives it from spec.baseUrl, else from spec.networking and the websocket route path. Must be a ws:// or wss:// URL with a host. |  | Pattern: `^wss?://[^/]+` <br />Optional: \{\} <br /> |
+| `allowedOrigins` _string array_ | AllowedOrigins restricts which browser origins may open a websocket connection (the server's ALLOWED_ORIGINS, mitigating Cross-Site WebSocket Hijacking). When unset, the operator defaults it to the single origin of the resolved websocket URL (spec.baseUrl / networking). Set explicitly to permit additional origins. Each entry must be an http:// or https:// origin. |  | items:Pattern: `^https?://[^/?#]+$` <br />Optional: \{\} <br /> |
+| `cookieName` _string_ | CookieName overrides the JWT cookie name shared by the app and the server (WEBSOCKET_JWT_COOKIE_NAME). Defaults to "superset-ws-token". |  | Optional: \{\} <br /> |
+| `jwtExpirationSeconds` _integer_ | JwtExpirationSeconds overrides the websocket JWT lifetime (WEBSOCKET_JWT_EXPIRATION_SECONDS). Defaults to 900 (15 minutes) upstream. |  | Optional: \{\} <br /> |
+
+
 #### WebsocketServerComponentSpec
 
 
 
 WebsocketServerComponentSpec defines the websocket server component on the parent CRD.
-The websocket server is a Node.js app — the default Superset image does not contain
-websocket_server.js, so an image override is required.
-
-Experimental: this component is not yet well supported. It requires a custom
-Node.js image, and path-based gateway/ingress routing to it has not been
-validated. The shape and behavior may change in a future release.
+The server ships in the official Superset image (launched via an alternate
+entrypoint), so it inherits spec.image and is configured entirely through
+operator-injected environment variables derived from spec.realtime.webSocket
+and spec.valkey.distributedCoordination.
 
 
 
@@ -1319,8 +1376,6 @@ _Appears in:_
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling. |  | Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
-| `config` _[JSON](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#json-v1-apiextensions-k8s-io)_ | Inline config.json content for the websocket server. Only allowed in Development mode because this config commonly contains jwtSecret or Redis credentials. In Production, use configFrom to mount an existing Secret key. |  | Type: object <br />Optional: \{\} <br /> |
-| `configFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing websocket server config.json. The operator mounts the selected key at /home/superset-websocket/config.json without reading or copying the Secret. |  | Optional: \{\} <br /> |
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration (type, port, annotations). |  | Optional: \{\} <br /> |
 
 

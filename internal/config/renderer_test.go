@@ -619,6 +619,102 @@ func TestRenderConfig_CeleryClass(t *testing.T) {
 	})
 }
 
+func TestRenderConfig_RealtimeChannels(t *testing.T) {
+	t.Run("namespaces realtime and GTF channels when realtime is enabled", func(t *testing.T) {
+		result := RenderConfig(ComponentCeleryWorker, &ConfigInput{
+			MetastoreMode:       MetastorePassthrough,
+			AsyncQueriesEnabled: true,
+		})
+		assertContains(t, result, `_superset_instance = os.environ['SUPERSET_OPERATOR__INSTANCE_NAME']`)
+		assertContains(t, result, `REALTIME_CHANNEL_PREFIX = f"{_superset_instance}:"`)
+		assertContains(t, result, `TASKS_ABORT_CHANNEL_PREFIX = f"{_superset_instance}:gtf:abort:"`)
+		assertContains(t, result, `TASKS_COMPLETION_CHANNEL_PREFIX = f"{_superset_instance}:gtf:complete:"`)
+	})
+
+	t.Run("omits channel namespacing when realtime is not enabled", func(t *testing.T) {
+		result := RenderConfig(ComponentWebServer, &ConfigInput{MetastoreMode: MetastorePassthrough})
+		assertNotContains(t, result, "REALTIME_CHANNEL_PREFIX")
+		assertNotContains(t, result, "TASKS_ABORT_CHANNEL_PREFIX")
+	})
+}
+
+func TestRenderConfig_AsyncQueriesCelery(t *testing.T) {
+	result := RenderConfig(ComponentCeleryWorker, &ConfigInput{
+		MetastoreMode:       MetastorePassthrough,
+		AsyncQueriesEnabled: true,
+		Valkey: &ValkeyInput{
+			Cache:               ValkeyCacheInput{Database: 1, KeyPrefix: "p_", DefaultTimeout: 300},
+			CeleryBroker:        ValkeyCeleryInput{Database: 0},
+			CeleryResultBackend: ValkeyCeleryInput{Database: 0},
+			ResultsBackend:      ValkeyResultsInput{Disabled: true},
+		},
+	})
+	assertContains(t, result, `imports = ("superset.tasks.async_queries",)`)
+	assertContains(t, result, "beat_schedule = {")
+	assertContains(t, result, `"reap_orphaned_tasks": {`)
+	assertContains(t, result, `"task": "reap_orphaned_tasks",`)
+}
+
+func TestRenderConfig_WebSocketTransport(t *testing.T) {
+	t.Run("renders enable, url, and jwt secret from env", func(t *testing.T) {
+		result := RenderConfig(ComponentWebServer, &ConfigInput{
+			MetastoreMode:    MetastorePassthrough,
+			WebSocketEnabled: true,
+			WebSocketURL:     "wss://superset.example.com/ws",
+		})
+		assertContains(t, result, "WEBSOCKET_ENABLE = True")
+		assertContains(t, result, `WEBSOCKET_URL = "wss://superset.example.com/ws"`)
+		assertContains(t, result, "WEBSOCKET_JWT_SECRET = os.environ['SUPERSET_OPERATOR__WS_JWT_SECRET']")
+	})
+
+	t.Run("omits url when empty and renders cookie/expiration overrides", func(t *testing.T) {
+		result := RenderConfig(ComponentWebServer, &ConfigInput{
+			MetastoreMode:                 MetastorePassthrough,
+			WebSocketEnabled:              true,
+			WebSocketCookieName:           "custom-ws",
+			WebSocketJwtExpirationSeconds: 600,
+		})
+		assertContains(t, result, "WEBSOCKET_ENABLE = True")
+		assertNotContains(t, result, "WEBSOCKET_URL =")
+		assertContains(t, result, `WEBSOCKET_JWT_COOKIE_NAME = "custom-ws"`)
+		assertContains(t, result, "WEBSOCKET_JWT_EXPIRATION_SECONDS = 600")
+	})
+
+	t.Run("websocket component itself renders no python config", func(t *testing.T) {
+		result := RenderConfig(ComponentWebsocketServer, &ConfigInput{
+			MetastoreMode:    MetastorePassthrough,
+			WebSocketEnabled: true,
+			WebSocketURL:     "wss://x/ws",
+		})
+		if result != "" {
+			t.Errorf("expected empty config for websocket component, got %q", result)
+		}
+	})
+}
+
+func TestRenderConfig_BaseURLWebdriver(t *testing.T) {
+	t.Run("renders user-friendly webdriver base url when set", func(t *testing.T) {
+		result := RenderConfig(ComponentCeleryWorker, &ConfigInput{
+			MetastoreMode: MetastorePassthrough,
+			BaseURL:       "https://superset.example.com",
+		})
+		assertContains(t, result, `WEBDRIVER_BASEURL_USER_FRIENDLY = "https://superset.example.com"`)
+	})
+
+	t.Run("renders operator-managed internal webdriver base url", func(t *testing.T) {
+		result := RenderConfig(ComponentCeleryWorker, &ConfigInput{
+			MetastoreMode:    MetastorePassthrough,
+			WebDriverBaseURL: "http://test-web-server:8088/",
+		})
+		assertContains(t, result, `WEBDRIVER_BASEURL = "http://test-web-server:8088/"`)
+	})
+
+	t.Run("omits webdriver base urls when unset", func(t *testing.T) {
+		result := RenderConfig(ComponentCeleryWorker, &ConfigInput{MetastoreMode: MetastorePassthrough})
+		assertNotContains(t, result, "WEBDRIVER_BASEURL")
+	})
+}
+
 func TestRenderConfig_EngineOptionsQueuePool(t *testing.T) {
 	input := &ConfigInput{
 		MetastoreMode: MetastorePassthrough,
