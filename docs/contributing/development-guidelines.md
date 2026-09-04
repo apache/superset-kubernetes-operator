@@ -188,13 +188,13 @@ make fuzz              # 30s per target
 make fuzz FUZZTIME=2m  # longer local run
 ```
 
-Each target seeds a corpus with `f.Add(...)` cases and asserts an invariant beyond "does not panic" — e.g. `RenderConfig` is deterministic, `pyQuote` round-trips, `MergeMaps` is a last-writer-wins union. The seed corpus (plus any committed `testdata/fuzz/...` reproducers) replays as ordinary subtests during `make test-unit`, so regressions are caught on every PR; the scheduled `fuzz.yaml` workflow runs the targets for longer to explore new inputs.
+Each target seeds a corpus with `f.Add(...)` cases and asserts an invariant beyond "does not panic" — e.g. `RenderConfig` is deterministic, `pyQuote` round-trips, `MergeMaps` is a last-writer-wins union. The seed corpus replays as ordinary subtests during `make test-unit`, so regressions are caught on every PR; the scheduled `fuzz.yaml` workflow runs the targets for longer to explore new inputs.
 
 **When to add a target:** a pure, deterministic function that parses strings, generates code/config, or merges collections from CR-author-controlled input. Skip trivial scalar or preset math already covered by table tests.
 
 **Scope — robustness, not a security boundary.** As noted under [Security and the threat model](#security-and-the-threat-model), `Superset` CR input comes from a *trusted* namespace admin. Fuzzing here guards against panics and non-determinism on awkward-but-valid input; it is not defending a trust boundary. Frame findings accordingly.
 
-**On a finding:** `go test` writes a reproducer to `testdata/fuzz/<target>/<id>`. Commit it as a permanent regression seed, then fix the bug.
+**On a finding:** `go test` writes a reproducer to `testdata/fuzz/<target>/<id>`. Capture its minimized input and add it back as an `f.Add(...)` seed in the target (with a short comment noting it is a fuzz-discovered regression), then delete the `testdata/fuzz/<target>/<id>` file and fix the bug. Committing the seed as an `f.Add(...)` line — rather than the raw `testdata/fuzz` reproducer — keeps it replaying on every `make test-unit` while staying license-headed Go source: the generated corpus files carry no Apache license header and fail the `check-license` (Apache Rat) job.
 
 ### Helm chart tests
 
