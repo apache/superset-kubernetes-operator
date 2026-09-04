@@ -194,7 +194,7 @@ Each target seeds a corpus with `f.Add(...)` cases and asserts an invariant beyo
 
 **Scope — robustness, not a security boundary.** As noted under [Security and the threat model](#security-and-the-threat-model), `Superset` CR input comes from a *trusted* namespace admin. Fuzzing here guards against panics and non-determinism on awkward-but-valid input; it is not defending a trust boundary. Frame findings accordingly.
 
-**On a finding:** `go test` writes a reproducer to `testdata/fuzz/<target>/<id>`. Capture its minimized input and add it back as an `f.Add(...)` seed in the target (with a short comment noting it is a fuzz-discovered regression), then delete the `testdata/fuzz/<target>/<id>` file and fix the bug. Committing the seed as an `f.Add(...)` line — rather than the raw `testdata/fuzz` reproducer — keeps it replaying on every `make test-unit` while staying license-headed Go source: the generated corpus files carry no Apache license header and fail the `check-license` (Apache Rat) job, and Rat cannot reliably exclude them because it matches on their hash-based filenames.
+**On a finding:** `go test` writes a reproducer to `testdata/fuzz/<target>/<id>`. Capture its minimized input and add it back as an `f.Add(...)` seed in the target (with a short comment noting it is a fuzz-discovered regression), then delete the `testdata/fuzz/<target>/<id>` file and fix the bug. Committing the seed as an `f.Add(...)` line — rather than the raw `testdata/fuzz` reproducer — keeps it replaying on every `make test-unit` while staying license-headed Go source: the generated corpus files carry no Apache license header and fail the `check-license` (Apache Rat) job.
 
 ### Helm chart tests
 
