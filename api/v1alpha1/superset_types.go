@@ -733,6 +733,7 @@ type GatewaySpec struct {
 	GatewayRef gatewayv1.ParentReference `json:"gatewayRef"`
 	// Hostnames for the HTTPRoute (e.g., "superset.example.com").
 	// +optional
+	// +kubebuilder:validation:MaxItems=64
 	Hostnames []gatewayv1.Hostname `json:"hostnames,omitempty"`
 	// HTTPRoute annotations.
 	// +optional
@@ -749,6 +750,7 @@ type IngressSpec struct {
 	ClassName *string `json:"className,omitempty"`
 	// Primary hostname for the Ingress rule (e.g., "superset.example.com").
 	// +optional
+	// +kubebuilder:validation:MaxLength=253
 	Host string `json:"host,omitempty"`
 	// Ingress annotations (e.g., for TLS, auth, or controller-specific configuration).
 	// +optional
@@ -758,6 +760,7 @@ type IngressSpec struct {
 	Labels map[string]string `json:"labels,omitempty"`
 	// Additional host/path rules beyond the primary host.
 	// +optional
+	// +kubebuilder:validation:MaxItems=64
 	Hosts []IngressHost `json:"hosts,omitempty"`
 	// TLS configuration (certificate secrets and hostnames).
 	// +optional
@@ -767,6 +770,7 @@ type IngressSpec struct {
 // IngressHost defines a host rule for the Ingress.
 type IngressHost struct {
 	// +optional
+	// +kubebuilder:validation:MaxLength=253
 	Host string `json:"host,omitempty"`
 	// +optional
 	Paths []IngressPath `json:"paths,omitempty"`

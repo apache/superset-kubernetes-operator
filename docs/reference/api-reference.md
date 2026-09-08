@@ -402,7 +402,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `gatewayRef` _[ParentReference](https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.ParentReference)_ | Reference to the Gateway resource to attach the HTTPRoute to. |  |  |
-| `hostnames` _[Hostname](https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.Hostname) array_ | Hostnames for the HTTPRoute (e.g., "superset.example.com"). |  | Optional: \{\} <br /> |
+| `hostnames` _[Hostname](https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.Hostname) array_ | Hostnames for the HTTPRoute (e.g., "superset.example.com"). |  | MaxItems: 64 <br />Optional: \{\} <br /> |
 | `annotations` _object (keys:string, values:string)_ | HTTPRoute annotations. |  | Optional: \{\} <br /> |
 | `labels` _object (keys:string, values:string)_ | HTTPRoute labels. |  | Optional: \{\} <br /> |
 
@@ -493,7 +493,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `host` _string_ |  |  | Optional: \{\} <br /> |
+| `host` _string_ |  |  | MaxLength: 253 <br />Optional: \{\} <br /> |
 | `paths` _[IngressPath](#ingresspath) array_ |  |  | Optional: \{\} <br /> |
 
 
@@ -528,10 +528,10 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `className` _string_ | IngressClass name (e.g., "nginx") that determines which controller processes this Ingress. |  | Optional: \{\} <br /> |
-| `host` _string_ | Primary hostname for the Ingress rule (e.g., "superset.example.com"). |  | Optional: \{\} <br /> |
+| `host` _string_ | Primary hostname for the Ingress rule (e.g., "superset.example.com"). |  | MaxLength: 253 <br />Optional: \{\} <br /> |
 | `annotations` _object (keys:string, values:string)_ | Ingress annotations (e.g., for TLS, auth, or controller-specific configuration). |  | Optional: \{\} <br /> |
 | `labels` _object (keys:string, values:string)_ | Ingress labels. |  | Optional: \{\} <br /> |
-| `hosts` _[IngressHost](#ingresshost) array_ | Additional host/path rules beyond the primary host. |  | Optional: \{\} <br /> |
+| `hosts` _[IngressHost](#ingresshost) array_ | Additional host/path rules beyond the primary host. |  | MaxItems: 64 <br />Optional: \{\} <br /> |
 | `tls` _[IngressTLS](https://pkg.go.dev/k8s.io/api/networking/v1#IngressTLS) array_ | TLS configuration (certificate secrets and hostnames). |  | Optional: \{\} <br /> |
 
 

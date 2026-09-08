@@ -28137,6 +28137,7 @@ spec:
                           minLength: 1
                           pattern: ^(\*\.)?[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
                           type: string
+                        maxItems: 64
                         type: array
                       labels:
                         additionalProperties:
@@ -28154,11 +28155,13 @@ spec:
                       className:
                         type: string
                       host:
+                        maxLength: 253
                         type: string
                       hosts:
                         items:
                           properties:
                             host:
+                              maxLength: 253
                               type: string
                             paths:
                               items:
@@ -28172,6 +28175,7 @@ spec:
                                 type: object
                               type: array
                           type: object
+                        maxItems: 64
                         type: array
                       labels:
                         additionalProperties:
