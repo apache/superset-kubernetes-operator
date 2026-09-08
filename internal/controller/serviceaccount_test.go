@@ -19,10 +19,16 @@ limitations under the License.
 package controller
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/events"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 )
@@ -79,4 +85,103 @@ func TestResolveServiceAccountName(t *testing.T) {
 			assert.Equal(t, tt.want, resolveServiceAccountName(superset))
 		})
 	}
+}
+
+func supersetForSA(annotations map[string]string) *supersetv1alpha1.Superset {
+	return &supersetv1alpha1.Superset{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "superset-uid"},
+		Spec: supersetv1alpha1.SupersetSpec{
+			ServiceAccount: &supersetv1alpha1.ServiceAccountSpec{Create: boolPtr(true), Annotations: annotations},
+		},
+	}
+}
+
+// TestReconcileServiceAccount_RefusesForeignOwnedAdoption verifies the operator
+// never adopts, mutates, or garbage-collects a ServiceAccount at the derived
+// name that is controller-owned by someone else. The check runs inside the
+// mutate closure, so a foreign SA's annotations (e.g. cloud IAM bindings) are
+// left intact.
+func TestReconcileServiceAccount_RefusesForeignOwnedAdoption(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+
+	existing := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "test",
+			Namespace:   "default",
+			UID:         "existing-sa-uid",
+			Annotations: map[string]string{"eks.amazonaws.com/role-arn": "arn:aws:iam::123:role/keep"},
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: "v1", Kind: "ServiceAccount", Name: "other",
+				UID: "foreign-uid", Controller: boolPtr(true),
+			}},
+		},
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(existing).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	err := r.reconcileServiceAccount(ctx, supersetForSA(map[string]string{"foo": "bar"}))
+	require.Error(t, err)
+
+	got := &corev1.ServiceAccount{}
+	require.NoError(t, c.Get(ctx, client.ObjectKey{Name: "test", Namespace: "default"}, got))
+	assert.Equal(t, "arn:aws:iam::123:role/keep", got.Annotations["eks.amazonaws.com/role-arn"],
+		"foreign SA annotations must not be wiped")
+	assert.NotContains(t, got.Annotations, "foo", "operator must not mutate a foreign SA")
+	require.Len(t, got.OwnerReferences, 1)
+	assert.Equal(t, "foreign-uid", string(got.OwnerReferences[0].UID), "foreign owner reference must be untouched")
+}
+
+// TestReconcileServiceAccount_RefusesUnownedAdoption verifies the operator
+// refuses to adopt a pre-existing, unowned ServiceAccount at the derived name.
+func TestReconcileServiceAccount_RefusesUnownedAdoption(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+
+	existing := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:        "test",
+			Namespace:   "default",
+			UID:         "existing-sa-uid",
+			Annotations: map[string]string{"keep": "me"},
+		},
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(existing).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	err := r.reconcileServiceAccount(ctx, supersetForSA(nil))
+	require.Error(t, err)
+
+	got := &corev1.ServiceAccount{}
+	require.NoError(t, c.Get(ctx, client.ObjectKey{Name: "test", Namespace: "default"}, got))
+	assert.Equal(t, "me", got.Annotations["keep"], "unowned SA must not be adopted or mutated")
+	assert.Empty(t, got.OwnerReferences, "operator must not set an owner reference on an unowned SA")
+}
+
+// TestReconcileServiceAccount_UpdatesOwned verifies the operator still manages a
+// ServiceAccount it controller-owns.
+func TestReconcileServiceAccount_UpdatesOwned(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+
+	existing := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "default",
+			UID:       "existing-sa-uid",
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: "superset.apache.org/v1alpha1", Kind: "Superset", Name: "test",
+				UID: "superset-uid", Controller: boolPtr(true),
+			}},
+		},
+	}
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(existing).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	err := r.reconcileServiceAccount(ctx, supersetForSA(map[string]string{"foo": "bar"}))
+	require.NoError(t, err)
+
+	got := &corev1.ServiceAccount{}
+	require.NoError(t, c.Get(ctx, client.ObjectKey{Name: "test", Namespace: "default"}, got))
+	assert.Equal(t, "bar", got.Annotations["foo"], "owned SA should receive spec annotations")
 }

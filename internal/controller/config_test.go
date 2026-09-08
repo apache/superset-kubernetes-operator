@@ -229,9 +229,11 @@ func TestCollectSecretEnvVars_SecretKey(t *testing.T) {
 }
 
 func TestCollectSecretEnvVars_Metastore(t *testing.T) {
+	dev := common.EnvironmentDev
 	t.Run("passthrough", func(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
-			Metastore: &supersetv1alpha1.MetastoreSpec{URI: common.Ptr("postgresql://user:pass@host/db")},
+			Environment: &dev,
+			Metastore:   &supersetv1alpha1.MetastoreSpec{URI: common.Ptr("postgresql://user:pass@host/db")},
 		}
 		envs := collectSecretEnvVars(spec, "test")
 		envMap := envSliceToMap(envs)
@@ -242,6 +244,7 @@ func TestCollectSecretEnvVars_Metastore(t *testing.T) {
 
 	t.Run("structured with all fields", func(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
+			Environment: &dev,
 			Metastore: &supersetv1alpha1.MetastoreSpec{
 				Host: common.Ptr("db.example.com"), Port: common.Ptr(int32(5433)),
 				Database: common.Ptr("superset"), Username: common.Ptr("admin"), Password: common.Ptr("secret"),
@@ -283,6 +286,44 @@ func TestCollectSecretEnvVars_Metastore(t *testing.T) {
 		envMap := envSliceToMap(collectSecretEnvVars(spec, "test"))
 		if envMap["SUPERSET_OPERATOR__DB_PORT"] != "3306" {
 			t.Errorf("expected default MySQL port 3306, got %s", envMap["SUPERSET_OPERATOR__DB_PORT"])
+		}
+	})
+
+	// Defense in depth: outside Development the inline metastore URI/password
+	// literals must be dropped even if a CR slips past CEL. The *From reference
+	// is honored instead when present.
+	t.Run("production drops inline uri literal", func(t *testing.T) {
+		prod := common.EnvironmentProd
+		spec := &supersetv1alpha1.SupersetSpec{
+			Environment: &prod,
+			Metastore:   &supersetv1alpha1.MetastoreSpec{URI: common.Ptr("postgresql://user:pass@host/db")},
+		}
+		envMap := envSliceToMap(collectSecretEnvVars(spec, "test"))
+		if _, ok := envMap["SUPERSET_OPERATOR__DB_URI"]; ok {
+			t.Errorf("inline metastore.uri must be dropped outside Development, got %v", envMap)
+		}
+	})
+
+	t.Run("production drops inline password literal but honors passwordFrom", func(t *testing.T) {
+		prod := common.EnvironmentProd
+		spec := &supersetv1alpha1.SupersetSpec{
+			Environment: &prod,
+			Metastore: &supersetv1alpha1.MetastoreSpec{
+				Host: common.Ptr("db.example.com"), Database: common.Ptr("superset"), Username: common.Ptr("admin"),
+				Password:     common.Ptr("secret"),
+				PasswordFrom: &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "db"}, Key: "password"},
+			},
+		}
+		envs := collectSecretEnvVars(spec, "test")
+		for _, e := range envs {
+			if e.Name == "SUPERSET_OPERATOR__DB_PASS" {
+				if e.Value != "" {
+					t.Errorf("inline metastore.password must not be emitted as a literal outside Development, got %q", e.Value)
+				}
+				if e.ValueFrom == nil || e.ValueFrom.SecretKeyRef == nil {
+					t.Errorf("expected DB_PASS to fall back to passwordFrom secret reference, got %+v", e)
+				}
+			}
 		}
 	})
 }

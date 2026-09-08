@@ -19,9 +19,33 @@ limitations under the License.
 package config
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 )
+
+// TestRenderValkeyKeyPrefixBraceInjectionIsInert verifies that a keyPrefix
+// containing Python f-string expression braces is rendered as an inert plain
+// string literal (concatenated onto the instance f-string), never interpolated
+// into it. This is defense in depth behind the CRD Pattern that rejects braces
+// at admission: the generated config must stay safe even if a value slips past
+// validation (older CRD, direct etcd write).
+func TestRenderValkeyKeyPrefixBraceInjectionIsInert(t *testing.T) {
+	payloads := []string{"{SECRET_KEY}", "{__import__('os').system('id')}", "tenant{1}"}
+	for _, p := range payloads {
+		input := &ConfigInput{
+			Valkey: &ValkeyInput{
+				Cache:          ValkeyCacheInput{Database: 1, KeyPrefix: p, DefaultTimeout: 300},
+				ResultsBackend: ValkeyResultsInput{Database: 6, KeyPrefix: p},
+			},
+		}
+		result := RenderConfig(ComponentWebServer, input)
+		// The payload appears only inside a plain (concatenated) string literal.
+		assertContains(t, result, "+ "+strconv.Quote(p))
+		// It is never interpolated into the instance f-string.
+		assertNotContains(t, result, "f\"{_superset_instance}_"+p)
+	}
+}
 
 func TestRenderConfig_WebServer(t *testing.T) {
 	input := &ConfigInput{
@@ -197,7 +221,7 @@ func TestRenderConfig_ValkeyMinimal(t *testing.T) {
 	// Flask-Caching sections
 	assertContains(t, result, "CACHE_CONFIG = {")
 	assertContains(t, result, "\"CACHE_DEFAULT_TIMEOUT\": 300")
-	assertContains(t, result, "\"CACHE_KEY_PREFIX\": f\"{_superset_instance}_superset_\"")
+	assertContains(t, result, "\"CACHE_KEY_PREFIX\": f\"{_superset_instance}_\" + \"superset_\"")
 	assertContains(t, result, "\"CACHE_REDIS_URL\": f\"{_vk_base}/1\"")
 
 	assertContains(t, result, "DATA_CACHE_CONFIG = {")
@@ -210,7 +234,7 @@ func TestRenderConfig_ValkeyMinimal(t *testing.T) {
 
 	// Distributed coordination backend
 	assertContains(t, result, "DISTRIBUTED_COORDINATION_CONFIG = {")
-	assertContains(t, result, "\"CACHE_KEY_PREFIX\": f\"{_superset_instance}_coordination_\"")
+	assertContains(t, result, "\"CACHE_KEY_PREFIX\": f\"{_superset_instance}_\" + \"coordination_\"")
 	assertContains(t, result, "\"CACHE_REDIS_URL\": f\"{_vk_base}/7\"")
 
 	// Celery
@@ -223,7 +247,7 @@ func TestRenderConfig_ValkeyMinimal(t *testing.T) {
 	assertContains(t, result, "RESULTS_BACKEND = _CachelibRedis(")
 	assertContains(t, result, "username=os.environ.get(\"SUPERSET_OPERATOR__VALKEY_USER\") or None")
 	assertContains(t, result, "db=6")
-	assertContains(t, result, "key_prefix=f\"{_superset_instance}_superset_results_\"")
+	assertContains(t, result, "key_prefix=f\"{_superset_instance}_\" + \"superset_results_\"")
 
 	// No SSL
 	assertNotContains(t, result, "rediss")
@@ -337,12 +361,12 @@ func TestRenderConfig_ValkeyCustomDatabases(t *testing.T) {
 
 	assertContains(t, result, "\"CACHE_REDIS_URL\": f\"{_vk_base}/10\"")
 	assertContains(t, result, "\"CACHE_DEFAULT_TIMEOUT\": 600")
-	assertContains(t, result, "\"CACHE_KEY_PREFIX\": f\"{_superset_instance}_my_\"")
+	assertContains(t, result, "\"CACHE_KEY_PREFIX\": f\"{_superset_instance}_\" + \"my_\"")
 	assertContains(t, result, "\"CACHE_REDIS_URL\": f\"{_vk_base}/11\"")
 	assertContains(t, result, "broker_url = f\"{_vk_base}/14\"")
 	assertContains(t, result, "result_backend = f\"{_vk_base}/15\"")
 	assertContains(t, result, "db=13")
-	assertContains(t, result, "key_prefix=f\"{_superset_instance}_my_results_\"")
+	assertContains(t, result, "key_prefix=f\"{_superset_instance}_\" + \"my_results_\"")
 }
 
 func TestRenderConfig_ValkeyWebsocketServerSkipped(t *testing.T) {
@@ -455,8 +479,8 @@ func TestRenderConfig_ValkeyKeyPrefixWithQuotes(t *testing.T) {
 	}
 	result := RenderConfig(ComponentWebServer, input)
 
-	assertContains(t, result, `"CACHE_KEY_PREFIX": f"{_superset_instance}_my\"prefix_"`)
-	assertContains(t, result, `key_prefix=f"{_superset_instance}_res\"ults_"`)
+	assertContains(t, result, `"CACHE_KEY_PREFIX": f"{_superset_instance}_" + "my\"prefix_"`)
+	assertContains(t, result, `key_prefix=f"{_superset_instance}_" + "res\"ults_"`)
 }
 
 func assertContains(t *testing.T, s, substr string) {

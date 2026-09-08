@@ -112,7 +112,7 @@ func buildCreateDatabaseInitContainer(superset *supersetv1alpha1.Superset, lifec
 		Image:           fmt.Sprintf("%s:%s", image.Repository, image.Tag),
 		ImagePullPolicy: image.PullPolicy,
 		Command:         []string{bootstrapShell, "-c", script},
-		Env:             createDatabaseEnvVars(superset.Spec.Metastore),
+		Env:             createDatabaseEnvVars(superset.Spec.Metastore, isDevEnvironment(&superset.Spec)),
 	}
 	var containerSC *corev1.SecurityContext
 	var podSC *corev1.PodSecurityContext
@@ -206,7 +206,7 @@ func resolveCreateDatabaseImage(dbType string) supersetv1alpha1.ImageSpec {
 // the init container's psql/mysql invocation. Mirrors the structured-mode
 // branch of collectSecretEnvVars; the init container does not need URI/Valkey
 // vars, and CEL prevents URI mode + createDatabase.
-func createDatabaseEnvVars(metastore *supersetv1alpha1.MetastoreSpec) []corev1.EnvVar {
+func createDatabaseEnvVars(metastore *supersetv1alpha1.MetastoreSpec, isDev bool) []corev1.EnvVar {
 	envs := []corev1.EnvVar{
 		{Name: naming.EnvDBHost, Value: *metastore.Host},
 	}
@@ -221,7 +221,7 @@ func createDatabaseEnvVars(metastore *supersetv1alpha1.MetastoreSpec) []corev1.E
 	if metastore.Username != nil {
 		envs = append(envs, corev1.EnvVar{Name: naming.EnvDBUser, Value: *metastore.Username})
 	}
-	if metastore.Password != nil {
+	if isDev && metastore.Password != nil {
 		envs = append(envs, corev1.EnvVar{Name: naming.EnvDBPass, Value: *metastore.Password})
 	} else if metastore.PasswordFrom != nil {
 		envs = append(envs, corev1.EnvVar{

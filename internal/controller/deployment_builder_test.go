@@ -387,6 +387,29 @@ func TestBuildDeploymentSpec(t *testing.T) {
 			t.Errorf("user liveness probe path should be preserved: got %q", container.LivenessProbe.HTTPGet.Path)
 		}
 	})
+
+	t.Run("operator config-checksum annotation wins over user pod annotations", func(t *testing.T) {
+		spec := &supersetv1alpha1.FlatComponentSpec{
+			Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+			PodTemplate: &supersetv1alpha1.PodTemplate{
+				Annotations: map[string]string{
+					common.AnnotationConfigChecksum: "forged-by-user",
+					"user/other":                    "keep",
+				},
+			},
+		}
+		cfg := DeploymentConfig{ContainerName: common.Container}
+		operatorAnnotations := map[string]string{common.AnnotationConfigChecksum: "sha256:real"}
+
+		result := buildDeploymentSpec(spec, cfg, operatorAnnotations, map[string]string{})
+		got := result.Template.Annotations
+		if got[common.AnnotationConfigChecksum] != "sha256:real" {
+			t.Errorf("operator config-checksum must win over a forged user annotation, got %q", got[common.AnnotationConfigChecksum])
+		}
+		if got["user/other"] != "keep" {
+			t.Errorf("non-reserved user pod annotations should be preserved, got %q", got["user/other"])
+		}
+	})
 }
 
 func TestResolveContainerPort(t *testing.T) {

@@ -55,6 +55,7 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 		pw := "p@$$"
 		superset := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{
+				Environment: common.Ptr(common.EnvironmentDev),
 				Metastore: &supersetv1alpha1.MetastoreSpec{
 					Host:           common.Ptr("pg.svc"),
 					Database:       common.Ptr("superset"),
@@ -202,6 +203,7 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 		weirdName := `it's"weird` + "`db`"
 		superset := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{
+				Environment: common.Ptr(common.EnvironmentDev),
 				Metastore: &supersetv1alpha1.MetastoreSpec{
 					Host:           common.Ptr("pg.svc"),
 					Database:       &weirdName,

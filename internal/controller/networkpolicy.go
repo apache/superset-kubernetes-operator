@@ -79,7 +79,7 @@ func (r *SupersetReconciler) reconcileNetworkPolicies(ctx context.Context, super
 			desiredNPName = comp.resourceBaseName + common.SuffixNetworkPolicy
 		}
 
-		if err := r.pruneOrphans(ctx, superset.Namespace, superset.Name,
+		if err := r.pruneOrphans(ctx, superset, superset.Namespace, superset.Name,
 			common.ComponentType(comp.component),
 			func() client.ObjectList { return &networkingv1.NetworkPolicyList{} },
 			desiredNPName,

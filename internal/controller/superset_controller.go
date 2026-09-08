@@ -253,7 +253,7 @@ func (r *SupersetReconciler) reconcileServiceAccount(ctx context.Context, supers
 	if !saCreateEnabled(superset.Spec.ServiceAccount) {
 		keepName = ""
 	}
-	if err := r.deleteByLabels(ctx, superset.Namespace, parentLabels(superset.Name),
+	if err := r.deleteByLabels(ctx, superset, superset.Namespace, parentLabels(superset.Name),
 		func() client.ObjectList { return &corev1.ServiceAccountList{} }, keepName); err != nil {
 		return err
 	}
@@ -266,16 +266,16 @@ func (r *SupersetReconciler) reconcileServiceAccount(ctx context.Context, supers
 		ObjectMeta: metav1.ObjectMeta{Name: saName, Namespace: superset.Namespace},
 	}
 
-	// Guard against adopting a pre-existing ServiceAccount not owned by this CR.
-	existing := &corev1.ServiceAccount{}
-	if err := r.Get(ctx, client.ObjectKeyFromObject(sa), existing); err == nil {
-		if !isOwnedBy(existing, superset) {
+	_, err := createOrUpdateWithRetry(ctx, r.Client, sa, func() error {
+		// Refuse to adopt a pre-existing ServiceAccount not owned by this CR.
+		// The check runs inside the mutate closure so it is atomic with the read
+		// the write is based on and re-evaluated on every retry; a transient Get
+		// error fails the reconcile inside CreateOrUpdate rather than silently
+		// skipping the guard.
+		if sa.UID != "" && !isOwnedBy(sa, superset) {
 			return fmt.Errorf("ServiceAccount %q already exists and is not owned by Superset %q; set serviceAccount.create=false to use a pre-existing ServiceAccount",
 				saName, superset.Name)
 		}
-	}
-
-	_, err := createOrUpdateWithRetry(ctx, r.Client, sa, func() error {
 		if err := controllerutil.SetControllerReference(superset, sa, r.Scheme); err != nil {
 			return err
 		}
@@ -291,12 +291,8 @@ func (r *SupersetReconciler) reconcileServiceAccount(ctx context.Context, supers
 
 // isOwnedBy returns true if obj has a controller ownerReference pointing to owner.
 func isOwnedBy(obj, owner client.Object) bool {
-	for _, ref := range obj.GetOwnerReferences() {
-		if ref.UID == owner.GetUID() {
-			return true
-		}
-	}
-	return false
+	ref := metav1.GetControllerOf(obj)
+	return ref != nil && ref.UID == owner.GetUID()
 }
 
 // --- Utility functions ---
@@ -345,12 +341,13 @@ func celerySpecFrom(cw *supersetv1alpha1.CeleryWorkerComponentSpec) *supersetv1a
 // any whose name does not match keepName. If keepName is empty, all matches are deleted.
 func (r *SupersetReconciler) pruneOrphans(
 	ctx context.Context,
+	owner client.Object,
 	ns, parentName string,
 	componentType naming.ComponentType,
 	newList func() client.ObjectList,
 	keepName string,
 ) error {
-	return r.deleteByLabels(ctx, ns, map[string]string{
+	return r.deleteByLabels(ctx, owner, ns, map[string]string{
 		naming.LabelKeyParent:    parentName,
 		naming.LabelKeyComponent: string(componentType),
 	}, newList, keepName)
@@ -358,9 +355,11 @@ func (r *SupersetReconciler) pruneOrphans(
 
 // deleteByLabels lists all resources matching the given labels and deletes any
 // whose name does not match keepName. Pass empty keepName to delete all matches.
+// Objects controller-owned by an owner other than the given parent are skipped.
 // Gracefully handles missing CRDs (returns nil for NoMatchError).
 func (r *SupersetReconciler) deleteByLabels(
 	ctx context.Context,
+	owner client.Object,
 	ns string,
 	labels map[string]string,
 	newList func() client.ObjectList,
@@ -376,7 +375,7 @@ func (r *SupersetReconciler) deleteByLabels(
 		}
 		return fmt.Errorf("listing resources by labels %v: %w", labels, err)
 	}
-	return deleteMatches(ctx, r.Client, list, keepName)
+	return deleteMatches(ctx, r.Client, owner, list, keepName)
 }
 
 // saCreateEnabled returns true if the ServiceAccount spec says to create one.

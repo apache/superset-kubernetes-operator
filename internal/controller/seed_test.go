@@ -20,7 +20,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -85,16 +84,16 @@ func TestBuildSeedScript(t *testing.T) {
 
 		script := buildPostgresSeedScript(seed)
 
-		if !strings.Contains(script, `--exclude-table="logs"`) {
+		if !strings.Contains(script, `--exclude-table='logs'`) {
 			t.Errorf("expected --exclude-table for logs, got: %s", script)
 		}
-		if !strings.Contains(script, `--exclude-table="tab_state"`) {
+		if !strings.Contains(script, `--exclude-table='tab_state'`) {
 			t.Errorf("expected --exclude-table for tab_state, got: %s", script)
 		}
-		if !strings.Contains(script, `--exclude-table-data="query"`) {
+		if !strings.Contains(script, `--exclude-table-data='query'`) {
 			t.Errorf("expected --exclude-table-data for query, got: %s", script)
 		}
-		if !strings.Contains(script, `--exclude-table-data="saved_query"`) {
+		if !strings.Contains(script, `--exclude-table-data='saved_query'`) {
 			t.Errorf("expected --exclude-table-data for saved_query, got: %s", script)
 		}
 	})
@@ -173,10 +172,10 @@ func TestBuildSeedScript(t *testing.T) {
 
 		script := buildMySQLSeedScript(seed)
 
-		if !strings.Contains(script, `--ignore-table="$SUPERSET_OPERATOR__SEED_SRC_DB"."logs"`) {
+		if !strings.Contains(script, `--ignore-table="$SUPERSET_OPERATOR__SEED_SRC_DB".'logs'`) {
 			t.Errorf("expected --ignore-table for logs, got: %s", script)
 		}
-		if !strings.Contains(script, `--ignore-table="$SUPERSET_OPERATOR__SEED_SRC_DB"."tab_state"`) {
+		if !strings.Contains(script, `--ignore-table="$SUPERSET_OPERATOR__SEED_SRC_DB".'tab_state'`) {
 			t.Errorf("expected --ignore-table for tab_state, got: %s", script)
 		}
 	})
@@ -203,13 +202,13 @@ func TestBuildSeedScript(t *testing.T) {
 		if strings.Contains(script, "--skip-triggers") {
 			t.Errorf("schema-only pass must preserve triggers (mirrors Postgres --exclude-table-data which keeps schema objects), got: %s", script)
 		}
-		if !strings.Contains(script, `"$SUPERSET_OPERATOR__SEED_SRC_DB" "logs" "query"`) {
+		if !strings.Contains(script, `"$SUPERSET_OPERATOR__SEED_SRC_DB" 'logs' 'query'`) {
 			t.Errorf("expected schema-only dump to list logs and query tables, got: %s", script)
 		}
 
 		// Data pass should --ignore-table both ExcludeTables and ExcludeTableData.
 		for _, table := range []string{"tab_state", "logs", "query"} {
-			needle := `--ignore-table="$SUPERSET_OPERATOR__SEED_SRC_DB".` + fmt.Sprintf("%q", table)
+			needle := `--ignore-table="$SUPERSET_OPERATOR__SEED_SRC_DB".` + shellQuote(table)
 			if !strings.Contains(script, needle) {
 				t.Errorf("expected --ignore-table for %q in data pass, got: %s", table, script)
 			}
@@ -256,10 +255,10 @@ func TestBuildSeedScript(t *testing.T) {
 			if !strings.Contains(script, `psql`) {
 				t.Fatal("expected psql in script")
 			}
-			if !strings.Contains(script, `-c "UPDATE report_schedule SET active = false"`) {
+			if !strings.Contains(script, `-c 'UPDATE report_schedule SET active = false'`) {
 				t.Errorf("expected first postSeedSQL statement, got: %s", script)
 			}
-			if !strings.Contains(script, `-c "DELETE FROM oauth2_token"`) {
+			if !strings.Contains(script, `-c 'DELETE FROM oauth2_token'`) {
 				t.Errorf("expected second postSeedSQL statement, got: %s", script)
 			}
 		})
@@ -275,10 +274,40 @@ func TestBuildSeedScript(t *testing.T) {
 
 			script := buildMySQLSeedScript(seed)
 
-			if !strings.Contains(script, `-e "UPDATE report_schedule SET active = 0"`) {
+			if !strings.Contains(script, `-e 'UPDATE report_schedule SET active = 0'`) {
 				t.Errorf("expected postSeedSQL statement in mysql script, got: %s", script)
 			}
 		})
+	})
+
+	t.Run("shell metacharacters in table/SQL fields are inert", func(t *testing.T) {
+		mysqlType := "MySQL"
+		// $(...) command substitution and backticks would execute inside a
+		// double-quoted shell context; single-quoting via shellQuote neutralizes
+		// them while passing the value verbatim to the dump/restore tools.
+		payloads := []string{"x$(id)", "y`whoami`", `z"$(touch /tmp/pwn)"`}
+		for _, p := range payloads {
+			pg := buildPostgresSeedScript(&supersetv1alpha1.SeedTaskSpec{
+				Source:        supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"},
+				ExcludeTables: []string{p},
+				PostSeedSQL:   []string{p},
+			})
+			my := buildMySQLSeedScript(&supersetv1alpha1.SeedTaskSpec{
+				Source:        supersetv1alpha1.SeedSourceSpec{Type: &mysqlType, Host: "h", Database: "d", Username: "u"},
+				ExcludeTables: []string{p},
+				PostSeedSQL:   []string{p},
+			})
+			for _, script := range []string{pg, my} {
+				// The value must appear only inside a single-quoted argument.
+				if !strings.Contains(script, shellQuote(p)) {
+					t.Errorf("expected single-quoted payload %q, got: %s", p, script)
+				}
+				// It must never appear as a bare, shell-active token.
+				if strings.Contains(script, "=\""+p+"\"") || strings.Contains(script, " "+p+" ") {
+					t.Errorf("payload %q must not appear shell-active, got: %s", p, script)
+				}
+			}
+		}
 	})
 }
 
@@ -458,6 +487,7 @@ func TestCollectSeedEnvVars(t *testing.T) {
 	port := int32(5432)
 
 	superset := &supersetv1alpha1.Superset{}
+	superset.Spec.Environment = common.Ptr(common.EnvironmentDev)
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 		Seed: &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
@@ -1743,4 +1773,86 @@ func TestIsTaskEnabled_InvalidCronScheduleGatesSeed(t *testing.T) {
 	if !r.isTaskEnabled(superset, taskTypeSeed) {
 		t.Fatal("expected seed to be enabled when no CronSchedule is set")
 	}
+}
+
+// TestCollectSeedEnvVars_ProductionDropsInlinePasswords verifies the inline
+// seed source and target password literals are dropped outside Development
+// (defense in depth behind CEL), falling back to the *From reference.
+func TestCollectSeedEnvVars_ProductionDropsInlinePasswords(t *testing.T) {
+	superset := &supersetv1alpha1.Superset{}
+	superset.Spec.Environment = common.Ptr(common.EnvironmentProd)
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+		Seed: &supersetv1alpha1.SeedTaskSpec{
+			Source: supersetv1alpha1.SeedSourceSpec{
+				Host: "pg-prod.svc", Database: "d", Username: "u",
+				Password: common.Ptr("inline-src"),
+			},
+		},
+	}
+	superset.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+		Host: common.Ptr("pg-staging.svc"), Database: common.Ptr("d"), Username: common.Ptr("u"),
+		Password: common.Ptr("inline-target"),
+	}
+
+	for _, e := range collectSeedEnvVars(superset) {
+		if e.Name == common.EnvSeedSrcPass && e.Value != "" {
+			t.Errorf("inline seed source password must be dropped outside Development, got %q", e.Value)
+		}
+		if e.Name == common.EnvDBPass && e.Value != "" {
+			t.Errorf("inline seed target password must be dropped outside Development, got %q", e.Value)
+		}
+	}
+}
+
+func TestGateOnSeedEnvironment(t *testing.T) {
+	newSuperset := func(env string, seedDisabled *bool) *supersetv1alpha1.Superset {
+		s := &supersetv1alpha1.Superset{
+			ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+			Spec: supersetv1alpha1.SupersetSpec{
+				Lifecycle: &supersetv1alpha1.LifecycleSpec{
+					Seed: &supersetv1alpha1.SeedTaskSpec{
+						Disabled: seedDisabled,
+						Source:   supersetv1alpha1.SeedSourceSpec{Host: "src"},
+					},
+				},
+			},
+		}
+		if env != "" {
+			s.Spec.Environment = common.Ptr(env)
+		}
+		s.Status.Lifecycle = &supersetv1alpha1.LifecycleStatus{}
+		return s
+	}
+	r := &SupersetReconciler{Recorder: events.NewFakeRecorder(10)}
+
+	t.Run("blocks in production", func(t *testing.T) {
+		s := newSuperset(common.EnvironmentProd, nil)
+		res, blocked := r.gateOnSeedEnvironment(s)
+		if !blocked || !res.TerminalFailure {
+			t.Fatalf("expected block+terminal in Production, got blocked=%v res=%#v", blocked, res)
+		}
+		if !hasLifecycleConditionReason(s, "SeedEnvironmentNotAllowed") {
+			t.Fatal("expected SeedEnvironmentNotAllowed condition")
+		}
+	})
+	t.Run("blocks when environment unset (defaults to Production)", func(t *testing.T) {
+		if _, blocked := r.gateOnSeedEnvironment(newSuperset("", nil)); !blocked {
+			t.Fatal("expected block when environment unset")
+		}
+	})
+	t.Run("allows in staging", func(t *testing.T) {
+		if _, blocked := r.gateOnSeedEnvironment(newSuperset(common.EnvironmentStaging, nil)); blocked {
+			t.Fatal("expected no block in Staging")
+		}
+	})
+	t.Run("allows in development", func(t *testing.T) {
+		if _, blocked := r.gateOnSeedEnvironment(newSuperset(common.EnvironmentDev, nil)); blocked {
+			t.Fatal("expected no block in Development")
+		}
+	})
+	t.Run("no-op when seed disabled", func(t *testing.T) {
+		if _, blocked := r.gateOnSeedEnvironment(newSuperset(common.EnvironmentProd, common.Ptr(true))); blocked {
+			t.Fatal("expected no block when seed disabled")
+		}
+	})
 }

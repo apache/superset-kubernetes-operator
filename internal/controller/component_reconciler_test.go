@@ -315,7 +315,7 @@ func TestDeleteByLabels_KeepsNamedAndDeletesRest(t *testing.T) {
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(keep, drop, unrelated).Build()
 
-	err := deleteByLabels(ctx, c, "default", labels, func() client.ObjectList { return &corev1.ServiceList{} }, "keep")
+	err := deleteByLabels(ctx, c, nil, "default", labels, func() client.ObjectList { return &corev1.ServiceList{} }, "keep")
 	require.NoError(t, err)
 
 	// "keep" remains.
@@ -327,6 +327,46 @@ func TestDeleteByLabels_KeepsNamedAndDeletesRest(t *testing.T) {
 	assert.NoError(t, c.Get(ctx, client.ObjectKey{Name: "other", Namespace: "default"}, &corev1.Service{}))
 }
 
+// TestDeleteByLabels_SkipsForeignControllerOwned verifies that label-based
+// cleanup never deletes a resource controller-owned by a foreign owner (the
+// deletion-oracle guard), while still deleting the operator's own and unowned
+// resources that match the selector.
+func TestDeleteByLabels_SkipsForeignControllerOwned(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+	labels := map[string]string{"app": "x"}
+
+	owner := &supersetv1alpha1.Superset{ObjectMeta: metav1.ObjectMeta{Name: "owner", Namespace: "default", UID: "owner-uid"}}
+
+	ours := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+		Name: "ours", Namespace: "default", UID: "ours-uid", Labels: labels,
+		OwnerReferences: []metav1.OwnerReference{{
+			APIVersion: "superset.apache.org/v1alpha1", Kind: "Superset", Name: "owner",
+			UID: "owner-uid", Controller: boolPtr(true),
+		}},
+	}}
+	foreign := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+		Name: "foreign", Namespace: "default", UID: "foreign-uid", Labels: labels,
+		OwnerReferences: []metav1.OwnerReference{{
+			APIVersion: "batch/v1", Kind: "CronJob", Name: "cj",
+			UID: "cj-uid", Controller: boolPtr(true),
+		}},
+	}}
+	unowned := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "unowned", Namespace: "default", UID: "unowned-uid", Labels: labels}}
+
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(ours, foreign, unowned).Build()
+	require.NoError(t, deleteByLabels(ctx, c, owner, "default", labels,
+		func() client.ObjectList { return &corev1.ServiceList{} }, ""))
+
+	// Foreign-owned resource survives.
+	assert.NoError(t, c.Get(ctx, client.ObjectKey{Name: "foreign", Namespace: "default"}, &corev1.Service{}))
+	// The operator's own and unowned resources are deleted.
+	for _, n := range []string{"ours", "unowned"} {
+		err := c.Get(ctx, client.ObjectKey{Name: n, Namespace: "default"}, &corev1.Service{})
+		assert.True(t, errors.IsNotFound(err), "expected %s deleted", n)
+	}
+}
+
 func TestDeleteByLabels_EmptyKeepNameDeletesAll(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
@@ -335,7 +375,7 @@ func TestDeleteByLabels_EmptyKeepNameDeletesAll(t *testing.T) {
 	b := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "b", Namespace: "default", Labels: labels}}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(a, b).Build()
 
-	require.NoError(t, deleteByLabels(ctx, c, "default", labels, func() client.ObjectList { return &corev1.ServiceList{} }, ""))
+	require.NoError(t, deleteByLabels(ctx, c, nil, "default", labels, func() client.ObjectList { return &corev1.ServiceList{} }, ""))
 
 	for _, name := range []string{"a", "b"} {
 		err := c.Get(ctx, client.ObjectKey{Name: name, Namespace: "default"}, &corev1.Service{})

@@ -34,6 +34,16 @@ func FuzzRedactCredentials(f *testing.F) {
 	f.Add("postgresql://user:p@ss@db:5432/superset")
 	f.Add("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.p.s bearer abc123")
 	f.Add("authorization=Basic dXNlcjpwYXNz passphrase: x")
+	f.Add(`{"host": "db", "password": "hunter2", "port": 5432}`)
+	f.Add(`{"host": "db", "password": hunter2, "port": 5432}`)
+	f.Add("{'db_password': 'hunter2', 'user': 'admin'}")
+	f.Add("{'db_password': 12345, 'user': 'admin'}")
+	f.Add(`"secret_key": "two words" 'token':'abc'`)
+	// Regression seed (fuzz-discovered): a quoted-key credential whose value has
+	// an unbalanced quote once broke idempotence — an inner keyword match fired
+	// on the first pass, then the outer key re-matched on the second. Guards the
+	// bare-placeholder replacement in quotedKeyCredentialRe.
+	f.Add(`"seCret0000": "token0':''`)
 
 	f.Fuzz(func(t *testing.T, msg string) {
 		once := redactCredentials(msg)

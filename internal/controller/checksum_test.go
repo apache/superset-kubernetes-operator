@@ -34,22 +34,34 @@ func TestIsOwnedBy(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{Name: "parent", Namespace: "default", UID: types.UID("owner-uid")},
 	}
 
-	t.Run("matching owner UID returns true", func(t *testing.T) {
+	t.Run("matching controller owner UID returns true", func(t *testing.T) {
 		obj := &appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
 				OwnerReferences: []metav1.OwnerReference{
 					{UID: types.UID("someone-else")},
-					{UID: types.UID("owner-uid")},
+					{UID: types.UID("owner-uid"), Controller: boolPtr(true)},
 				},
 			},
 		}
 		assert.True(t, isOwnedBy(obj, owner))
 	})
 
+	t.Run("matching UID that is not the controller returns false", func(t *testing.T) {
+		obj := &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				OwnerReferences: []metav1.OwnerReference{
+					{UID: types.UID("owner-uid")},
+					{UID: types.UID("someone-else"), Controller: boolPtr(true)},
+				},
+			},
+		}
+		assert.False(t, isOwnedBy(obj, owner))
+	})
+
 	t.Run("non-matching owner UID returns false", func(t *testing.T) {
 		obj := &appsv1.Deployment{
 			ObjectMeta: metav1.ObjectMeta{
-				OwnerReferences: []metav1.OwnerReference{{UID: types.UID("someone-else")}},
+				OwnerReferences: []metav1.OwnerReference{{UID: types.UID("someone-else"), Controller: boolPtr(true)}},
 			},
 		}
 		assert.False(t, isOwnedBy(obj, owner))

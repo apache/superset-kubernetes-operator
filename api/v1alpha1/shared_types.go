@@ -292,6 +292,8 @@ type ValkeyCacheSpec struct {
 
 	// Cache key prefix.
 	// +optional
+	// +kubebuilder:validation:Pattern=`^[A-Za-z0-9._:-]*$`
+	// +kubebuilder:validation:MaxLength=128
 	KeyPrefix *string `json:"keyPrefix,omitempty"`
 
 	// Default cache timeout in seconds.
@@ -322,6 +324,8 @@ type ValkeyResultsBackendSpec struct {
 
 	// Cache key prefix for results.
 	// +optional
+	// +kubebuilder:validation:Pattern=`^[A-Za-z0-9._:-]*$`
+	// +kubebuilder:validation:MaxLength=128
 	KeyPrefix *string `json:"keyPrefix,omitempty"`
 }
 

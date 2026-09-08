@@ -131,6 +131,53 @@ func TestReconcileHPA_NilAutoscaling(t *testing.T) {
 			t.Fatalf("expected no error: %v", err)
 		}
 	})
+
+	// Migration: an HPA created by a pre-patch operator lacks the reserved parent
+	// label the selector now requires, but is controller-owned by this CR. The
+	// owner-checked exact-name fallback must still clean it up.
+	t.Run("deletes pre-patch owned HPA at name lacking selector labels", func(t *testing.T) {
+		hpa := &autoscalingv2.HorizontalPodAutoscaler{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-web-server", Namespace: "default", UID: "hpa-uid",
+				OwnerReferences: []metav1.OwnerReference{{
+					APIVersion: "superset.apache.org/v1alpha1", Kind: "Superset",
+					Name: "test-web-server", UID: "uid-1", Controller: boolPtr(true),
+				}},
+			},
+			Spec: autoscalingv2.HorizontalPodAutoscalerSpec{MaxReplicas: 5},
+		}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner, hpa).Build()
+		if err := reconcileHPA(context.Background(), c, scheme, owner, nil, testLabels, "test-web-server", "default"); err != nil {
+			t.Fatalf("reconcileHPA: %v", err)
+		}
+		got := &autoscalingv2.HorizontalPodAutoscaler{}
+		if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, got); !errors.IsNotFound(err) {
+			t.Fatalf("expected pre-patch owned HPA deleted by name fallback, got: %v", err)
+		}
+	})
+
+	// The exact-name fallback must never delete an HPA controller-owned by a
+	// foreign owner that merely shares the managed name.
+	t.Run("keeps foreign-owned HPA at name", func(t *testing.T) {
+		hpa := &autoscalingv2.HorizontalPodAutoscaler{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "test-web-server", Namespace: "default", UID: "hpa-uid",
+				OwnerReferences: []metav1.OwnerReference{{
+					APIVersion: "batch/v1", Kind: "CronJob", Name: "cj",
+					UID: "foreign-uid", Controller: boolPtr(true),
+				}},
+			},
+			Spec: autoscalingv2.HorizontalPodAutoscalerSpec{MaxReplicas: 5},
+		}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner, hpa).Build()
+		if err := reconcileHPA(context.Background(), c, scheme, owner, nil, testLabels, "test-web-server", "default"); err != nil {
+			t.Fatalf("reconcileHPA: %v", err)
+		}
+		got := &autoscalingv2.HorizontalPodAutoscaler{}
+		if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, got); err != nil {
+			t.Fatalf("foreign-owned HPA at managed name must survive, got: %v", err)
+		}
+	})
 }
 
 func TestReconcileHPA_CustomMetrics(t *testing.T) {

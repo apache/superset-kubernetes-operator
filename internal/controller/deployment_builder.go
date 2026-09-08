@@ -160,9 +160,13 @@ func buildDeploymentSpec(
 	containers = append(containers, mainContainer)
 	containers = append(containers, pt.Sidecars...)
 
-	// Build pod labels and annotations.
+	// Build pod labels and annotations. Operator-managed annotations (the
+	// config-checksum that drives rollouts on config/SECRET_KEY changes) are
+	// merged last so they win over user pod-template annotations and cannot be
+	// pinned to freeze rollouts — matching the label rule and the lifecycle
+	// task-Job path (lifecycle_job.go).
 	podLabels := mergeLabels(pt.Labels, selectorLabels)
-	allPodAnnotations := mergeAnnotations(podAnnotations, pt.Annotations)
+	allPodAnnotations := mergeAnnotations(pt.Annotations, podAnnotations)
 
 	// Build PodSpec from PodTemplate.
 	podSpec := corev1.PodSpec{

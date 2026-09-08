@@ -167,11 +167,11 @@ verify-helm-checksum: ## Verify install-helm.sh pins the correct Helm tarball SH
 
 .PHONY: sync-tool-checksums
 sync-tool-checksums: ## Sync hack/tool-checksums.txt with the pinned binary tool checksums.
-	./scripts/sync-tool-checksums.sh --write
+	./scripts/sync-tool-checksums.sh --write $(ARGS)
 
 .PHONY: verify-tool-checksums
 verify-tool-checksums: ## Verify hack/tool-checksums.txt matches the pinned binary tool releases.
-	./scripts/sync-tool-checksums.sh --check
+	./scripts/sync-tool-checksums.sh --check $(ARGS)
 
 ##@ Helm
 
@@ -293,11 +293,13 @@ lint-fix: lint-go-fix lint-md-fix ## Auto-fix all linters that support it (Go, M
 
 .PHONY: lint-go
 lint-go: golangci-lint ## Run the Go linter (golangci-lint).
+	$(GOLANGCI_LINT) fmt --diff
 	$(GOLANGCI_LINT) run
 
 .PHONY: lint-go-fix
 lint-go-fix: golangci-lint ## Run the Go linter and apply fixes.
 	$(GOLANGCI_LINT) run --fix
+	$(GOLANGCI_LINT) fmt
 
 .PHONY: lint-go-config
 lint-go-config: golangci-lint ## Verify the golangci-lint configuration.
@@ -388,19 +390,22 @@ HELM_DOCS ?= $(LOCALBIN)/helm-docs
 # renovate: datasource=go depName=sigs.k8s.io/kustomize/kustomize/v5
 KUSTOMIZE_VERSION ?= v5.8.1
 # renovate: datasource=go depName=sigs.k8s.io/controller-tools
-CONTROLLER_TOOLS_VERSION ?= v0.21.0
-#ENVTEST_VERSION is the version of controller-runtime release branch to fetch the envtest setup script (i.e. release-0.20)
-ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime | awk -F'[v.]' '{printf "release-%d.%d", $$2, $$3}')
+CONTROLLER_TOOLS_VERSION ?= v0.22.0
+# ENVTEST_VERSION pins setup-envtest to the exact tagged controller-runtime
+# version resolved from go.mod (e.g. v0.24.1), rather than a mutable
+# release-X.Y branch ref. This keeps the fetch immutable and sumdb-verified,
+# bumped through reviewed Renovate go.mod updates like every other Go tool.
+ENVTEST_VERSION ?= $(shell go list -m -f "{{ .Version }}" sigs.k8s.io/controller-runtime)
 #ENVTEST_K8S_VERSION is the version of Kubernetes to use for setting up ENVTEST binaries (i.e. 1.31)
 ENVTEST_K8S_VERSION ?= $(shell go list -m -f "{{ .Version }}" k8s.io/api | awk -F'[v.]' '{printf "1.%d", $$3}')
 # renovate: datasource=github-releases depName=golangci/golangci-lint
-GOLANGCI_LINT_VERSION ?= v2.13.1
+GOLANGCI_LINT_VERSION ?= v2.13.2
 # renovate: datasource=go depName=github.com/elastic/crd-ref-docs
 CRD_REF_DOCS_VERSION ?= v0.3.0
 # renovate: datasource=go depName=golang.org/x/vuln
 GOVULNCHECK_VERSION ?= v1.7.0
 # renovate: datasource=github-releases depName=rvben/rumdl
-RUMDL_VERSION ?= v0.2.61
+RUMDL_VERSION ?= v0.2.62
 # renovate: datasource=go depName=github.com/norwoodj/helm-docs
 HELM_DOCS_VERSION ?= v1.14.2
 
@@ -558,7 +563,7 @@ bundle-push: ## Push the bundle image.
 .PHONY: opm
 OPM = $(LOCALBIN)/opm
 # renovate: datasource=github-releases depName=operator-framework/operator-registry
-OPM_VERSION ?= v1.73.0
+OPM_VERSION ?= v1.74.0
 opm: ## Download opm locally if necessary.
 ifeq (,$(wildcard $(OPM)))
 ifeq (,$(shell which opm 2>/dev/null))
