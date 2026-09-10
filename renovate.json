@@ -70,6 +70,13 @@
       "minimumReleaseAge": "0"
     },
     {
+      "description": "rumdl releases frequently and only affects Markdown linting, so batch its version bumps into a monthly maintenance window.",
+      "matchManagers": ["custom.regex"],
+      "matchDepNames": ["rvben/rumdl"],
+      "schedule": ["* 0-3 1 * *"],
+      "updateNotScheduled": false
+    },
+    {
       "matchPackageNames": ["kubernetes-sigs/kind"],
       "addLabels": ["review:supported-k8s"],
       "prBodyNotes": [
