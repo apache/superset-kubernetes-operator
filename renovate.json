@@ -28,6 +28,12 @@
       "enabled": false
     },
     {
+      "description": "github.com/google/cel-go changed its module path to cel.dev/cel-go in v0.32.0; keep the old-path module on the latest compatible line until Kubernetes/controller-runtime migrate their imports.",
+      "matchManagers": ["gomod"],
+      "matchDepNames": ["github.com/google/cel-go"],
+      "allowedVersions": "<0.32.0"
+    },
+    {
       "description": "The native gomod manager tracks the go.mod `go` directive from Go releases, which can appear before the matching golang Docker image. A custom regex manager below tracks this directive from Docker Hub tags instead, so Go version PRs are created only when the builder image exists.",
       "matchManagers": ["gomod"],
       "matchDepNames": ["go"],
@@ -64,6 +70,13 @@
       "minimumReleaseAge": "0"
     },
     {
+      "description": "rumdl releases frequently and only affects Markdown linting, so batch its version bumps into a monthly maintenance window.",
+      "matchManagers": ["custom.regex"],
+      "matchDepNames": ["rvben/rumdl"],
+      "schedule": ["* 0-3 1 * *"],
+      "updateNotScheduled": false
+    },
+    {
       "matchPackageNames": ["kubernetes-sigs/kind"],
       "addLabels": ["review:supported-k8s"],
       "prBodyNotes": [
@@ -78,6 +91,12 @@
         "config/manager/manager.yaml"
       ],
       "enabled": false
+    },
+    {
+      "description": "Keep Kubebuilder's installer pin and PROJECT cliVersion in lockstep so scaffold update tooling knows which CLI version produced the project metadata.",
+      "matchManagers": ["custom.regex"],
+      "matchDepNames": ["kubernetes-sigs/kubebuilder"],
+      "groupName": "Kubebuilder scaffold version"
     },
     {
       "description": "Helm publishes tarballs (and their checksums) on get.helm.sh, not as GitHub release attachments, so Renovate can only bump the version — the pinned SHA-256 must be resynced separately.",
@@ -155,6 +174,15 @@
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)( versioning=(?<versioning>\\S+))?\\s+\\S+_VERSION=\"\\$\\{\\S+_VERSION:-(?<currentValue>[^\\\"]+)\\}\""
       ],
       "versioningTemplate": "{{#if versioning}}{{{versioning}}}{{else}}semver-coerced{{/if}}"
+    },
+    {
+      "customType": "regex",
+      "description": "Track Kubebuilder's PROJECT cliVersion from GitHub release tags.",
+      "managerFilePatterns": ["/^PROJECT$/"],
+      "matchStrings": ["(?:^|\\n)cliVersion:\\s*(?<currentValue>v[0-9.]+)\\n"],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "kubernetes-sigs/kubebuilder",
+      "versioningTemplate": "semver-coerced"
     },
     {
       "customType": "regex",
