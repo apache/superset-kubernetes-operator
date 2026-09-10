@@ -156,10 +156,10 @@ The Helm chart exposes one cache DB (`cache.cacheDb`) and one Celery DB (`cache.
 | `supersetCeleryBeat.enabled` | `spec.celeryBeat: {}` | Celery Beat is always a singleton. |
 | `supersetCeleryFlower.enabled` | `spec.celeryFlower: {}` | Flower gets its own Deployment and Service. |
 | `supersetCeleryFlower.service.*` | `spec.celeryFlower.service.*` | Supports service type, port, nodePort, labels, and annotations. |
-| `supersetWebsockets.enabled` | `spec.websocketServer` + `spec.realtime.webSocket` | The server ships in the official Superset image, so `websocketServer` inherits `spec.image` — no custom image needed. `spec.realtime.webSocket` supplies the shared JWT secret and browser URL. |
+| `supersetWebsockets.enabled` | `spec.websocketServer` + `spec.realtime.webSocket` | **Superset 7.0+.** The server ships in the official Superset image (bundled from 7.0, [apache/superset#44100](https://github.com/apache/superset/pull/44100)), so `websocketServer` inherits `spec.image` — no custom image needed. `spec.realtime.webSocket` supplies the shared JWT secret and browser URL. |
 | `supersetWebsockets.config` (`jwtSecret`, `jwtCookieName`, `redisStreamPrefix`, `redis`) | `spec.realtime.webSocket` + `spec.valkey.distributedCoordination` | No `config.json`. The operator injects the server's env (JWT secret, Redis coordination connection) from these fields. `jwtCookieName` maps to `realtime.webSocket.cookieName` (operator default `superset-ws-token`, chart default `async-token`); the channel prefix is operator-managed. Extra server settings go under `websocketServer.podTemplate` container env. |
 | `supersetMcp.enabled` | `spec.mcpServer: {}` | MCP server gets its own Deployment and Service, launched from the official Superset image (the MCP server is bundled from Superset 7.0, [apache/superset#44100](https://github.com/apache/superset/pull/44100)). Expose it with `spec.networking.ingress`/`gateway` (its subpath defaults to `/mcp`, overridable via `mcpServer.service.gatewayPath`). |
-| `GLOBAL_ASYNC_QUERIES` feature flag + `cache.asyncQueries.*` | `spec.realtime.asyncQueries` | The chart enables Global Async Queries by setting the `GLOBAL_ASYNC_QUERIES` feature flag (via `configOverrides`/`featureFlags`) and running `supersetWebsockets`; `cache.asyncQueries` tunes the async-query cache. In the operator, `spec.realtime.asyncQueries` sets the feature flag and renders the `superset.tasks.async_queries` Celery import plus the `reap_orphaned_tasks` beat schedule. Requires `celeryWorker`, `celeryBeat`, and managed Valkey coordination. Pair it with `spec.realtime.webSocket` for the `ws` transport. |
+| `GLOBAL_ASYNC_QUERIES` feature flag + `cache.asyncQueries.*` | `spec.realtime.asyncQueries` | **Superset 7.0+**, where Global Async Queries runs on the Global Task Framework ([apache/superset#43407](https://github.com/apache/superset/pull/43407)). The chart enables Global Async Queries by setting the `GLOBAL_ASYNC_QUERIES` feature flag (via `configOverrides`/`featureFlags`) and running `supersetWebsockets`; `cache.asyncQueries` tunes the async-query cache. In the operator, `spec.realtime.asyncQueries` sets the feature flag and renders the `superset.tasks.async_queries` Celery import plus the `reap_orphaned_tasks` beat schedule. Requires `celeryWorker`, `celeryBeat`, and managed Valkey coordination. Pair it with `spec.realtime.webSocket` for the `ws` transport. |
 
 ### Lifecycle Tasks
 
@@ -396,6 +396,8 @@ spec:
 
 ## Global Async Queries
 
+> Requires Superset 7.0+, where Global Async Queries runs on the Global Task Framework ([apache/superset#43407](https://github.com/apache/superset/pull/43407)).
+
 In the Helm chart, Global Async Queries is enabled by setting the `GLOBAL_ASYNC_QUERIES` feature flag (through `configOverrides`/`featureFlags`), running `supersetWebsockets` for the `ws` transport, and tuning `cache.asyncQueries`. The operator wires this through `spec.realtime.asyncQueries`, which sets the feature flag and renders the `superset.tasks.async_queries` Celery import plus the `reap_orphaned_tasks` beat schedule. It requires a Celery worker, Celery Beat, and managed Valkey coordination:
 
 ```yaml
@@ -411,6 +413,8 @@ spec:
 Without a websocket transport, clients receive results by polling. To deliver them over the push transport instead, add `websocketServer` and `spec.realtime.webSocket` (see [Websocket Config](#websocket-config) below). GAQ tuning knobs such as `GLOBAL_ASYNC_QUERIES_POLLING_DELAY` are set through `spec.config`.
 
 ## Websocket Config
+
+> Requires Superset 7.0+, which bundles the websocket server into the official image ([apache/superset#43407](https://github.com/apache/superset/pull/43407), [#44100](https://github.com/apache/superset/pull/44100)).
 
 The Helm chart's `supersetWebsockets.config` map (JWT secret, Redis connection) no longer has a direct equivalent — the operator generates the server's configuration from `spec.realtime.webSocket` and `spec.valkey.distributedCoordination`. Provide the shared JWT secret and let the coordination backend supply Redis:
 
