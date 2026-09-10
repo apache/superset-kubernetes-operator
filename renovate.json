@@ -28,6 +28,12 @@
       "enabled": false
     },
     {
+      "description": "github.com/google/cel-go changed its module path to cel.dev/cel-go in v0.32.0; keep the old-path module on the latest compatible line until Kubernetes/controller-runtime migrate their imports.",
+      "matchManagers": ["gomod"],
+      "matchDepNames": ["github.com/google/cel-go"],
+      "allowedVersions": "<0.32.0"
+    },
+    {
       "description": "The native gomod manager tracks the go.mod `go` directive from Go releases, which can appear before the matching golang Docker image. A custom regex manager below tracks this directive from Docker Hub tags instead, so Go version PRs are created only when the builder image exists.",
       "matchManagers": ["gomod"],
       "matchDepNames": ["go"],
