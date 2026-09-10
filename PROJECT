@@ -3,6 +3,7 @@
 # and allow the plugins properly work.
 # More info: https://book.kubebuilder.io/reference/project-config.html
 domain: apache.org
+cliVersion: v4.16.0
 layout:
 - go.kubebuilder.io/v4
 plugins:
