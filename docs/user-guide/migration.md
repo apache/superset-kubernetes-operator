@@ -22,8 +22,8 @@ under the License.
 This guide helps translate a deployment from the official Apache Superset Helm chart to a `Superset` custom resource. It focuses on feature parity and on the places where the operator intentionally uses a different model.
 
 > **Comparison target:** This guide is written against the upstream
-> [`apache/superset` Helm chart](https://github.com/apache/superset/tree/superset-helm-chart-0.15.5/helm/superset)
-> at chart version `0.15.5` / `appVersion: 5.0.0`. Older Helm releases share most field names, but some values differ across chart versions.
+> [`apache/superset` Helm chart](https://github.com/apache/superset/tree/superset-helm-chart-0.22.8/helm/superset)
+> at chart version `0.22.8` / `appVersion: 6.1.0`. Older Helm releases share most field names, but some values differ across chart versions — notably, connection settings moved from `supersetNode.connections.*` to top-level `database.*` and `cache.*` (the old keys are still honored).
 
 The operator runs the same core application as the chart — web server, Celery workers, Celery Beat, Celery Flower, and the websocket server — and reads the same `superset_config.py`, so most of your Helm values map across directly. What changes is the surrounding machinery: instead of an install-time hook Job and static manifests, the operator manages migrations, initialization, scaling, and routing as part of a control loop that keeps your declared state reconciled.
 
@@ -134,13 +134,13 @@ The operator's intentional gaps each have a straightforward workaround: provisio
 
 | Helm chart value | Operator equivalent | Notes |
 |---|---|---|
-| `supersetNode.connections.db_*` | `spec.metastore` | Use `uriFrom` for an exact SQLAlchemy URI, or structured `host`, `database`, `username`, and `passwordFrom`. The Helm `db_pass` value is rendered into `DB_PASS` in the chart env Secret; for `passwordFrom`, reference whichever long-lived Secret/key will hold that database password after migration. |
-| `supersetNode.connections.redis_*` | `spec.valkey` | `valkey` works with Redis-compatible services and renders cache, Celery broker/backend, and SQL Lab results backend config. `redis_user` maps to `username`. |
-| `supersetNode.connections.redis_ssl` | `spec.valkey.ssl` | Set `ssl: {}` for Redis/Valkey TLS. Mount client certs or CA bundles with `podTemplate.volumes` if needed; when certificate paths are configured, translate Helm `ssl_cert_reqs` values from `CERT_NONE`/`CERT_OPTIONAL`/`CERT_REQUIRED` to `certRequired: none`/`optional`/`required`. |
+| `database.*` (`host`, `port`, `user`, `password`, `name`, `uri`, `driver`, `ssl`) | `spec.metastore` | Current chart key; the deprecated `supersetNode.connections.db_*` form is still honored. Use `uriFrom` for an exact SQLAlchemy URI, or structured `host`, `database`, `username`, and `passwordFrom`. The Helm `database.password` value is rendered into `DB_PASS` in the chart env Secret; for `passwordFrom`, reference whichever long-lived Secret/key will hold that database password after migration. |
+| `cache.*` (`cacheDb`, `celeryDb`, `keyPrefix`) and the redis connection | `spec.valkey` | Current chart keys; the deprecated `supersetNode.connections.redis_*` form is still honored. `valkey` works with Redis-compatible services and renders cache, Celery broker/backend, and SQL Lab results backend config. `cacheDb`/`celeryDb` map to the per-role `spec.valkey.*.database` fields; `redis_user` maps to `username`. |
+| `database.ssl` / `supersetNode.connections.redis_ssl` | `spec.valkey.ssl` | Set `ssl: {}` for Redis/Valkey TLS. Mount client certs or CA bundles with `podTemplate.volumes` if needed; when certificate paths are configured, translate Helm `ssl_cert_reqs` values from `CERT_NONE`/`CERT_OPTIONAL`/`CERT_REQUIRED` to `certRequired: none`/`optional`/`required`. |
 | `postgresql.*` | Not managed by this operator | Provide an existing PostgreSQL endpoint and reference it from `spec.metastore`. |
 | `redis.*` | Not managed by this operator | Provide an existing Redis/Valkey-compatible endpoint and reference it from `spec.valkey`. |
 
-The Helm chart exposes one cache DB (`redis_cache_db`) and one Celery DB (`redis_celery_db`). The operator gives each Superset cache role its own default DB and key prefix. To preserve Helm-like sharing, set the relevant `spec.valkey.*.database` fields to the same DB numbers you used in Helm.
+The Helm chart exposes one cache DB (`cache.cacheDb`) and one Celery DB (`cache.celeryDb`). The operator gives each Superset cache role its own default DB and key prefix. To preserve Helm-like sharing, set the relevant `spec.valkey.*.database` fields to the same DB numbers you used in Helm.
 
 `spec.valkey` renders managed connectivity for Celery (`broker_url`, `result_backend`, and SSL settings), but it does not recreate Celery application behavior such as imports, task annotations, routes, beat schedules, or scheduler expiration. Carry those settings over explicitly in `spec.config` based on the Superset version you deploy.
 
@@ -157,7 +157,9 @@ The Helm chart exposes one cache DB (`redis_cache_db`) and one Celery DB (`redis
 | `supersetCeleryFlower.enabled` | `spec.celeryFlower: {}` | Flower gets its own Deployment and Service. |
 | `supersetCeleryFlower.service.*` | `spec.celeryFlower.service.*` | Supports service type, port, nodePort, labels, and annotations. |
 | `supersetWebsockets.enabled` | `spec.websocketServer` + `spec.realtime.webSocket` | The server ships in the official Superset image, so `websocketServer` inherits `spec.image` — no custom image needed. `spec.realtime.webSocket` supplies the shared JWT secret and browser URL. |
-| `supersetWebsockets.config` | `spec.realtime.webSocket` + `spec.valkey.distributedCoordination` | No `config.json`. The operator injects the server's env (JWT secret, Redis coordination connection) from these fields. Extra server settings go under `websocketServer.podTemplate` container env. |
+| `supersetWebsockets.config` (`jwtSecret`, `jwtCookieName`, `redisStreamPrefix`, `redis`) | `spec.realtime.webSocket` + `spec.valkey.distributedCoordination` | No `config.json`. The operator injects the server's env (JWT secret, Redis coordination connection) from these fields. `jwtCookieName` maps to `realtime.webSocket.cookieName` (operator default `superset-ws-token`, chart default `async-token`); the channel prefix is operator-managed. Extra server settings go under `websocketServer.podTemplate` container env. |
+| `supersetMcp.enabled` | `spec.mcpServer: {}` | MCP server gets its own Deployment and Service, launched from the official Superset image (the MCP server is bundled from Superset 7.0, [apache/superset#44100](https://github.com/apache/superset/pull/44100)). Expose it with `spec.networking.ingress`/`gateway` (its subpath defaults to `/mcp`, overridable via `mcpServer.service.gatewayPath`). |
+| `GLOBAL_ASYNC_QUERIES` feature flag + `cache.asyncQueries.*` | `spec.realtime.asyncQueries` | The chart enables Global Async Queries by setting the `GLOBAL_ASYNC_QUERIES` feature flag (via `configOverrides`/`featureFlags`) and running `supersetWebsockets`; `cache.asyncQueries` tunes the async-query cache. In the operator, `spec.realtime.asyncQueries` sets the feature flag and renders the `superset.tasks.async_queries` Celery import plus the `reap_orphaned_tasks` beat schedule. Requires `celeryWorker`, `celeryBeat`, and managed Valkey coordination. Pair it with `spec.realtime.webSocket` for the `ws` transport. |
 
 ### Lifecycle Tasks
 
@@ -286,7 +288,7 @@ Helm values:
 
 ```yaml
 image:
-  tag: 5.0.0
+  tag: 6.1.0
 
 supersetNode:
   replicas:
@@ -335,7 +337,7 @@ metadata:
   name: superset
 spec:
   image:
-    tag: "5.0.0"
+    tag: "6.1.0"
   secretKeyFrom:
     name: superset-secrets
     key: secret-key
@@ -391,6 +393,22 @@ spec:
             superset import_datasources -p /app/configs/import_datasources.yaml
           fi
 ```
+
+## Global Async Queries
+
+In the Helm chart, Global Async Queries is enabled by setting the `GLOBAL_ASYNC_QUERIES` feature flag (through `configOverrides`/`featureFlags`), running `supersetWebsockets` for the `ws` transport, and tuning `cache.asyncQueries`. The operator wires this through `spec.realtime.asyncQueries`, which sets the feature flag and renders the `superset.tasks.async_queries` Celery import plus the `reap_orphaned_tasks` beat schedule. It requires a Celery worker, Celery Beat, and managed Valkey coordination:
+
+```yaml
+spec:
+  valkey:
+    host: valkey                    # distributedCoordination enabled by default
+  celeryWorker: {}
+  celeryBeat: {}
+  realtime:
+    asyncQueries: {}
+```
+
+Without a websocket transport, clients receive results by polling. To deliver them over the push transport instead, add `websocketServer` and `spec.realtime.webSocket` (see [Websocket Config](#websocket-config) below). GAQ tuning knobs such as `GLOBAL_ASYNC_QUERIES_POLLING_DELAY` are set through `spec.config`.
 
 ## Websocket Config
 
