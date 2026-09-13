@@ -76,6 +76,7 @@ func TestBuildDeploymentSpec(t *testing.T) {
 		if len(container.Ports) != 1 || container.Ports[0].ContainerPort != common.PortWebServer {
 			t.Errorf("expected default port %d, got %v", common.PortWebServer, container.Ports)
 		}
+		assertHardenedDefaults(t, container.SecurityContext)
 	})
 
 	t.Run("command override", func(t *testing.T) {
@@ -498,6 +499,60 @@ func TestBuildServiceSpec(t *testing.T) {
 		}
 		if result.Ports[0].TargetPort != intstr.FromInt32(9090) {
 			t.Errorf("expected targetPort 9090 (custom container port), got %v", result.Ports[0].TargetPort)
+		}
+	})
+}
+
+// assertHardenedDefaults checks the operator's UID-independent container
+// hardening defaults are present.
+func assertHardenedDefaults(t *testing.T, sc *corev1.SecurityContext) {
+	t.Helper()
+	if sc == nil {
+		t.Fatal("expected a hardened container securityContext, got nil")
+	}
+	if sc.AllowPrivilegeEscalation == nil || *sc.AllowPrivilegeEscalation {
+		t.Errorf("AllowPrivilegeEscalation = %v, want false", sc.AllowPrivilegeEscalation)
+	}
+	if sc.Capabilities == nil || len(sc.Capabilities.Drop) != 1 || sc.Capabilities.Drop[0] != "ALL" {
+		t.Errorf("Capabilities.Drop = %+v, want [ALL]", sc.Capabilities)
+	}
+	if sc.SeccompProfile == nil || sc.SeccompProfile.Type != corev1.SeccompProfileTypeRuntimeDefault {
+		t.Errorf("SeccompProfile = %+v, want RuntimeDefault", sc.SeccompProfile)
+	}
+}
+
+func TestApplyContainerSecurityDefaults(t *testing.T) {
+	t.Run("fills defaults when nil", func(t *testing.T) {
+		assertHardenedDefaults(t, applyContainerSecurityDefaults(nil))
+	})
+
+	t.Run("preserves user-set fields", func(t *testing.T) {
+		user := &corev1.SecurityContext{
+			AllowPrivilegeEscalation: common.Ptr(true),
+			Capabilities:             &corev1.Capabilities{Add: []corev1.Capability{"NET_BIND_SERVICE"}},
+			SeccompProfile:           &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeUnconfined},
+			RunAsUser:                common.Ptr(int64(1000)),
+		}
+		got := applyContainerSecurityDefaults(user)
+		if got.AllowPrivilegeEscalation == nil || !*got.AllowPrivilegeEscalation {
+			t.Error("user AllowPrivilegeEscalation=true must be preserved")
+		}
+		if got.Capabilities == nil || len(got.Capabilities.Add) != 1 || len(got.Capabilities.Drop) != 0 {
+			t.Errorf("user Capabilities must be preserved, got %+v", got.Capabilities)
+		}
+		if got.SeccompProfile == nil || got.SeccompProfile.Type != corev1.SeccompProfileTypeUnconfined {
+			t.Errorf("user SeccompProfile must be preserved, got %+v", got.SeccompProfile)
+		}
+		if got.RunAsUser == nil || *got.RunAsUser != 1000 {
+			t.Error("unrelated user field RunAsUser must be preserved")
+		}
+	})
+
+	t.Run("does not mutate the input", func(t *testing.T) {
+		user := &corev1.SecurityContext{RunAsUser: common.Ptr(int64(1000))}
+		_ = applyContainerSecurityDefaults(user)
+		if user.AllowPrivilegeEscalation != nil || user.Capabilities != nil || user.SeccompProfile != nil {
+			t.Error("input securityContext must not be mutated")
 		}
 	})
 }

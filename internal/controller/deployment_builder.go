@@ -145,7 +145,7 @@ func buildDeploymentSpec(
 		LivenessProbe:   livenessProbe,
 		ReadinessProbe:  readinessProbe,
 		StartupProbe:    startupProbe,
-		SecurityContext: ct.SecurityContext,
+		SecurityContext: applyContainerSecurityDefaults(ct.SecurityContext),
 		Lifecycle:       ct.Lifecycle,
 	}
 	if ct.Resources != nil {
@@ -304,4 +304,33 @@ func buildServiceSpec(
 		Selector: labels,
 		Ports:    []corev1.ServicePort{svcPort},
 	}
+}
+
+// applyContainerSecurityDefaults fills the operator's UID-independent
+// container hardening defaults into a user-provided securityContext where the
+// user left them unset: privilege escalation disabled, all Linux capabilities
+// dropped, and the RuntimeDefault seccomp profile. User-set fields always win.
+//
+// These satisfy the baseline Pod Security Standard on any cluster without
+// pinning a UID. runAsNonRoot/runAsUser are deliberately NOT defaulted: the
+// Superset image declares a named user (`USER superset`), so runAsNonRoot alone
+// is rejected by the kubelet ("non-numeric user"), and pinning a numeric UID
+// collides with OpenShift's per-namespace SCC UID range and the Flower
+// bootstrapScript root case. Achieving the restricted profile therefore stays a
+// user opt-in via podTemplate/containerTemplate securityContext.
+func applyContainerSecurityDefaults(sc *corev1.SecurityContext) *corev1.SecurityContext {
+	out := sc.DeepCopy()
+	if out == nil {
+		out = &corev1.SecurityContext{}
+	}
+	if out.AllowPrivilegeEscalation == nil {
+		out.AllowPrivilegeEscalation = common.Ptr(false)
+	}
+	if out.Capabilities == nil {
+		out.Capabilities = &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}}
+	}
+	if out.SeccompProfile == nil {
+		out.SeccompProfile = &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault}
+	}
+	return out
 }

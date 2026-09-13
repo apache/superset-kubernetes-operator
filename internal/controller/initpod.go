@@ -89,7 +89,7 @@ func buildInitPod(spec *supersetv1alpha1.FlatComponentSpec) corev1.PodSpec {
 		Env:             ct.Env,
 		EnvFrom:         ct.EnvFrom,
 		VolumeMounts:    ct.VolumeMounts,
-		SecurityContext: ct.SecurityContext,
+		SecurityContext: applyContainerSecurityDefaults(ct.SecurityContext),
 	}
 	if ct.Resources != nil {
 		container.Resources = *ct.Resources

@@ -68,6 +68,7 @@ func TestBuildInitPod(t *testing.T) {
 		assert.Equal(t, "apache/superset:4.0.0", c.Image)
 		assert.Equal(t, corev1.PullIfNotPresent, c.ImagePullPolicy)
 		assert.Empty(t, pod.ServiceAccountName)
+		assertHardenedDefaults(t, c.SecurityContext)
 	})
 
 	t.Run("propagates container and pod template fields", func(t *testing.T) {
