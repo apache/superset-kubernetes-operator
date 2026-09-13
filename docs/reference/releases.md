@@ -27,6 +27,10 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 
 - Kubernetes support now covers the three newest `kind`-published minor versions instead of two. CI tests Kubernetes 1.37, 1.36, and 1.35 natively, with the experimental `next` lane disabled again ([#317](https://github.com/apache/superset-kubernetes-operator/pull/317)).
 
+### Fixed
+
+- Component Services of type `NodePort` or `LoadBalancer` that do not pin `service.nodePort` no longer churn: the operator now preserves the apiserver-allocated node port across reconciles instead of triggering a re-allocation each time, which previously changed the external port and broke external access ([#360](https://github.com/apache/superset-kubernetes-operator/pull/360), [@villebro](https://github.com/villebro)).
+
 ### Security
 
 - **Breaking:** CRs with `serviceAccount.create=true` (or unset) and `serviceAccount.name != metadata.name` are now rejected at admission. To use a pre-existing ServiceAccount with a different name, set `serviceAccount.create=false` ([#324](https://github.com/apache/superset-kubernetes-operator/pull/324), [@villebro](https://github.com/villebro)).
