@@ -466,7 +466,11 @@ func maintenanceSecurityContext(containerSC *corev1.SecurityContext, podSC *core
 	if sc.Capabilities == nil {
 		sc.Capabilities = &corev1.Capabilities{Drop: []corev1.Capability{capabilityAll}}
 	}
-	if sc.SeccompProfile == nil {
+	// Container-level seccomp overrides pod-level, so only default it when
+	// neither the container nor a user-provided pod-level profile sets one —
+	// otherwise a user's pod-level profile (e.g. Localhost) would be silently
+	// overridden.
+	if sc.SeccompProfile == nil && (podSC == nil || podSC.SeccompProfile == nil) {
 		sc.SeccompProfile = &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault}
 	}
 	return sc

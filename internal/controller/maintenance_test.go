@@ -182,6 +182,28 @@ func TestBuildMaintenanceFlatSpec(t *testing.T) {
 		}
 	})
 
+	t.Run("does not override a user pod-level seccomp profile", func(t *testing.T) {
+		// Container-level seccomp takes precedence over pod-level, so the operator
+		// must not stamp a container-level RuntimeDefault when the user already set
+		// a pod-level profile (here Localhost) — that would silently override it.
+		title := "down"
+		localhost := "operator/profile.json"
+		flat := buildMaintenanceFlatSpec("parent", &supersetv1alpha1.MaintenancePageSpec{
+			Title: &title,
+			PodTemplate: &supersetv1alpha1.PodTemplate{
+				PodSecurityContext: &corev1.PodSecurityContext{
+					SeccompProfile: &corev1.SeccompProfile{
+						Type:             corev1.SeccompProfileTypeLocalhost,
+						LocalhostProfile: &localhost,
+					},
+				},
+			},
+		})
+		if sc := flat.PodTemplate.Container.SecurityContext; sc.SeccompProfile != nil {
+			t.Errorf("container SeccompProfile must stay unset so the pod-level profile applies, got %+v", sc.SeccompProfile)
+		}
+	})
+
 	t.Run("replicas default and override", func(t *testing.T) {
 		// Default is a single replica; an explicit spec.Replicas overrides it.
 		def := buildMaintenanceFlatSpec("parent", &supersetv1alpha1.MaintenancePageSpec{})
