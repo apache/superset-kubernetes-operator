@@ -59,6 +59,7 @@ type SupersetReconciler struct {
 
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersets,verbs=get;list;watch;patch
 // +kubebuilder:rbac:groups=superset.apache.org,resources=supersets/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=superset.apache.org,resources=supersets/finalizers,verbs=update
 // +kubebuilder:rbac:groups=events.k8s.io,resources=events,verbs=create;patch;update
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=pods,verbs=get;list;watch

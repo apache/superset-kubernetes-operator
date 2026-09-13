@@ -20,7 +20,11 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"regexp"
+	"slices"
+	"sort"
 	"strings"
 	"testing"
 
@@ -156,21 +160,7 @@ func TestReconcile_SecretsNeverLeakIntoConfigMaps(t *testing.T) {
 // artifact that is actually deployed — so an accidental `+kubebuilder:rbac`
 // marker that broadens scope is caught by `make codegen` + this test.
 func TestManagerRole_GrantsNoSecretsAccessOrWildcards(t *testing.T) {
-	// Tests run from the package directory; the role manifest lives at repo root.
-	const rolePath = "../../config/rbac/role.yaml"
-
-	raw, err := os.ReadFile(rolePath)
-	if err != nil {
-		t.Fatalf("read %s: %v", rolePath, err)
-	}
-
-	role := &rbacv1.ClusterRole{}
-	if err := yaml.Unmarshal(raw, role); err != nil {
-		t.Fatalf("unmarshal ClusterRole: %v", err)
-	}
-	if len(role.Rules) == 0 {
-		t.Fatal("expected manager ClusterRole to define rules")
-	}
+	role := loadManagerClusterRole(t)
 
 	for i, rule := range role.Rules {
 		for _, res := range rule.Resources {
@@ -192,4 +182,104 @@ func TestManagerRole_GrantsNoSecretsAccessOrWildcards(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestManagerRole_GrantsFinalizersForOwnerReferences guards against a
+// regression of issue #357. The operator stamps blockOwnerDeletion owner
+// references on every child object via controllerutil.SetControllerReference;
+// the OwnerReferencesPermissionEnforcement admission plugin (enabled by default
+// on OpenShift) rejects those unless the operator can write the owning CR's
+// finalizers subresource, which requires this RBAC grant.
+func TestManagerRole_GrantsFinalizersForOwnerReferences(t *testing.T) {
+	role := loadManagerClusterRole(t)
+
+	if !ruleGrants(role.Rules, "superset.apache.org", "supersets/finalizers", "update") {
+		t.Errorf("manager ClusterRole must grant 'update' on supersets/finalizers so blockOwnerDeletion "+
+			"owner references are accepted (issue #357); rules: %+v", role.Rules)
+	}
+}
+
+// TestHelmManagerRulesMatchGeneratedClusterRole guards against RBAC drift
+// between the two independent sources of the operator's manager rules: the
+// generated config/rbac/role.yaml (from +kubebuilder:rbac markers) and the
+// hand-maintained Helm helper. They render into the deployed ClusterRole and
+// per-namespace Roles respectively, so a rule added to one but not the other
+// silently under- or over-privileges one install path.
+func TestHelmManagerRulesMatchGeneratedClusterRole(t *testing.T) {
+	generated := loadManagerClusterRole(t)
+
+	const helpersPath = "../../charts/superset-operator/templates/_helpers.tpl"
+	raw, err := os.ReadFile(helpersPath)
+	if err != nil {
+		t.Fatalf("read %s: %v", helpersPath, err)
+	}
+
+	// The managerRules define block is static YAML with no template directives,
+	// so it can be parsed directly without rendering the chart.
+	re := regexp.MustCompile(`(?s){{- define "superset-operator\.managerRules" -}}\n(.*?)\n{{- end }}`)
+	m := re.FindStringSubmatch(string(raw))
+	if m == nil {
+		t.Fatal("could not locate superset-operator.managerRules define block in _helpers.tpl")
+	}
+
+	var helmRules []rbacv1.PolicyRule
+	if err := yaml.Unmarshal([]byte(m[1]), &helmRules); err != nil {
+		t.Fatalf("unmarshal Helm managerRules: %v", err)
+	}
+
+	want := normalizeRules(generated.Rules)
+	got := normalizeRules(helmRules)
+	if !slices.Equal(want, got) {
+		t.Errorf("Helm managerRules drifted from the generated ClusterRole; run `make manifests` and reconcile _helpers.tpl.\ngenerated: %v\nhelm:      %v", want, got)
+	}
+}
+
+// loadManagerClusterRole reads the generated manager ClusterRole — the
+// source-of-truth RBAC artifact that is actually deployed. Tests run from the
+// package directory; the role manifest lives at repo root.
+func loadManagerClusterRole(t *testing.T) *rbacv1.ClusterRole {
+	t.Helper()
+
+	const rolePath = "../../config/rbac/role.yaml"
+	raw, err := os.ReadFile(rolePath)
+	if err != nil {
+		t.Fatalf("read %s: %v", rolePath, err)
+	}
+
+	role := &rbacv1.ClusterRole{}
+	if err := yaml.Unmarshal(raw, role); err != nil {
+		t.Fatalf("unmarshal ClusterRole: %v", err)
+	}
+	if len(role.Rules) == 0 {
+		t.Fatal("expected manager ClusterRole to define rules")
+	}
+	return role
+}
+
+// ruleGrants reports whether any rule grants verb on group/resource.
+func ruleGrants(rules []rbacv1.PolicyRule, group, resource, verb string) bool {
+	for _, r := range rules {
+		if slices.Contains(r.APIGroups, group) && slices.Contains(r.Resources, resource) && slices.Contains(r.Verbs, verb) {
+			return true
+		}
+	}
+	return false
+}
+
+// normalizeRules renders rules into a set-comparable form, sorting fields within
+// each rule and the rules themselves so ordering differences (controller-gen
+// sorts; the Helm helper preserves authored order) don't cause false diffs.
+func normalizeRules(rules []rbacv1.PolicyRule) []string {
+	out := make([]string, 0, len(rules))
+	for _, r := range rules {
+		groups := slices.Clone(r.APIGroups)
+		resources := slices.Clone(r.Resources)
+		verbs := slices.Clone(r.Verbs)
+		sort.Strings(groups)
+		sort.Strings(resources)
+		sort.Strings(verbs)
+		out = append(out, fmt.Sprintf("apiGroups=%v resources=%v verbs=%v", groups, resources, verbs))
+	}
+	sort.Strings(out)
+	return out
 }
