@@ -224,7 +224,7 @@ Note: All operator-managed settings (`SECRET_KEY`, `SQLALCHEMY_DATABASE_URI`, we
 | Top-level config | yes | yes | yes | yes | yes |
 | Per-component config | yes | yes | yes | yes | yes |
 
-**WebsocketServer** is Node.js-based -- it does NOT get `superset_config.py`. Optional websocket `config.json` is handled separately through Development-only inline config or a Secret-backed `configFrom` mount.
+**WebsocketServer** is Node.js-based -- it does NOT get `superset_config.py`. It ships in the official Superset image and the operator configures it entirely through injected environment variables (JWT secret, `ALLOWED_ORIGINS`, and the coordination Redis connection) derived from `spec.realtime.webSocket` and `spec.valkey.distributedCoordination`.
 
 ### Secret Handling
 

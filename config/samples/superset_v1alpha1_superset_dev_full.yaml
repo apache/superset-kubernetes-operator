@@ -17,9 +17,9 @@
 # feature at once for end-to-end smoke testing (intended for a local Kind
 # cluster). NOT for production — it uses inline secrets and dev-only fields.
 #
-# Exercises: web server, Celery worker, Celery beat, Flower, MCP server,
-# deployment/pod templating, template processing, thumbnails, and alerts &
-# reports. The websocket server is intentionally omitted (experimental).
+# Exercises: web server, Celery worker, Celery beat, Flower, MCP server, the
+# realtime websocket transport, Global Async Queries, deployment/pod templating,
+# template processing, thumbnails, and alerts & reports.
 #
 # Prerequisites (in the same namespace):
 #   - A PostgreSQL reachable at host "postgres" (db/user/pass "superset").
@@ -189,10 +189,25 @@ spec:
 
   mcpServer: {}
 
+  # Realtime websocket transport workload. Ships in the official Superset image
+  # (no custom image needed); the operator injects its JWT secret and Redis
+  # connection from spec.realtime.webSocket and spec.valkey.distributedCoordination.
+  websocketServer: {}
+
+  # Global Async Queries + realtime transport wiring. asyncQueries enables the
+  # GLOBAL_ASYNC_QUERIES feature flag; webSocket turns on the push transport
+  # (WEBSOCKET_ENABLE) and shares a JWT secret with the app. The browser-visible
+  # URL is derived from spec.networking below (ws://<host>/ws) when unset.
+  realtime:
+    asyncQueries: {}
+    webSocket:
+      jwtSecret: dev-websocket-jwt-secret-change-me-0123456789
+
   # Optional Ingress demo — only effective when an ingress-nginx controller is
   # present. With no explicit paths, the operator routes every component by path
-  # under this host (/ → web, /flower → flower, /mcp → mcp), so all services are
-  # reachable from one origin. Use the NodePort or port-forward above otherwise.
+  # under this host (/ → web, /flower → flower, /mcp → mcp, /ws → websocket), so
+  # all services are reachable from one origin. Use the NodePort or port-forward
+  # above otherwise.
   networking:
     ingress:
       className: nginx
