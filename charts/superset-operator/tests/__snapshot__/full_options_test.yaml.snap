@@ -451,6 +451,12 @@ renders the full install manifests:
       - apiGroups:
           - superset.apache.org
         resources:
+          - supersets/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - superset.apache.org
+        resources:
           - supersets
         verbs:
           - get
@@ -593,6 +599,12 @@ renders the full install manifests:
         verbs:
           - get
           - patch
+          - update
+      - apiGroups:
+          - superset.apache.org
+        resources:
+          - supersets/finalizers
+        verbs:
           - update
       - apiGroups:
           - superset.apache.org
