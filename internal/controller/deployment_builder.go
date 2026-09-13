@@ -316,11 +316,14 @@ func buildServiceSpec(
 // dropped, and the RuntimeDefault seccomp profile. Defaults are applied
 // field-by-field, so any user-set field always wins.
 //
-// These satisfy the baseline Pod Security Standard on any cluster without
-// pinning a UID. runAsNonRoot/runAsUser are deliberately NOT defaulted: the
-// Superset image declares a named user (`USER superset`), so runAsNonRoot alone
-// is rejected by the kubelet ("non-numeric user"), and pinning a numeric UID
-// collides with OpenShift's per-namespace SCC UID range and the Flower
+// These harden workloads on permissive clusters and satisfy several of the
+// restricted Pod Security Standard's requirements (privilege escalation,
+// capabilities, seccomp) without pinning a UID; full restricted compatibility
+// still requires user-provided non-root settings. runAsNonRoot/runAsUser are
+// deliberately NOT defaulted: the Superset image declares a named user
+// (`USER superset`), so runAsNonRoot alone is rejected by the kubelet
+// ("non-numeric user"), and pinning a numeric UID collides with OpenShift's
+// per-namespace SCC UID range and the Flower
 // bootstrapScript root case. Achieving the restricted profile therefore stays a
 // user opt-in via podTemplate/containerTemplate securityContext.
 //
