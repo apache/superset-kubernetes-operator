@@ -157,6 +157,9 @@ func TestBuildMaintenanceFlatSpec(t *testing.T) {
 		if sc.Capabilities == nil || len(sc.Capabilities.Drop) != 1 || sc.Capabilities.Drop[0] != "ALL" {
 			t.Errorf("Capabilities.Drop = %+v, want [ALL]", sc.Capabilities)
 		}
+		if sc.SeccompProfile == nil || sc.SeccompProfile.Type != corev1.SeccompProfileTypeRuntimeDefault {
+			t.Errorf("SeccompProfile = %+v, want RuntimeDefault", sc.SeccompProfile)
+		}
 
 		if !maintenanceMountsConf(flat, "/etc/nginx/nginx.conf") {
 			t.Error("expected nginx.conf to be mounted at /etc/nginx/nginx.conf")
