@@ -26,7 +26,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -1123,5 +1125,27 @@ func TestFlowerRoutePublished_EnvironmentAware(t *testing.T) {
 				t.Errorf("flowerRoutePublished() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+// TestAPIVersionServed_PinsVersion verifies the optional-API detection matches
+// the exact version the operator uses, not merely the Kind. A Gateway API
+// install that serves only v1beta1 must not be treated as serving v1 (which
+// would register a watch for an unserved GVK and fail cache sync at startup).
+func TestAPIVersionServed_PinsVersion(t *testing.T) {
+	t.Parallel()
+
+	gk := schema.GroupKind{Group: "gateway.networking.k8s.io", Kind: "HTTPRoute"}
+	mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{{Group: gk.Group, Version: "v1beta1"}})
+	mapper.Add(gk.WithVersion("v1beta1"), meta.RESTScopeNamespace)
+
+	if apiVersionServed(mapper, gk.WithVersion("v1")) {
+		t.Error("apiVersionServed returned true for v1 when only v1beta1 is served")
+	}
+	if !apiVersionServed(mapper, gk.WithVersion("v1beta1")) {
+		t.Error("apiVersionServed returned false for the served v1beta1")
+	}
+	if apiVersionServed(mapper, schema.GroupVersionKind{Group: "monitoring.coreos.com", Version: "v1", Kind: "ServiceMonitor"}) {
+		t.Error("apiVersionServed returned true for a Kind that is not served at all")
 	}
 }

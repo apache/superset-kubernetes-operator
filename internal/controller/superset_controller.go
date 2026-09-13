@@ -403,21 +403,20 @@ func (r *SupersetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&networkingv1.NetworkPolicy{}).
 		Named("superset")
 
-	// Only watch HTTPRoute if the Gateway API CRDs are installed.
-	_, err := mgr.GetRESTMapper().RESTMapping(
-		schema.GroupKind{Group: "gateway.networking.k8s.io", Kind: "HTTPRoute"},
-	)
-	if err == nil {
+	// Only watch HTTPRoute if the Gateway API v1 CRDs are installed. The version
+	// is pinned: the operator reconciles gateway.networking.k8s.io/v1, so a
+	// v1beta1-only install must not register a watch for a GVK the apiserver does
+	// not serve (which would fail the controller's cache sync at startup).
+	if apiVersionServed(mgr.GetRESTMapper(), schema.GroupVersionKind{
+		Group: "gateway.networking.k8s.io", Version: "v1", Kind: "HTTPRoute",
+	}) {
 		b = b.Owns(&gatewayv1.HTTPRoute{})
 	}
 
 	// Only watch ServiceMonitor if the monitoring CRDs are installed. The
 	// controller reconciles this resource unstructured to avoid a hard
 	// Prometheus Operator API dependency.
-	_, err = mgr.GetRESTMapper().RESTMapping(
-		schema.GroupKind{Group: serviceMonitorGVK.Group, Kind: serviceMonitorGVK.Kind},
-	)
-	if err == nil {
+	if apiVersionServed(mgr.GetRESTMapper(), serviceMonitorGVK) {
 		sm := &unstructured.Unstructured{}
 		sm.SetGroupVersionKind(serviceMonitorGVK)
 		b = b.Watches(sm, handler.EnqueueRequestForOwner(
@@ -426,6 +425,15 @@ func (r *SupersetReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return b.Complete(r)
+}
+
+// apiVersionServed reports whether the cluster's REST mapper serves the exact
+// GroupVersionKind. It pins the version, unlike a GroupKind-only lookup which
+// matches when any version of the Kind is served, so an optional API is treated
+// as available only when the specific version the operator uses is served.
+func apiVersionServed(mapper meta.RESTMapper, gvk schema.GroupVersionKind) bool {
+	_, err := mapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+	return err == nil
 }
 
 // reconcileParentOwnedConfigMap creates or updates a ConfigMap owned by the
