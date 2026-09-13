@@ -523,22 +523,18 @@ func assertHardenedDefaults(t *testing.T, sc *corev1.SecurityContext) {
 
 func TestApplyContainerSecurityDefaults(t *testing.T) {
 	t.Run("fills defaults when nil", func(t *testing.T) {
-		assertHardenedDefaults(t, applyContainerSecurityDefaults(nil))
+		assertHardenedDefaults(t, applyContainerSecurityDefaults(nil, nil))
 	})
 
-	t.Run("preserves user-set fields", func(t *testing.T) {
+	t.Run("preserves explicitly-set fields", func(t *testing.T) {
 		user := &corev1.SecurityContext{
 			AllowPrivilegeEscalation: common.Ptr(true),
-			Capabilities:             &corev1.Capabilities{Add: []corev1.Capability{"NET_BIND_SERVICE"}},
 			SeccompProfile:           &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeUnconfined},
 			RunAsUser:                common.Ptr(int64(1000)),
 		}
-		got := applyContainerSecurityDefaults(user)
+		got := applyContainerSecurityDefaults(user, nil)
 		if got.AllowPrivilegeEscalation == nil || !*got.AllowPrivilegeEscalation {
 			t.Error("user AllowPrivilegeEscalation=true must be preserved")
-		}
-		if got.Capabilities == nil || len(got.Capabilities.Add) != 1 || len(got.Capabilities.Drop) != 0 {
-			t.Errorf("user Capabilities must be preserved, got %+v", got.Capabilities)
 		}
 		if got.SeccompProfile == nil || got.SeccompProfile.Type != corev1.SeccompProfileTypeUnconfined {
 			t.Errorf("user SeccompProfile must be preserved, got %+v", got.SeccompProfile)
@@ -548,9 +544,47 @@ func TestApplyContainerSecurityDefaults(t *testing.T) {
 		}
 	})
 
+	t.Run("defaults Drop ALL when user sets Add only", func(t *testing.T) {
+		user := &corev1.SecurityContext{
+			Capabilities: &corev1.Capabilities{Add: []corev1.Capability{"NET_BIND_SERVICE"}},
+		}
+		got := applyContainerSecurityDefaults(user, nil)
+		if got.Capabilities == nil ||
+			len(got.Capabilities.Add) != 1 || got.Capabilities.Add[0] != "NET_BIND_SERVICE" {
+			t.Errorf("user capability Add must be preserved, got %+v", got.Capabilities)
+		}
+		if got.Capabilities.Drop == nil || len(got.Capabilities.Drop) != 1 || got.Capabilities.Drop[0] != "ALL" {
+			t.Errorf("operator must still default Drop [ALL] when only Add is set, got %+v", got.Capabilities)
+		}
+	})
+
+	t.Run("respects a user-set Drop list", func(t *testing.T) {
+		user := &corev1.SecurityContext{
+			Capabilities: &corev1.Capabilities{Drop: []corev1.Capability{"NET_RAW"}},
+		}
+		got := applyContainerSecurityDefaults(user, nil)
+		if got.Capabilities == nil || len(got.Capabilities.Drop) != 1 || got.Capabilities.Drop[0] != "NET_RAW" {
+			t.Errorf("user Drop list must be preserved, got %+v", got.Capabilities)
+		}
+	})
+
+	t.Run("does not default container seccomp when pod-level is set", func(t *testing.T) {
+		podSC := &corev1.PodSecurityContext{
+			SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeLocalhost},
+		}
+		got := applyContainerSecurityDefaults(nil, podSC)
+		if got.SeccompProfile != nil {
+			t.Errorf("container SeccompProfile must stay unset so the pod-level profile applies, got %+v", got.SeccompProfile)
+		}
+		// The UID-independent capability/escalation defaults still apply.
+		if got.AllowPrivilegeEscalation == nil || *got.AllowPrivilegeEscalation {
+			t.Error("AllowPrivilegeEscalation must still default to false")
+		}
+	})
+
 	t.Run("does not mutate the input", func(t *testing.T) {
 		user := &corev1.SecurityContext{RunAsUser: common.Ptr(int64(1000))}
-		_ = applyContainerSecurityDefaults(user)
+		_ = applyContainerSecurityDefaults(user, nil)
 		if user.AllowPrivilegeEscalation != nil || user.Capabilities != nil || user.SeccompProfile != nil {
 			t.Error("input securityContext must not be mutated")
 		}
