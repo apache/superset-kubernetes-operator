@@ -151,6 +151,9 @@ desired indentation.
   resources: [supersets/status]
   verbs: [get, patch, update]
 - apiGroups: [superset.apache.org]
+  resources: [supersets/finalizers]
+  verbs: [update]
+- apiGroups: [superset.apache.org]
   resources: [supersets]
   verbs: [get, list, patch, watch]
 {{- end }}

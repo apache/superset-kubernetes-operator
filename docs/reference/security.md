@@ -131,6 +131,7 @@ The operator runs with a `ClusterRole` to support managing `Superset` instances 
 | `tokenreviews`, `subjectaccessreviews` | create | Metrics endpoint auth/authz (controller-runtime secure metrics) |
 | `supersets` | get, list, watch, patch | Reads `Superset` CRs and patches metadata to consume target-bound supervised-upgrade approval; Kubernetes RBAC is not field-scoped |
 | `supersets/status` | get, update, patch | Updates reconciliation status only |
+| `supersets/finalizers` | update | Required to set `blockOwnerDeletion` owner references on parent-owned resources when the `OwnerReferencesPermissionEnforcement` admission plugin is enabled (e.g. OpenShift) |
 
 The operator does **not** request:
 
