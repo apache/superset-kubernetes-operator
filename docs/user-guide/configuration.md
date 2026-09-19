@@ -109,6 +109,8 @@ spec:
 
 **Structured fields** — the operator sets individual env vars (`SUPERSET_OPERATOR__DB_HOST`, `SUPERSET_OPERATOR__DB_PORT`, `SUPERSET_OPERATOR__DB_NAME`, `SUPERSET_OPERATOR__DB_USER`, `SUPERSET_OPERATOR__DB_PASS`) that the generated config assembles into a connection URI. Every connection field can come from a Secret key. This composes with database operators and infrastructure provisioners that publish connection details in Secrets, even when endpoint data and credentials are owned separately:
 
+In this context, a Secret is also a Kubernetes-native container for provisioner output; it does not imply that every referenced value is sensitive. Fields such as host, port, and database remain valid as literals, while their `From` counterparts allow the `Superset` resource to consume values that are only known after another controller reconciles them.
+
 ```yaml
 # Development mode: inline password
 spec:
