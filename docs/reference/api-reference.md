@@ -668,17 +668,17 @@ _Appears in:_
 | `uriFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the full SQLAlchemy URI. Mutually exclusive with uri and structured fields. |  | Optional: \{\} <br /> |
 | `type` _string_ | Database type. Determines the SQLAlchemy dialect and default driver. | PostgreSQL | Enum: [PostgreSQL MySQL] <br />Optional: \{\} <br /> |
 | `driver` _string_ | SQLAlchemy driver name for structured mode. When omitted, PostgreSQL uses psycopg2 and MySQL uses mysqldb. Set this to a driver installed in the Superset image, such as psycopg, pg8000, pymysql, or mysqlconnector. The operator selects the SQLAlchemy scheme only; it does not install Python driver packages into the image. |  | Pattern: `^[A-Za-z0-9_]+$` <br />Optional: \{\} <br /> |
-| `host` _string_ | Database hostname. |  | Optional: \{\} <br /> |
+| `host` _string_ | Database hostname. |  | MinLength: 1 <br />Optional: \{\} <br /> |
 | `hostFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the database hostname. Mutually exclusive with host. |  | Optional: \{\} <br /> |
 | `port` _integer_ | Database port. Defaults per type (5432 for PostgreSQL, 3306 for MySQL). |  | Optional: \{\} <br /> |
 | `portFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the database port as a decimal string. Mutually exclusive with port. |  | Optional: \{\} <br /> |
-| `database` _string_ | Database name. |  | Optional: \{\} <br /> |
+| `database` _string_ | Database name. |  | MinLength: 1 <br />Optional: \{\} <br /> |
 | `databaseFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the database name. Mutually exclusive with database. |  | Optional: \{\} <br /> |
-| `username` _string_ | Database username. |  | Optional: \{\} <br /> |
+| `username` _string_ | Database username. |  | MinLength: 1 <br />Optional: \{\} <br /> |
 | `usernameFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the database username. Mutually exclusive with username. |  | Optional: \{\} <br /> |
 | `password` _string_ | Database password. In Staging or Production, CRD validation rejects plain text passwords — use passwordFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
 | `passwordFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the database password. Mutually exclusive with password. |  | Optional: \{\} <br /> |
-| `createDatabase` _boolean_ | CreateDatabase, when true, instructs the operator to attach a one-shot init container to the migrate Job that issues `CREATE DATABASE` against the server before `superset db upgrade` runs. Existing databases are detected and the step becomes a no-op. Requires the configured metastore user to hold CREATEDB (PostgreSQL) or CREATE (MySQL) privilege on the server. Only valid with structured metastore (host/database/username); rejected when uri or uriFrom is set. |  | Optional: \{\} <br /> |
+| `createDatabase` _boolean_ | CreateDatabase, when true, instructs the operator to attach a one-shot init container to the migrate Job that issues `CREATE DATABASE` against the server before `superset db upgrade` runs. Existing databases are detected and the step becomes a no-op. Requires the configured metastore user to hold CREATEDB (PostgreSQL) or CREATE (MySQL) privilege on the server. Only valid with structured metastore (host, database, and username, supplied literally or through their From selectors); rejected when uri or uriFrom is set. |  | Optional: \{\} <br /> |
 
 
 #### MigrateTaskSpec
@@ -955,13 +955,13 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `type` _string_ | Database type: PostgreSQL (default) or MySQL. | PostgreSQL | Enum: [PostgreSQL MySQL] <br />Optional: \{\} <br /> |
-| `host` _string_ | Source database hostname. Mutually exclusive with hostFrom. |  | Optional: \{\} <br /> |
+| `host` _string_ | Source database hostname. Mutually exclusive with hostFrom. |  | MinLength: 1 <br />Optional: \{\} <br /> |
 | `hostFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the source database hostname. Mutually exclusive with host. |  | Optional: \{\} <br /> |
 | `port` _integer_ | Source database port. Defaults to 5432 (postgresql) or 3306 (mysql). |  | Optional: \{\} <br /> |
 | `portFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the source database port as a decimal string. Mutually exclusive with port. |  | Optional: \{\} <br /> |
-| `database` _string_ | Database name on the source server. Mutually exclusive with databaseFrom. |  | Optional: \{\} <br /> |
+| `database` _string_ | Database name on the source server. Mutually exclusive with databaseFrom. |  | MinLength: 1 <br />Optional: \{\} <br /> |
 | `databaseFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the source database name. Mutually exclusive with database. |  | Optional: \{\} <br /> |
-| `username` _string_ | Username for the source database (should have read-only access). Mutually exclusive with usernameFrom. |  | Optional: \{\} <br /> |
+| `username` _string_ | Username for the source database (should have read-only access). Mutually exclusive with usernameFrom. |  | MinLength: 1 <br />Optional: \{\} <br /> |
 | `usernameFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the source database username. Mutually exclusive with username. |  | Optional: \{\} <br /> |
 | `password` _string_ | Password for the source database (Development mode only). In Staging, use passwordFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
 | `passwordFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | PasswordFrom references a Secret containing the source database password. |  | Optional: \{\} <br /> |
@@ -1259,9 +1259,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `host` _string_ | Valkey server hostname. Mutually exclusive with hostFrom. |  | Optional: \{\} <br /> |
+| `host` _string_ | Valkey server hostname. Mutually exclusive with hostFrom. |  | MinLength: 1 <br />Optional: \{\} <br /> |
 | `hostFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the Valkey server hostname. Mutually exclusive with host. |  | Optional: \{\} <br /> |
-| `port` _integer_ | Valkey server port. |  | Optional: \{\} <br /> |
+| `port` _integer_ | Valkey server port. Defaults to 6379 at runtime when neither port nor portFrom is set. |  | Optional: \{\} <br /> |
 | `portFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the Valkey server port as a decimal string. Mutually exclusive with port. |  | Optional: \{\} <br /> |
 | `username` _string_ | Valkey username. Useful for Redis ACL or managed Redis-compatible services. |  | Optional: \{\} <br /> |
 | `usernameFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the Valkey username. Mutually exclusive with username. |  | Optional: \{\} <br /> |

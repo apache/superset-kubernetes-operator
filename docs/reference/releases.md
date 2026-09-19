@@ -29,6 +29,7 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 
 ### Changed
 
+- The Valkey port default is now applied at runtime instead of being stored by CRD defaulting. Resources that omit both `valkey.port` and `valkey.portFrom` therefore no longer materialize `port: 6379`, while generated configuration continues to use port 6379. This permits `portFrom` without a defaulted literal conflicting at admission ([#369](https://github.com/apache/superset-kubernetes-operator/pull/369)).
 - Kubernetes support now covers the three newest `kind`-published minor versions instead of two. CI tests Kubernetes 1.37, 1.36, and 1.35 natively, with the experimental `next` lane disabled again ([#317](https://github.com/apache/superset-kubernetes-operator/pull/317)).
 
 ### Fixed

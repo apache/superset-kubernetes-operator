@@ -155,6 +155,19 @@ var _ = Describe("CEL Validation", Ordered, func() {
 	// --- Metastore field constraints ---
 
 	Describe("Metastore", func() {
+		It("accepts a fully Secret-backed createDatabase target", func() {
+			cr := validProdSuperset("meta-secret-createdb")
+			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+				HostFrom:       secretRef("db", "host"),
+				PortFrom:       secretRef("db", "port"),
+				DatabaseFrom:   secretRef("db", "dbname"),
+				UsernameFrom:   secretRef("db", "username"),
+				PasswordFrom:   secretRef("db", "password"),
+				CreateDatabase: boolPtr(true),
+			}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+
 		DescribeTable("rejects a literal together with its Secret-backed counterpart",
 			func(name string, mutate func(*supersetv1alpha1.MetastoreSpec)) {
 				cr := validDevSuperset(name)
@@ -240,6 +253,17 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("createDatabase requires structured metastore"))
 		})
+
+		DescribeTable("rejects empty structured literals",
+			func(name string, metastore *supersetv1alpha1.MetastoreSpec) {
+				cr := validDevSuperset(name)
+				cr.Spec.Metastore = metastore
+				Expect(k8sClient.Create(ctx, cr)).NotTo(Succeed())
+			},
+			Entry("host", "meta-empty-host", &supersetv1alpha1.MetastoreSpec{Host: strPtr(""), Database: strPtr("superset"), Username: strPtr("admin")}),
+			Entry("database", "meta-empty-db", &supersetv1alpha1.MetastoreSpec{Host: strPtr("db"), Database: strPtr(""), Username: strPtr("admin")}),
+			Entry("username", "meta-empty-user", &supersetv1alpha1.MetastoreSpec{Host: strPtr("db"), Database: strPtr("superset"), Username: strPtr("")}),
+		)
 	})
 
 	// --- Valkey ---
@@ -254,6 +278,12 @@ var _ = Describe("CEL Validation", Ordered, func() {
 				PasswordFrom: secretRef("vk", "password"),
 			}
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+
+		It("rejects an explicitly empty host", func() {
+			cr := validDevSuperset("vk-empty-host")
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: ""}
+			Expect(k8sClient.Create(ctx, cr)).NotTo(Succeed())
 		})
 
 		DescribeTable("rejects a literal together with its Secret-backed counterpart",
@@ -447,6 +477,22 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			}),
 			Entry("database", "seed-db-dbfrom", func(s *supersetv1alpha1.SeedSourceSpec) { s.DatabaseFrom = secretRef("source", "dbname") }),
 			Entry("username", "seed-user-userfrom", func(s *supersetv1alpha1.SeedSourceSpec) { s.UsernameFrom = secretRef("source", "user") }),
+		)
+
+		DescribeTable("rejects empty source literals",
+			func(name string, mutate func(*supersetv1alpha1.SeedSourceSpec)) {
+				cr := validDevSuperset(name)
+				cr.Spec.Metastore = structuredProdMetastore()
+				source := supersetv1alpha1.SeedSourceSpec{
+					Host: "source", Database: "superset", Username: "reader", Password: strPtr("password"),
+				}
+				mutate(&source)
+				cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{Seed: &supersetv1alpha1.SeedTaskSpec{Source: source}}
+				Expect(k8sClient.Create(ctx, cr)).NotTo(Succeed())
+			},
+			Entry("host", "seed-empty-host", func(s *supersetv1alpha1.SeedSourceSpec) { s.Host = "" }),
+			Entry("database", "seed-empty-db", func(s *supersetv1alpha1.SeedSourceSpec) { s.Database = "" }),
+			Entry("username", "seed-empty-user", func(s *supersetv1alpha1.SeedSourceSpec) { s.Username = "" }),
 		)
 
 		It("rejects seed in Production mode", func() {

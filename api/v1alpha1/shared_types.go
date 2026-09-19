@@ -142,6 +142,7 @@ type MetastoreSpec struct {
 
 	// Database hostname.
 	// +optional
+	// +kubebuilder:validation:MinLength=1
 	Host *string `json:"host,omitempty"`
 
 	// Reference to a Secret key containing the database hostname.
@@ -160,6 +161,7 @@ type MetastoreSpec struct {
 
 	// Database name.
 	// +optional
+	// +kubebuilder:validation:MinLength=1
 	Database *string `json:"database,omitempty"`
 
 	// Reference to a Secret key containing the database name.
@@ -169,6 +171,7 @@ type MetastoreSpec struct {
 
 	// Database username.
 	// +optional
+	// +kubebuilder:validation:MinLength=1
 	Username *string `json:"username,omitempty"`
 
 	// Reference to a Secret key containing the database username.
@@ -190,8 +193,9 @@ type MetastoreSpec struct {
 	// the server before `superset db upgrade` runs. Existing databases are
 	// detected and the step becomes a no-op. Requires the configured metastore
 	// user to hold CREATEDB (PostgreSQL) or CREATE (MySQL) privilege on the
-	// server. Only valid with structured metastore (host/database/username);
-	// rejected when uri or uriFrom is set.
+	// server. Only valid with structured metastore (host, database, and username,
+	// supplied literally or through their From selectors); rejected when uri or
+	// uriFrom is set.
 	// +optional
 	CreateDatabase *bool `json:"createDatabase,omitempty"`
 }
@@ -209,6 +213,7 @@ type ValkeySpec struct {
 	// Valkey server hostname.
 	// Mutually exclusive with hostFrom.
 	// +optional
+	// +kubebuilder:validation:MinLength=1
 	Host string `json:"host,omitempty"`
 
 	// Reference to a Secret key containing the Valkey server hostname.
@@ -216,7 +221,8 @@ type ValkeySpec struct {
 	// +optional
 	HostFrom *corev1.SecretKeySelector `json:"hostFrom,omitempty"`
 
-	// Valkey server port.
+	// Valkey server port. Defaults to 6379 at runtime when neither port nor
+	// portFrom is set.
 	// +optional
 	Port *int32 `json:"port,omitempty"`
 

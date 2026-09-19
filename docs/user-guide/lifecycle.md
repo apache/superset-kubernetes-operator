@@ -528,6 +528,8 @@ When a custom command is set, the operator still injects all env vars (`SUPERSET
 
 Each source connection field supports either a literal or its mutually exclusive `From` counterpart (`hostFrom`, `portFrom`, `databaseFrom`, `usernameFrom`, and `passwordFrom`). This allows the seed Job to consume connection details published by a database operator without copying them into the `Superset` resource. `portFrom` must reference a decimal port string.
 
+Changing a selector's Secret name or key changes the seed task checksum. Updating data behind an unchanged selector cannot be detected because the operator does not read Secrets; change `spec.lifecycle.seed.trigger` to run seed again with the new values. Use the corresponding downstream task trigger when only that task must rerun.
+
 ### Seed Image
 
 The seed pod uses a database-tool image (not the Superset image):

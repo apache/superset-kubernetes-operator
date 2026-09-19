@@ -598,6 +598,57 @@ func TestMigrateInputs_StructuredTargetAffectsChecksumWhenCreateDatabaseTrue(t *
 	}
 }
 
+func TestMigrateInputs_SelectorIdentityAffectsChecksumWhenCreateDatabaseTrue(t *testing.T) {
+	r := &SupersetReconciler{}
+	mkSuperset := func(key string) *supersetv1alpha1.Superset {
+		s := &supersetv1alpha1.Superset{}
+		s.Spec.Image = supersetv1alpha1.ImageSpec{Repository: "superset", Tag: "1.0"}
+		s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+			HostFrom:       &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "database"}, Key: key},
+			DatabaseFrom:   &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "database"}, Key: "dbname"},
+			UsernameFrom:   &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "database"}, Key: "username"},
+			CreateDatabase: common.Ptr(true),
+		}
+		return s
+	}
+
+	if r.migrateInputs(mkSuperset("old-host")) == r.migrateInputs(mkSuperset("new-host")) {
+		t.Error("expected migrateInputs to differ when a structured target selector changes")
+	}
+}
+
+func TestMigrateInputs_LiteralTargetPreservesChecksumShape(t *testing.T) {
+	r := &SupersetReconciler{}
+	s := &supersetv1alpha1.Superset{}
+	s.Spec.Image = supersetv1alpha1.ImageSpec{Repository: "superset", Tag: "1.0"}
+	s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+		Host: common.Ptr("pg"), Port: common.Ptr(int32(5432)), Database: common.Ptr("superset"),
+		Username: common.Ptr("superset"), CreateDatabase: common.Ptr(true),
+	}
+	legacyShape := struct {
+		Image               string
+		Trigger             string
+		BootstrapScript     string
+		CreateDatabase      bool
+		Target              any
+		InitContainerScript string
+	}{
+		Image: "superset:1.0", CreateDatabase: true,
+		Target: struct {
+			Type     string
+			Host     string
+			Port     int32
+			Database string
+			Username string
+		}{dbTypePostgresql, "pg", 5432, "superset", "superset"},
+		InitContainerScript: createDatabasePostgresScript,
+	}
+
+	if computeChecksum(r.migrateInputs(s)) != computeChecksum(legacyShape) {
+		t.Error("literal-only migrate checksum changed when selector tracking was added")
+	}
+}
+
 func TestMigrateInputs_StructuredTargetIgnoredWhenCreateDatabaseFalse(t *testing.T) {
 	// Symmetric guarantee: when createDatabase is false, structured-target
 	// changes must NOT churn the migrate checksum — re-running migrate on a

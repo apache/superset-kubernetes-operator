@@ -148,6 +148,8 @@ spec:
 
 Each literal and its `From` counterpart are mutually exclusive. `portFrom` must reference a decimal port string. When neither `port` nor `portFrom` is set, the port defaults to 5432 for PostgreSQL or 3306 for MySQL. Secret values are resolved by the kubelet and never enter the generated ConfigMap.
 
+Changing a selector's Secret name or key changes the `Superset` resource and updates the relevant workloads. Updating data behind an unchanged selector is deliberately invisible to the operator because it does not read Secrets. After such a rotation, change `spec.forceReload` to restart component pods. If `createDatabase` or migrations must run against the new value, also change `spec.lifecycle.migrate.trigger`; `forceReload` does not rerun lifecycle tasks.
+
 Structured mode defaults to `postgresql+psycopg2` for PostgreSQL and `mysql+mysqldb` for MySQL. The operator only selects the SQLAlchemy scheme; it does not install Python driver packages into the Superset image. The official lean Superset images do not include database drivers, so production images should add the driver package required by the selected scheme. For the default MySQL scheme, install `mysqlclient`; for the default PostgreSQL scheme, install `psycopg2` or a compatible package. See Superset's
 [Docker Builds](https://superset.apache.org/admin-docs/installation/docker-builds/#build-presets)
 and [MySQL](https://superset.apache.org/user-docs/databases/supported/mysql/) docs for the upstream driver guidance. If your image installs a different SQLAlchemy driver, set `metastore.driver`:
@@ -265,7 +267,9 @@ spec:
       key: password
 ```
 
-Each literal and its `From` counterpart are mutually exclusive. `portFrom` must reference a decimal port string. Secret values are resolved by the kubelet and never enter the generated ConfigMap.
+Each literal and its `From` counterpart are mutually exclusive. `portFrom` must reference a decimal port string. When neither `port` nor `portFrom` is set, the runtime default is `6379`. Secret values are resolved by the kubelet and never enter the generated ConfigMap.
+
+Changing a selector's Secret name or key updates the relevant workloads. Updating data behind the same selector does not trigger a rollout; change `spec.forceReload` so component pods pick up the new values. Lifecycle tasks are not rerun by `forceReload`; change the appropriate task's `trigger` when a rotated value must be consumed by a new task Job.
 
 ### SSL/TLS
 

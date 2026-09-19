@@ -23621,6 +23621,7 @@ spec:
                       source:
                         properties:
                           database:
+                            minLength: 1
                             type: string
                           databaseFrom:
                             properties:
@@ -23636,6 +23637,7 @@ spec:
                             type: object
                             x-kubernetes-map-type: atomic
                           host:
+                            minLength: 1
                             type: string
                           hostFrom:
                             properties:
@@ -23688,6 +23690,7 @@ spec:
                             - MySQL
                             type: string
                           username:
+                            minLength: 1
                             type: string
                           usernameFrom:
                             properties:
@@ -23765,9 +23768,6 @@ spec:
                     and init.loadExamples
                   rule: '!has(self.init) || !has(self.init.command) || size(self.init.command)
                     == 0 || (!has(self.init.adminUser) && !has(self.init.loadExamples))'
-                - message: seed.source.password and seed.source.passwordFrom are mutually
-                    exclusive
-                  rule: '!has(self.seed) || !has(self.seed.source.password) || !has(self.seed.source.passwordFrom)'
               mcpServer:
                 properties:
                   autoscaling:
@@ -27869,6 +27869,7 @@ spec:
                   createDatabase:
                     type: boolean
                   database:
+                    minLength: 1
                     type: string
                   databaseFrom:
                     properties:
@@ -27887,6 +27888,7 @@ spec:
                     pattern: ^[A-Za-z0-9_]+$
                     type: string
                   host:
+                    minLength: 1
                     type: string
                   hostFrom:
                     properties:
@@ -27954,6 +27956,7 @@ spec:
                     type: object
                     x-kubernetes-map-type: atomic
                   username:
+                    minLength: 1
                     type: string
                   usernameFrom:
                     properties:
@@ -32175,6 +32178,7 @@ spec:
                         type: string
                     type: object
                   host:
+                    minLength: 1
                     type: string
                   hostFrom:
                     properties:

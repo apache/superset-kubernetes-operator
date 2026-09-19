@@ -170,14 +170,16 @@ func RenderConfig(componentType ComponentType, input *ConfigInput) string {
 	// Password uses os.environ.get() to support password-less connections (trust auth, IAM).
 	if input.MetastoreMode == MetastoreStructured {
 		driver := driverScheme(input.DBType, input.DBDriver)
+		fmt.Fprintf(&b, "_db_host = os.environ['%s'].strip()\n", common.EnvDBHost)
+		fmt.Fprintf(&b, "_db_port = int(os.environ['%s'])\n", common.EnvDBPort)
 		fmt.Fprintf(&b, "_db_pass = os.environ.get(\"%s\", \"\")\n", common.EnvDBPass)
 		fmt.Fprintf(&b, "_db_cred = f\"{quote(os.environ['%s'], safe='')}:{quote(_db_pass, safe='')}\" if _db_pass else quote(os.environ['%s'], safe='')\n",
 			common.EnvDBUser, common.EnvDBUser,
 		)
 		fmt.Fprintf(&b,
-			"SQLALCHEMY_DATABASE_URI = f\"%s://{_db_cred}@{os.environ['%s']}:{os.environ['%s']}/{quote(os.environ['%s'], safe='')}\"\n",
+			"SQLALCHEMY_DATABASE_URI = f\"%s://{_db_cred}@{_db_host}:{_db_port}/{quote(os.environ['%s'], safe='')}\"\n",
 			driver,
-			common.EnvDBHost, common.EnvDBPort, common.EnvDBName,
+			common.EnvDBName,
 		)
 	}
 
@@ -241,6 +243,8 @@ func renderValkey(b *strings.Builder, v *ValkeyInput) {
 	// Connection helpers using operator-injected env vars.
 	fmt.Fprintf(b, "_vk_user = os.environ.get(\"%s\", \"\")\n", common.EnvValkeyUser)
 	fmt.Fprintf(b, "_vk_pass = os.environ.get(\"%s\", \"\")\n", common.EnvValkeyPass)
+	fmt.Fprintf(b, "_vk_host = os.environ[\"%s\"].strip()\n", common.EnvValkeyHost)
+	fmt.Fprintf(b, "_vk_port = int(os.environ[\"%s\"])\n", common.EnvValkeyPort)
 
 	scheme := "redis"
 	if v.SSL {
@@ -250,9 +254,7 @@ func renderValkey(b *strings.Builder, v *ValkeyInput) {
 	b.WriteString("_vk_auth = \"\"\n")
 	b.WriteString("if _vk_user or _vk_pass:\n")
 	b.WriteString("    _vk_auth = f\"{quote(_vk_user, safe='')}:{quote(_vk_pass, safe='')}@\" if _vk_pass else f\"{quote(_vk_user, safe='')}@\"\n")
-	fmt.Fprintf(b, "_vk_base = f\"{_vk_scheme}://{_vk_auth}{os.environ['%s']}:{os.environ['%s']}\"\n",
-		common.EnvValkeyHost, common.EnvValkeyPort,
-	)
+	b.WriteString("_vk_base = f\"{_vk_scheme}://{_vk_auth}{_vk_host}:{_vk_port}\"\n")
 
 	// Instance-scoped key prefix: prepended to every CACHE_KEY_PREFIX so
 	// multiple Superset deployments sharing a Valkey/Redis don't collide.
@@ -315,8 +317,8 @@ func renderValkey(b *strings.Builder, v *ValkeyInput) {
 	// Results backend (CacheLib RedisCache).
 	if !v.ResultsBackend.Disabled {
 		b.WriteString("\nRESULTS_BACKEND = _CachelibRedis(\n")
-		fmt.Fprintf(b, "    host=os.environ[\"%s\"],\n", common.EnvValkeyHost)
-		fmt.Fprintf(b, "    port=int(os.environ[\"%s\"]),\n", common.EnvValkeyPort)
+		b.WriteString("    host=_vk_host,\n")
+		b.WriteString("    port=_vk_port,\n")
 		fmt.Fprintf(b, "    username=os.environ.get(\"%s\") or None,\n", common.EnvValkeyUser)
 		fmt.Fprintf(b, "    password=os.environ.get(\"%s\", \"\"),\n", common.EnvValkeyPass)
 		fmt.Fprintf(b, "    db=%d,\n", v.ResultsBackend.Database)

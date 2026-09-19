@@ -386,7 +386,6 @@ type SchedulableBaseTaskSpec struct {
 // LifecycleSpec defines lifecycle management configuration for database migrations
 // and application initialization tasks.
 // +kubebuilder:validation:XValidation:rule="!has(self.init) || !has(self.init.command) || size(self.init.command) == 0 || (!has(self.init.adminUser) && !has(self.init.loadExamples))",message="init.command is mutually exclusive with init.adminUser and init.loadExamples"
-// +kubebuilder:validation:XValidation:rule="!has(self.seed) || !has(self.seed.source.password) || !has(self.seed.source.passwordFrom)",message="seed.source.password and seed.source.passwordFrom are mutually exclusive"
 type LifecycleSpec struct {
 	// UpgradeMode controls whether upgrades require manual approval.
 	// Automatic runs immediately on image change; Supervised waits for an
@@ -631,6 +630,7 @@ type SeedSourceSpec struct {
 	// Source database hostname.
 	// Mutually exclusive with hostFrom.
 	// +optional
+	// +kubebuilder:validation:MinLength=1
 	Host string `json:"host,omitempty"`
 
 	// Reference to a Secret key containing the source database hostname.
@@ -650,6 +650,7 @@ type SeedSourceSpec struct {
 	// Database name on the source server.
 	// Mutually exclusive with databaseFrom.
 	// +optional
+	// +kubebuilder:validation:MinLength=1
 	Database string `json:"database,omitempty"`
 
 	// Reference to a Secret key containing the source database name.
@@ -660,6 +661,7 @@ type SeedSourceSpec struct {
 	// Username for the source database (should have read-only access).
 	// Mutually exclusive with usernameFrom.
 	// +optional
+	// +kubebuilder:validation:MinLength=1
 	Username string `json:"username,omitempty"`
 
 	// Reference to a Secret key containing the source database username.
