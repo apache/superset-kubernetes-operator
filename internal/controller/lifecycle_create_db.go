@@ -40,6 +40,8 @@ const createDatabaseContainerName = "create-database"
 // Password uses ${VAR:-} to support passwordless connections (trust/peer auth,
 // IAM-issued credentials), matching the rendered config's os.environ.get fallback.
 const createDatabasePostgresScript = `set -eu
+SUPERSET_OPERATOR__DB_HOST=$(printf '%s' "$SUPERSET_OPERATOR__DB_HOST" | tr -d '[:space:]')
+SUPERSET_OPERATOR__DB_PORT=$(printf '%s' "$SUPERSET_OPERATOR__DB_PORT" | tr -d '[:space:]')
 ESC_NAME=$(printf '%s' "$SUPERSET_OPERATOR__DB_NAME" | sed "s/'/''/g")
 EXISTS=$(PGPASSWORD="${SUPERSET_OPERATOR__DB_PASS:-}" psql \
   -h "$SUPERSET_OPERATOR__DB_HOST" \
@@ -70,6 +72,8 @@ fi`
 // (trust auth, IAM) skip MYSQL_PWD entirely instead of passing -p which would
 // trigger an interactive prompt.
 const createDatabaseMySQLScript = `set -eu
+SUPERSET_OPERATOR__DB_HOST=$(printf '%s' "$SUPERSET_OPERATOR__DB_HOST" | tr -d '[:space:]')
+SUPERSET_OPERATOR__DB_PORT=$(printf '%s' "$SUPERSET_OPERATOR__DB_PORT" | tr -d '[:space:]')
 ESC_NAME=$(printf '%s' "$SUPERSET_OPERATOR__DB_NAME" | sed 's/` + "`" + `/` + "``" + `/g')
 if [ -n "${SUPERSET_OPERATOR__DB_PASS:-}" ]; then
   export MYSQL_PWD="$SUPERSET_OPERATOR__DB_PASS"

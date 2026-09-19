@@ -76,6 +76,10 @@ func (r *SupersetReconciler) buildSeedCommand(superset *supersetv1alpha1.Superse
 func buildPostgresSeedScript(seed *supersetv1alpha1.SeedTaskSpec) string {
 	var b strings.Builder
 	b.WriteString(`set -e
+SUPERSET_OPERATOR__DB_HOST=$(printf '%s' "$SUPERSET_OPERATOR__DB_HOST" | tr -d '[:space:]')
+SUPERSET_OPERATOR__DB_PORT=$(printf '%s' "$SUPERSET_OPERATOR__DB_PORT" | tr -d '[:space:]')
+SUPERSET_OPERATOR__SEED_SRC_HOST=$(printf '%s' "$SUPERSET_OPERATOR__SEED_SRC_HOST" | tr -d '[:space:]')
+SUPERSET_OPERATOR__SEED_SRC_PORT=$(printf '%s' "$SUPERSET_OPERATOR__SEED_SRC_PORT" | tr -d '[:space:]')
 PGPASSWORD="$SUPERSET_OPERATOR__DB_PASS" dropdb --if-exists -h "$SUPERSET_OPERATOR__DB_HOST" -p "$SUPERSET_OPERATOR__DB_PORT" -U "$SUPERSET_OPERATOR__DB_USER" "$SUPERSET_OPERATOR__DB_NAME"
 PGPASSWORD="$SUPERSET_OPERATOR__DB_PASS" createdb -h "$SUPERSET_OPERATOR__DB_HOST" -p "$SUPERSET_OPERATOR__DB_PORT" -U "$SUPERSET_OPERATOR__DB_USER" "$SUPERSET_OPERATOR__DB_NAME"
 PGPASSWORD="$SUPERSET_OPERATOR__SEED_SRC_PASS" pg_dump -h "$SUPERSET_OPERATOR__SEED_SRC_HOST" -p "$SUPERSET_OPERATOR__SEED_SRC_PORT" -U "$SUPERSET_OPERATOR__SEED_SRC_USER" --no-owner --no-privileges`)
@@ -112,6 +116,10 @@ func buildMySQLSeedScript(seed *supersetv1alpha1.SeedTaskSpec) string {
 	// they reach mysql literally instead of triggering shell command
 	// substitution inside the double-quoted -e argument.
 	b.WriteString(`set -e
+SUPERSET_OPERATOR__DB_HOST=$(printf '%s' "$SUPERSET_OPERATOR__DB_HOST" | tr -d '[:space:]')
+SUPERSET_OPERATOR__DB_PORT=$(printf '%s' "$SUPERSET_OPERATOR__DB_PORT" | tr -d '[:space:]')
+SUPERSET_OPERATOR__SEED_SRC_HOST=$(printf '%s' "$SUPERSET_OPERATOR__SEED_SRC_HOST" | tr -d '[:space:]')
+SUPERSET_OPERATOR__SEED_SRC_PORT=$(printf '%s' "$SUPERSET_OPERATOR__SEED_SRC_PORT" | tr -d '[:space:]')
 if [ -n "${SUPERSET_OPERATOR__DB_PASS:-}" ]; then export MYSQL_PWD="$SUPERSET_OPERATOR__DB_PASS"; fi
 ESC_NAME=$(printf '%s' "$SUPERSET_OPERATOR__DB_NAME" | sed 's/` + "`" + `/` + "``" + `/g')
 mysql -h "$SUPERSET_OPERATOR__DB_HOST" -P "$SUPERSET_OPERATOR__DB_PORT" -u "$SUPERSET_OPERATOR__DB_USER" -e "DROP DATABASE IF EXISTS \` + "`" + `${ESC_NAME}\` + "`" + `; CREATE DATABASE \` + "`" + `${ESC_NAME}\` + "`" + `;"

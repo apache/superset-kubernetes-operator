@@ -30,6 +30,8 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -53,6 +55,15 @@ func secretRef(name, key string) *corev1.SecretKeySelector {
 		LocalObjectReference: corev1.LocalObjectReference{Name: name},
 		Key:                  key,
 	}
+}
+
+func toUnstructuredSuperset(s *supersetv1alpha1.Superset) *unstructured.Unstructured {
+	object, err := runtime.DefaultUnstructuredConverter.ToUnstructured(s)
+	Expect(err).NotTo(HaveOccurred())
+	u := &unstructured.Unstructured{Object: object}
+	u.SetAPIVersion(supersetv1alpha1.GroupVersion.String())
+	u.SetKind("Superset")
+	return u
 }
 
 // validDevSuperset returns a minimal valid Development-mode CR: inline secrets
@@ -164,6 +175,15 @@ var _ = Describe("CEL Validation", Ordered, func() {
 				UsernameFrom:   secretRef("db", "username"),
 				PasswordFrom:   secretRef("db", "password"),
 				CreateDatabase: boolPtr(true),
+			}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+
+		It("accepts mixed literal and Secret-backed structured fields", func() {
+			cr := validProdSuperset("meta-mixed-connection")
+			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+				Host: common.Ptr("db.example.com"), DatabaseFrom: secretRef("db", "dbname"),
+				UsernameFrom: secretRef("db", "username"), PasswordFrom: secretRef("db", "password"),
 			}
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 		})
@@ -282,8 +302,12 @@ var _ = Describe("CEL Validation", Ordered, func() {
 
 		It("rejects an explicitly empty host", func() {
 			cr := validDevSuperset("vk-empty-host")
-			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: ""}
-			Expect(k8sClient.Create(ctx, cr)).NotTo(Succeed())
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "placeholder"}
+			u := toUnstructuredSuperset(cr)
+			Expect(unstructured.SetNestedField(u.Object, "", "spec", "valkey", "host")).To(Succeed())
+			err := k8sClient.Create(ctx, u)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("at least 1 chars"))
 		})
 
 		DescribeTable("rejects a literal together with its Secret-backed counterpart",
@@ -480,19 +504,22 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		)
 
 		DescribeTable("rejects empty source literals",
-			func(name string, mutate func(*supersetv1alpha1.SeedSourceSpec)) {
+			func(name, field string) {
 				cr := validDevSuperset(name)
 				cr.Spec.Metastore = structuredProdMetastore()
 				source := supersetv1alpha1.SeedSourceSpec{
 					Host: "source", Database: "superset", Username: "reader", Password: strPtr("password"),
 				}
-				mutate(&source)
 				cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{Seed: &supersetv1alpha1.SeedTaskSpec{Source: source}}
-				Expect(k8sClient.Create(ctx, cr)).NotTo(Succeed())
+				u := toUnstructuredSuperset(cr)
+				Expect(unstructured.SetNestedField(u.Object, "", "spec", "lifecycle", "seed", "source", field)).To(Succeed())
+				err := k8sClient.Create(ctx, u)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("at least 1 chars"))
 			},
-			Entry("host", "seed-empty-host", func(s *supersetv1alpha1.SeedSourceSpec) { s.Host = "" }),
-			Entry("database", "seed-empty-db", func(s *supersetv1alpha1.SeedSourceSpec) { s.Database = "" }),
-			Entry("username", "seed-empty-user", func(s *supersetv1alpha1.SeedSourceSpec) { s.Username = "" }),
+			Entry("host", "seed-empty-host", "host"),
+			Entry("database", "seed-empty-db", "database"),
+			Entry("username", "seed-empty-user", "username"),
 		)
 
 		It("rejects seed in Production mode", func() {

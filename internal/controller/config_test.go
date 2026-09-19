@@ -151,6 +151,13 @@ func TestBuildConfigInput(t *testing.T) {
 			supersetconfig.MetastoreStructured, "PostgreSQL", "", "",
 		},
 		{
+			"hostFrom triggers structured mode",
+			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{HostFrom: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: "db-secret"}, Key: "host",
+			}}},
+			supersetconfig.MetastoreStructured, "PostgreSQL", "", "",
+		},
+		{
 			"metastore structured mysql",
 			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Type: common.Ptr("MySQL"), Host: common.Ptr("db.example.com")}},
 			supersetconfig.MetastoreStructured, "MySQL", "", "",

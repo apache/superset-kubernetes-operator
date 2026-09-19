@@ -326,6 +326,10 @@ metadata:
   name: superset-secrets
 stringData:
   secret-key: "<copy the current Superset SECRET_KEY>"
+  db-host: "superset-db"
+  db-port: "5432"
+  db-name: "superset"
+  db-username: "superset"
   db-password: "<copy Helm DB_PASS or your external database password>"
 ```
 
@@ -344,10 +348,18 @@ spec:
     key: secret-key
   metastore:
     type: PostgreSQL
-    host: superset-db
-    port: 5432
-    database: superset
-    username: superset
+    hostFrom:
+      name: superset-secrets
+      key: db-host
+    portFrom:
+      name: superset-secrets
+      key: db-port
+    databaseFrom:
+      name: superset-secrets
+      key: db-name
+    usernameFrom:
+      name: superset-secrets
+      key: db-username
     passwordFrom:
       name: superset-secrets
       key: db-password

@@ -81,6 +81,8 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 		}
 		script := ctr.Command[2]
 		for _, want := range []string{
+			`SUPERSET_OPERATOR__DB_HOST=$(printf '%s' "$SUPERSET_OPERATOR__DB_HOST" | tr -d '[:space:]')`,
+			`SUPERSET_OPERATOR__DB_PORT=$(printf '%s' "$SUPERSET_OPERATOR__DB_PORT" | tr -d '[:space:]')`,
 			"createdb",
 			"pg_database",
 			`sed "s/'/''/g"`,
@@ -143,6 +145,8 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 		}
 		script := ctr.Command[2]
 		for _, want := range []string{
+			`SUPERSET_OPERATOR__DB_HOST=$(printf '%s' "$SUPERSET_OPERATOR__DB_HOST" | tr -d '[:space:]')`,
+			`SUPERSET_OPERATOR__DB_PORT=$(printf '%s' "$SUPERSET_OPERATOR__DB_PORT" | tr -d '[:space:]')`,
 			"CREATE DATABASE IF NOT EXISTS",
 			"sed 's/`/``/g'",
 			`mysql -h "$SUPERSET_OPERATOR__DB_HOST"`,

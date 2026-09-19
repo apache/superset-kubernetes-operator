@@ -51,6 +51,7 @@ func TestBuildSeedScript(t *testing.T) {
 
 		script := buildPostgresSeedScript(seed)
 
+		assertConnectionWhitespaceNormalization(t, script)
 		if !strings.Contains(script, "set -e") {
 			t.Error("expected set -e")
 		}
@@ -111,6 +112,7 @@ func TestBuildSeedScript(t *testing.T) {
 
 		script := buildMySQLSeedScript(seed)
 
+		assertConnectionWhitespaceNormalization(t, script)
 		if !strings.Contains(script, "set -e") {
 			t.Error("expected set -e")
 		}
@@ -309,6 +311,21 @@ func TestBuildSeedScript(t *testing.T) {
 			}
 		}
 	})
+}
+
+func assertConnectionWhitespaceNormalization(t *testing.T, script string) {
+	t.Helper()
+	for _, name := range []string{
+		"SUPERSET_OPERATOR__DB_HOST",
+		"SUPERSET_OPERATOR__DB_PORT",
+		"SUPERSET_OPERATOR__SEED_SRC_HOST",
+		"SUPERSET_OPERATOR__SEED_SRC_PORT",
+	} {
+		want := name + `=$(printf '%s' "$` + name + `" | tr -d '[:space:]')`
+		if !strings.Contains(script, want) {
+			t.Errorf("script does not normalize %s whitespace\n--- script ---\n%s", name, script)
+		}
+	}
 }
 
 // TestBuildSeedCommand covers buildSeedCommand: honoring a user command override
