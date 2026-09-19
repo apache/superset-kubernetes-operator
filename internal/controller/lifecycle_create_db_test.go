@@ -359,11 +359,15 @@ func TestBuildStandardTaskFlatSpec(t *testing.T) {
 			LocalObjectReference: corev1.LocalObjectReference{Name: "secret"},
 			Key:                  "key",
 		}
+		connectionRef := func(key string) *corev1.SecretKeySelector {
+			return &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "metastore-secret"}, Key: key}
+		}
 		superset.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-			Host:           common.Ptr("pg.svc"),
-			Database:       common.Ptr("superset"),
-			Username:       common.Ptr("superset"),
-			PasswordFrom:   &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "metastore-secret"}, Key: "password"},
+			HostFrom:       connectionRef("host"),
+			PortFrom:       connectionRef("port"),
+			DatabaseFrom:   connectionRef("dbname"),
+			UsernameFrom:   connectionRef("user"),
+			PasswordFrom:   connectionRef("password"),
 			CreateDatabase: common.Ptr(true),
 		}
 		superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
@@ -397,6 +401,33 @@ func TestBuildStandardTaskFlatSpec(t *testing.T) {
 		if initCtr.SecurityContext == nil || initCtr.SecurityContext.AllowPrivilegeEscalation == nil || *initCtr.SecurityContext.AllowPrivilegeEscalation {
 			t.Errorf("expected AllowPrivilegeEscalation=false to propagate to init container, got %+v", initCtr.SecurityContext)
 		}
+		wantKeys := map[string]string{
+			common.EnvDBHost: "host", common.EnvDBPort: "port", common.EnvDBName: "dbname",
+			common.EnvDBUser: "user", common.EnvDBPass: "password",
+		}
+		assertConnectionRefs := func(container corev1.Container) {
+			t.Helper()
+			missing := make(map[string]string, len(wantKeys))
+			for name, key := range wantKeys {
+				missing[name] = key
+			}
+			for _, env := range container.Env {
+				wantKey, ok := missing[env.Name]
+				if !ok {
+					continue
+				}
+				if env.Value != "" || env.ValueFrom == nil || env.ValueFrom.SecretKeyRef == nil ||
+					env.ValueFrom.SecretKeyRef.Name != "metastore-secret" || env.ValueFrom.SecretKeyRef.Key != wantKey {
+					t.Errorf("container %s env %s: expected metastore-secret/%s SecretKeyRef, got %+v", container.Name, env.Name, wantKey, env)
+				}
+				delete(missing, env.Name)
+			}
+			if len(missing) != 0 {
+				t.Errorf("container %s missing Secret-backed metastore env vars: %v", container.Name, missing)
+			}
+		}
+		assertConnectionRefs(pod.Containers[0])
+		assertConnectionRefs(*initCtr)
 	})
 
 	t.Run("drops user init container with reserved name", func(t *testing.T) {

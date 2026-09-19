@@ -45,6 +45,18 @@ func TestReconcile_CreatesParentOwnedComponentResources(t *testing.T) {
 	spec.CeleryFlower = &supersetv1alpha1.CeleryFlowerComponentSpec{}
 	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
 	spec.McpServer = &supersetv1alpha1.McpServerComponentSpec{}
+	connectionRef := func(secretName, key string) *corev1.SecretKeySelector {
+		return &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: secretName}, Key: key}
+	}
+	spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+		HostFrom: connectionRef("db-endpoint", "host"), PortFrom: connectionRef("db-endpoint", "port"),
+		DatabaseFrom: connectionRef("db-credentials", "dbname"), UsernameFrom: connectionRef("db-credentials", "user"),
+		PasswordFrom: connectionRef("db-credentials", "password"),
+	}
+	spec.Valkey = &supersetv1alpha1.ValkeySpec{
+		HostFrom: connectionRef("valkey-connection", "endpoint"), PortFrom: connectionRef("valkey-connection", "port"),
+		UsernameFrom: connectionRef("valkey-connection", "username"), PasswordFrom: connectionRef("valkey-connection", "password"),
+	}
 
 	superset := &supersetv1alpha1.Superset{
 		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
@@ -69,6 +81,34 @@ func TestReconcile_CreatesParentOwnedComponentResources(t *testing.T) {
 		}
 		if !isOwnedBy(deploy, superset) {
 			t.Fatalf("expected Deployment %s to be owned by Superset", name)
+		}
+		if name == "test-websocket-server" { // Node.js; does not consume Superset Python connection config.
+			continue
+		}
+		wantRefs := map[string]struct{ secret, key string }{
+			common.EnvDBHost:     {"db-endpoint", "host"},
+			common.EnvDBPort:     {"db-endpoint", "port"},
+			common.EnvDBName:     {"db-credentials", "dbname"},
+			common.EnvDBUser:     {"db-credentials", "user"},
+			common.EnvDBPass:     {"db-credentials", "password"},
+			common.EnvValkeyHost: {"valkey-connection", "endpoint"},
+			common.EnvValkeyPort: {"valkey-connection", "port"},
+			common.EnvValkeyUser: {"valkey-connection", "username"},
+			common.EnvValkeyPass: {"valkey-connection", "password"},
+		}
+		for _, env := range deploy.Spec.Template.Spec.Containers[0].Env {
+			want, ok := wantRefs[env.Name]
+			if !ok {
+				continue
+			}
+			if env.Value != "" || env.ValueFrom == nil || env.ValueFrom.SecretKeyRef == nil ||
+				env.ValueFrom.SecretKeyRef.Name != want.secret || env.ValueFrom.SecretKeyRef.Key != want.key {
+				t.Errorf("Deployment %s env %s: expected %s/%s SecretKeyRef, got %+v", name, env.Name, want.secret, want.key, env)
+			}
+			delete(wantRefs, env.Name)
+		}
+		if len(wantRefs) != 0 {
+			t.Errorf("Deployment %s missing Secret-backed connection env vars: %v", name, wantRefs)
 		}
 	}
 

@@ -256,13 +256,18 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 		})
 
-		It("rejects host together with hostFrom", func() {
-			cr := validDevSuperset("vk-host-hostfrom")
-			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey", HostFrom: secretRef("vk", "endpoint")}
-			err := k8sClient.Create(ctx, cr)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("exactly one of host or hostFrom"))
-		})
+		DescribeTable("rejects a literal together with its Secret-backed counterpart",
+			func(name string, valkey *supersetv1alpha1.ValkeySpec) {
+				cr := validDevSuperset(name)
+				cr.Spec.Valkey = valkey
+				err := k8sClient.Create(ctx, cr)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Or(ContainSubstring("mutually exclusive"), ContainSubstring("exactly one")))
+			},
+			Entry("host", "vk-host-hostfrom", &supersetv1alpha1.ValkeySpec{Host: "valkey", HostFrom: secretRef("vk", "endpoint")}),
+			Entry("port", "vk-port-portfrom", &supersetv1alpha1.ValkeySpec{Host: "valkey", Port: int32Ptr(6379), PortFrom: secretRef("vk", "port")}),
+			Entry("username", "vk-user-userfrom", &supersetv1alpha1.ValkeySpec{Host: "valkey", Username: strPtr("user"), UsernameFrom: secretRef("vk", "username")}),
+		)
 
 		It("rejects valkey password together with passwordFrom", func() {
 			cr := validDevSuperset("vk-pw-pwfrom")
@@ -421,6 +426,28 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			}
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 		})
+
+		DescribeTable("rejects a literal together with its Secret-backed counterpart",
+			func(name string, mutate func(*supersetv1alpha1.SeedSourceSpec)) {
+				cr := validDevSuperset(name)
+				cr.Spec.Metastore = structuredProdMetastore()
+				source := supersetv1alpha1.SeedSourceSpec{
+					Host: "source", Database: "superset", Username: "reader", PasswordFrom: secretRef("source", "password"),
+				}
+				mutate(&source)
+				cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{Seed: &supersetv1alpha1.SeedTaskSpec{Source: source}}
+				err := k8sClient.Create(ctx, cr)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Or(ContainSubstring("mutually exclusive"), ContainSubstring("exactly one")))
+			},
+			Entry("host", "seed-host-hostfrom", func(s *supersetv1alpha1.SeedSourceSpec) { s.HostFrom = secretRef("source", "host") }),
+			Entry("port", "seed-port-portfrom", func(s *supersetv1alpha1.SeedSourceSpec) {
+				s.Port = int32Ptr(5432)
+				s.PortFrom = secretRef("source", "port")
+			}),
+			Entry("database", "seed-db-dbfrom", func(s *supersetv1alpha1.SeedSourceSpec) { s.DatabaseFrom = secretRef("source", "dbname") }),
+			Entry("username", "seed-user-userfrom", func(s *supersetv1alpha1.SeedSourceSpec) { s.UsernameFrom = secretRef("source", "user") }),
+		)
 
 		It("rejects seed in Production mode", func() {
 			cr := validProdSuperset("seed-prod")
