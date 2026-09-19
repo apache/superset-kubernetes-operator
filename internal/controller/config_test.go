@@ -449,28 +449,34 @@ func TestCollectSecretEnvVars_FromFields(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
 			SecretKeyFrom: secretRef("app-secret", "secret-key"),
 			Metastore: &supersetv1alpha1.MetastoreSpec{
-				Host:         common.Ptr("postgres"),
-				Database:     common.Ptr("superset"),
-				Username:     common.Ptr("admin"),
+				HostFrom:     secretRef("db-endpoint", "host"),
+				PortFrom:     secretRef("db-endpoint", "port"),
+				DatabaseFrom: secretRef("db-credentials", "dbname"),
+				UsernameFrom: secretRef("db-credentials", "user"),
 				PasswordFrom: secretRef("db-secret", "password"),
 			},
 		}
 		envs := collectSecretEnvVars(spec, "test")
+		wantKeys := map[string]string{
+			"SUPERSET_OPERATOR__SECRET_KEY": "secret-key",
+			"SUPERSET_OPERATOR__DB_HOST":    "host",
+			"SUPERSET_OPERATOR__DB_PORT":    "port",
+			"SUPERSET_OPERATOR__DB_NAME":    "dbname",
+			"SUPERSET_OPERATOR__DB_USER":    "user",
+			"SUPERSET_OPERATOR__DB_PASS":    "password",
+		}
 		for _, env := range envs {
-			switch env.Name {
-			case "SUPERSET_OPERATOR__SECRET_KEY":
-				if env.ValueFrom == nil || env.ValueFrom.SecretKeyRef.Name != "app-secret" {
-					t.Errorf("SUPERSET_OPERATOR__SECRET_KEY: expected secretKeyRef to app-secret, got %+v", env.ValueFrom)
-				}
-			case "SUPERSET_OPERATOR__DB_PASS":
-				if env.ValueFrom == nil || env.ValueFrom.SecretKeyRef.Key != "password" {
-					t.Errorf("SUPERSET_OPERATOR__DB_PASS: expected secretKeyRef key=password, got %+v", env.ValueFrom)
-				}
-			case "SUPERSET_OPERATOR__DB_HOST":
-				if env.Value != "postgres" {
-					t.Errorf("expected SUPERSET_OPERATOR__DB_HOST=postgres, got %s", env.Value)
-				}
+			wantKey, ok := wantKeys[env.Name]
+			if !ok {
+				continue
 			}
+			if env.Value != "" || env.ValueFrom == nil || env.ValueFrom.SecretKeyRef == nil || env.ValueFrom.SecretKeyRef.Key != wantKey {
+				t.Errorf("%s: expected secretKeyRef key=%s, got %+v", env.Name, wantKey, env)
+			}
+			delete(wantKeys, env.Name)
+		}
+		if len(wantKeys) != 0 {
+			t.Errorf("missing secret-backed env vars: %v", wantKeys)
 		}
 	})
 
@@ -825,6 +831,42 @@ func TestCollectSecretEnvVars_Valkey(t *testing.T) {
 			}
 		}
 		t.Error("expected SUPERSET_OPERATOR__VALKEY_PASS env var")
+	})
+
+	t.Run("connection fields from Secret keys", func(t *testing.T) {
+		ref := func(key string) *corev1.SecretKeySelector {
+			return &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: "valkey-connection"},
+				Key:                  key,
+			}
+		}
+		spec := &supersetv1alpha1.SupersetSpec{
+			Valkey: &supersetv1alpha1.ValkeySpec{
+				HostFrom:     ref("endpoint"),
+				PortFrom:     ref("port"),
+				UsernameFrom: ref("username"),
+				PasswordFrom: ref("password"),
+			},
+		}
+		wantKeys := map[string]string{
+			"SUPERSET_OPERATOR__VALKEY_HOST": "endpoint",
+			"SUPERSET_OPERATOR__VALKEY_PORT": "port",
+			"SUPERSET_OPERATOR__VALKEY_USER": "username",
+			"SUPERSET_OPERATOR__VALKEY_PASS": "password",
+		}
+		for _, env := range collectSecretEnvVars(spec, "test") {
+			wantKey, ok := wantKeys[env.Name]
+			if !ok {
+				continue
+			}
+			if env.Value != "" || env.ValueFrom == nil || env.ValueFrom.SecretKeyRef == nil || env.ValueFrom.SecretKeyRef.Key != wantKey {
+				t.Errorf("%s: expected secretKeyRef key=%s, got %+v", env.Name, wantKey, env)
+			}
+			delete(wantKeys, env.Name)
+		}
+		if len(wantKeys) != 0 {
+			t.Errorf("missing secret-backed env vars: %v", wantKeys)
+		}
 	})
 
 	t.Run("no valkey", func(t *testing.T) {

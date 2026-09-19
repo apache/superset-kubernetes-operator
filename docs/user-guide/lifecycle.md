@@ -459,9 +459,18 @@ spec:
     seed:
       trigger: "2026-05-09-v1"       # change to re-seed
       source:
-        host: postgres-prod.db.svc
-        database: superset_prod
-        username: prod_reader        # read-only on production
+        hostFrom:
+          name: prod-reader-connection
+          key: host
+        portFrom:
+          name: prod-reader-connection
+          key: port
+        databaseFrom:
+          name: prod-reader-connection
+          key: dbname
+        usernameFrom:
+          name: prod-reader-connection
+          key: user                  # read-only on production
         passwordFrom:
           name: prod-reader-creds
           key: password
@@ -516,6 +525,8 @@ spec:
 ```
 
 When a custom command is set, the operator still injects all env vars (`SUPERSET_OPERATOR__SEED_SRC_*` and `SUPERSET_OPERATOR__DB_*`) so your script can use them.
+
+Each source connection field supports either a literal or its mutually exclusive `From` counterpart (`hostFrom`, `portFrom`, `databaseFrom`, `usernameFrom`, and `passwordFrom`). This allows the seed Job to consume connection details published by a database operator without copying them into the `Superset` resource. `portFrom` must reference a decimal port string.
 
 ### Seed Image
 

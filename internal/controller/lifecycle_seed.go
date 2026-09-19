@@ -164,47 +164,23 @@ func collectSeedEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVar {
 	isDev := isDevEnvironment(spec)
 
 	// Source env vars.
-	envs = append(envs, corev1.EnvVar{Name: naming.EnvSeedSrcHost, Value: seed.Source.Host})
+	envs = append(envs, literalOrSecretEnv(naming.EnvSeedSrcHost, &seed.Source.Host, seed.Source.HostFrom))
 
-	port := defaultDBPort(seed.Source.Type)
-	if seed.Source.Port != nil {
-		port = *seed.Source.Port
-	}
-	envs = append(envs, corev1.EnvVar{Name: naming.EnvSeedSrcPort, Value: fmt.Sprintf("%d", port)})
-	envs = append(envs, corev1.EnvVar{Name: naming.EnvSeedSrcDB, Value: seed.Source.Database})
-	envs = append(envs, corev1.EnvVar{Name: naming.EnvSeedSrcUser, Value: seed.Source.Username})
+	envs = append(envs, literalInt32OrSecretEnv(naming.EnvSeedSrcPort, seed.Source.Port, seed.Source.PortFrom, defaultDBPort(seed.Source.Type)))
+	envs = append(envs,
+		literalOrSecretEnv(naming.EnvSeedSrcDB, &seed.Source.Database, seed.Source.DatabaseFrom),
+		literalOrSecretEnv(naming.EnvSeedSrcUser, &seed.Source.Username, seed.Source.UsernameFrom),
+	)
 
 	if isDev && seed.Source.Password != nil {
 		envs = append(envs, corev1.EnvVar{Name: naming.EnvSeedSrcPass, Value: *seed.Source.Password})
 	} else if seed.Source.PasswordFrom != nil {
-		envs = append(envs, corev1.EnvVar{
-			Name:      naming.EnvSeedSrcPass,
-			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: seed.Source.PasswordFrom},
-		})
+		envs = append(envs, literalOrSecretEnv(naming.EnvSeedSrcPass, nil, seed.Source.PasswordFrom))
 	}
 
 	// Target env vars (from spec.metastore; seed requires structured metastore).
-	if spec.Metastore != nil && spec.Metastore.Host != nil {
-		envs = append(envs, corev1.EnvVar{Name: naming.EnvDBHost, Value: *spec.Metastore.Host})
-		targetPort := defaultDBPort(spec.Metastore.Type)
-		if spec.Metastore.Port != nil {
-			targetPort = *spec.Metastore.Port
-		}
-		envs = append(envs, corev1.EnvVar{Name: naming.EnvDBPort, Value: fmt.Sprintf("%d", targetPort)})
-		if spec.Metastore.Database != nil {
-			envs = append(envs, corev1.EnvVar{Name: naming.EnvDBName, Value: *spec.Metastore.Database})
-		}
-		if spec.Metastore.Username != nil {
-			envs = append(envs, corev1.EnvVar{Name: naming.EnvDBUser, Value: *spec.Metastore.Username})
-		}
-		if isDev && spec.Metastore.Password != nil {
-			envs = append(envs, corev1.EnvVar{Name: naming.EnvDBPass, Value: *spec.Metastore.Password})
-		} else if spec.Metastore.PasswordFrom != nil {
-			envs = append(envs, corev1.EnvVar{
-				Name:      naming.EnvDBPass,
-				ValueFrom: &corev1.EnvVarSource{SecretKeyRef: spec.Metastore.PasswordFrom},
-			})
-		}
+	if isStructuredMetastore(spec.Metastore) {
+		envs = append(envs, structuredMetastoreEnvVars(spec.Metastore, isDev)...)
 	}
 
 	return envs

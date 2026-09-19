@@ -155,6 +155,24 @@ var _ = Describe("CEL Validation", Ordered, func() {
 	// --- Metastore field constraints ---
 
 	Describe("Metastore", func() {
+		DescribeTable("rejects a literal together with its Secret-backed counterpart",
+			func(name string, mutate func(*supersetv1alpha1.MetastoreSpec)) {
+				cr := validDevSuperset(name)
+				cr.Spec.Metastore = structuredProdMetastore()
+				mutate(cr.Spec.Metastore)
+				err := k8sClient.Create(ctx, cr)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("mutually exclusive"))
+			},
+			Entry("host", "meta-host-hostfrom", func(m *supersetv1alpha1.MetastoreSpec) { m.HostFrom = secretRef("db", "host") }),
+			Entry("port", "meta-port-portfrom", func(m *supersetv1alpha1.MetastoreSpec) {
+				m.Port = int32Ptr(5432)
+				m.PortFrom = secretRef("db", "port")
+			}),
+			Entry("database", "meta-db-dbfrom", func(m *supersetv1alpha1.MetastoreSpec) { m.DatabaseFrom = secretRef("db", "dbname") }),
+			Entry("username", "meta-user-userfrom", func(m *supersetv1alpha1.MetastoreSpec) { m.UsernameFrom = secretRef("db", "user") }),
+		)
+
 		It("rejects uri together with uriFrom", func() {
 			cr := validDevSuperset("meta-uri-urifrom")
 			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
@@ -199,7 +217,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			}
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("require host to be set"))
+			Expect(err.Error()).To(ContainSubstring("require host or hostFrom to be set"))
 		})
 
 		It("rejects host without database and username", func() {
@@ -209,7 +227,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			}
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("requires database and username"))
+			Expect(err.Error()).To(ContainSubstring("requires database or databaseFrom and username or usernameFrom"))
 		})
 
 		It("rejects createDatabase without structured metastore", func() {
@@ -227,6 +245,25 @@ var _ = Describe("CEL Validation", Ordered, func() {
 	// --- Valkey ---
 
 	Describe("Valkey", func() {
+		It("accepts a fully Secret-backed connection", func() {
+			cr := validProdSuperset("vk-secret-connection")
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
+				HostFrom:     secretRef("vk", "endpoint"),
+				PortFrom:     secretRef("vk", "port"),
+				UsernameFrom: secretRef("vk", "username"),
+				PasswordFrom: secretRef("vk", "password"),
+			}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+
+		It("rejects host together with hostFrom", func() {
+			cr := validDevSuperset("vk-host-hostfrom")
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey", HostFrom: secretRef("vk", "endpoint")}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("exactly one of host or hostFrom"))
+		})
+
 		It("rejects valkey password together with passwordFrom", func() {
 			cr := validDevSuperset("vk-pw-pwfrom")
 			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
@@ -370,6 +407,21 @@ var _ = Describe("CEL Validation", Ordered, func() {
 	// --- Lifecycle seed constraints ---
 
 	Describe("Seed", func() {
+		It("accepts a fully Secret-backed source connection", func() {
+			cr := validProdSuperset("seed-secret-source")
+			staging := common.EnvironmentStaging
+			cr.Spec.Environment = &staging
+			cr.Spec.Metastore = structuredProdMetastore()
+			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+				Seed: &supersetv1alpha1.SeedTaskSpec{Source: supersetv1alpha1.SeedSourceSpec{
+					HostFrom: secretRef("source", "host"), PortFrom: secretRef("source", "port"),
+					DatabaseFrom: secretRef("source", "dbname"), UsernameFrom: secretRef("source", "user"),
+					PasswordFrom: secretRef("source", "password"),
+				}},
+			}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+
 		It("rejects seed in Production mode", func() {
 			cr := validProdSuperset("seed-prod")
 			cr.Spec.Metastore = structuredProdMetastore()

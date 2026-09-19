@@ -180,7 +180,7 @@ func createDatabaseEnabled(superset *supersetv1alpha1.Superset) bool {
 	if m.CreateDatabase == nil || !*m.CreateDatabase {
 		return false
 	}
-	return m.Host != nil && m.Database != nil && m.Username != nil
+	return isStructuredMetastore(m) && (m.Database != nil || m.DatabaseFrom != nil) && (m.Username != nil || m.UsernameFrom != nil)
 }
 
 // metastoreType returns the DB type, defaulting to PostgreSQL.
@@ -207,27 +207,5 @@ func resolveCreateDatabaseImage(dbType string) supersetv1alpha1.ImageSpec {
 // branch of collectSecretEnvVars; the init container does not need URI/Valkey
 // vars, and CEL prevents URI mode + createDatabase.
 func createDatabaseEnvVars(metastore *supersetv1alpha1.MetastoreSpec, isDev bool) []corev1.EnvVar {
-	envs := []corev1.EnvVar{
-		{Name: naming.EnvDBHost, Value: *metastore.Host},
-	}
-	port := defaultDBPort(metastore.Type)
-	if metastore.Port != nil {
-		port = *metastore.Port
-	}
-	envs = append(envs, corev1.EnvVar{Name: naming.EnvDBPort, Value: fmt.Sprintf("%d", port)})
-	if metastore.Database != nil {
-		envs = append(envs, corev1.EnvVar{Name: naming.EnvDBName, Value: *metastore.Database})
-	}
-	if metastore.Username != nil {
-		envs = append(envs, corev1.EnvVar{Name: naming.EnvDBUser, Value: *metastore.Username})
-	}
-	if isDev && metastore.Password != nil {
-		envs = append(envs, corev1.EnvVar{Name: naming.EnvDBPass, Value: *metastore.Password})
-	} else if metastore.PasswordFrom != nil {
-		envs = append(envs, corev1.EnvVar{
-			Name:      naming.EnvDBPass,
-			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: metastore.PasswordFrom},
-		})
-	}
-	return envs
+	return structuredMetastoreEnvVars(metastore, isDev)
 }

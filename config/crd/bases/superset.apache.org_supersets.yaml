@@ -23622,8 +23622,34 @@ spec:
                         properties:
                           database:
                             type: string
+                          databaseFrom:
+                            properties:
+                              key:
+                                type: string
+                              name:
+                                default: ""
+                                type: string
+                              optional:
+                                type: boolean
+                            required:
+                            - key
+                            type: object
+                            x-kubernetes-map-type: atomic
                           host:
                             type: string
+                          hostFrom:
+                            properties:
+                              key:
+                                type: string
+                              name:
+                                default: ""
+                                type: string
+                              optional:
+                                type: boolean
+                            required:
+                            - key
+                            type: object
+                            x-kubernetes-map-type: atomic
                           password:
                             type: string
                           passwordFrom:
@@ -23642,6 +23668,19 @@ spec:
                           port:
                             format: int32
                             type: integer
+                          portFrom:
+                            properties:
+                              key:
+                                type: string
+                              name:
+                                default: ""
+                                type: string
+                              optional:
+                                type: boolean
+                            required:
+                            - key
+                            type: object
+                            x-kubernetes-map-type: atomic
                           type:
                             default: PostgreSQL
                             enum:
@@ -23650,12 +23689,31 @@ spec:
                             type: string
                           username:
                             type: string
-                        required:
-                        - database
-                        - host
-                        - username
+                          usernameFrom:
+                            properties:
+                              key:
+                                type: string
+                              name:
+                                default: ""
+                                type: string
+                              optional:
+                                type: boolean
+                            required:
+                            - key
+                            type: object
+                            x-kubernetes-map-type: atomic
                         type: object
                         x-kubernetes-validations:
+                        - message: exactly one of host or hostFrom must be set
+                          rule: has(self.host) != has(self.hostFrom)
+                        - message: port and portFrom are mutually exclusive
+                          rule: '!(has(self.port) && has(self.portFrom))'
+                        - message: exactly one of database or databaseFrom must be
+                            set
+                          rule: has(self.database) != has(self.databaseFrom)
+                        - message: exactly one of username or usernameFrom must be
+                            set
+                          rule: has(self.username) != has(self.usernameFrom)
                         - message: one of password or passwordFrom must be set
                           rule: has(self.password) || has(self.passwordFrom)
                         - message: password and passwordFrom are mutually exclusive
@@ -27812,11 +27870,37 @@ spec:
                     type: boolean
                   database:
                     type: string
+                  databaseFrom:
+                    properties:
+                      key:
+                        type: string
+                      name:
+                        default: ""
+                        type: string
+                      optional:
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
                   driver:
                     pattern: ^[A-Za-z0-9_]+$
                     type: string
                   host:
                     type: string
+                  hostFrom:
+                    properties:
+                      key:
+                        type: string
+                      name:
+                        default: ""
+                        type: string
+                      optional:
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
                   password:
                     type: string
                   passwordFrom:
@@ -27835,6 +27919,19 @@ spec:
                   port:
                     format: int32
                     type: integer
+                  portFrom:
+                    properties:
+                      key:
+                        type: string
+                      name:
+                        default: ""
+                        type: string
+                      optional:
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
                   type:
                     default: PostgreSQL
                     enum:
@@ -27858,33 +27955,57 @@ spec:
                     x-kubernetes-map-type: atomic
                   username:
                     type: string
+                  usernameFrom:
+                    properties:
+                      key:
+                        type: string
+                      name:
+                        default: ""
+                        type: string
+                      optional:
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
                 type: object
                 x-kubernetes-validations:
                 - message: uri and uriFrom are mutually exclusive
                   rule: '!(has(self.uri) && has(self.uriFrom))'
+                - message: host and hostFrom are mutually exclusive
+                  rule: '!(has(self.host) && has(self.hostFrom))'
+                - message: port and portFrom are mutually exclusive
+                  rule: '!(has(self.port) && has(self.portFrom))'
+                - message: database and databaseFrom are mutually exclusive
+                  rule: '!(has(self.database) && has(self.databaseFrom))'
+                - message: username and usernameFrom are mutually exclusive
+                  rule: '!(has(self.username) && has(self.usernameFrom))'
                 - message: password and passwordFrom are mutually exclusive
                   rule: '!(has(self.password) && has(self.passwordFrom))'
                 - message: uri and structured fields are mutually exclusive
-                  rule: '!(has(self.uri) && (has(self.host) || has(self.database)
-                    || has(self.username) || has(self.password) || has(self.passwordFrom)
-                    || has(self.port) || has(self.driver)))'
+                  rule: '!(has(self.uri) && (has(self.host) || has(self.hostFrom)
+                    || has(self.database) || has(self.databaseFrom) || has(self.username)
+                    || has(self.usernameFrom) || has(self.password) || has(self.passwordFrom)
+                    || has(self.port) || has(self.portFrom) || has(self.driver)))'
                 - message: uriFrom and structured fields are mutually exclusive
-                  rule: '!(has(self.uriFrom) && (has(self.host) || has(self.database)
-                    || has(self.username) || has(self.password) || has(self.passwordFrom)
-                    || has(self.port) || has(self.driver)))'
-                - message: structured fields (database, username, password, passwordFrom,
-                    port, driver) require host to be set
-                  rule: '!((has(self.database) || has(self.username) || has(self.password)
-                    || has(self.passwordFrom) || has(self.port) || has(self.driver))
-                    && !has(self.host))'
-                - message: structured metastore requires database and username when
-                    host is set
-                  rule: '!has(self.host) || (has(self.database) && has(self.username))'
-                - message: createDatabase requires structured metastore (host set;
-                    database/username via the structured-fields rule) and is not supported
-                    with uri or uriFrom
-                  rule: '!(has(self.createDatabase) && self.createDatabase) || (has(self.host)
-                    && !has(self.uri) && !has(self.uriFrom))'
+                  rule: '!(has(self.uriFrom) && (has(self.host) || has(self.hostFrom)
+                    || has(self.database) || has(self.databaseFrom) || has(self.username)
+                    || has(self.usernameFrom) || has(self.password) || has(self.passwordFrom)
+                    || has(self.port) || has(self.portFrom) || has(self.driver)))'
+                - message: structured fields require host or hostFrom to be set
+                  rule: '!((has(self.database) || has(self.databaseFrom) || has(self.username)
+                    || has(self.usernameFrom) || has(self.password) || has(self.passwordFrom)
+                    || has(self.port) || has(self.portFrom) || has(self.driver)) &&
+                    !(has(self.host) || has(self.hostFrom)))'
+                - message: structured metastore requires database or databaseFrom
+                    and username or usernameFrom
+                  rule: '!(has(self.host) || has(self.hostFrom)) || ((has(self.database)
+                    || has(self.databaseFrom)) && (has(self.username) || has(self.usernameFrom)))'
+                - message: createDatabase requires structured metastore (host/hostFrom
+                    set; database and username via the structured-fields rule) and
+                    is not supported with uri or uriFrom
+                  rule: '!(has(self.createDatabase) && self.createDatabase) || ((has(self.host)
+                    || has(self.hostFrom)) && !has(self.uri) && !has(self.uriFrom))'
               monitoring:
                 properties:
                   serviceMonitor:
@@ -32055,6 +32176,19 @@ spec:
                     type: object
                   host:
                     type: string
+                  hostFrom:
+                    properties:
+                      key:
+                        type: string
+                      name:
+                        default: ""
+                        type: string
+                      optional:
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
                   password:
                     type: string
                   passwordFrom:
@@ -32071,9 +32205,21 @@ spec:
                     type: object
                     x-kubernetes-map-type: atomic
                   port:
-                    default: 6379
                     format: int32
                     type: integer
+                  portFrom:
+                    properties:
+                      key:
+                        type: string
+                      name:
+                        default: ""
+                        type: string
+                      optional:
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
                   resultsBackend:
                     properties:
                       database:
@@ -32119,10 +32265,27 @@ spec:
                     type: object
                   username:
                     type: string
-                required:
-                - host
+                  usernameFrom:
+                    properties:
+                      key:
+                        type: string
+                      name:
+                        default: ""
+                        type: string
+                      optional:
+                        type: boolean
+                    required:
+                    - key
+                    type: object
+                    x-kubernetes-map-type: atomic
                 type: object
                 x-kubernetes-validations:
+                - message: exactly one of host or hostFrom must be set
+                  rule: has(self.host) != has(self.hostFrom)
+                - message: port and portFrom are mutually exclusive
+                  rule: '!(has(self.port) && has(self.portFrom))'
+                - message: username and usernameFrom are mutually exclusive
+                  rule: '!(has(self.username) && has(self.usernameFrom))'
                 - message: password and passwordFrom are mutually exclusive
                   rule: '!(has(self.password) && has(self.passwordFrom))'
               webServer:
@@ -40430,9 +40593,10 @@ spec:
                 !has(self.lifecycle) || !has(self.lifecycle.seed) || !has(self.lifecycle.seed.source)
                 || !has(self.lifecycle.seed.source.password)
             - message: lifecycle.seed requires structured metastore configuration
-                (host must be set)
+                (host or hostFrom must be set)
               rule: '!has(self.lifecycle) || !has(self.lifecycle.seed) || (has(self.lifecycle.seed.disabled)
-                && self.lifecycle.seed.disabled) || (has(self.metastore) && has(self.metastore.host))'
+                && self.lifecycle.seed.disabled) || (has(self.metastore) && (has(self.metastore.host)
+                || has(self.metastore.hostFrom)))'
             - message: previousSecretKey is only allowed when environment is Development;
                 use previousSecretKeyFrom in Staging or Production
               rule: (has(self.environment) && self.environment == 'Development') ||

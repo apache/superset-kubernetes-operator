@@ -234,9 +234,10 @@ In **prod mode** (`environment: Production`, the default), CRD validation reject
 
 - `secretKeyFrom` — references a Secret key for the Flask secret key
 - `metastore.uriFrom` — references a Secret key for the full database URI
-- `metastore.passwordFrom` — references a Secret key for the database password (structured mode)
+- `metastore.hostFrom`, `portFrom`, `databaseFrom`, `usernameFrom`, and `passwordFrom` — reference Secret keys for structured database connection fields
+- `valkey.hostFrom`, `portFrom`, `usernameFrom`, and `passwordFrom` — reference Secret keys for structured Valkey connection fields
 
-The operator injects the corresponding env vars (`SUPERSET_OPERATOR__SECRET_KEY`, `SUPERSET_OPERATOR__DB_URI`, `SUPERSET_OPERATOR__DB_PASS`) with `valueFrom.secretKeyRef` pointing at the referenced Secret. Secret values never appear in ConfigMaps or CRD status fields.
+The operator injects the corresponding `SUPERSET_OPERATOR__*` env vars with `valueFrom.secretKeyRef` pointing at the referenced Secret. Secret values never appear in ConfigMaps or CRD status fields.
 
 ### Config Mount Structure
 
