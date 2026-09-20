@@ -34,6 +34,12 @@
       "allowedVersions": "<0.32.0"
     },
     {
+      "description": "k8s.io/kube-openapi's schemaconv output is consumed directly by k8s.io/apimachinery's managedfields type converter, so both modules must agree on the sigs.k8s.io/structured-merge-diff major. kube-openapi master moved to structured-merge-diff/v7 ahead of the Kubernetes 1.38 libraries, so any digest newer than 2026-08-21 fails to compile against apimachinery v0.37.x, which is still on v6. Stop proposing digests and leave the version to minimal version selection: once apimachinery moves to v7, gomodTidy on the k8s.io/api bump floats kube-openapi up on its own and this rule can be deleted.",
+      "matchManagers": ["gomod"],
+      "matchDepNames": ["k8s.io/kube-openapi"],
+      "enabled": false
+    },
+    {
       "description": "The native gomod manager tracks the go.mod `go` directive from Go releases, which can appear before the matching golang Docker image. A custom regex manager below tracks this directive from Docker Hub tags instead, so Go version PRs are created only when the builder image exists.",
       "matchManagers": ["gomod"],
       "matchDepNames": ["go"],

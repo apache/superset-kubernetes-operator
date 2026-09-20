@@ -138,6 +138,12 @@ renders the default install manifests:
       - apiGroups:
           - superset.apache.org
         resources:
+          - supersets/finalizers
+        verbs:
+          - update
+      - apiGroups:
+          - superset.apache.org
+        resources:
           - supersets
         verbs:
           - get

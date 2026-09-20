@@ -131,6 +131,12 @@ rules:
 - apiGroups:
   - superset.apache.org
   resources:
+  - supersets/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - superset.apache.org
+  resources:
   - supersets/status
   verbs:
   - get

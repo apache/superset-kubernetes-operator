@@ -44,6 +44,10 @@ helm install superset-operator \
 
 Full documentation is available at <https://apache.github.io/superset-kubernetes-operator/>.
 
+## Values Schema
+
+The chart values schema intentionally allows undeclared top-level keys so shared values files and deployment tooling can pass release metadata through the chart. The chart ignores top-level keys it does not consume. Chart-owned structured values, such as `image`, `metrics`, `serviceAccount`, and `watch`, remain schema-validated; Kubernetes pass-through objects remain permissive by design.
+
 ## Values
 
 | Key | Type | Default | Description |
