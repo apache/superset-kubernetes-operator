@@ -90,7 +90,7 @@ func (r *SupersetReconciler) buildStandardTaskFlatSpec(
 	bootstrapScript := effectiveLifecycleBootstrapScript(&superset.Spec)
 	comp := convertTaskComponent(superset.Spec.Lifecycle, command)
 
-	secretEnvVars := collectSecretEnvVars(&superset.Spec, superset.Name)
+	secretEnvVars := collectSecretEnvVars(&superset.Spec, defaultInstanceName(superset))
 	var initEnvVars []corev1.EnvVar
 	if taskType == taskTypeInit {
 		initEnvVars = collectLifecycleInitEnvVars(superset.Spec.Lifecycle)

@@ -141,12 +141,12 @@ func ComponentResourceDefs() []ComponentResourceDef {
 				componentName: string(common.ComponentWebsocketServer),
 				deployConfig: DeploymentConfig{
 					ContainerName:  common.Container,
-					DefaultCommand: []string{"node", "websocket_server.js"},
+					DefaultCommand: []string{"/app/docker/entrypoints/run-websocket.sh"},
 					DefaultPorts: []corev1.ContainerPort{
 						{Name: common.PortNameWebsocket, ContainerPort: common.PortWebsocket, Protocol: corev1.ProtocolTCP},
 					},
 					DefaultLivenessProbe:  httpProbe("/health", common.PortWebsocket, 15),
-					DefaultReadinessProbe: httpProbe("/health", common.PortWebsocket, 5),
+					DefaultReadinessProbe: httpProbe("/ready", common.PortWebsocket, 5),
 				},
 				defaultPort: common.PortWebsocket,
 				hasScaling:  true,

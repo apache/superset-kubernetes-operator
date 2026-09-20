@@ -25,9 +25,9 @@ This guide covers the full configuration reference for the Superset operator. Fo
 
 The `environment` field controls validation strictness (enforced by [CEL](https://kubernetes.io/docs/reference/using-api/cel/) rules in the CRD schema):
 
-- **`Production`** (default) — inline `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, and `websocketServer.config` are rejected by CRD validation. Use the corresponding `*From` fields (`secretKeyFrom`, `previousSecretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`, `valkey.passwordFrom`, `websocketServer.configFrom`) to reference Kubernetes Secrets.
+- **`Production`** (default) — inline `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, and `realtime.webSocket.jwtSecret` are rejected by CRD validation. Use the corresponding `*From` fields (`secretKeyFrom`, `previousSecretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`, `valkey.passwordFrom`, `realtime.webSocket.jwtSecretFrom`) to reference Kubernetes Secrets.
 - **`Staging`** — same secret restrictions as Production, but allows `lifecycle.seed` for database seeding from an external source. `lifecycle.seed.source.password` must still be supplied via `passwordFrom`.
-- **`Development`** — allows plain-text `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, `websocketServer.config`, and `lifecycle.seed.source.password` directly in the CR for quick local development. Also permits `lifecycle.seed`, `lifecycle.init.adminUser`, and `lifecycle.init.loadExamples`.
+- **`Development`** — allows plain-text `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, `realtime.webSocket.jwtSecret`, and `lifecycle.seed.source.password` directly in the CR for quick local development. Also permits `lifecycle.seed`, `lifecycle.init.adminUser`, and `lifecycle.init.loadExamples`.
 
 ### Dev Mode Example
 
@@ -209,7 +209,9 @@ This generates a `superset_config.py` with `CACHE_CONFIG`, `DATA_CACHE_CONFIG`, 
 
 `distributedCoordination` (`DISTRIBUTED_COORDINATION_CONFIG`) backs Superset's real-time pub/sub messaging, atomic distributed locks (Redis `SET NX EX`), and Global Task Framework signaling. It is recommended for production deployments and will eventually replace `GLOBAL_ASYNC_QUERIES_CACHE_BACKEND` as the standard signaling backend.
 
-**Instance-scoped key prefixes.** Every rendered `CACHE_KEY_PREFIX` (and the results backend's `key_prefix`) is automatically prefixed with the parent CR name at runtime — e.g. a `Superset` named `prod` produces `prod_superset_`, `prod_superset_data_`, `prod_coordination_`, etc. This prevents key collisions when multiple Superset deployments share a single Valkey instance. The prefix value you set on a section is appended after the instance name; setting `keyPrefix: "myapp_"` on `cache` yields `prod_myapp_`.
+**Instance-scoped key prefixes.** Every rendered `CACHE_KEY_PREFIX` (and the results backend's `key_prefix`) is automatically prefixed with an instance namespace at runtime — e.g. a `Superset` named `prod` in namespace `analytics` produces `analytics:prod_superset_`, `analytics:prod_superset_data_`, `analytics:prod_coordination_`, etc. This prevents key collisions when multiple Superset deployments share a single Valkey instance. The prefix value you set on a section is appended after the instance name; setting `keyPrefix: "myapp_"` on `cache` yields `analytics:prod_myapp_`.
+
+The instance namespace defaults to `<namespace>:<name>` (the CR's Kubernetes identity, unique cluster-wide) and is customizable via `spec.valkey.keyPrefix`. Besides cache/results keys, this prefix also namespaces the Global Task Framework coordination channels (`TASKS_ABORT_CHANNEL_PREFIX`/`TASKS_COMPLETION_CHANNEL_PREFIX`) and the realtime browser Pub/Sub channel (`REALTIME_CHANNEL_PREFIX`, once the Superset image supports it). Because Redis Pub/Sub is **not** scoped by database number, isolating the realtime channel between deployments that share one Valkey/Redis requires this prefix (or a dedicated instance). Celery queues are **not** key-prefixed — on a shared instance give each deployment a distinct `celeryBroker.database`/`celeryResultBackend.database`.
 
 Each section can be individually tuned or disabled:
 
@@ -653,75 +655,69 @@ spec:
     poolPrePing: true            # explicit: overrides static default
 ```
 
+## Realtime (Global Async Queries + websocket)
+
+`spec.realtime` centralizes two related capabilities: **Global Async Queries (GAQ)**, which runs chart-data queries asynchronously, and the **realtime websocket transport**, which pushes task completion and list-view updates to the browser. Both build on the Global Task Framework and require a distributed coordination backend — set `spec.valkey.distributedCoordination` (enabled by default whenever `spec.valkey` is configured).
+
+### Global Async Queries
+
+Setting `realtime.asyncQueries` enables the `GLOBAL_ASYNC_QUERIES` feature flag (which auto-enables the Global Task Framework upstream). The operator also renders the `superset.tasks.async_queries` Celery import and a short `reap_orphaned_tasks` beat schedule (every 60s) so orphaned tasks are recovered — no manual Celery wiring needed. A Celery worker and beat are required, so configure `celeryWorker` and `celeryBeat`.
+
+```yaml
+spec:
+  valkey:
+    host: valkey
+  celeryWorker: {}
+  celeryBeat: {}
+  realtime:
+    asyncQueries: {}
+```
+
+With the websocket transport disabled, chart completion is delivered by the client's `status_changes` poll. GAQ tuning knobs — `GLOBAL_ASYNC_QUERIES_POLLING_DELAY`, `GLOBAL_ASYNC_QUERIES_MIN_CACHE_TTL`, `GLOBAL_ASYNC_QUERIES_QUERY_TIMEOUT`, `GLOBAL_ASYNC_QUERIES_DEFAULT`, `GTF_ORPHAN_TASK_TIMEOUT` — are set via `spec.config`.
+
+### Websocket transport
+
+Setting `realtime.webSocket` turns on the push transport (`WEBSOCKET_ENABLE`) and requires the websocket workload (`spec.websocketServer`, below). The operator shares one JWT secret between the Flask app (which mints the cookie) and the websocket server (which validates it):
+
+```yaml
+spec:
+  websocketServer: {}
+  realtime:
+    webSocket:
+      jwtSecretFrom:            # WEBSOCKET_JWT_SECRET, shared app <-> server
+        name: superset-realtime
+        key: jwt-secret
+      # url: "wss://superset.example.com/ws"   # optional; see below
+```
+
+- `jwtSecret` (plain text) is allowed only in Development; use `jwtSecretFrom` in Staging or Production.
+- `url` is the browser-visible endpoint. When unset, the operator derives it from `spec.baseUrl`, else from `spec.networking` and the websocket route (`/ws`) — `wss://` when TLS is configured, `ws://` otherwise. The browser must reach the socket on the same host as Superset so the JWT cookie is shared. Set `url` explicitly to override.
+- `allowedOrigins` restricts which browser origins may open a websocket connection (the server's `ALLOWED_ORIGINS`, mitigating Cross-Site WebSocket Hijacking). When unset, the operator defaults it to the single origin of the resolved websocket URL — all realtime traffic is expected from the same host as Superset. Set it explicitly to permit additional origins.
+- `cookieName` and `jwtExpirationSeconds` override `WEBSOCKET_JWT_COOKIE_NAME` and `WEBSOCKET_JWT_EXPIRATION_SECONDS`.
+
+### Base URL
+
+`spec.baseUrl` is the external, browser-visible base URL of the deployment (e.g. `https://superset.example.com`). Setting it centralizes external-URL wiring: the operator derives the websocket `url` and its `allowedOrigins` from it, and renders `WEBDRIVER_BASEURL_USER_FRIENDLY` — the URL embedded in Alerts & Reports hyperlinks — so report links point at the real host instead of the in-cluster default.
+
+```yaml
+spec:
+  baseUrl: https://superset.example.com
+```
+
+The internal render target, `WEBDRIVER_BASEURL` (the in-cluster URL the headless browser navigates to for Alerts & Reports and thumbnails), is managed by the operator automatically — it points at the web-server Service — and is not something you configure. It is independent of `baseUrl`.
+
 ## Websocket Server
 
-!!! warning "Experimental"
-    The websocket server is **experimental and pending security hardening**. It is not yet well supported and may exhibit gaps, either in the operator (e.g. unvalidated path-based gateway/ingress routing) or upstream in the Node.js websocket image. It requires a custom Node.js image (below). Treat its spec and behavior as subject to change, and avoid enabling it in production until it is hardened. See the [security reference](../reference/security.md#what-is-generally-out-of-scope) for details.
-
-Enable Superset's async event streaming by setting `websocketServer`. This deploys a **Node.js** application (not Python) that pushes real-time updates to dashboards via WebSocket connections.
-
-!!! warning "Requires a dedicated image"
-    The websocket server is a separate Node.js application and **does not run from the default Superset image**. You must provide an image that contains `websocket_server.js` — the CRD enforces this with a CEL rule that rejects `websocketServer` set without an `image.repository` override. A community-maintained image is available at [`oneacrefund/superset-websocket`](https://hub.docker.com/r/oneacrefund/superset-websocket) (experimental, not officially supported by Apache Superset).
+The websocket server (`spec.websocketServer`) is the Node.js workload behind the realtime transport. It ships in the official Superset image and is launched via an alternate entrypoint, so it inherits `spec.image` like every other component — no custom image required. Enable it together with `spec.realtime.webSocket`, which supplies the transport configuration.
 
 ```yaml
 spec:
-  websocketServer:
-    image:
-      repository: oneacrefund/superset-websocket
-      tag: "latest"
+  websocketServer: {}          # inherits spec.image
 ```
 
-Because the websocket server is Node.js-based, it does **not** receive a `superset_config.py`, and `sqlaEngineOptions` is not available on this component. Configuration can be provided with environment variables, inline Development-only `config`, or a Secret-backed `configFrom`.
+The operator configures the server entirely through environment variables it injects from `spec.realtime.webSocket`, `spec.baseUrl`/`spec.networking`, and `spec.valkey.distributedCoordination`: the JWT secret and cookie name, the `ALLOWED_ORIGINS` allowlist, and the Redis connection (host, port, DB, credentials, TLS) pointing at the same coordination backend as the app. Because the server is Node.js, it receives no `superset_config.py`, and `sqlaEngineOptions` is not available on this component. Additional server settings (for example connection caps `MAX_TOTAL_CONNECTIONS` and `MAX_CONNECTIONS_PER_CHANNEL`) can be set through `podTemplate` container env.
 
-```yaml
-spec:
-  websocketServer:
-    image:
-      repository: oneacrefund/superset-websocket
-      tag: "latest"
-    podTemplate:
-      container:
-        env:
-          - name: SUPERSET_WEBSERVER_URL
-            value: "http://my-superset-web-server:8088"
-```
-
-Inline `config` renders `config.json` and mounts it at `/home/superset-websocket/config.json`. It is allowed only in Development mode because websocket config commonly contains `jwtSecret` or Redis credentials:
-
-```yaml
-spec:
-  environment: Development
-  websocketServer:
-    image:
-      repository: oneacrefund/superset-websocket
-      tag: "latest"
-    config:
-      port: 8080
-      logLevel: debug
-      jwtSecret: CHANGE-ME
-      jwtCookieName: async-token
-      redis:
-        host: redis.default.svc
-        port: 6379
-        db: 0
-```
-
-In Staging and Production, store `config.json` in a Secret and reference it:
-
-```yaml
-spec:
-  websocketServer:
-    image:
-      repository: oneacrefund/superset-websocket
-      tag: "latest"
-    configFrom:
-      name: superset-websocket-config
-      key: config.json
-```
-
-The operator mounts the Secret key without reading or copying the Secret. If the Secret content changes, update `spec.forceReload` to roll websocket pods.
-
-The websocket server creates a Service (default port 8080) and supports the same scaling, deployment template, and pod template fields as other scalable components.
+It creates a Service (default port 8080), probes `/ready` for readiness and `/health` for liveness, and supports the same scaling, deployment template, and pod template fields as other scalable components.
 
 ## MCP Server
 
