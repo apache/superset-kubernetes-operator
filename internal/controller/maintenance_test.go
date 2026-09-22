@@ -157,6 +157,9 @@ func TestBuildMaintenanceFlatSpec(t *testing.T) {
 		if sc.Capabilities == nil || len(sc.Capabilities.Drop) != 1 || sc.Capabilities.Drop[0] != "ALL" {
 			t.Errorf("Capabilities.Drop = %+v, want [ALL]", sc.Capabilities)
 		}
+		if sc.SeccompProfile == nil || sc.SeccompProfile.Type != corev1.SeccompProfileTypeRuntimeDefault {
+			t.Errorf("SeccompProfile = %+v, want RuntimeDefault", sc.SeccompProfile)
+		}
 
 		if !maintenanceMountsConf(flat, "/etc/nginx/nginx.conf") {
 			t.Error("expected nginx.conf to be mounted at /etc/nginx/nginx.conf")
@@ -176,6 +179,28 @@ func TestBuildMaintenanceFlatSpec(t *testing.T) {
 		})
 		if sc := flat.PodTemplate.Container.SecurityContext; sc.RunAsUser == nil || *sc.RunAsUser != 2020 {
 			t.Errorf("expected user RunAsUser=2020 to be respected, got %v", sc.RunAsUser)
+		}
+	})
+
+	t.Run("does not override a user pod-level seccomp profile", func(t *testing.T) {
+		// Container-level seccomp takes precedence over pod-level, so the operator
+		// must not stamp a container-level RuntimeDefault when the user already set
+		// a pod-level profile (here Localhost) — that would silently override it.
+		title := "down"
+		localhost := "operator/profile.json"
+		flat := buildMaintenanceFlatSpec("parent", &supersetv1alpha1.MaintenancePageSpec{
+			Title: &title,
+			PodTemplate: &supersetv1alpha1.PodTemplate{
+				PodSecurityContext: &corev1.PodSecurityContext{
+					SeccompProfile: &corev1.SeccompProfile{
+						Type:             corev1.SeccompProfileTypeLocalhost,
+						LocalhostProfile: &localhost,
+					},
+				},
+			},
+		})
+		if sc := flat.PodTemplate.Container.SecurityContext; sc.SeccompProfile != nil {
+			t.Errorf("container SeccompProfile must stay unset so the pod-level profile applies, got %+v", sc.SeccompProfile)
 		}
 	})
 

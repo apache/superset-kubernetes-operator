@@ -453,9 +453,10 @@ func computeMaintenanceChecksum(spec *supersetv1alpha1.MaintenancePageSpec) stri
 }
 
 // maintenanceSecurityContext returns the maintenance container's security
-// context, defaulting to non-root with privilege escalation disabled and all
-// capabilities dropped (so it satisfies restricted Pod Security Standards),
-// while respecting any user-provided container securityContext.
+// context, defaulting to non-root with privilege escalation disabled, all
+// capabilities dropped, and the RuntimeDefault seccomp profile (so it satisfies
+// restricted Pod Security Standards), while respecting any user-provided
+// container securityContext.
 func maintenanceSecurityContext(containerSC *corev1.SecurityContext, podSC *corev1.PodSecurityContext) *corev1.SecurityContext {
 	sc := helperNonRootSecurityContext(containerSC, podSC, maintenanceNonRootUID)
 	if sc.AllowPrivilegeEscalation == nil {
@@ -464,6 +465,13 @@ func maintenanceSecurityContext(containerSC *corev1.SecurityContext, podSC *core
 	}
 	if sc.Capabilities == nil {
 		sc.Capabilities = &corev1.Capabilities{Drop: []corev1.Capability{capabilityAll}}
+	}
+	// Container-level seccomp overrides pod-level, so only default it when
+	// neither the container nor a user-provided pod-level profile sets one —
+	// otherwise a user's pod-level profile (e.g. Localhost) would be silently
+	// overridden.
+	if sc.SeccompProfile == nil && (podSC == nil || podSC.SeccompProfile == nil) {
+		sc.SeccompProfile = &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault}
 	}
 	return sc
 }
