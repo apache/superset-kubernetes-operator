@@ -97,6 +97,51 @@ func TestPreserveServiceAllocatedFields(t *testing.T) {
 				ExternalName: "superset.example.com",
 			},
 		},
+		{
+			name: "preserves auto-allocated node port when unpinned",
+			desired: corev1.ServiceSpec{
+				Type:  corev1.ServiceTypeNodePort,
+				Ports: []corev1.ServicePort{{Name: "http", Protocol: corev1.ProtocolTCP, Port: 8088}},
+			},
+			existing: corev1.ServiceSpec{
+				Type:  corev1.ServiceTypeNodePort,
+				Ports: []corev1.ServicePort{{Name: "http", Protocol: corev1.ProtocolTCP, Port: 8088, NodePort: 31234}},
+			},
+			want: corev1.ServiceSpec{
+				Type:  corev1.ServiceTypeNodePort,
+				Ports: []corev1.ServicePort{{Name: "http", Protocol: corev1.ProtocolTCP, Port: 8088, NodePort: 31234}},
+			},
+		},
+		{
+			name: "keeps user-pinned node port over existing",
+			desired: corev1.ServiceSpec{
+				Type:  corev1.ServiceTypeLoadBalancer,
+				Ports: []corev1.ServicePort{{Name: "http", Protocol: corev1.ProtocolTCP, Port: 8088, NodePort: 30500}},
+			},
+			existing: corev1.ServiceSpec{
+				Type:  corev1.ServiceTypeLoadBalancer,
+				Ports: []corev1.ServicePort{{Name: "http", Protocol: corev1.ProtocolTCP, Port: 8088, NodePort: 31234}},
+			},
+			want: corev1.ServiceSpec{
+				Type:  corev1.ServiceTypeLoadBalancer,
+				Ports: []corev1.ServicePort{{Name: "http", Protocol: corev1.ProtocolTCP, Port: 8088, NodePort: 30500}},
+			},
+		},
+		{
+			name: "does not carry a node port onto a ClusterIP Service",
+			desired: corev1.ServiceSpec{
+				Type:  corev1.ServiceTypeClusterIP,
+				Ports: []corev1.ServicePort{{Name: "http", Protocol: corev1.ProtocolTCP, Port: 8088}},
+			},
+			existing: corev1.ServiceSpec{
+				Type:  corev1.ServiceTypeNodePort,
+				Ports: []corev1.ServicePort{{Name: "http", Protocol: corev1.ProtocolTCP, Port: 8088, NodePort: 31234}},
+			},
+			want: corev1.ServiceSpec{
+				Type:  corev1.ServiceTypeClusterIP,
+				Ports: []corev1.ServicePort{{Name: "http", Protocol: corev1.ProtocolTCP, Port: 8088}},
+			},
+		},
 	}
 
 	for _, tt := range tests {

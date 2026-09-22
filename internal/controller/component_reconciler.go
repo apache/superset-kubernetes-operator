@@ -211,6 +211,35 @@ func preserveServiceAllocatedFields(desired *corev1.ServiceSpec, existing corev1
 		desired.IPFamilies = nil
 		desired.IPFamilyPolicy = nil
 	}
+
+	// Preserve auto-allocated node ports. For NodePort/LoadBalancer Services the
+	// apiserver allocates a node port when the user did not pin one; carrying it
+	// over prevents a new port being allocated on every reconcile (which would
+	// churn the Service and break external access). Only meaningful for types
+	// that own node ports — leaving ClusterIP ports untouched avoids setting a
+	// node port the apiserver would reject.
+	if desired.Type == corev1.ServiceTypeNodePort || desired.Type == corev1.ServiceTypeLoadBalancer {
+		for i := range desired.Ports {
+			if desired.Ports[i].NodePort != 0 {
+				continue
+			}
+			if existingPort := matchingServicePort(existing.Ports, desired.Ports[i]); existingPort != nil {
+				desired.Ports[i].NodePort = existingPort.NodePort
+			}
+		}
+	}
+}
+
+// matchingServicePort returns the existing port that corresponds to want,
+// matched by name and protocol (the operator names its single port "http"), or
+// nil if there is no match.
+func matchingServicePort(ports []corev1.ServicePort, want corev1.ServicePort) *corev1.ServicePort {
+	for i := range ports {
+		if ports[i].Name == want.Name && ports[i].Protocol == want.Protocol {
+			return &ports[i]
+		}
+	}
+	return nil
 }
 
 // buildChecksumAnnotations builds pod annotations from checksum fields.

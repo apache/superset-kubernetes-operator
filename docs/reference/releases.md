@@ -29,6 +29,7 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 
 ### Fixed
 
+- Component Services of type `NodePort` or `LoadBalancer` that do not pin `service.nodePort` no longer churn: the operator now preserves the apiserver-allocated node port across reconciles instead of triggering a re-allocation each time, which previously changed the external port and broke external access ([#360](https://github.com/apache/superset-kubernetes-operator/pull/360), [@villebro](https://github.com/villebro)).
 - The operator now requests `update` on `supersets/finalizers`, so reconciliation no longer fails on clusters with the `OwnerReferencesPermissionEnforcement` admission plugin enabled (e.g. OpenShift), where the API server previously rejected the `blockOwnerDeletion` owner references the operator sets on child resources ([#359](https://github.com/apache/superset-kubernetes-operator/pull/359), [@villebro](https://github.com/villebro)).
 - The chart no longer rejects top-level values it does not declare, so shared values files and deploy tooling that injects release metadata no longer fail schema validation. Nested value blocks are still strictly validated.
 
