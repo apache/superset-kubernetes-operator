@@ -317,6 +317,11 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 			// to the image's non-root UID so kubelet does not reject the root-default
 			// postgres image with CreateContainerConfigError.
 			RunAsUser: common.Ptr(int64(70)),
+			// The operator also fills its UID-independent hardening defaults where
+			// the user left them unset (here: capabilities and seccomp; the user
+			// already set allowPrivilegeEscalation).
+			Capabilities:   &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}},
+			SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault},
 		}
 		migratePod := &supersetv1alpha1.PodTemplate{
 			Container: &supersetv1alpha1.ContainerTemplate{

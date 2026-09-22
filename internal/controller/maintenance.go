@@ -463,7 +463,7 @@ func maintenanceSecurityContext(containerSC *corev1.SecurityContext, podSC *core
 		sc.AllowPrivilegeEscalation = &no
 	}
 	if sc.Capabilities == nil {
-		sc.Capabilities = &corev1.Capabilities{Drop: []corev1.Capability{"ALL"}}
+		sc.Capabilities = &corev1.Capabilities{Drop: []corev1.Capability{capabilityAll}}
 	}
 	return sc
 }

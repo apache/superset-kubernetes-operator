@@ -129,7 +129,7 @@ func buildCreateDatabaseInitContainer(superset *supersetv1alpha1.Superset, lifec
 		}
 		podSC = lifecyclePod.PodSecurityContext
 	}
-	ctr.SecurityContext = helperNonRootSecurityContext(containerSC, podSC, helperNonRootUID(dbType))
+	ctr.SecurityContext = applyContainerSecurityDefaults(helperNonRootSecurityContext(containerSC, podSC, helperNonRootUID(dbType)), podSC)
 	return ctr
 }
 
