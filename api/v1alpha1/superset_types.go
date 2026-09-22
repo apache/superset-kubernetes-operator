@@ -40,7 +40,7 @@ import (
 // +kubebuilder:validation:XValidation:rule="!has(self.monitoring) || !has(self.monitoring.serviceMonitor) || has(self.webServer)",message="spec.monitoring.serviceMonitor requires spec.webServer to be set (scrapes the web server service)"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && (self.environment == 'Development' || self.environment == 'Staging')) || !has(self.lifecycle) || !has(self.lifecycle.seed) || (has(self.lifecycle.seed.disabled) && self.lifecycle.seed.disabled)",message="lifecycle.seed is only allowed when environment is Development or Staging; seeding performs a destructive DROP DATABASE on the target metastore"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.lifecycle) || !has(self.lifecycle.seed) || !has(self.lifecycle.seed.source) || !has(self.lifecycle.seed.source.password)",message="lifecycle.seed.source.password is only allowed when environment is Development; use lifecycle.seed.source.passwordFrom in Staging"
-// +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.seed) || (has(self.lifecycle.seed.disabled) && self.lifecycle.seed.disabled) || (has(self.metastore) && has(self.metastore.host))",message="lifecycle.seed requires structured metastore configuration (host must be set)"
+// +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.seed) || (has(self.lifecycle.seed.disabled) && self.lifecycle.seed.disabled) || (has(self.metastore) && (has(self.metastore.host) || has(self.metastore.hostFrom)))",message="lifecycle.seed requires structured metastore configuration (host or hostFrom must be set)"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.previousSecretKey)",message="previousSecretKey is only allowed when environment is Development; use previousSecretKeyFrom in Staging or Production"
 // +kubebuilder:validation:XValidation:rule="!has(self.previousSecretKey) || !has(self.previousSecretKeyFrom)",message="previousSecretKey and previousSecretKeyFrom are mutually exclusive"
 // +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.rotate) || (has(self.lifecycle.rotate.disabled) && self.lifecycle.rotate.disabled) || has(self.previousSecretKey) || has(self.previousSecretKeyFrom)",message="lifecycle.rotate requires previousSecretKey (dev) or previousSecretKeyFrom to be set"
@@ -386,7 +386,6 @@ type SchedulableBaseTaskSpec struct {
 // LifecycleSpec defines lifecycle management configuration for database migrations
 // and application initialization tasks.
 // +kubebuilder:validation:XValidation:rule="!has(self.init) || !has(self.init.command) || size(self.init.command) == 0 || (!has(self.init.adminUser) && !has(self.init.loadExamples))",message="init.command is mutually exclusive with init.adminUser and init.loadExamples"
-// +kubebuilder:validation:XValidation:rule="!has(self.seed) || !has(self.seed.source.password) || !has(self.seed.source.passwordFrom)",message="seed.source.password and seed.source.passwordFrom are mutually exclusive"
 type LifecycleSpec struct {
 	// UpgradeMode controls whether upgrades require manual approval.
 	// Automatic runs immediately on image change; Supervised waits for an
@@ -615,6 +614,10 @@ type SeedTaskSpec struct {
 }
 
 // SeedSourceSpec defines the source database connection for seeding.
+// +kubebuilder:validation:XValidation:rule="has(self.host) != has(self.hostFrom)",message="exactly one of host or hostFrom must be set"
+// +kubebuilder:validation:XValidation:rule="!(has(self.port) && has(self.portFrom))",message="port and portFrom are mutually exclusive"
+// +kubebuilder:validation:XValidation:rule="has(self.database) != has(self.databaseFrom)",message="exactly one of database or databaseFrom must be set"
+// +kubebuilder:validation:XValidation:rule="has(self.username) != has(self.usernameFrom)",message="exactly one of username or usernameFrom must be set"
 // +kubebuilder:validation:XValidation:rule="has(self.password) || has(self.passwordFrom)",message="one of password or passwordFrom must be set"
 // +kubebuilder:validation:XValidation:rule="!has(self.password) || !has(self.passwordFrom)",message="password and passwordFrom are mutually exclusive"
 type SeedSourceSpec struct {
@@ -625,17 +628,46 @@ type SeedSourceSpec struct {
 	Type *string `json:"type,omitempty"`
 
 	// Source database hostname.
-	Host string `json:"host"`
+	// Mutually exclusive with hostFrom.
+	// +optional
+	// +kubebuilder:validation:MinLength=1
+	Host string `json:"host,omitempty"`
+
+	// Reference to a Secret key containing the source database hostname.
+	// Mutually exclusive with host.
+	// +optional
+	HostFrom *corev1.SecretKeySelector `json:"hostFrom,omitempty"`
 
 	// Source database port. Defaults to 5432 (postgresql) or 3306 (mysql).
 	// +optional
 	Port *int32 `json:"port,omitempty"`
 
+	// Reference to a Secret key containing the source database port as a decimal string.
+	// Mutually exclusive with port.
+	// +optional
+	PortFrom *corev1.SecretKeySelector `json:"portFrom,omitempty"`
+
 	// Database name on the source server.
-	Database string `json:"database"`
+	// Mutually exclusive with databaseFrom.
+	// +optional
+	// +kubebuilder:validation:MinLength=1
+	Database string `json:"database,omitempty"`
+
+	// Reference to a Secret key containing the source database name.
+	// Mutually exclusive with database.
+	// +optional
+	DatabaseFrom *corev1.SecretKeySelector `json:"databaseFrom,omitempty"`
 
 	// Username for the source database (should have read-only access).
-	Username string `json:"username"`
+	// Mutually exclusive with usernameFrom.
+	// +optional
+	// +kubebuilder:validation:MinLength=1
+	Username string `json:"username,omitempty"`
+
+	// Reference to a Secret key containing the source database username.
+	// Mutually exclusive with username.
+	// +optional
+	UsernameFrom *corev1.SecretKeySelector `json:"usernameFrom,omitempty"`
 
 	// Password for the source database (Development mode only). In Staging,
 	// use passwordFrom to reference a Kubernetes Secret.

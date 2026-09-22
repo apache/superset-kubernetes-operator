@@ -51,6 +51,7 @@ func TestBuildSeedScript(t *testing.T) {
 
 		script := buildPostgresSeedScript(seed)
 
+		assertConnectionWhitespaceNormalization(t, script)
 		if !strings.Contains(script, "set -e") {
 			t.Error("expected set -e")
 		}
@@ -111,6 +112,7 @@ func TestBuildSeedScript(t *testing.T) {
 
 		script := buildMySQLSeedScript(seed)
 
+		assertConnectionWhitespaceNormalization(t, script)
 		if !strings.Contains(script, "set -e") {
 			t.Error("expected set -e")
 		}
@@ -309,6 +311,21 @@ func TestBuildSeedScript(t *testing.T) {
 			}
 		}
 	})
+}
+
+func assertConnectionWhitespaceNormalization(t *testing.T, script string) {
+	t.Helper()
+	for _, name := range []string{
+		"SUPERSET_OPERATOR__DB_HOST",
+		"SUPERSET_OPERATOR__DB_PORT",
+		"SUPERSET_OPERATOR__SEED_SRC_HOST",
+		"SUPERSET_OPERATOR__SEED_SRC_PORT",
+	} {
+		want := name + `=$(printf '%s' "$` + name + `" | tr -d '[:space:]')`
+		if !strings.Contains(script, want) {
+			t.Errorf("script does not normalize %s whitespace\n--- script ---\n%s", name, script)
+		}
+	}
 }
 
 // TestBuildSeedCommand covers buildSeedCommand: honoring a user command override
@@ -538,48 +555,50 @@ func TestCollectSeedEnvVars(t *testing.T) {
 }
 
 func TestCollectSeedEnvVars_SecretRef(t *testing.T) {
-	host := "pg-staging.svc"
-	db := "superset_staging"
-	user := "admin"
+	secretRef := func(name, key string) *corev1.SecretKeySelector {
+		return &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: name}, Key: key}
+	}
 
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 		Seed: &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
-				Host:     "pg-prod.svc",
-				Database: "superset_prod",
-				Username: "reader",
-				PasswordFrom: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{Name: "prod-creds"},
-					Key:                  "password",
-				},
+				HostFrom:     secretRef("prod-connection", "host"),
+				PortFrom:     secretRef("prod-connection", "port"),
+				DatabaseFrom: secretRef("prod-connection", "dbname"),
+				UsernameFrom: secretRef("prod-creds", "user"),
+				PasswordFrom: secretRef("prod-creds", "password"),
 			},
 		},
 	}
 	superset.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-		Host:     &host,
-		Database: &db,
-		Username: &user,
-		PasswordFrom: &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: "staging-creds"},
-			Key:                  "password",
-		},
+		HostFrom:     secretRef("staging-connection", "host"),
+		PortFrom:     secretRef("staging-connection", "port"),
+		DatabaseFrom: secretRef("staging-connection", "dbname"),
+		UsernameFrom: secretRef("staging-creds", "user"),
+		PasswordFrom: secretRef("staging-creds", "password"),
 	}
 
 	envs := collectSeedEnvVars(superset)
 
-	for _, e := range envs {
-		if e.Name == common.EnvSeedSrcPass {
-			if e.ValueFrom == nil || e.ValueFrom.SecretKeyRef == nil {
-				t.Fatal("expected SecretKeyRef for source password")
-			}
-			if e.ValueFrom.SecretKeyRef.Name != "prod-creds" {
-				t.Errorf("expected secret name prod-creds, got: %s", e.ValueFrom.SecretKeyRef.Name)
-			}
-			return
-		}
+	wantKeys := map[string]string{
+		common.EnvSeedSrcHost: "host", common.EnvSeedSrcPort: "port", common.EnvSeedSrcDB: "dbname",
+		common.EnvSeedSrcUser: "user", common.EnvSeedSrcPass: "password", common.EnvDBHost: "host",
+		common.EnvDBPort: "port", common.EnvDBName: "dbname", common.EnvDBUser: "user", common.EnvDBPass: "password",
 	}
-	t.Error("SUPERSET_OPERATOR__SEED_SRC_PASS not found in env vars")
+	for _, e := range envs {
+		wantKey, ok := wantKeys[e.Name]
+		if !ok {
+			continue
+		}
+		if e.Value != "" || e.ValueFrom == nil || e.ValueFrom.SecretKeyRef == nil || e.ValueFrom.SecretKeyRef.Key != wantKey {
+			t.Errorf("%s: expected secretKeyRef key=%s, got %+v", e.Name, wantKey, e)
+		}
+		delete(wantKeys, e.Name)
+	}
+	if len(wantKeys) != 0 {
+		t.Errorf("missing Secret-backed seed env vars: %v", wantKeys)
+	}
 }
 
 // TestResolveSeedImage covers resolveSeedImage: type-appropriate defaults

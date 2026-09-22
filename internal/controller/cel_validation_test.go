@@ -30,6 +30,8 @@ import (
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -53,6 +55,15 @@ func secretRef(name, key string) *corev1.SecretKeySelector {
 		LocalObjectReference: corev1.LocalObjectReference{Name: name},
 		Key:                  key,
 	}
+}
+
+func toUnstructuredSuperset(s *supersetv1alpha1.Superset) *unstructured.Unstructured {
+	object, err := runtime.DefaultUnstructuredConverter.ToUnstructured(s)
+	Expect(err).NotTo(HaveOccurred())
+	u := &unstructured.Unstructured{Object: object}
+	u.SetAPIVersion(supersetv1alpha1.GroupVersion.String())
+	u.SetKind("Superset")
+	return u
 }
 
 // validDevSuperset returns a minimal valid Development-mode CR: inline secrets
@@ -155,6 +166,46 @@ var _ = Describe("CEL Validation", Ordered, func() {
 	// --- Metastore field constraints ---
 
 	Describe("Metastore", func() {
+		It("accepts a fully Secret-backed createDatabase target", func() {
+			cr := validProdSuperset("meta-secret-createdb")
+			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+				HostFrom:       secretRef("db", "host"),
+				PortFrom:       secretRef("db", "port"),
+				DatabaseFrom:   secretRef("db", "dbname"),
+				UsernameFrom:   secretRef("db", "username"),
+				PasswordFrom:   secretRef("db", "password"),
+				CreateDatabase: boolPtr(true),
+			}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+
+		It("accepts mixed literal and Secret-backed structured fields", func() {
+			cr := validProdSuperset("meta-mixed-connection")
+			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+				Host: common.Ptr("db.example.com"), DatabaseFrom: secretRef("db", "dbname"),
+				UsernameFrom: secretRef("db", "username"), PasswordFrom: secretRef("db", "password"),
+			}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+
+		DescribeTable("rejects a literal together with its Secret-backed counterpart",
+			func(name string, mutate func(*supersetv1alpha1.MetastoreSpec)) {
+				cr := validDevSuperset(name)
+				cr.Spec.Metastore = structuredProdMetastore()
+				mutate(cr.Spec.Metastore)
+				err := k8sClient.Create(ctx, cr)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("mutually exclusive"))
+			},
+			Entry("host", "meta-host-hostfrom", func(m *supersetv1alpha1.MetastoreSpec) { m.HostFrom = secretRef("db", "host") }),
+			Entry("port", "meta-port-portfrom", func(m *supersetv1alpha1.MetastoreSpec) {
+				m.Port = int32Ptr(5432)
+				m.PortFrom = secretRef("db", "port")
+			}),
+			Entry("database", "meta-db-dbfrom", func(m *supersetv1alpha1.MetastoreSpec) { m.DatabaseFrom = secretRef("db", "dbname") }),
+			Entry("username", "meta-user-userfrom", func(m *supersetv1alpha1.MetastoreSpec) { m.UsernameFrom = secretRef("db", "user") }),
+		)
+
 		It("rejects uri together with uriFrom", func() {
 			cr := validDevSuperset("meta-uri-urifrom")
 			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
@@ -199,7 +250,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			}
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("require host to be set"))
+			Expect(err.Error()).To(ContainSubstring("require host or hostFrom to be set"))
 		})
 
 		It("rejects host without database and username", func() {
@@ -209,7 +260,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			}
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("requires database and username"))
+			Expect(err.Error()).To(ContainSubstring("requires database or databaseFrom and username or usernameFrom"))
 		})
 
 		It("rejects createDatabase without structured metastore", func() {
@@ -222,11 +273,56 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("createDatabase requires structured metastore"))
 		})
+
+		DescribeTable("rejects empty structured literals",
+			func(name string, metastore *supersetv1alpha1.MetastoreSpec) {
+				cr := validDevSuperset(name)
+				cr.Spec.Metastore = metastore
+				Expect(k8sClient.Create(ctx, cr)).NotTo(Succeed())
+			},
+			Entry("host", "meta-empty-host", &supersetv1alpha1.MetastoreSpec{Host: strPtr(""), Database: strPtr("superset"), Username: strPtr("admin")}),
+			Entry("database", "meta-empty-db", &supersetv1alpha1.MetastoreSpec{Host: strPtr("db"), Database: strPtr(""), Username: strPtr("admin")}),
+			Entry("username", "meta-empty-user", &supersetv1alpha1.MetastoreSpec{Host: strPtr("db"), Database: strPtr("superset"), Username: strPtr("")}),
+		)
 	})
 
 	// --- Valkey ---
 
 	Describe("Valkey", func() {
+		It("accepts a fully Secret-backed connection", func() {
+			cr := validProdSuperset("vk-secret-connection")
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
+				HostFrom:     secretRef("vk", "endpoint"),
+				PortFrom:     secretRef("vk", "port"),
+				UsernameFrom: secretRef("vk", "username"),
+				PasswordFrom: secretRef("vk", "password"),
+			}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+
+		It("rejects an explicitly empty host", func() {
+			cr := validDevSuperset("vk-empty-host")
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "placeholder"}
+			u := toUnstructuredSuperset(cr)
+			Expect(unstructured.SetNestedField(u.Object, "", "spec", "valkey", "host")).To(Succeed())
+			err := k8sClient.Create(ctx, u)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("at least 1 chars"))
+		})
+
+		DescribeTable("rejects a literal together with its Secret-backed counterpart",
+			func(name string, valkey *supersetv1alpha1.ValkeySpec) {
+				cr := validDevSuperset(name)
+				cr.Spec.Valkey = valkey
+				err := k8sClient.Create(ctx, cr)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Or(ContainSubstring("mutually exclusive"), ContainSubstring("exactly one")))
+			},
+			Entry("host", "vk-host-hostfrom", &supersetv1alpha1.ValkeySpec{Host: "valkey", HostFrom: secretRef("vk", "endpoint")}),
+			Entry("port", "vk-port-portfrom", &supersetv1alpha1.ValkeySpec{Host: "valkey", Port: int32Ptr(6379), PortFrom: secretRef("vk", "port")}),
+			Entry("username", "vk-user-userfrom", &supersetv1alpha1.ValkeySpec{Host: "valkey", Username: strPtr("user"), UsernameFrom: secretRef("vk", "username")}),
+		)
+
 		It("rejects valkey password together with passwordFrom", func() {
 			cr := validDevSuperset("vk-pw-pwfrom")
 			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
@@ -370,6 +466,62 @@ var _ = Describe("CEL Validation", Ordered, func() {
 	// --- Lifecycle seed constraints ---
 
 	Describe("Seed", func() {
+		It("accepts a fully Secret-backed source connection", func() {
+			cr := validProdSuperset("seed-secret-source")
+			staging := common.EnvironmentStaging
+			cr.Spec.Environment = &staging
+			cr.Spec.Metastore = structuredProdMetastore()
+			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+				Seed: &supersetv1alpha1.SeedTaskSpec{Source: supersetv1alpha1.SeedSourceSpec{
+					HostFrom: secretRef("source", "host"), PortFrom: secretRef("source", "port"),
+					DatabaseFrom: secretRef("source", "dbname"), UsernameFrom: secretRef("source", "user"),
+					PasswordFrom: secretRef("source", "password"),
+				}},
+			}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+
+		DescribeTable("rejects a literal together with its Secret-backed counterpart",
+			func(name string, mutate func(*supersetv1alpha1.SeedSourceSpec)) {
+				cr := validDevSuperset(name)
+				cr.Spec.Metastore = structuredProdMetastore()
+				source := supersetv1alpha1.SeedSourceSpec{
+					Host: "source", Database: "superset", Username: "reader", PasswordFrom: secretRef("source", "password"),
+				}
+				mutate(&source)
+				cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{Seed: &supersetv1alpha1.SeedTaskSpec{Source: source}}
+				err := k8sClient.Create(ctx, cr)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Or(ContainSubstring("mutually exclusive"), ContainSubstring("exactly one")))
+			},
+			Entry("host", "seed-host-hostfrom", func(s *supersetv1alpha1.SeedSourceSpec) { s.HostFrom = secretRef("source", "host") }),
+			Entry("port", "seed-port-portfrom", func(s *supersetv1alpha1.SeedSourceSpec) {
+				s.Port = int32Ptr(5432)
+				s.PortFrom = secretRef("source", "port")
+			}),
+			Entry("database", "seed-db-dbfrom", func(s *supersetv1alpha1.SeedSourceSpec) { s.DatabaseFrom = secretRef("source", "dbname") }),
+			Entry("username", "seed-user-userfrom", func(s *supersetv1alpha1.SeedSourceSpec) { s.UsernameFrom = secretRef("source", "user") }),
+		)
+
+		DescribeTable("rejects empty source literals",
+			func(name, field string) {
+				cr := validDevSuperset(name)
+				cr.Spec.Metastore = structuredProdMetastore()
+				source := supersetv1alpha1.SeedSourceSpec{
+					Host: "source", Database: "superset", Username: "reader", Password: strPtr("password"),
+				}
+				cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{Seed: &supersetv1alpha1.SeedTaskSpec{Source: source}}
+				u := toUnstructuredSuperset(cr)
+				Expect(unstructured.SetNestedField(u.Object, "", "spec", "lifecycle", "seed", "source", field)).To(Succeed())
+				err := k8sClient.Create(ctx, u)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("at least 1 chars"))
+			},
+			Entry("host", "seed-empty-host", "host"),
+			Entry("database", "seed-empty-db", "database"),
+			Entry("username", "seed-empty-user", "username"),
+		)
+
 		It("rejects seed in Production mode", func() {
 			cr := validProdSuperset("seed-prod")
 			cr.Spec.Metastore = structuredProdMetastore()

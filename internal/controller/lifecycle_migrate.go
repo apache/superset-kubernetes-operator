@@ -27,9 +27,11 @@ import (
 // most config changes — a config tweak alone must not re-run migrations. When
 // createDatabase is true, the migrate Job carries a create-database init
 // container that reads the structured metastore target; changes to that
-// target (host/port/database/username/type) must re-run migrate so the init
-// container actually executes against the new server. The flag itself is also
-// included so toggling it re-runs migrate. The init container's rendered
+// target (literal values or Secret selector identities) must re-run migrate so
+// the init container actually executes against the new server. Secret contents
+// remain intentionally unreadable to the operator, so changing data behind an
+// unchanged selector requires an explicit migrate trigger. The flag itself is
+// also included so toggling it re-runs migrate. The init container's rendered
 // script body is included too: the script is operator-rendered (not user
 // spec) and changes when the operator binary is upgraded with a fix or
 // hardening, so a checksum bump is what lets a fixed operator retry after a
@@ -42,11 +44,12 @@ func (r *SupersetReconciler) migrateInputs(superset *supersetv1alpha1.Superset) 
 	}
 	createDatabase := false
 	var target struct {
-		Type     string
-		Host     string
-		Port     int32
-		Database string
-		Username string
+		Type            string
+		Host            string
+		Port            int32
+		Database        string
+		Username        string
+		SelectorRefHash string `json:",omitempty"`
 	}
 	var initContainerScript string
 	if superset.Spec.Metastore != nil && superset.Spec.Metastore.CreateDatabase != nil && *superset.Spec.Metastore.CreateDatabase {
@@ -60,6 +63,14 @@ func (r *SupersetReconciler) migrateInputs(superset *supersetv1alpha1.Superset) 
 		}
 		target.Database = derefOrDefault(m.Database, "")
 		target.Username = derefOrDefault(m.Username, "")
+		if m.HostFrom != nil || m.PortFrom != nil || m.DatabaseFrom != nil || m.UsernameFrom != nil {
+			target.SelectorRefHash = computeChecksum(struct {
+				Host     any
+				Port     any
+				Database any
+				Username any
+			}{m.HostFrom, m.PortFrom, m.DatabaseFrom, m.UsernameFrom})
+		}
 		initContainerScript = createDatabasePostgresScript
 		if target.Type == dbTypeMySQL {
 			initContainerScript = createDatabaseMySQLScript

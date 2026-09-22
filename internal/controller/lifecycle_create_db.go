@@ -40,6 +40,8 @@ const createDatabaseContainerName = "create-database"
 // Password uses ${VAR:-} to support passwordless connections (trust/peer auth,
 // IAM-issued credentials), matching the rendered config's os.environ.get fallback.
 const createDatabasePostgresScript = `set -eu
+SUPERSET_OPERATOR__DB_HOST=$(printf '%s' "$SUPERSET_OPERATOR__DB_HOST" | tr -d '[:space:]')
+SUPERSET_OPERATOR__DB_PORT=$(printf '%s' "$SUPERSET_OPERATOR__DB_PORT" | tr -d '[:space:]')
 ESC_NAME=$(printf '%s' "$SUPERSET_OPERATOR__DB_NAME" | sed "s/'/''/g")
 EXISTS=$(PGPASSWORD="${SUPERSET_OPERATOR__DB_PASS:-}" psql \
   -h "$SUPERSET_OPERATOR__DB_HOST" \
@@ -70,6 +72,8 @@ fi`
 // (trust auth, IAM) skip MYSQL_PWD entirely instead of passing -p which would
 // trigger an interactive prompt.
 const createDatabaseMySQLScript = `set -eu
+SUPERSET_OPERATOR__DB_HOST=$(printf '%s' "$SUPERSET_OPERATOR__DB_HOST" | tr -d '[:space:]')
+SUPERSET_OPERATOR__DB_PORT=$(printf '%s' "$SUPERSET_OPERATOR__DB_PORT" | tr -d '[:space:]')
 ESC_NAME=$(printf '%s' "$SUPERSET_OPERATOR__DB_NAME" | sed 's/` + "`" + `/` + "``" + `/g')
 if [ -n "${SUPERSET_OPERATOR__DB_PASS:-}" ]; then
   export MYSQL_PWD="$SUPERSET_OPERATOR__DB_PASS"
@@ -180,7 +184,7 @@ func createDatabaseEnabled(superset *supersetv1alpha1.Superset) bool {
 	if m.CreateDatabase == nil || !*m.CreateDatabase {
 		return false
 	}
-	return m.Host != nil && m.Database != nil && m.Username != nil
+	return isStructuredMetastore(m) && (m.Database != nil || m.DatabaseFrom != nil) && (m.Username != nil || m.UsernameFrom != nil)
 }
 
 // metastoreType returns the DB type, defaulting to PostgreSQL.
@@ -207,27 +211,5 @@ func resolveCreateDatabaseImage(dbType string) supersetv1alpha1.ImageSpec {
 // branch of collectSecretEnvVars; the init container does not need URI/Valkey
 // vars, and CEL prevents URI mode + createDatabase.
 func createDatabaseEnvVars(metastore *supersetv1alpha1.MetastoreSpec, isDev bool) []corev1.EnvVar {
-	envs := []corev1.EnvVar{
-		{Name: naming.EnvDBHost, Value: *metastore.Host},
-	}
-	port := defaultDBPort(metastore.Type)
-	if metastore.Port != nil {
-		port = *metastore.Port
-	}
-	envs = append(envs, corev1.EnvVar{Name: naming.EnvDBPort, Value: fmt.Sprintf("%d", port)})
-	if metastore.Database != nil {
-		envs = append(envs, corev1.EnvVar{Name: naming.EnvDBName, Value: *metastore.Database})
-	}
-	if metastore.Username != nil {
-		envs = append(envs, corev1.EnvVar{Name: naming.EnvDBUser, Value: *metastore.Username})
-	}
-	if isDev && metastore.Password != nil {
-		envs = append(envs, corev1.EnvVar{Name: naming.EnvDBPass, Value: *metastore.Password})
-	} else if metastore.PasswordFrom != nil {
-		envs = append(envs, corev1.EnvVar{
-			Name:      naming.EnvDBPass,
-			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: metastore.PasswordFrom},
-		})
-	}
-	return envs
+	return structuredMetastoreEnvVars(metastore, isDev)
 }

@@ -23,8 +23,13 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 
 ## Unreleased
 
+### Added
+
+- Structured metastore, Valkey, and lifecycle seed-source connection fields can now be sourced individually from Kubernetes Secret keys, allowing `Superset` resources to consume provisioner-owned endpoints and credentials without copying discovered values or assembling a separate connection URI ([#369](https://github.com/apache/superset-kubernetes-operator/pull/369)).
+
 ### Changed
 
+- Valkey's default port is now applied at runtime, aligning it with the existing structured-metastore behavior, instead of being stored by CRD defaulting. Resources that omit both `valkey.port` and `valkey.portFrom` therefore no longer materialize `port: 6379`, while generated configuration continues to use port 6379. This permits `portFrom` without a defaulted literal conflicting at admission ([#369](https://github.com/apache/superset-kubernetes-operator/pull/369)).
 - Kubernetes support now covers the three newest `kind`-published minor versions instead of two. CI tests Kubernetes 1.37, 1.36, and 1.35 natively, with the experimental `next` lane disabled again ([#317](https://github.com/apache/superset-kubernetes-operator/pull/317)).
 
 ### Fixed

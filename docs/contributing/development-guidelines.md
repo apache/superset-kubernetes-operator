@@ -31,6 +31,14 @@ See [Architecture](../architecture/overview.md) for the structural overview (CRD
 - **3 pure Go packages**: `internal/resolution/` (spec flattening), `internal/config/` (Python rendering), `internal/common/` (shared types)
 - **Parent resolves and executes**: All layering, lifecycle orchestration, resource reconciliation, and status projection live in the parent controller
 
+### External connection values
+
+Typed connection interfaces must compose with Kubernetes-native provisioners. For every literal connection field that a database, cache, or other service operator may publish after reconciliation—such as host, port, database, or username—provide a sibling `*From` field using `corev1.SecretKeySelector`. The literal and selector must be mutually exclusive through CEL validation, and both must produce the same operator-internal environment variable. Keep type-appropriate defaults when neither optional form is set.
+
+Use per-field selectors rather than assuming a whole-Secret key convention: connection Secret keys differ across provisioners, and endpoint data and credentials may be owned by separate resources. The operator must pass selectors through as `valueFrom.secretKeyRef`; it must not read referenced Secret values or render them into ConfigMaps, checksums, status, or logs. Apply this convention consistently to every connection tuple, including lifecycle-only source or target connections, and cover both generated schema validation and observable Pod env output.
+
+CRD defaulting runs before CEL validation. Do not put a kubebuilder/OpenAPI default on the literal side of a literal/`*From` pair: when a user sets only the selector, admission would first materialize the literal default and then the mutual-exclusion rule would reject the resource as if both fields had been supplied. Apply the effective default in the resolution or env-building layer only when neither form is set. Preserve typed validation for explicit literals, document the runtime default, and use an envtest case with the `*From` field to verify the generated CRD—not just the Go helper.
+
 ---
 
 ## Testing Philosophy

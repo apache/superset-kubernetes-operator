@@ -107,7 +107,9 @@ spec:
 
 `uri` and `uriFrom` are mutually exclusive with each other and with the structured fields below.
 
-**Structured fields** — the operator sets individual env vars (`SUPERSET_OPERATOR__DB_HOST`, `SUPERSET_OPERATOR__DB_PORT`, `SUPERSET_OPERATOR__DB_NAME`, `SUPERSET_OPERATOR__DB_USER`, `SUPERSET_OPERATOR__DB_PASS`) that the generated config assembles into a connection URI. In Staging or Production, use `passwordFrom` to reference a Secret for the password:
+**Structured fields** — the operator sets individual env vars (`SUPERSET_OPERATOR__DB_HOST`, `SUPERSET_OPERATOR__DB_PORT`, `SUPERSET_OPERATOR__DB_NAME`, `SUPERSET_OPERATOR__DB_USER`, `SUPERSET_OPERATOR__DB_PASS`) that the generated config assembles into a connection URI. Every connection field can come from a Secret key. This composes with database operators and infrastructure provisioners that publish connection details in Secrets, even when endpoint data and credentials are owned separately:
+
+In this context, a Secret is also a Kubernetes-native container for provisioner output; it does not imply that every referenced value is sensitive. Fields such as host, port, and database remain valid as literals, while their `From` counterparts allow the `Superset` resource to consume values that are only known after another controller reconciles them.
 
 ```yaml
 # Development mode: inline password
@@ -123,20 +125,30 @@ spec:
 ```
 
 ```yaml
-# Staging/Production: password from Secret
+# Staging/Production: provisioner-owned connection details from Secret keys
 spec:
   metastore:
     type: PostgreSQL
-    host: db.example.com
-    port: 5432
-    database: superset
-    username: superset
+    hostFrom:
+      name: db-connection
+      key: host
+    portFrom:
+      name: db-connection
+      key: port
+    databaseFrom:
+      name: db-connection
+      key: dbname
+    usernameFrom:
+      name: db-connection
+      key: user
     passwordFrom:
       name: db-credentials
       key: password
 ```
 
-`password` and `passwordFrom` are mutually exclusive.
+Each literal and its `From` counterpart are mutually exclusive. `portFrom` must reference a decimal port string. When neither `port` nor `portFrom` is set, the port defaults to 5432 for PostgreSQL or 3306 for MySQL. Secret values are resolved by the kubelet and never enter the generated ConfigMap.
+
+Changing a selector's Secret name or key changes the `Superset` resource and updates the relevant workloads. Updating data behind an unchanged selector is deliberately invisible to the operator because it does not read Secrets. After such a rotation, change `spec.forceReload` to restart component pods. If `createDatabase` or migrations must run against the new value, also change `spec.lifecycle.migrate.trigger`; `forceReload` does not rerun lifecycle tasks.
 
 Structured mode defaults to `postgresql+psycopg2` for PostgreSQL and `mysql+mysqldb` for MySQL. The operator only selects the SQLAlchemy scheme; it does not install Python driver packages into the Superset image. The official lean Superset images do not include database drivers, so production images should add the driver package required by the selected scheme. For the default MySQL scheme, install `mysqlclient`; for the default PostgreSQL scheme, install `psycopg2` or a compatible package. See Superset's
 [Docker Builds](https://superset.apache.org/admin-docs/installation/docker-builds/#build-presets)
@@ -182,7 +194,7 @@ Requirements and caveats:
 
 ## Valkey
 
-The `valkey` field configures Valkey (or Redis) as the cache backend, Celery message broker, and SQL Lab results backend. Setting `valkey.host` auto-generates all cache, Celery, and results backend configuration with sensible defaults:
+The `valkey` field configures Valkey (or Redis) as the cache backend, Celery message broker, and SQL Lab results backend. Setting `valkey.host` or `valkey.hostFrom` auto-generates all cache, Celery, and results backend configuration with sensible defaults:
 
 ```yaml
 # Minimal: one field configures everything
@@ -235,6 +247,29 @@ spec:
 ```
 
 In Development mode, `valkey.password` can be set inline. In Staging or Production, use `valkey.passwordFrom` to reference a Kubernetes Secret — the operator injects the password via `valueFrom.secretKeyRef`.
+
+Managed Valkey or Redis services can supply every connection field through Secret keys:
+
+```yaml
+spec:
+  valkey:
+    hostFrom:
+      name: valkey-connection
+      key: endpoint
+    portFrom:
+      name: valkey-connection
+      key: port
+    usernameFrom:
+      name: valkey-connection
+      key: username
+    passwordFrom:
+      name: valkey-connection
+      key: password
+```
+
+Each literal and its `From` counterpart are mutually exclusive. `portFrom` must reference a decimal port string. When neither `port` nor `portFrom` is set, the runtime default is `6379`. Secret values are resolved by the kubelet and never enter the generated ConfigMap.
+
+Changing a selector's Secret name or key updates the relevant workloads. Updating data behind the same selector does not trigger a rollout; change `spec.forceReload` so component pods pick up the new values. Lifecycle tasks are not rerun by `forceReload`; change the appropriate task's `trigger` when a rotated value must be consumed by a new task Job.
 
 ### SSL/TLS
 

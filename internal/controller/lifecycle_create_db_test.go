@@ -81,6 +81,8 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 		}
 		script := ctr.Command[2]
 		for _, want := range []string{
+			`SUPERSET_OPERATOR__DB_HOST=$(printf '%s' "$SUPERSET_OPERATOR__DB_HOST" | tr -d '[:space:]')`,
+			`SUPERSET_OPERATOR__DB_PORT=$(printf '%s' "$SUPERSET_OPERATOR__DB_PORT" | tr -d '[:space:]')`,
 			"createdb",
 			"pg_database",
 			`sed "s/'/''/g"`,
@@ -143,6 +145,8 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 		}
 		script := ctr.Command[2]
 		for _, want := range []string{
+			`SUPERSET_OPERATOR__DB_HOST=$(printf '%s' "$SUPERSET_OPERATOR__DB_HOST" | tr -d '[:space:]')`,
+			`SUPERSET_OPERATOR__DB_PORT=$(printf '%s' "$SUPERSET_OPERATOR__DB_PORT" | tr -d '[:space:]')`,
 			"CREATE DATABASE IF NOT EXISTS",
 			"sed 's/`/``/g'",
 			`mysql -h "$SUPERSET_OPERATOR__DB_HOST"`,
@@ -359,11 +363,15 @@ func TestBuildStandardTaskFlatSpec(t *testing.T) {
 			LocalObjectReference: corev1.LocalObjectReference{Name: "secret"},
 			Key:                  "key",
 		}
+		connectionRef := func(key string) *corev1.SecretKeySelector {
+			return &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "metastore-secret"}, Key: key}
+		}
 		superset.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-			Host:           common.Ptr("pg.svc"),
-			Database:       common.Ptr("superset"),
-			Username:       common.Ptr("superset"),
-			PasswordFrom:   &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "metastore-secret"}, Key: "password"},
+			HostFrom:       connectionRef("host"),
+			PortFrom:       connectionRef("port"),
+			DatabaseFrom:   connectionRef("dbname"),
+			UsernameFrom:   connectionRef("user"),
+			PasswordFrom:   connectionRef("password"),
 			CreateDatabase: common.Ptr(true),
 		}
 		superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
@@ -397,6 +405,33 @@ func TestBuildStandardTaskFlatSpec(t *testing.T) {
 		if initCtr.SecurityContext == nil || initCtr.SecurityContext.AllowPrivilegeEscalation == nil || *initCtr.SecurityContext.AllowPrivilegeEscalation {
 			t.Errorf("expected AllowPrivilegeEscalation=false to propagate to init container, got %+v", initCtr.SecurityContext)
 		}
+		wantKeys := map[string]string{
+			common.EnvDBHost: "host", common.EnvDBPort: "port", common.EnvDBName: "dbname",
+			common.EnvDBUser: "user", common.EnvDBPass: "password",
+		}
+		assertConnectionRefs := func(container corev1.Container) {
+			t.Helper()
+			missing := make(map[string]string, len(wantKeys))
+			for name, key := range wantKeys {
+				missing[name] = key
+			}
+			for _, env := range container.Env {
+				wantKey, ok := missing[env.Name]
+				if !ok {
+					continue
+				}
+				if env.Value != "" || env.ValueFrom == nil || env.ValueFrom.SecretKeyRef == nil ||
+					env.ValueFrom.SecretKeyRef.Name != "metastore-secret" || env.ValueFrom.SecretKeyRef.Key != wantKey {
+					t.Errorf("container %s env %s: expected metastore-secret/%s SecretKeyRef, got %+v", container.Name, env.Name, wantKey, env)
+				}
+				delete(missing, env.Name)
+			}
+			if len(missing) != 0 {
+				t.Errorf("container %s missing Secret-backed metastore env vars: %v", container.Name, missing)
+			}
+		}
+		assertConnectionRefs(pod.Containers[0])
+		assertConnectionRefs(*initCtr)
 	})
 
 	t.Run("drops user init container with reserved name", func(t *testing.T) {
@@ -564,6 +599,57 @@ func TestMigrateInputs_StructuredTargetAffectsChecksumWhenCreateDatabaseTrue(t *
 				t.Errorf("expected migrateInputs to differ when %s changes, but they were equal", name)
 			}
 		})
+	}
+}
+
+func TestMigrateInputs_SelectorIdentityAffectsChecksumWhenCreateDatabaseTrue(t *testing.T) {
+	r := &SupersetReconciler{}
+	mkSuperset := func(key string) *supersetv1alpha1.Superset {
+		s := &supersetv1alpha1.Superset{}
+		s.Spec.Image = supersetv1alpha1.ImageSpec{Repository: "superset", Tag: "1.0"}
+		s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+			HostFrom:       &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "database"}, Key: key},
+			DatabaseFrom:   &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "database"}, Key: "dbname"},
+			UsernameFrom:   &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "database"}, Key: "username"},
+			CreateDatabase: common.Ptr(true),
+		}
+		return s
+	}
+
+	if r.migrateInputs(mkSuperset("old-host")) == r.migrateInputs(mkSuperset("new-host")) {
+		t.Error("expected migrateInputs to differ when a structured target selector changes")
+	}
+}
+
+func TestMigrateInputs_LiteralTargetPreservesChecksumShape(t *testing.T) {
+	r := &SupersetReconciler{}
+	s := &supersetv1alpha1.Superset{}
+	s.Spec.Image = supersetv1alpha1.ImageSpec{Repository: "superset", Tag: "1.0"}
+	s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+		Host: common.Ptr("pg"), Port: common.Ptr(int32(5432)), Database: common.Ptr("superset"),
+		Username: common.Ptr("superset"), CreateDatabase: common.Ptr(true),
+	}
+	legacyShape := struct {
+		Image               string
+		Trigger             string
+		BootstrapScript     string
+		CreateDatabase      bool
+		Target              any
+		InitContainerScript string
+	}{
+		Image: "superset:1.0", CreateDatabase: true,
+		Target: struct {
+			Type     string
+			Host     string
+			Port     int32
+			Database string
+			Username string
+		}{dbTypePostgresql, "pg", 5432, "superset", "superset"},
+		InitContainerScript: createDatabasePostgresScript,
+	}
+
+	if computeChecksum(r.migrateInputs(s)) != computeChecksum(legacyShape) {
+		t.Error("literal-only migrate checksum changed when selector tracking was added")
 	}
 }
 
