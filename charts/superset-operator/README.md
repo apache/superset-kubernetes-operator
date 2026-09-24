@@ -73,6 +73,10 @@ The chart values schema intentionally allows undeclared top-level keys so shared
 | metrics.serviceMonitor.tlsConfig | object | `{"insecureSkipVerify":true}` | TLS configuration for the ServiceMonitor scrape. The default trusts any certificate, matching the operator's built-in self-signed flow. Override to scrape over verified TLS. |
 | nodeSelector | object | `{}` | Node selector for the manager pod. |
 | podAnnotations | object | `{}` | Extra annotations to add to the manager pod. |
+| podDisruptionBudget.enabled | bool | `false` | Create a PodDisruptionBudget for the manager pod. |
+| podDisruptionBudget.maxUnavailable | intOrString | `nil` | Maximum unavailable pods (integer or percentage). Defaults to `1` when neither is set. |
+| podDisruptionBudget.minAvailable | intOrString | `nil` | Minimum available pods (integer or percentage). Mutually exclusive with `maxUnavailable`. |
+| podDisruptionBudget.unhealthyPodEvictionPolicy | string | `""` | Unhealthy pod eviction policy (`IfHealthyBudget` or `AlwaysAllow`). Empty uses the Kubernetes default. |
 | podLabels | object | `{}` | Extra labels to add to the manager pod. |
 | podSecurityContext | object | `{"runAsNonRoot":true,"seccompProfile":{"type":"RuntimeDefault"}}` | Pod-level security context for the manager pod. See [corev1.PodSecurityContext](https://pkg.go.dev/k8s.io/api/core/v1#PodSecurityContext). |
 | replicas | int | `1` | Number of operator manager replicas. |

@@ -124,6 +124,13 @@ topologySpreadConstraints:
       matchLabels:
         control-plane: controller-manager
 
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+  # Mutually exclusive with minAvailable; listed as null so the key is covered.
+  maxUnavailable: ~
+  unhealthyPodEvictionPolicy: AlwaysAllow
+
 podAnnotations:
   prometheus.io/scrape: "false"
 
@@ -147,12 +154,13 @@ extraManifests:
     data:
       hello: world
   # Object form.
-  - apiVersion: policy/v1
-    kind: PodDisruptionBudget
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
     metadata:
-      name: superset-operator-extra-pdb
+      name: superset-operator-extra-netpol
     spec:
-      minAvailable: 1
-      selector:
+      podSelector:
         matchLabels:
           app.kubernetes.io/name: superset-operator
+      policyTypes:
+        - Ingress
