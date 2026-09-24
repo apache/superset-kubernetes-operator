@@ -57,6 +57,69 @@ _Appears in:_
 | `metrics` _[MetricSpec](https://pkg.go.dev/k8s.io/api/autoscaling/v2#MetricSpec) array_ | Metrics for the HPA. Supports CPU, memory, custom, and external metrics. When empty, Kubernetes defaults to 80% average CPU utilization. |  | Optional: \{\} <br /> |
 
 
+#### BackupDestinationSpec
+
+
+
+BackupDestinationSpec defines where backup files are written.
+
+
+
+_Appears in:_
+- [BackupTaskSpec](#backuptaskspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `persistentVolumeClaim` _[BackupPVCSource](#backuppvcsource)_ | PersistentVolumeClaim to write backup files to. The claim must already exist in the Superset namespace; the operator only references it. |  | Required: \{\} <br /> |
+
+
+#### BackupPVCSource
+
+
+
+BackupPVCSource references an existing PersistentVolumeClaim.
+
+
+
+_Appears in:_
+- [BackupDestinationSpec](#backupdestinationspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `claimName` _string_ | Name of the PersistentVolumeClaim. |  | MaxLength: 253 <br />MinLength: 1 <br /> |
+| `subPath` _string_ | Sub-path within the volume to write backup files to. |  | MaxLength: 1024 <br />Optional: \{\} <br /> |
+
+
+#### BackupTaskSpec
+
+
+
+BackupTaskSpec defines the pre-upgrade metastore backup task.
+The default command dumps the metastore with pg_dump (custom format) or
+mysqldump into destination.persistentVolumeClaim, mounted at /backup. Each
+run writes a new timestamped file; the operator never deletes completed
+backups. requiresDrain defaults to true so the snapshot contains every
+write made before the upgrade; timeout defaults to 1h.
+
+
+
+_Appears in:_
+- [LifecycleSpec](#lifecyclespec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
+| `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, backup, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
+| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. Defaults to 5m (1h for backup). |  | Optional: \{\} <br /> |
+| `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
+| `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
+| `destination` _[BackupDestinationSpec](#backupdestinationspec)_ | Destination for backup files written by the default command. |  | Optional: \{\} <br /> |
+| `image` _[ContainerImageSpec](#containerimagespec)_ | Image for the backup Job. Defaults to postgres:17-alpine (PostgreSQL) or mysql:8.4 (MySQL) based on metastore.type. The pg_dump client major version must be greater than or equal to the server's. Partial specs (e.g., only `tag` set) inherit the type-appropriate default for omitted fields. |  | Optional: \{\} <br /> |
+| `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for the backup task Job. |  | Optional: \{\} <br /> |
+| `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Retention policy for completed backup Jobs and their Pods. |  | Optional: \{\} <br /> |
+
+
 #### BaseTaskSpec
 
 
@@ -66,6 +129,7 @@ BaseTaskSpec contains fields shared by all lifecycle task types.
 
 
 _Appears in:_
+- [BackupTaskSpec](#backuptaskspec)
 - [InitTaskSpec](#inittaskspec)
 - [MigrateTaskSpec](#migratetaskspec)
 - [RotateTaskSpec](#rotatetaskspec)
@@ -76,8 +140,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
-| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, backup, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
+| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. Defaults to 5m (1h for backup). |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
 
@@ -304,6 +368,7 @@ context-appropriate default at reconcile time when fields are omitted (e.g.,
 
 
 _Appears in:_
+- [BackupTaskSpec](#backuptaskspec)
 - [MaintenancePageSpec](#maintenancepagespec)
 - [SeedTaskSpec](#seedtaskspec)
 
@@ -536,8 +601,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
-| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, backup, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
+| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. Defaults to 5m (1h for backup). |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
 | `adminUser` _[AdminUserSpec](#adminuserspec)_ | Admin user to create during initialization. Only allowed in Development mode. When set, the operator appends a superset fab create-admin step to the init command. |  | Optional: \{\} <br /> |
@@ -568,6 +633,7 @@ _Appears in:_
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-lifecycle SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
 | `maintenancePage` _[MaintenancePageSpec](#maintenancepagespec)_ | MaintenancePage configures a lightweight maintenance page served during lifecycle drain and task execution. Presence enables the feature when a drain will actually run and an existing web-server workload is present. In managed mode (no image override), an nginx:alpine container serves a default or custom HTML page. In custom mode (image set), the user's image handles serving, and content fields are passed as env vars. |  | Optional: \{\} <br /> |
 | `seed` _[SeedTaskSpec](#seedtaskspec)_ | Seed configures database seeding from an external source before running migrations. The seed target is always spec.metastore. Only allowed in Development or Staging mode. |  | Optional: \{\} <br /> |
+| `backup` _[BackupTaskSpec](#backuptaskspec)_ | Backup snapshots the metastore before a data-mutating task (migrate or rotate) runs, so a failed or unwanted upgrade can be reverted by restoring the snapshot. Presence enables the task. It runs at most once per lifecycle run, after drain and before the first pending migrate or rotate task; config-only changes that re-run only init never trigger it. |  | Optional: \{\} <br /> |
 | `migrate` _[MigrateTaskSpec](#migratetaskspec)_ | Database migration task configuration. |  | Optional: \{\} <br /> |
 | `rotate` _[RotateTaskSpec](#rotatetaskspec)_ | Secret key rotation task configuration. Runs after migrate and before init. Presence enables the task; absence disables it. |  | Optional: \{\} <br /> |
 | `init` _[InitTaskSpec](#inittaskspec)_ | Application initialization task configuration. |  | Optional: \{\} <br /> |
@@ -586,10 +652,12 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `phase` _string_ | Phase of the lifecycle: Seeding, Draining, Migrating, Rotating, Initializing, Restoring, Complete, Blocked, AwaitingApproval. |  | Optional: \{\} <br /> |
+| `phase` _string_ | Phase of the lifecycle: Seeding, Draining, BackingUp, Migrating, Rotating, Initializing, Restoring, Complete, Blocked, AwaitingApproval. |  | Optional: \{\} <br /> |
 | `maintenanceActive` _boolean_ | MaintenanceActive indicates the maintenance page is currently serving traffic via the web-server Service. |  | Optional: \{\} <br /> |
 | `lastCompletedChecksums` _object (keys:string, values:string)_ | LastCompletedChecksums maps task type to its task checksum at last successful completion. Used to detect input drift when task status refs are absent. |  | Optional: \{\} <br /> |
 | `seed` _[TaskRefStatus](#taskrefstatus)_ | Seed task status summary. |  | Optional: \{\} <br /> |
+| `backup` _[TaskRefStatus](#taskrefstatus)_ | Backup task status summary. |  | Optional: \{\} <br /> |
+| `settledChecksum` _string_ | SettledChecksum is a hash of LastCompletedChecksums recorded when the lifecycle pipeline last fully completed. It stays fixed while a run is in progress, which is what limits the backup task to one snapshot per run. |  | Optional: \{\} <br /> |
 | `migrate` _[TaskRefStatus](#taskrefstatus)_ | Migrate task status summary. |  | Optional: \{\} <br /> |
 | `rotate` _[TaskRefStatus](#taskrefstatus)_ | Rotate task status summary. |  | Optional: \{\} <br /> |
 | `init` _[TaskRefStatus](#taskrefstatus)_ | Init task status summary. |  | Optional: \{\} <br /> |
@@ -697,8 +765,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
-| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, backup, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
+| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. Defaults to 5m (1h for backup). |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
 
@@ -785,6 +853,7 @@ PodRetentionSpec defines retention behavior for lifecycle task Jobs and their Po
 
 
 _Appears in:_
+- [BackupTaskSpec](#backuptaskspec)
 - [LifecycleSpec](#lifecyclespec)
 - [SeedTaskSpec](#seedtaskspec)
 
@@ -802,6 +871,7 @@ PodTemplate configures Kubernetes PodSpec fields for the pod template.
 
 
 _Appears in:_
+- [BackupTaskSpec](#backuptaskspec)
 - [CeleryBeatComponentSpec](#celerybeatcomponentspec)
 - [CeleryFlowerComponentSpec](#celeryflowercomponentspec)
 - [CeleryWorkerComponentSpec](#celeryworkercomponentspec)
@@ -856,8 +926,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
-| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, backup, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
+| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. Defaults to 5m (1h for backup). |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
 
@@ -934,8 +1004,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
-| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, backup, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
+| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. Defaults to 5m (1h for backup). |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
 | `cronSchedule` _string_ | CronSchedule is a cron expression that triggers periodic re-execution of this task and all downstream tasks. When the clock crosses a cron boundary, the task checksum changes and the lifecycle pipeline re-runs. Uses standard cron syntax with 5 to 7 whitespace-separated fields: the 5-field form is "minute hour day-of-month month day-of-week"; an optional leading seconds field and/or trailing year field extend it to 6 or 7 fields. Examples: "0 2 * * *" (daily 2 AM UTC), "0 */6 * * *" (every 6 hours), "30 1 * * 1" (Mondays 1:30 AM UTC), "*/30 * * * * *" (every 30 seconds). Predefined schedules (e.g. "@daily") are not accepted; use an explicit field form. Pattern validation rejects only malformed *shape* at admission (e.g. fewer than five or more than seven fields, disallowed characters); out-of-range values like "99 99 99 99 99" still pass admission and are caught by the runtime parser, which blocks the lifecycle pipeline with an InvalidCronSchedule condition until the expression is corrected. |  | MaxLength: 256 <br />MinLength: 9 <br />Pattern: `^[A-Za-z0-9*/,?-]+(\s+[A-Za-z0-9*/,?-]+)\{4,6\}$` <br />Optional: \{\} <br /> |
@@ -986,8 +1056,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
-| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, backup, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
+| `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. Defaults to 5m (1h for backup). |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
 | `cronSchedule` _string_ | CronSchedule is a cron expression that triggers periodic re-execution of this task and all downstream tasks. When the clock crosses a cron boundary, the task checksum changes and the lifecycle pipeline re-runs. Uses standard cron syntax with 5 to 7 whitespace-separated fields: the 5-field form is "minute hour day-of-month month day-of-week"; an optional leading seconds field and/or trailing year field extend it to 6 or 7 fields. Examples: "0 2 * * *" (daily 2 AM UTC), "0 */6 * * *" (every 6 hours), "30 1 * * 1" (Mondays 1:30 AM UTC), "*/30 * * * * *" (every 30 seconds). Predefined schedules (e.g. "@daily") are not accepted; use an explicit field form. Pattern validation rejects only malformed *shape* at admission (e.g. fewer than five or more than seven fields, disallowed characters); out-of-range values like "99 99 99 99 99" still pass admission and are caught by the runtime parser, which blocks the lifecycle pipeline with an InvalidCronSchedule condition until the expression is corrected. |  | MaxLength: 256 <br />MinLength: 9 <br />Pattern: `^[A-Za-z0-9*/,?-]+(\s+[A-Za-z0-9*/,?-]+)\{4,6\}$` <br />Optional: \{\} <br /> |
