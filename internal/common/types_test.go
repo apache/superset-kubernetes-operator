@@ -27,29 +27,29 @@ import (
 func TestPtr(t *testing.T) {
 	t.Run("string", func(t *testing.T) {
 		s := "hello"
-		p := Ptr(s)
+		p := new(s)
 		assert.NotNil(t, p)
 		assert.Equal(t, s, *p)
 	})
 
 	t.Run("int32", func(t *testing.T) {
 		var n int32 = 7
-		p := Ptr(n)
+		p := new(n)
 		assert.NotNil(t, p)
 		assert.Equal(t, n, *p)
 	})
 
 	t.Run("bool zero value is still addressable", func(t *testing.T) {
 		b := false
-		p := Ptr(b)
+		p := new(b)
 		assert.NotNil(t, p)
 		assert.False(t, *p)
 	})
 
 	t.Run("returns a distinct pointer per call", func(t *testing.T) {
 		n := 1
-		a := Ptr(n)
-		b := Ptr(n)
+		a := new(n)
+		b := new(n)
 		assert.NotSame(t, a, b)
 	})
 }

@@ -99,14 +99,13 @@ func TestDeleteIfNotForeignOwned(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 	}
 	name := common.ResourceBaseName("test", common.ComponentWebServer)
 
 	newDeploy := func(refs []metav1.OwnerReference) *appsv1.Deployment {
-		return &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
-			Name: name, Namespace: "default", OwnerReferences: refs,
-		}}
+		return &appsv1.Deployment{
+			Name: name, Namespace: "default", OwnerReferences: refs}
 	}
 	get := func(c client.Client) error {
 		return c.Get(ctx, client.ObjectKey{Name: name, Namespace: "default"}, &appsv1.Deployment{})
@@ -115,7 +114,7 @@ func TestDeleteIfNotForeignOwned(t *testing.T) {
 	t.Run("deletes unowned resource at managed name", func(t *testing.T) {
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(newDeploy(nil)).Build()
 		if err := deleteIfNotForeignOwned(ctx, c, superset, &appsv1.Deployment{
-			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+			Name: name, Namespace: "default",
 		}); err != nil {
 			t.Fatalf("deleteIfNotForeignOwned: %v", err)
 		}
@@ -127,11 +126,11 @@ func TestDeleteIfNotForeignOwned(t *testing.T) {
 	t.Run("deletes resource owned by the CR", func(t *testing.T) {
 		owned := newDeploy([]metav1.OwnerReference{{
 			APIVersion: supersetv1alpha1.GroupVersion.String(), Kind: "Superset",
-			Name: "test", UID: "uid-1", Controller: boolPtr(true),
+			Name: "test", UID: "uid-1", Controller: new(true),
 		}})
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owned).Build()
 		if err := deleteIfNotForeignOwned(ctx, c, superset, &appsv1.Deployment{
-			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+			Name: name, Namespace: "default",
 		}); err != nil {
 			t.Fatalf("deleteIfNotForeignOwned: %v", err)
 		}
@@ -143,11 +142,11 @@ func TestDeleteIfNotForeignOwned(t *testing.T) {
 	t.Run("skips resource controller-owned by a foreign owner", func(t *testing.T) {
 		foreign := newDeploy([]metav1.OwnerReference{{
 			APIVersion: "apps.example.com/v1", Kind: "ForeignApp",
-			Name: "billing", UID: "foreign-uid", Controller: boolPtr(true),
+			Name: "billing", UID: "foreign-uid", Controller: new(true),
 		}})
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(foreign).Build()
 		if err := deleteIfNotForeignOwned(ctx, c, superset, &appsv1.Deployment{
-			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+			Name: name, Namespace: "default",
 		}); err != nil {
 			t.Fatalf("deleteIfNotForeignOwned: %v", err)
 		}
@@ -159,7 +158,7 @@ func TestDeleteIfNotForeignOwned(t *testing.T) {
 	t.Run("missing object is not an error", func(t *testing.T) {
 		c := fake.NewClientBuilder().WithScheme(scheme).Build()
 		if err := deleteIfNotForeignOwned(ctx, c, superset, &appsv1.Deployment{
-			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default"},
+			Name: name, Namespace: "default",
 		}); err != nil {
 			t.Fatalf("deleteIfNotForeignOwned: %v", err)
 		}

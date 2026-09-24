@@ -37,8 +37,8 @@ import (
 func TestReconcileNetworkPolicies_Disabled(t *testing.T) {
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
-		Spec:       minimalSupersetSpec(),
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: minimalSupersetSpec(),
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
@@ -52,12 +52,12 @@ func TestReconcileNetworkPolicies_Disabled(t *testing.T) {
 func TestReconcileNetworkPolicies_CreatesForEnabledComponents(t *testing.T) {
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:         supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer:     &supersetv1alpha1.WebServerComponentSpec{},
 			CeleryBeat:    &supersetv1alpha1.CeleryBeatComponentSpec{},
-			Lifecycle:     &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle:     &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 			NetworkPolicy: &supersetv1alpha1.NetworkPolicySpec{},
 		},
 	}
@@ -93,11 +93,11 @@ func TestReconcileNetworkPolicies_CreatesForEnabledComponents(t *testing.T) {
 func TestReconcileComponentNetworkPolicy_WebServer(t *testing.T) {
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:         supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer:     &supersetv1alpha1.WebServerComponentSpec{},
-			Lifecycle:     &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle:     &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 			NetworkPolicy: &supersetv1alpha1.NetworkPolicySpec{},
 		},
 	}
@@ -178,19 +178,17 @@ func TestReconcileComponentNetworkPolicy_WebServer(t *testing.T) {
 func TestReconcileNetworkPolicies_CustomContainerPort(t *testing.T) {
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{
-				ScalableComponentSpec: supersetv1alpha1.ScalableComponentSpec{
-					PodTemplate: &supersetv1alpha1.PodTemplate{
-						Container: &supersetv1alpha1.ContainerTemplate{
-							Ports: []corev1.ContainerPort{{Name: "http", ContainerPort: 9090}},
-						},
+				PodTemplate: &supersetv1alpha1.PodTemplate{
+					Container: &supersetv1alpha1.ContainerTemplate{
+						Ports: []corev1.ContainerPort{{Name: "http", ContainerPort: 9090}},
 					},
 				},
 			},
-			Lifecycle:     &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle:     &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 			NetworkPolicy: &supersetv1alpha1.NetworkPolicySpec{},
 		},
 	}
@@ -267,11 +265,11 @@ func TestNpContainerPort(t *testing.T) {
 func TestReconcileComponentNetworkPolicy_InternalOnly(t *testing.T) {
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:         supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			CeleryWorker:  &supersetv1alpha1.CeleryWorkerComponentSpec{},
-			Lifecycle:     &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle:     &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 			NetworkPolicy: &supersetv1alpha1.NetworkPolicySpec{},
 		},
 	}
@@ -303,11 +301,11 @@ func TestReconcileComponentNetworkPolicy_InternalOnly(t *testing.T) {
 func TestReconcileNetworkPolicies_ExtraRules(t *testing.T) {
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
-			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 			NetworkPolicy: &supersetv1alpha1.NetworkPolicySpec{
 				ExtraIngress: []networkingv1.NetworkPolicyIngressRule{
 					{
@@ -365,20 +363,18 @@ func TestReconcileNetworkPolicies_ExtraRules(t *testing.T) {
 func TestReconcileNetworkPolicies_DeletesWhenDisabled(t *testing.T) {
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
-		Spec:       minimalSupersetSpec(),
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: minimalSupersetSpec(),
 	}
 
 	// Pre-create a NetworkPolicy with operator-managed labels.
 	existingNP := &networkingv1.NetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-web-server" + common.SuffixNetworkPolicy,
-			Namespace: "default",
-			Labels: map[string]string{
-				common.LabelKeyName:      common.LabelValueApp,
-				common.LabelKeyComponent: string(common.ComponentWebServer),
-				common.LabelKeyParent:    "test",
-			},
+		Name:      "test-web-server" + common.SuffixNetworkPolicy,
+		Namespace: "default",
+		Labels: map[string]string{
+			common.LabelKeyName:      common.LabelValueApp,
+			common.LabelKeyComponent: string(common.ComponentWebServer),
+			common.LabelKeyParent:    "test",
 		},
 	}
 
@@ -401,11 +397,11 @@ func TestReconcileNetworkPolicies_DeletesWhenDisabled(t *testing.T) {
 func TestNetworkPolicySelectorMatchesDeploymentLabels(t *testing.T) {
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:         supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer:     &supersetv1alpha1.WebServerComponentSpec{},
-			Lifecycle:     &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle:     &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 			NetworkPolicy: &supersetv1alpha1.NetworkPolicySpec{},
 		},
 	}
@@ -448,7 +444,7 @@ func TestFlowerExternalPort_GatedByPublish(t *testing.T) {
 
 	prodOptIn := &supersetv1alpha1.Superset{
 		Spec: supersetv1alpha1.SupersetSpec{CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{
-			Service: &supersetv1alpha1.ComponentServiceSpec{GatewayPath: common.Ptr("/flower")},
+			Service: &supersetv1alpha1.ComponentServiceSpec{GatewayPath: new("/flower")},
 		}},
 	}
 	if got := flowerExternalPort(prodOptIn, nil); got != common.PortCeleryFlower {
@@ -457,7 +453,7 @@ func TestFlowerExternalPort_GatedByPublish(t *testing.T) {
 
 	dev := &supersetv1alpha1.Superset{
 		Spec: supersetv1alpha1.SupersetSpec{
-			Environment:  common.Ptr(common.EnvironmentDev),
+			Environment:  new(common.EnvironmentDev),
 			CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{},
 		},
 	}

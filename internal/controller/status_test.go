@@ -139,10 +139,8 @@ func TestGetComponentStatusFromDeployment(t *testing.T) {
 			scheme := testScheme(t)
 			replicas := tt.replicas
 			deploy := &appsv1.Deployment{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test-web-server",
-					Namespace: "default",
-				},
+				Name:      "test-web-server",
+				Namespace: "default",
 				Spec: appsv1.DeploymentSpec{
 					Replicas: &replicas,
 					Template: corePodTemplateWithChecksum("sha256:test"),
@@ -150,7 +148,7 @@ func TestGetComponentStatusFromDeployment(t *testing.T) {
 				Status: appsv1.DeploymentStatus{Replicas: tt.replicas, ReadyReplicas: tt.readyReplicas},
 			}
 			superset := &supersetv1alpha1.Superset{
-				ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+				Name: "test", Namespace: "default",
 				Spec: supersetv1alpha1.SupersetSpec{
 					Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 					WebServer: &supersetv1alpha1.WebServerComponentSpec{},
@@ -177,10 +175,8 @@ func TestGetComponentStatusFromDeployment(t *testing.T) {
 
 func corePodTemplateWithChecksum(checksum string) corev1.PodTemplateSpec {
 	return corev1.PodTemplateSpec{
-		ObjectMeta: metav1.ObjectMeta{
-			Annotations: map[string]string{
-				common.AnnotationConfigChecksum: checksum,
-			},
+		Annotations: map[string]string{
+			common.AnnotationConfigChecksum: checksum,
 		},
 	}
 }
@@ -188,7 +184,7 @@ func corePodTemplateWithChecksum(checksum string) corev1.PodTemplateSpec {
 func TestGetComponentStatusMissingDeployment(t *testing.T) {
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Name: "test", Namespace: "default",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
@@ -214,7 +210,7 @@ func TestGetComponentStatusMissingDeployment(t *testing.T) {
 
 func TestDrainedComponentStatusUsesValidResourceStatus(t *testing.T) {
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Name: "test", Namespace: "default",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
@@ -241,7 +237,7 @@ func TestUpdateLifecycleComponentStatusCountsOnlyWebServerUnavailableDuringMaint
 	scheme := testScheme(t)
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Name: "test", Namespace: "default",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:        supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer:    &supersetv1alpha1.WebServerComponentSpec{},
@@ -278,7 +274,7 @@ func TestUpdateStatusKeepsRestoringLifecycleUntilComponentsReady(t *testing.T) {
 	scheme := testScheme(t)
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Name: "test", Namespace: "default",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:        supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer:    &supersetv1alpha1.WebServerComponentSpec{},
@@ -321,7 +317,7 @@ func TestUpdateStatusCompletesRestoringLifecycleWhenComponentsReady(t *testing.T
 	scheme := testScheme(t)
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Name: "test", Namespace: "default",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:        supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer:    &supersetv1alpha1.WebServerComponentSpec{},
@@ -362,11 +358,9 @@ func TestUpdateStatusCompletesRestoringLifecycleWhenComponentsReady(t *testing.T
 func readyDeployment(name string) *appsv1.Deployment {
 	replicas := int32(1)
 	return &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       name,
-			Namespace:  "default",
-			Generation: 1,
-		},
+		Name:       name,
+		Namespace:  "default",
+		Generation: 1,
 		Spec: appsv1.DeploymentSpec{
 			Replicas: &replicas,
 			Template: corePodTemplateWithChecksum("sha256:test"),
@@ -384,11 +378,9 @@ func readyDeployment(name string) *appsv1.Deployment {
 func progressingDeployment(name string) *appsv1.Deployment {
 	replicas := int32(1)
 	return &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:       name,
-			Namespace:  "default",
-			Generation: 1,
-		},
+		Name:       name,
+		Namespace:  "default",
+		Generation: 1,
 		Spec: appsv1.DeploymentSpec{
 			Replicas: &replicas,
 			Template: corePodTemplateWithChecksum("sha256:test"),
@@ -420,8 +412,8 @@ func hasComponentResource(resources []supersetv1alpha1.ComponentResourceStatus, 
 }
 
 func TestEffectiveAutoscalingForStatus(t *testing.T) {
-	componentAS := &supersetv1alpha1.AutoscalingSpec{MinReplicas: int32Ptr(3)}
-	topAS := &supersetv1alpha1.AutoscalingSpec{MinReplicas: int32Ptr(2)}
+	componentAS := &supersetv1alpha1.AutoscalingSpec{MinReplicas: new(int32(3))}
+	topAS := &supersetv1alpha1.AutoscalingSpec{MinReplicas: new(int32(2))}
 
 	t.Run("per-component value wins", func(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Autoscaling: topAS}}
@@ -464,29 +456,29 @@ func TestDesiredReplicasForStatus(t *testing.T) {
 	beatDesc := &componentDescriptor{componentType: common.ComponentCeleryBeat}
 
 	t.Run("celery beat is always a singleton", func(t *testing.T) {
-		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Replicas: int32Ptr(5)}}
+		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Replicas: new(int32(5))}}
 		assert.Equal(t, celeryBeatSingletonReplica, desiredReplicasForStatus(superset, beatDesc, &componentAccessor{}))
 	})
 
 	t.Run("autoscaling minReplicas takes precedence", func(t *testing.T) {
-		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Replicas: int32Ptr(5)}}
-		accessor := &componentAccessor{autoscaling: &supersetv1alpha1.AutoscalingSpec{MinReplicas: int32Ptr(3)}}
+		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Replicas: new(int32(5))}}
+		accessor := &componentAccessor{autoscaling: &supersetv1alpha1.AutoscalingSpec{MinReplicas: new(int32(3))}}
 		assert.Equal(t, int32(3), desiredReplicasForStatus(superset, webDesc, accessor))
 	})
 
 	t.Run("autoscaling without minReplicas defaults to 1", func(t *testing.T) {
-		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Replicas: int32Ptr(5)}}
+		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Replicas: new(int32(5))}}
 		accessor := &componentAccessor{autoscaling: &supersetv1alpha1.AutoscalingSpec{}}
 		assert.Equal(t, int32(1), desiredReplicasForStatus(superset, webDesc, accessor))
 	})
 
 	t.Run("per-component replicas win over top-level", func(t *testing.T) {
-		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Replicas: int32Ptr(5)}}
-		assert.Equal(t, int32(2), desiredReplicasForStatus(superset, webDesc, &componentAccessor{replicas: int32Ptr(2)}))
+		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Replicas: new(int32(5))}}
+		assert.Equal(t, int32(2), desiredReplicasForStatus(superset, webDesc, &componentAccessor{replicas: new(int32(2))}))
 	})
 
 	t.Run("falls back to top-level replicas", func(t *testing.T) {
-		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Replicas: int32Ptr(4)}}
+		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Replicas: new(int32(4))}}
 		assert.Equal(t, int32(4), desiredReplicasForStatus(superset, webDesc, &componentAccessor{}))
 	})
 
@@ -513,7 +505,7 @@ func TestComponentPhaseAndMessage(t *testing.T) {
 
 	t.Run("unobserved generation is Progressing", func(t *testing.T) {
 		deploy := &appsv1.Deployment{
-			ObjectMeta: metav1.ObjectMeta{Generation: 2},
+			Generation: 2,
 			Status:     appsv1.DeploymentStatus{ObservedGeneration: 1},
 		}
 		phase, msg := componentPhaseAndMessage(deploy, 2)

@@ -106,10 +106,8 @@ func (r *SupersetReconciler) reconcileComponentNetworkPolicy(
 	externalPort int32,
 ) error {
 	np := &networkingv1.NetworkPolicy{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      npName,
-			Namespace: superset.Namespace,
-		},
+		Name:      npName,
+		Namespace: superset.Namespace,
 	}
 
 	labels := componentLabels(component, instanceName)

@@ -195,7 +195,7 @@ func TestTaskRequiresDrain(t *testing.T) {
 		// Override migrate (default true) to false.
 		noDrain := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{Migrate: &supersetv1alpha1.MigrateTaskSpec{
-				BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{RequiresDrain: boolPtr(false)},
+				RequiresDrain: new(false),
 			}},
 		}}
 		assert.False(t, r.taskRequiresDrain(noDrain, taskTypeMigrate))
@@ -203,7 +203,7 @@ func TestTaskRequiresDrain(t *testing.T) {
 		// Override init (default false) to true.
 		drain := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{Init: &supersetv1alpha1.InitTaskSpec{
-				BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{RequiresDrain: boolPtr(true)},
+				RequiresDrain: new(true),
 			}},
 		}}
 		assert.True(t, r.taskRequiresDrain(drain, taskTypeInit))
