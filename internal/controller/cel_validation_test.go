@@ -618,6 +618,130 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		})
 	})
 
+	// --- Lifecycle backup constraints ---
+
+	Describe("Backup", func() {
+		backupToPVC := func() *supersetv1alpha1.BackupTaskSpec {
+			return &supersetv1alpha1.BackupTaskSpec{
+				Destination: &supersetv1alpha1.BackupDestinationSpec{
+					PersistentVolumeClaim: &supersetv1alpha1.BackupPVCSource{ClaimName: "superset-backups"},
+				},
+			}
+		}
+
+		It("accepts a PVC destination with a selector-only structured metastore", func() {
+			cr := validProdSuperset("backup-pvc-selectors")
+			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+				HostFrom: secretRef("db", "host"), PortFrom: secretRef("db", "port"),
+				DatabaseFrom: secretRef("db", "dbname"), UsernameFrom: secretRef("db", "user"),
+				PasswordFrom: secretRef("db", "password"),
+			}
+			b := backupToPVC()
+			b.Destination.PersistentVolumeClaim.SubPath = new("superset/prod")
+			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{Backup: b}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+
+		It("accepts a custom command against a uriFrom metastore without a destination", func() {
+			cr := validProdSuperset("backup-uri-custom")
+			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{Backup: &supersetv1alpha1.BackupTaskSpec{
+				Command: []string{"/bin/sh", "-c", "ship-to-object-storage"},
+			}}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+
+		It("rejects the default command without a destination", func() {
+			cr := validProdSuperset("backup-no-dest")
+			cr.Spec.Metastore = structuredProdMetastore()
+			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{Backup: &supersetv1alpha1.BackupTaskSpec{}}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("lifecycle.backup requires destination"))
+		})
+
+		It("accepts a disabled backup without a destination", func() {
+			cr := validProdSuperset("backup-disabled")
+			cr.Spec.Metastore = structuredProdMetastore()
+			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{Backup: &supersetv1alpha1.BackupTaskSpec{
+				Disabled: new(true),
+			}}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+
+		It("rejects the default command with a uriFrom metastore", func() {
+			cr := validProdSuperset("backup-uri-default")
+			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{Backup: backupToPVC()}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("lifecycle.backup with the default command requires structured metastore"))
+		})
+
+		It("rejects a destination without persistentVolumeClaim", func() {
+			cr := validProdSuperset("backup-empty-dest")
+			cr.Spec.Metastore = structuredProdMetastore()
+			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{Backup: &supersetv1alpha1.BackupTaskSpec{
+				Destination: &supersetv1alpha1.BackupDestinationSpec{},
+			}}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("persistentVolumeClaim"))
+		})
+
+		It("rejects an empty claimName", func() {
+			cr := validProdSuperset("backup-empty-claim")
+			cr.Spec.Metastore = structuredProdMetastore()
+			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{Backup: backupToPVC()}
+			u := toUnstructuredSuperset(cr)
+			Expect(unstructured.SetNestedField(u.Object, "", "spec", "lifecycle", "backup", "destination", "persistentVolumeClaim", "claimName")).To(Succeed())
+			err := k8sClient.Create(ctx, u)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("at least 1 chars"))
+		})
+
+		DescribeTable("rejects unsafe subPath values",
+			func(name, subPath string) {
+				cr := validProdSuperset(name)
+				cr.Spec.Metastore = structuredProdMetastore()
+				b := backupToPVC()
+				b.Destination.PersistentVolumeClaim.SubPath = new(subPath)
+				cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{Backup: b}
+				err := k8sClient.Create(ctx, cr)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("subPath must be a relative path"))
+			},
+			Entry("absolute", "backup-subpath-abs", "/etc"),
+			Entry("parent", "backup-subpath-parent", ".."),
+			Entry("leading parent", "backup-subpath-lead", "../x"),
+			Entry("inner parent", "backup-subpath-inner", "a/../../x"),
+			Entry("trailing parent", "backup-subpath-trail", "a/.."),
+		)
+
+		It("accepts subPath segments that merely contain dots", func() {
+			cr := validProdSuperset("backup-subpath-dots")
+			cr.Spec.Metastore = structuredProdMetastore()
+			b := backupToPVC()
+			b.Destination.PersistentVolumeClaim.SubPath = new("v1..2/.hidden/a.b")
+			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{Backup: b}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+
+		It("rejects backup together with seed", func() {
+			staging := common.EnvironmentStaging
+			cr := validProdSuperset("backup-with-seed")
+			cr.Spec.Environment = &staging
+			cr.Spec.Metastore = structuredProdMetastore()
+			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+				Backup: backupToPVC(),
+				Seed: &supersetv1alpha1.SeedTaskSpec{Source: supersetv1alpha1.SeedSourceSpec{
+					Host: "prod-db", Database: "superset", Username: "readonly", PasswordFrom: secretRef("seed-src", "password"),
+				}},
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("lifecycle.backup and lifecycle.seed are mutually exclusive"))
+		})
+	})
+
 	// --- Secret-key rotation constraints ---
 
 	Describe("Rotation", func() {

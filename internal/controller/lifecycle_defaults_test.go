@@ -123,6 +123,7 @@ func TestTaskRetentionPolicyValue(t *testing.T) {
 func TestTaskUsesSupersetConfig(t *testing.T) {
 	want := map[string]bool{
 		taskTypeSeed:    false,
+		taskTypeBackup:  false,
 		taskTypeMigrate: true,
 		taskTypeRotate:  true,
 		taskTypeInit:    true,
