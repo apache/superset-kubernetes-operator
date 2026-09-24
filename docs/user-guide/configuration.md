@@ -325,6 +325,7 @@ The operator sets certain env vars automatically based on the CR spec. These are
 | `SUPERSET_OPERATOR__VALKEY_HOST`, `SUPERSET_OPERATOR__VALKEY_PORT` | Operator-internal | Operator (from `valkey`) | Valkey connection fields |
 | `SUPERSET_OPERATOR__VALKEY_PASS` | Operator-internal | Operator (from `valkey.password` or `valkey.passwordFrom`) | Valkey password |
 | `SUPERSET_OPERATOR__FORCE_RELOAD` | Operator-internal | Operator (from `spec.forceReload`) | Triggers rolling restart |
+| `SUPERSET_OPERATOR__BACKUP_DIR`, `SUPERSET_OPERATOR__BACKUP_FROM_TAG`, `SUPERSET_OPERATOR__BACKUP_FIRST_RUN` | Operator-internal | Operator (backup task Job only, from `spec.lifecycle.backup`) | Backup mount path (`/backup`, only with a destination), sanitized image tag the database was on before the run (`initial` on the first run), and whether no lifecycle run has completed yet |
 | `SUPERSET_WEBSERVER_PORT` | Standard | Rendered in config | Web server port (8088) |
 
 The operator does **not** set `PYTHONPATH` — it relies on the upstream Superset image's default (which already includes `/app/pythonpath`, where the operator mounts the rendered `superset_config.py`). Custom images must preserve this entry on `PYTHONPATH` for the rendered config to be picked up.
