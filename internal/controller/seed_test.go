@@ -634,8 +634,8 @@ func TestResolveSeedImage(t *testing.T) {
 
 		img := resolveSeedImage(seed)
 
-		if img.Repository != "mysql" || img.Tag != "8-alpine" {
-			t.Errorf("expected mysql:8-alpine, got: %s:%s", img.Repository, img.Tag)
+		if img.Repository != "mysql" || img.Tag != "8.4" {
+			t.Errorf("expected mysql:8.4, got: %s:%s", img.Repository, img.Tag)
 		}
 	})
 

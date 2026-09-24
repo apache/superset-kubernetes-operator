@@ -195,7 +195,7 @@ func collectSeedEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVar {
 }
 
 // resolveSeedImage determines the image for the seed pod. Defaults are
-// type-aware: postgres:17-alpine for PostgreSQL sources, mysql:8-alpine for
+// type-aware: postgres:17-alpine for PostgreSQL sources, mysql:8.4 for
 // MySQL. Partial user specs inherit the default repository or tag for omitted
 // fields rather than the Superset image (which would be incorrect for a
 // database tooling container).
