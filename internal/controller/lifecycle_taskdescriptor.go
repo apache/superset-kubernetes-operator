@@ -20,6 +20,7 @@ package controller
 
 import (
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
+	"github.com/apache/superset-kubernetes-operator/internal/resolution"
 )
 
 // lifecycleTaskDescriptor centralizes the per-task knobs that the pipeline,
@@ -53,6 +54,23 @@ type lifecycleTaskDescriptor struct {
 	// TaskRef returns the addressable TaskRefStatus pointer slot in
 	// LifecycleStatus so callers can both read and clear it.
 	TaskRef func(*supersetv1alpha1.LifecycleStatus) **supersetv1alpha1.TaskRefStatus
+
+	// BuildToolFlatSpec, when set, marks the task as running a database-tool
+	// image instead of the Superset image. It replaces the standard flat spec
+	// builder, and the task gets no rendered superset_config.py, no task
+	// ConfigMap, and no lifecycle bootstrap wrapping. Nil means the task runs
+	// the Superset image with the rendered config mounted.
+	BuildToolFlatSpec func(*SupersetReconciler, *supersetv1alpha1.Superset, string, *resolution.SharedInput) supersetv1alpha1.FlatComponentSpec
+
+	// PodRetention returns a task-specific retention override (nil-safe).
+	// Nil (or a nil return) falls back to spec.lifecycle.podRetention.
+	PodRetention func(*supersetv1alpha1.Superset) *supersetv1alpha1.PodRetentionSpec
+}
+
+// usesSupersetConfig reports whether the task runs the Superset image with the
+// rendered superset_config.py and lifecycle bootstrap script.
+func (d *lifecycleTaskDescriptor) usesSupersetConfig() bool {
+	return d.BuildToolFlatSpec == nil
 }
 
 // lifecycleTaskDescriptors is the source of truth for task ordering and
@@ -87,6 +105,15 @@ var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 		},
 		TaskRef: func(ls *supersetv1alpha1.LifecycleStatus) **supersetv1alpha1.TaskRefStatus {
 			return &ls.Seed
+		},
+		BuildToolFlatSpec: func(r *SupersetReconciler, s *supersetv1alpha1.Superset, saName string, topLevel *resolution.SharedInput) supersetv1alpha1.FlatComponentSpec {
+			return r.buildSeedTaskFlatSpec(s, saName, topLevel)
+		},
+		PodRetention: func(s *supersetv1alpha1.Superset) *supersetv1alpha1.PodRetentionSpec {
+			if s.Spec.Lifecycle == nil || s.Spec.Lifecycle.Seed == nil {
+				return nil
+			}
+			return s.Spec.Lifecycle.Seed.PodRetention
 		},
 	},
 	{
@@ -184,6 +211,13 @@ func lifecycleTaskDescriptorByType(taskType string) *lifecycleTaskDescriptor {
 		}
 	}
 	return nil
+}
+
+// taskUsesSupersetConfig reports whether a task type runs the Superset image
+// with rendered config. Unknown task types are treated as Superset-image tasks.
+func taskUsesSupersetConfig(taskType string) bool {
+	desc := lifecycleTaskDescriptorByType(taskType)
+	return desc == nil || desc.usesSupersetConfig()
 }
 
 // isTaskEnabled is a small convenience wrapper that delegates to the
