@@ -19,6 +19,8 @@ limitations under the License.
 package controller
 
 import (
+	"time"
+
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/resolution"
 )
@@ -32,6 +34,20 @@ type lifecycleTaskDescriptor struct {
 	Suffix          string
 	Phase           string
 	DrainsByDefault bool
+
+	// OutOfCascade excludes the task from the checksum cascade. The backup
+	// task uses it: it runs as a guard in front of the first pending
+	// GuardedByBackup task instead of as a link in the chain, so changing the
+	// backup spec never invalidates downstream task checksums.
+	OutOfCascade bool
+
+	// GuardedByBackup marks data-mutating tasks that the backup task (when
+	// enabled) snapshots the metastore in front of.
+	GuardedByBackup bool
+
+	// DefaultTimeout is the per-attempt timeout used when the task spec does
+	// not set one. Zero means defaultInitTimeout.
+	DefaultTimeout time.Duration
 
 	// BuildCommand returns the task command (respecting user override).
 	BuildCommand func(*SupersetReconciler, *supersetv1alpha1.Superset) []string
@@ -75,7 +91,9 @@ func (d *lifecycleTaskDescriptor) usesSupersetConfig() bool {
 
 // lifecycleTaskDescriptors is the source of truth for task ordering and
 // per-task wiring. Order is significant: seed → migrate → rotate → init is
-// the cascade direction.
+// the cascade direction. Backup is listed for shared wiring (status slot,
+// prune, retention) but is OutOfCascade; the pipeline runs it in front of the
+// first pending GuardedByBackup task.
 var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 	{
 		TaskType:        taskTypeSeed,
@@ -117,10 +135,46 @@ var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 		},
 	},
 	{
+		TaskType:        taskTypeBackup,
+		Suffix:          suffixBackup,
+		Phase:           lifecyclePhaseBackingUp,
+		DrainsByDefault: true,
+		OutOfCascade:    true,
+		DefaultTimeout:  defaultBackupTimeout,
+		BuildCommand: func(_ *SupersetReconciler, s *supersetv1alpha1.Superset) []string {
+			return buildBackupCommand(s)
+		},
+		BuildInputs: func(_ *SupersetReconciler, _ *supersetv1alpha1.Superset, _ string) any {
+			return nil // out of cascade; see backupTaskChecksum
+		},
+		IsEnabled: func(s *supersetv1alpha1.Superset) bool {
+			return s.Spec.Lifecycle != nil && s.Spec.Lifecycle.Backup != nil && !isDisabled(s.Spec.Lifecycle.Backup.Disabled)
+		},
+		BaseSpec: func(s *supersetv1alpha1.Superset) *supersetv1alpha1.BaseTaskSpec {
+			if s.Spec.Lifecycle == nil || s.Spec.Lifecycle.Backup == nil {
+				return nil
+			}
+			return &s.Spec.Lifecycle.Backup.BaseTaskSpec
+		},
+		TaskRef: func(ls *supersetv1alpha1.LifecycleStatus) **supersetv1alpha1.TaskRefStatus {
+			return &ls.Backup
+		},
+		BuildToolFlatSpec: func(r *SupersetReconciler, s *supersetv1alpha1.Superset, saName string, topLevel *resolution.SharedInput) supersetv1alpha1.FlatComponentSpec {
+			return r.buildBackupTaskFlatSpec(s, saName, topLevel)
+		},
+		PodRetention: func(s *supersetv1alpha1.Superset) *supersetv1alpha1.PodRetentionSpec {
+			if s.Spec.Lifecycle == nil || s.Spec.Lifecycle.Backup == nil {
+				return nil
+			}
+			return s.Spec.Lifecycle.Backup.PodRetention
+		},
+	},
+	{
 		TaskType:        taskTypeMigrate,
 		Suffix:          suffixMigrate,
 		Phase:           lifecyclePhaseMigrating,
 		DrainsByDefault: true,
+		GuardedByBackup: true,
 		BuildCommand: func(_ *SupersetReconciler, s *supersetv1alpha1.Superset) []string {
 			return defaultMigrateCommand(s)
 		},
@@ -148,6 +202,7 @@ var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 		Suffix:          suffixRotate,
 		Phase:           lifecyclePhaseRotating,
 		DrainsByDefault: true,
+		GuardedByBackup: true,
 		BuildCommand: func(_ *SupersetReconciler, s *supersetv1alpha1.Superset) []string {
 			return defaultRotateCommand(s)
 		},

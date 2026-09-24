@@ -44,6 +44,8 @@ import (
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.previousSecretKey)",message="previousSecretKey is only allowed when environment is Development; use previousSecretKeyFrom in Staging or Production"
 // +kubebuilder:validation:XValidation:rule="!has(self.previousSecretKey) || !has(self.previousSecretKeyFrom)",message="previousSecretKey and previousSecretKeyFrom are mutually exclusive"
 // +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.rotate) || (has(self.lifecycle.rotate.disabled) && self.lifecycle.rotate.disabled) || has(self.previousSecretKey) || has(self.previousSecretKeyFrom)",message="lifecycle.rotate requires previousSecretKey (dev) or previousSecretKeyFrom to be set"
+// +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.backup) || (has(self.lifecycle.backup.disabled) && self.lifecycle.backup.disabled) || (has(self.lifecycle.backup.command) && size(self.lifecycle.backup.command) > 0) || (has(self.metastore) && (has(self.metastore.host) || has(self.metastore.hostFrom)))",message="lifecycle.backup with the default command requires structured metastore configuration (host or hostFrom must be set); set lifecycle.backup.command to back up a uri/uriFrom metastore"
+// +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.backup) || (has(self.lifecycle.backup.disabled) && self.lifecycle.backup.disabled) || !has(self.lifecycle.seed) || (has(self.lifecycle.seed.disabled) && self.lifecycle.seed.disabled)",message="lifecycle.backup and lifecycle.seed are mutually exclusive; a seeded database is reproducible from the seed source"
 type SupersetSpec struct {
 	// Image configuration inherited by all components.
 	Image ImageSpec `json:"image"`
@@ -334,11 +336,11 @@ type BaseTaskSpec struct {
 	// executing the task Job, preventing database connection conflicts. Drain is
 	// skipped when the task is already complete for the current checksum, or when
 	// no configured component has desired replicas greater than zero.
-	// Defaults vary per task type: true for seed, migrate, and rotate; false for init.
+	// Defaults vary per task type: true for seed, backup, migrate, and rotate; false for init.
 	// +optional
 	RequiresDrain *bool `json:"requiresDrain,omitempty"`
 
-	// Maximum timeout per attempt.
+	// Maximum timeout per attempt. Defaults to 5m (1h for backup).
 	// +optional
 	Timeout *metav1.Duration `json:"timeout,omitempty"`
 
@@ -440,6 +442,14 @@ type LifecycleSpec struct {
 	// +optional
 	Seed *SeedTaskSpec `json:"seed,omitempty"`
 
+	// Backup snapshots the metastore before a data-mutating task (migrate or
+	// rotate) runs, so a failed or unwanted upgrade can be reverted by
+	// restoring the snapshot. Presence enables the task. It runs at most once
+	// per lifecycle run, after drain and before the first pending migrate or
+	// rotate task; config-only changes that re-run only init never trigger it.
+	// +optional
+	Backup *BackupTaskSpec `json:"backup,omitempty"`
+
 	// Database migration task configuration.
 	// +optional
 	Migrate *MigrateTaskSpec `json:"migrate,omitempty"`
@@ -466,6 +476,59 @@ type MigrateTaskSpec struct {
 // to be set on the parent spec.
 type RotateTaskSpec struct {
 	BaseTaskSpec `json:",inline"`
+}
+
+// BackupTaskSpec defines the pre-upgrade metastore backup task.
+// The default command dumps the metastore with pg_dump (custom format) or
+// mysqldump into destination.persistentVolumeClaim, mounted at /backup. Each
+// run writes a new timestamped file; the operator never deletes completed
+// backups. requiresDrain defaults to true so the snapshot contains every
+// write made before the upgrade; timeout defaults to 1h.
+// +kubebuilder:validation:XValidation:rule="(has(self.disabled) && self.disabled) || (has(self.command) && size(self.command) > 0) || has(self.destination)",message="lifecycle.backup requires destination (or a custom command that ships the dump elsewhere); without it the dump would be written to the ephemeral container filesystem and lost"
+type BackupTaskSpec struct {
+	BaseTaskSpec `json:",inline"`
+
+	// Destination for backup files written by the default command.
+	// +optional
+	Destination *BackupDestinationSpec `json:"destination,omitempty"`
+
+	// Image for the backup Job. Defaults to postgres:17-alpine (PostgreSQL)
+	// or mysql:8.4 (MySQL) based on metastore.type. The pg_dump client
+	// major version must be greater than or equal to the server's. Partial
+	// specs (e.g., only `tag` set) inherit the type-appropriate default for
+	// omitted fields.
+	// +optional
+	Image *ContainerImageSpec `json:"image,omitempty"`
+
+	// Pod and container template for the backup task Job.
+	// +optional
+	PodTemplate *PodTemplate `json:"podTemplate,omitempty"`
+
+	// Retention policy for completed backup Jobs and their Pods.
+	// +optional
+	PodRetention *PodRetentionSpec `json:"podRetention,omitempty"`
+}
+
+// BackupDestinationSpec defines where backup files are written.
+type BackupDestinationSpec struct {
+	// PersistentVolumeClaim to write backup files to. The claim must already
+	// exist in the Superset namespace; the operator only references it.
+	// +kubebuilder:validation:Required
+	PersistentVolumeClaim *BackupPVCSource `json:"persistentVolumeClaim"`
+}
+
+// BackupPVCSource references an existing PersistentVolumeClaim.
+// +kubebuilder:validation:XValidation:rule="!has(self.subPath) || (!self.subPath.startsWith('/') && !self.subPath.matches('(^|/)[.][.](/|$)'))",message="subPath must be a relative path without '..' segments"
+type BackupPVCSource struct {
+	// Name of the PersistentVolumeClaim.
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	ClaimName string `json:"claimName"`
+
+	// Sub-path within the volume to write backup files to.
+	// +optional
+	// +kubebuilder:validation:MaxLength=1024
+	SubPath *string `json:"subPath,omitempty"`
 }
 
 // InitTaskSpec defines the application initialization task.
@@ -829,7 +892,7 @@ type SupersetStatus struct {
 
 // LifecycleStatus tracks the current lifecycle task execution state.
 type LifecycleStatus struct {
-	// Phase of the lifecycle: Seeding, Draining, Migrating, Rotating, Initializing, Restoring, Complete, Blocked, AwaitingApproval.
+	// Phase of the lifecycle: Seeding, Draining, BackingUp, Migrating, Rotating, Initializing, Restoring, Complete, Blocked, AwaitingApproval.
 	// +optional
 	Phase string `json:"phase,omitempty"`
 	// MaintenanceActive indicates the maintenance page is currently serving traffic
@@ -844,6 +907,14 @@ type LifecycleStatus struct {
 	// Seed task status summary.
 	// +optional
 	Seed *TaskRefStatus `json:"seed,omitempty"`
+	// Backup task status summary.
+	// +optional
+	Backup *TaskRefStatus `json:"backup,omitempty"`
+	// SettledChecksum is a hash of LastCompletedChecksums recorded when the
+	// lifecycle pipeline last fully completed. It stays fixed while a run is in
+	// progress, which is what limits the backup task to one snapshot per run.
+	// +optional
+	SettledChecksum string `json:"settledChecksum,omitempty"`
 	// Migrate task status summary.
 	// +optional
 	Migrate *TaskRefStatus `json:"migrate,omitempty"`
