@@ -120,6 +120,47 @@ func TestTaskRetentionPolicyValue(t *testing.T) {
 	})
 }
 
+func TestTaskUsesSupersetConfig(t *testing.T) {
+	want := map[string]bool{
+		taskTypeSeed:    false,
+		taskTypeMigrate: true,
+		taskTypeRotate:  true,
+		taskTypeInit:    true,
+	}
+	for _, desc := range lifecycleTaskDescriptors {
+		expected, ok := want[desc.TaskType]
+		if !assert.Truef(t, ok, "descriptor %s missing from expectations", desc.TaskType) {
+			continue
+		}
+		assert.Equalf(t, expected, taskUsesSupersetConfig(desc.TaskType), "task %s", desc.TaskType)
+	}
+	assert.True(t, taskUsesSupersetConfig("Bogus"), "unknown task types default to Superset-image tasks")
+}
+
+func TestBuildTaskFlatSpecUsesToolBuilderForSeed(t *testing.T) {
+	r := &SupersetReconciler{}
+	superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
+		Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "6.1.0"},
+		Metastore: &supersetv1alpha1.MetastoreSpec{
+			Host:     new("db"),
+			Database: new("superset"),
+			Username: new("superset"),
+		},
+		Lifecycle: &supersetv1alpha1.LifecycleSpec{Seed: &supersetv1alpha1.SeedTaskSpec{
+			Source: supersetv1alpha1.SeedSourceSpec{Host: "src", Database: "superset", Username: "ro"},
+		}},
+	}}
+	superset.Name = "test"
+
+	flat, rendered := r.buildTaskFlatSpec(superset, taskTypeSeed, nil, "", nil, "sa")
+	assert.Empty(t, rendered, "seed renders no superset_config.py")
+	assert.Equal(t, resolveSeedImage(superset.Spec.Lifecycle.Seed), flat.Image)
+
+	flat, rendered = r.buildTaskFlatSpec(superset, taskTypeMigrate, defaultMigrateCommand(superset), "", nil, "sa")
+	assert.NotEmpty(t, rendered, "migrate renders superset_config.py")
+	assert.Equal(t, "apache/superset", flat.Image.Repository)
+}
+
 func TestGetUpgradeMode(t *testing.T) {
 	t.Run("defaults to Automatic when lifecycle nil", func(t *testing.T) {
 		assert.Equal(t, upgradeModeAutomatic, getUpgradeMode(&supersetv1alpha1.Superset{}))
