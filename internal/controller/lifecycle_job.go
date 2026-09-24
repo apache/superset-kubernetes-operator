@@ -139,7 +139,8 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 		}
 
 		if jobComplete(existingJob) {
-			log.Info("Lifecycle task completed", "task", taskType)
+			log.Info("Lifecycle task completed", "task", taskType, "attempt", taskRef.Attempts+1,
+				"duration", jobAttemptDuration(existingJob, batchv1.JobComplete).String())
 			return r.recordTaskCompletion(superset, existingJob, taskChecksum, taskRef), nil
 		}
 
@@ -164,11 +165,15 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 				setCondition(&taskRef.Conditions, supersetv1alpha1.ConditionTypeTaskComplete,
 					metav1.ConditionFalse, "TaskFailed", taskRef.Message, superset.Generation)
 				log.Info("Lifecycle task permanently failed", "task", taskType,
-					"attempts", taskRef.Attempts, "message", taskRef.Message)
+					"attempts", taskRef.Attempts, "duration", jobAttemptDuration(existingJob, batchv1.JobFailed).String(),
+					"message", taskRef.Message)
 				return lifecycleTerminal(), nil
 			}
 
 			backoff := calculateBackoff(taskRef.Attempts)
+			log.Info("Lifecycle task attempt failed, retrying", "task", taskType,
+				"attempt", taskRef.Attempts, "maxRetries", maxRetries,
+				"duration", jobAttemptDuration(existingJob, batchv1.JobFailed).String(), "backoff", backoff.String())
 			next := metav1.NewTime(r.now().Add(backoff))
 			taskRef.NextAttemptAt = &next
 			taskRef.State = taskStatePending
@@ -608,6 +613,25 @@ func jobFailed(job *batchv1.Job) bool {
 		}
 	}
 	return false
+}
+
+// jobAttemptDuration returns how long a finished task Job attempt ran: from
+// the Job's start time (or creation time, if the start is unset) to its
+// terminal condition. It returns 0 when the condition is absent or the clock
+// readings are inconsistent, so log fields never show a negative duration.
+func jobAttemptDuration(job *batchv1.Job, conditionType batchv1.JobConditionType) time.Duration {
+	end := jobConditionTransitionTime(job, conditionType)
+	if end == nil {
+		return 0
+	}
+	start := job.CreationTimestamp.Time
+	if job.Status.StartTime != nil {
+		start = job.Status.StartTime.Time
+	}
+	if d := end.Sub(start); d > 0 {
+		return d.Round(time.Millisecond)
+	}
+	return 0
 }
 
 func jobConditionTransitionTime(job *batchv1.Job, conditionType batchv1.JobConditionType) *metav1.Time {

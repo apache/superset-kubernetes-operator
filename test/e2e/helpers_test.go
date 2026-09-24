@@ -295,19 +295,21 @@ func splitImageRef(image string) (string, string) {
 	return "", ""
 }
 
-func restrictedLifecyclePodTemplateYAML(indent string) string {
-	return fmt.Sprintf(`%spodTemplate:
-%s  podSecurityContext:
-%s    runAsNonRoot: true
-%s    seccompProfile:
-%s      type: RuntimeDefault
-%s  container:
-%s    securityContext:
-%s      allowPrivilegeEscalation: false
-%s      capabilities:
-%s        drop:
-%s        - ALL
-%s      runAsNonRoot: true
-%s      runAsUser: 1000
-`, indent, indent, indent, indent, indent, indent, indent, indent, indent, indent, indent, indent, indent)
+// restrictedLifecyclePodTemplateYAML renders a restricted-PSS lifecycle
+// podTemplate indented for placement under spec.lifecycle.
+func restrictedLifecyclePodTemplateYAML() string {
+	return `    podTemplate:
+      podSecurityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      container:
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          runAsNonRoot: true
+          runAsUser: 1000
+`
 }
