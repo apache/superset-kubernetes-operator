@@ -551,7 +551,7 @@ func (r *SupersetReconciler) reconcileLifecycleTask(
 	// Build the task's flat spec and pod configuration.
 	flatSpec, renderedConfig := r.buildTaskFlatSpec(superset, taskType, command, configChecksum, topLevel, saName)
 	bootstrapScript := ""
-	if taskType != taskTypeSeed {
+	if taskUsesSupersetConfig(taskType) {
 		bootstrapScript = effectiveLifecycleBootstrapScript(&superset.Spec)
 	}
 
@@ -622,8 +622,10 @@ func (r *SupersetReconciler) taskPodRetention(superset *supersetv1alpha1.Superse
 	if superset.Spec.Lifecycle == nil {
 		return nil
 	}
-	if taskType == taskTypeSeed && superset.Spec.Lifecycle.Seed != nil && superset.Spec.Lifecycle.Seed.PodRetention != nil {
-		return superset.Spec.Lifecycle.Seed.PodRetention
+	if desc := lifecycleTaskDescriptorByType(taskType); desc != nil && desc.PodRetention != nil {
+		if retention := desc.PodRetention(superset); retention != nil {
+			return retention
+		}
 	}
 	return superset.Spec.Lifecycle.PodRetention
 }
@@ -652,7 +654,7 @@ func (r *SupersetReconciler) deleteLifecycleTaskResources(ctx context.Context, s
 	if err := r.deleteTaskJobs(ctx, superset, taskName); err != nil {
 		return err
 	}
-	if taskType != taskTypeSeed {
+	if taskUsesSupersetConfig(taskType) {
 		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, "", "", taskName, nil); err != nil {
 			return err
 		}
