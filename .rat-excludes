@@ -50,8 +50,7 @@
 .*PULL_REQUEST_TEMPLATE\.md
 .*ISSUE_TEMPLATE/.*\.md
 .*\.claude.*
-# Editor/agent context symlinks → AGENTS.md (which carries the header itself)
-CLAUDE\.md
+# Editor/agent context symlink → AGENTS.md (which carries the header itself)
 GEMINI\.md
 .*rat-results\.txt
 .*Dockerfile\.cross
