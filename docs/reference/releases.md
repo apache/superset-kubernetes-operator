@@ -26,6 +26,7 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 ### Added
 
 - Structured metastore, Valkey, and lifecycle seed-source connection fields can now be sourced individually from Kubernetes Secret keys, allowing `Superset` resources to consume provisioner-owned endpoints and credentials without copying discovered values or assembling a separate connection URI ([#369](https://github.com/apache/superset-kubernetes-operator/pull/369)).
+- **Helm `podDisruptionBudget`.** The Helm chart now exposes a `podDisruptionBudget` value that renders a [PodDisruptionBudget](https://kubernetes.io/docs/concepts/workloads/pods/disruptions/#pod-disruption-budgets) for the operator manager pods. It is disabled by default and falls back to `maxUnavailable: 1` when no bound is set. Rendering fails for integer or percentage bounds that would leave zero allowed disruptions at the configured `replicas` (for example `minAvailable: 1` with one replica, or `maxUnavailable: 0`), so the budget never blocks node drains. See [High availability](../user-guide/installation.md#high-availability) for the recommended multi-replica setup. [`unhealthyPodEvictionPolicy`](https://kubernetes.io/docs/tasks/run-application/configure-pdb/#unhealthy-pod-eviction-policy) can be set to `AlwaysAllow` so drains can evict a crash-looping manager ([#386](https://github.com/apache/superset-kubernetes-operator/pull/386), [@younsl](https://github.com/younsl)).
 
 ### Changed
 

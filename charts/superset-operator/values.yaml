@@ -119,6 +119,16 @@ affinity: {}
 # See [corev1.TopologySpreadConstraint](https://pkg.go.dev/k8s.io/api/core/v1#TopologySpreadConstraint).
 topologySpreadConstraints: []
 
+podDisruptionBudget:
+  # -- Create a PodDisruptionBudget for the manager pod. Only useful with `replicas >= 2`.
+  enabled: false
+  # -- (intOrString) Minimum available pods (integer or percentage). Mutually exclusive with `maxUnavailable`.
+  minAvailable: ~
+  # -- (intOrString) Maximum unavailable pods (integer or percentage). Defaults to `1` when neither is set.
+  maxUnavailable: ~
+  # -- Unhealthy pod eviction policy (`IfHealthyBudget` or `AlwaysAllow`). Empty uses the Kubernetes default.
+  unhealthyPodEvictionPolicy: ""
+
 # -- Extra annotations to add to the manager pod.
 podAnnotations: {}
 # -- Extra labels to add to the manager pod.

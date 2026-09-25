@@ -101,6 +101,30 @@ Kustomize users can opt in via the bundled `watch-namespace` component — uncom
 
 See [Install Scope](../reference/security.md#install-scope) in the security reference for the trust-model context.
 
+### High availability
+
+Running more than one manager replica gives you failover, not horizontal scaling. Replicas are active/standby: only the replica holding the [leader election Lease](https://kubernetes.io/docs/concepts/architecture/leases/#leader-election) reconciles, and the others wait to take over. Keep `leaderElection.enabled: true` whenever `replicas` is greater than 1; without it, every replica reconciles the same `Superset` resources and they race on Jobs, drains, and status.
+
+- **Failover time.** A standby takes over roughly one lease duration (about 15 seconds) after the leader stops renewing, because the manager does not release the Lease on shutdown.
+- **Spread replicas across nodes** with [`topologySpreadConstraints`](https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/) or [`affinity`](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity), so a single node failure or drain does not take out every replica.
+- **Enable `podDisruptionBudget` only with `replicas >= 2`.** It renders a [PodDisruptionBudget](https://kubernetes.io/docs/concepts/workloads/pods/disruptions/#pod-disruption-budgets) for the manager pods. The chart rejects bounds that would leave zero allowed disruptions at the configured replica count (for example `minAvailable: 1` with one replica, or `maxUnavailable: 0`), since those would hang [`kubectl drain`](https://kubernetes.io/docs/tasks/administer-cluster/safely-drain-node/). With no bound set, it defaults to `maxUnavailable: 1`.
+
+```yaml
+replicas: 2
+leaderElection:
+  enabled: true
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: superset-operator
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 1
+```
+
 ## 2. Create secrets
 
 Superset requires a secret key for session signing. In production, mount it as an environment variable:
