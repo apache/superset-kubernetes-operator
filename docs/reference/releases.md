@@ -29,6 +29,7 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 
 ### Changed
 
+- **Helm chart requires leader election for multiple replicas.** Rendering now fails when `replicas` is greater than 1 and `leaderElection.enabled` is `false`. Replicas are active/standby behind the [leader election Lease](https://kubernetes.io/docs/concepts/architecture/leases/#leader-election); without it every replica reconciles the same `Superset` resources and races on Jobs, drains, and status. Existing releases with that combination fail `helm upgrade` until leader election is enabled or the release is scaled to one replica ([#390](https://github.com/apache/superset-kubernetes-operator/pull/390), [@younsl](https://github.com/younsl)).
 - Valkey's default port is now applied at runtime, aligning it with the existing structured-metastore behavior, instead of being stored by CRD defaulting. Resources that omit both `valkey.port` and `valkey.portFrom` therefore no longer materialize `port: 6379`, while generated configuration continues to use port 6379. This permits `portFrom` without a defaulted literal conflicting at admission ([#369](https://github.com/apache/superset-kubernetes-operator/pull/369)).
 - Kubernetes support now covers the three newest `kind`-published minor versions instead of two. CI tests Kubernetes 1.37, 1.36, and 1.35 natively, with the experimental `next` lane disabled again ([#317](https://github.com/apache/superset-kubernetes-operator/pull/317)).
 
