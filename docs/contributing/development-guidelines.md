@@ -131,13 +131,14 @@ func TestReconcile_MyScenario(t *testing.T) {
     scheme := testScheme(t)
 
     superset := &supersetv1alpha1.Superset{
-        ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+        Name:      "test",
+        Namespace: "default",
         Spec: supersetv1alpha1.SupersetSpec{
             Image:       supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "6.1.0"},
-            Environment: strPtr("dev"),
-            SecretKey:   strPtr("test-secret-key"),
+            Environment: new(common.EnvironmentDev),
+            SecretKey:   new("test-secret-key"),
             Lifecycle: &supersetv1alpha1.LifecycleSpec{
-                Disabled: boolPtr(true),
+                Disabled: new(true),
             },
         },
     }
@@ -165,7 +166,7 @@ func TestReconcile_MyScenario(t *testing.T) {
 
 Key patterns:
 
-- Use `boolPtr(true)` for `Lifecycle.Disabled` to bypass lifecycle task execution
+- Use `new(true)` for `Lifecycle.Disabled` to bypass lifecycle task execution
 - Register all types in the scheme via `testScheme(t)` helper
 - Use `WithStatusSubresource` for objects whose status is updated
 - Assert on parent-owned resources and parent status, not on internal helper state
@@ -326,7 +327,7 @@ internal/
 ├── config/           # Pure Go — Python config renderer
 │                     # Per-component rendering, metastore URI,
 │                     # config appending
-├── common/           # Shared types (ComponentType, Ptr helper)
+├── common/           # Shared types (ComponentType, environment constants)
 └── controller/       # controller-runtime — reconcilers
                       # Parent controller, component resources,
                       # task job lifecycle, status, scaling, networking
@@ -340,7 +341,7 @@ internal/
 |------|---------|
 | `api/v1alpha1/shared_types.go` | ImageSpec, MetastoreSpec, DeploymentTemplate, PodTemplate, ContainerTemplate, FlatComponentSpec |
 | `api/v1alpha1/superset_types.go` | Parent SupersetSpec, component specs, InitSpec, CEL validation rules, status |
-| `internal/common/types.go` | Shared ComponentType, Ptr helper |
+| `internal/common/types.go` | Shared ComponentType, environment constants |
 | `internal/resolution/resolver.go` | ResolveComponentSpec — core flattening engine |
 | `internal/config/renderer.go` | RenderConfig — per-component Python generation |
 | `internal/controller/component_reconciler.go` | Shared helpers for component resources |

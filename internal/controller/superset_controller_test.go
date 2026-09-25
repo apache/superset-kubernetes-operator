@@ -36,9 +36,6 @@ import (
 	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
-//go:fix inline
-func strPtr(s string) *string { return new(s) }
-
 var _ = Describe("Integration", Ordered, func() {
 	const (
 		timeout  = 10 * time.Second

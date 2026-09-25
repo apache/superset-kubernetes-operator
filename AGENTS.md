@@ -67,7 +67,7 @@ The operator uses a **single public CRD architecture** where the parent `Superse
   - `gunicorn.go` — Gunicorn preset resolution, env var generation
   - `celery.go` — Celery worker preset resolution, command construction
   - `engine_options.go` — SQLALCHEMY_ENGINE_OPTIONS computation (pool sizing from worker/thread counts)
-- `internal/common/` — Shared types (ComponentType, Ptr), naming functions (DerivedName, ConfigMapName, ComponentLabels), constants (labels, suffixes, ports)
+- `internal/common/` — Shared types (ComponentType), naming functions (DerivedName, ConfigMapName, ComponentLabels), constants (labels, suffixes, ports)
 - `internal/controller/` — Reconciler implementations
   - `superset_controller.go` — Parent `SupersetReconciler`: top-level Reconcile loop, parent-owned resource reconciliation, cleanup, status
   - `lifecycle.go` — Lifecycle pipeline orchestration: task sequencing, checksum computation, upgrade gates
