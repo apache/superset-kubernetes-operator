@@ -29,7 +29,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -52,8 +51,8 @@ const celValidationNS = "cel-validation-test"
 // secretRef builds a SecretKeySelector for prod-mode secret references.
 func secretRef(name, key string) *corev1.SecretKeySelector {
 	return &corev1.SecretKeySelector{
-		LocalObjectReference: corev1.LocalObjectReference{Name: name},
-		Key:                  key,
+		Name: name,
+		Key:  key,
 	}
 }
 
@@ -72,13 +71,13 @@ func toUnstructuredSuperset(s *supersetv1alpha1.Superset) *unstructured.Unstruct
 func validDevSuperset(name string) *supersetv1alpha1.Superset {
 	env := common.EnvironmentDev
 	return &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: celValidationNS},
+		Name: name, Namespace: celValidationNS,
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:       supersetv1alpha1.ImageSpec{Tag: "latest"},
 			Environment: &env,
-			SecretKey:   strPtr("dev-test-key"),
-			Metastore:   &supersetv1alpha1.MetastoreSpec{URI: strPtr("postgresql+psycopg2://u:p@host/db")},
-			Lifecycle:   &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			SecretKey:   new("dev-test-key"),
+			Metastore:   &supersetv1alpha1.MetastoreSpec{URI: new("postgresql+psycopg2://u:p@host/db")},
+			Lifecycle:   &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 		},
 	}
 }
@@ -88,13 +87,13 @@ func validDevSuperset(name string) *supersetv1alpha1.Superset {
 func validProdSuperset(name string) *supersetv1alpha1.Superset {
 	env := common.EnvironmentProd
 	return &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: celValidationNS},
+		Name: name, Namespace: celValidationNS,
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:         supersetv1alpha1.ImageSpec{Tag: "latest"},
 			Environment:   &env,
 			SecretKeyFrom: secretRef("app-secret", "secret-key"),
 			Metastore:     &supersetv1alpha1.MetastoreSpec{URIFrom: secretRef("db-secret", "uri")},
-			Lifecycle:     &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle:     &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 		},
 	}
 }
@@ -103,16 +102,16 @@ func validProdSuperset(name string) *supersetv1alpha1.Superset {
 // (host + database + username, password via Secret reference).
 func structuredProdMetastore() *supersetv1alpha1.MetastoreSpec {
 	return &supersetv1alpha1.MetastoreSpec{
-		Host:         strPtr("db.example.com"),
-		Database:     strPtr("superset"),
-		Username:     strPtr("admin"),
+		Host:         new("db.example.com"),
+		Database:     new("superset"),
+		Username:     new("admin"),
 		PasswordFrom: secretRef("db-secret", "password"),
 	}
 }
 
 var _ = Describe("CEL Validation", Ordered, func() {
 	BeforeAll(func() {
-		nsObj := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: celValidationNS}}
+		nsObj := &corev1.Namespace{Name: celValidationNS}
 		err := k8sClient.Create(ctx, nsObj)
 		if err != nil && !errors.IsAlreadyExists(err) {
 			Expect(err).NotTo(HaveOccurred())
@@ -136,29 +135,29 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		},
 		Entry("secretKey", "inline-secretkey-prod",
 			func(s *supersetv1alpha1.Superset) {
-				s.Spec.SecretKey = strPtr("plain-text-key")
+				s.Spec.SecretKey = new("plain-text-key")
 				s.Spec.SecretKeyFrom = nil
 			}, "secretKey is only allowed"),
 		Entry("metastore.uri", "inline-db-uri-prod",
 			func(s *supersetv1alpha1.Superset) {
 				s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-					URI: strPtr("postgresql+psycopg2://u:p@postgres:5432/superset"),
+					URI: new("postgresql+psycopg2://u:p@postgres:5432/superset"),
 				}
 			}, "metastore.uri is only allowed"),
 		Entry("metastore.password", "inline-db-pw-prod",
 			func(s *supersetv1alpha1.Superset) {
 				s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-					Host:     strPtr("postgres"),
-					Database: strPtr("superset"),
-					Username: strPtr("superset"),
-					Password: strPtr("plain-text-password"),
+					Host:     new("postgres"),
+					Database: new("superset"),
+					Username: new("superset"),
+					Password: new("plain-text-password"),
 				}
 			}, "metastore.password is only allowed"),
 		Entry("valkey.password", "inline-valkey-pw-prod",
 			func(s *supersetv1alpha1.Superset) {
 				s.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
 					Host:     "valkey",
-					Password: strPtr("plain-text-password"),
+					Password: new("plain-text-password"),
 				}
 			}, "valkey.password is only allowed"),
 	)
@@ -174,7 +173,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 				DatabaseFrom:   secretRef("db", "dbname"),
 				UsernameFrom:   secretRef("db", "username"),
 				PasswordFrom:   secretRef("db", "password"),
-				CreateDatabase: boolPtr(true),
+				CreateDatabase: new(true),
 			}
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 		})
@@ -182,7 +181,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		It("accepts mixed literal and Secret-backed structured fields", func() {
 			cr := validProdSuperset("meta-mixed-connection")
 			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-				Host: common.Ptr("db.example.com"), DatabaseFrom: secretRef("db", "dbname"),
+				Host: new("db.example.com"), DatabaseFrom: secretRef("db", "dbname"),
 				UsernameFrom: secretRef("db", "username"), PasswordFrom: secretRef("db", "password"),
 			}
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
@@ -199,7 +198,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			},
 			Entry("host", "meta-host-hostfrom", func(m *supersetv1alpha1.MetastoreSpec) { m.HostFrom = secretRef("db", "host") }),
 			Entry("port", "meta-port-portfrom", func(m *supersetv1alpha1.MetastoreSpec) {
-				m.Port = int32Ptr(5432)
+				m.Port = new(int32(5432))
 				m.PortFrom = secretRef("db", "port")
 			}),
 			Entry("database", "meta-db-dbfrom", func(m *supersetv1alpha1.MetastoreSpec) { m.DatabaseFrom = secretRef("db", "dbname") }),
@@ -209,7 +208,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		It("rejects uri together with uriFrom", func() {
 			cr := validDevSuperset("meta-uri-urifrom")
 			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-				URI:     strPtr("postgresql+psycopg2://u:p@host/db"),
+				URI:     new("postgresql+psycopg2://u:p@host/db"),
 				URIFrom: secretRef("db", "uri"),
 			}
 			err := k8sClient.Create(ctx, cr)
@@ -220,10 +219,10 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		It("rejects metastore password together with passwordFrom", func() {
 			cr := validDevSuperset("meta-pw-pwfrom")
 			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-				Host:         strPtr("db.example.com"),
-				Database:     strPtr("superset"),
-				Username:     strPtr("admin"),
-				Password:     strPtr("secret"),
+				Host:         new("db.example.com"),
+				Database:     new("superset"),
+				Username:     new("admin"),
+				Password:     new("secret"),
 				PasswordFrom: secretRef("db", "password"),
 			}
 			err := k8sClient.Create(ctx, cr)
@@ -235,7 +234,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			cr := validDevSuperset("meta-urifrom-struct")
 			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
 				URIFrom: secretRef("db", "uri"),
-				Host:    strPtr("db.example.com"),
+				Host:    new("db.example.com"),
 			}
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
@@ -245,8 +244,8 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		It("rejects structured fields without host", func() {
 			cr := validDevSuperset("meta-no-host")
 			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-				Database: strPtr("superset"),
-				Username: strPtr("admin"),
+				Database: new("superset"),
+				Username: new("admin"),
 			}
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
@@ -256,7 +255,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		It("rejects host without database and username", func() {
 			cr := validDevSuperset("meta-host-only")
 			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-				Host: strPtr("db.example.com"),
+				Host: new("db.example.com"),
 			}
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
@@ -266,8 +265,8 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		It("rejects createDatabase without structured metastore", func() {
 			cr := validDevSuperset("meta-createdb-uri")
 			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-				URI:            strPtr("postgresql+psycopg2://u:p@host/db"),
-				CreateDatabase: boolPtr(true),
+				URI:            new("postgresql+psycopg2://u:p@host/db"),
+				CreateDatabase: new(true),
 			}
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
@@ -280,9 +279,9 @@ var _ = Describe("CEL Validation", Ordered, func() {
 				cr.Spec.Metastore = metastore
 				Expect(k8sClient.Create(ctx, cr)).NotTo(Succeed())
 			},
-			Entry("host", "meta-empty-host", &supersetv1alpha1.MetastoreSpec{Host: strPtr(""), Database: strPtr("superset"), Username: strPtr("admin")}),
-			Entry("database", "meta-empty-db", &supersetv1alpha1.MetastoreSpec{Host: strPtr("db"), Database: strPtr(""), Username: strPtr("admin")}),
-			Entry("username", "meta-empty-user", &supersetv1alpha1.MetastoreSpec{Host: strPtr("db"), Database: strPtr("superset"), Username: strPtr("")}),
+			Entry("host", "meta-empty-host", &supersetv1alpha1.MetastoreSpec{Host: new(""), Database: new("superset"), Username: new("admin")}),
+			Entry("database", "meta-empty-db", &supersetv1alpha1.MetastoreSpec{Host: new("db"), Database: new(""), Username: new("admin")}),
+			Entry("username", "meta-empty-user", &supersetv1alpha1.MetastoreSpec{Host: new("db"), Database: new("superset"), Username: new("")}),
 		)
 	})
 
@@ -319,15 +318,15 @@ var _ = Describe("CEL Validation", Ordered, func() {
 				Expect(err.Error()).To(Or(ContainSubstring("mutually exclusive"), ContainSubstring("exactly one")))
 			},
 			Entry("host", "vk-host-hostfrom", &supersetv1alpha1.ValkeySpec{Host: "valkey", HostFrom: secretRef("vk", "endpoint")}),
-			Entry("port", "vk-port-portfrom", &supersetv1alpha1.ValkeySpec{Host: "valkey", Port: int32Ptr(6379), PortFrom: secretRef("vk", "port")}),
-			Entry("username", "vk-user-userfrom", &supersetv1alpha1.ValkeySpec{Host: "valkey", Username: strPtr("user"), UsernameFrom: secretRef("vk", "username")}),
+			Entry("port", "vk-port-portfrom", &supersetv1alpha1.ValkeySpec{Host: "valkey", Port: new(int32(6379)), PortFrom: secretRef("vk", "port")}),
+			Entry("username", "vk-user-userfrom", &supersetv1alpha1.ValkeySpec{Host: "valkey", Username: new("user"), UsernameFrom: secretRef("vk", "username")}),
 		)
 
 		It("rejects valkey password together with passwordFrom", func() {
 			cr := validDevSuperset("vk-pw-pwfrom")
 			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
 				Host:         "valkey",
-				Password:     strPtr("secret"),
+				Password:     new("secret"),
 				PasswordFrom: secretRef("vk", "password"),
 			}
 			err := k8sClient.Create(ctx, cr)
@@ -343,8 +342,8 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			cr := validDevSuperset("gunicorn-threads")
 			cr.Spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{
 				Gunicorn: &supersetv1alpha1.GunicornSpec{
-					Threads:     int32Ptr(4),
-					WorkerClass: strPtr("sync"),
+					Threads:     new(int32(4)),
+					WorkerClass: new("sync"),
 				},
 			}
 			err := k8sClient.Create(ctx, cr)
@@ -356,8 +355,8 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			cr := validDevSuperset("celery-maxtasks")
 			cr.Spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{
 				Celery: &supersetv1alpha1.CeleryWorkerProcessSpec{
-					Pool:             strPtr("threads"),
-					MaxTasksPerChild: int32Ptr(100),
+					Pool:             new("threads"),
+					MaxTasksPerChild: new(int32(100)),
 				},
 			}
 			err := k8sClient.Create(ctx, cr)
@@ -369,8 +368,8 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			cr := validDevSuperset("celery-maxmem")
 			cr.Spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{
 				Celery: &supersetv1alpha1.CeleryWorkerProcessSpec{
-					Pool:              strPtr("gevent"),
-					MaxMemoryPerChild: int32Ptr(500000),
+					Pool:              new("gevent"),
+					MaxMemoryPerChild: new(int32(500000)),
 				},
 			}
 			err := k8sClient.Create(ctx, cr)
@@ -385,11 +384,9 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		It("rejects autoscaling maxReplicas below minReplicas", func() {
 			cr := validDevSuperset("hpa-min-max")
 			cr.Spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{
-				ScalableComponentSpec: supersetv1alpha1.ScalableComponentSpec{
-					Autoscaling: &supersetv1alpha1.AutoscalingSpec{
-						MinReplicas: int32Ptr(5),
-						MaxReplicas: 3,
-					},
+				Autoscaling: &supersetv1alpha1.AutoscalingSpec{
+					MinReplicas: new(int32(5)),
+					MaxReplicas: 3,
 				},
 			}
 			err := k8sClient.Create(ctx, cr)
@@ -400,11 +397,9 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		It("rejects PDB with both minAvailable and maxUnavailable", func() {
 			cr := validDevSuperset("pdb-both")
 			cr.Spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{
-				ScalableComponentSpec: supersetv1alpha1.ScalableComponentSpec{
-					PodDisruptionBudget: &supersetv1alpha1.PDBSpec{
-						MinAvailable:   common.Ptr(intstr.FromInt32(1)),
-						MaxUnavailable: common.Ptr(intstr.FromInt32(1)),
-					},
+				PodDisruptionBudget: &supersetv1alpha1.PDBSpec{
+					MinAvailable:   new(intstr.FromInt32(1)),
+					MaxUnavailable: new(intstr.FromInt32(1)),
 				},
 			}
 			err := k8sClient.Create(ctx, cr)
@@ -496,7 +491,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			},
 			Entry("host", "seed-host-hostfrom", func(s *supersetv1alpha1.SeedSourceSpec) { s.HostFrom = secretRef("source", "host") }),
 			Entry("port", "seed-port-portfrom", func(s *supersetv1alpha1.SeedSourceSpec) {
-				s.Port = int32Ptr(5432)
+				s.Port = new(int32(5432))
 				s.PortFrom = secretRef("source", "port")
 			}),
 			Entry("database", "seed-db-dbfrom", func(s *supersetv1alpha1.SeedSourceSpec) { s.DatabaseFrom = secretRef("source", "dbname") }),
@@ -508,7 +503,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 				cr := validDevSuperset(name)
 				cr.Spec.Metastore = structuredProdMetastore()
 				source := supersetv1alpha1.SeedSourceSpec{
-					Host: "source", Database: "superset", Username: "reader", Password: strPtr("password"),
+					Host: "source", Database: "superset", Username: "reader", Password: new("password"),
 				}
 				cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{Seed: &supersetv1alpha1.SeedTaskSpec{Source: source}}
 				u := toUnstructuredSuperset(cr)
@@ -551,7 +546,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 						Host:     "prod-db",
 						Database: "superset",
 						Username: "readonly",
-						Password: strPtr("plain"),
+						Password: new("plain"),
 					},
 				},
 			}
@@ -569,7 +564,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 						Host:     "prod-db",
 						Database: "superset",
 						Username: "readonly",
-						Password: strPtr("plain"),
+						Password: new("plain"),
 					},
 				},
 			}
@@ -581,9 +576,9 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		It("rejects seed source with both password and passwordFrom", func() {
 			cr := validDevSuperset("seed-pw-both")
 			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-				Host:     strPtr("db.example.com"),
-				Database: strPtr("superset"),
-				Username: strPtr("admin"),
+				Host:     new("db.example.com"),
+				Database: new("superset"),
+				Username: new("admin"),
 			}
 			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 				Seed: &supersetv1alpha1.SeedTaskSpec{
@@ -591,7 +586,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 						Host:         "prod-db",
 						Database:     "superset",
 						Username:     "readonly",
-						Password:     strPtr("plain"),
+						Password:     new("plain"),
 						PasswordFrom: secretRef("seed-src", "password"),
 					},
 				},
@@ -604,9 +599,9 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		It("rejects seed source with neither password nor passwordFrom", func() {
 			cr := validDevSuperset("seed-pw-none")
 			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-				Host:     strPtr("db.example.com"),
-				Database: strPtr("superset"),
-				Username: strPtr("admin"),
+				Host:     new("db.example.com"),
+				Database: new("superset"),
+				Username: new("admin"),
 			}
 			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 				Seed: &supersetv1alpha1.SeedTaskSpec{
@@ -628,7 +623,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 	Describe("Rotation", func() {
 		It("rejects inline previousSecretKey outside Development", func() {
 			cr := validProdSuperset("rotate-prevkey-prod")
-			cr.Spec.PreviousSecretKey = strPtr("old-key")
+			cr.Spec.PreviousSecretKey = new("old-key")
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("previousSecretKey is only allowed when environment is Development"))
@@ -636,7 +631,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 
 		It("rejects previousSecretKey together with previousSecretKeyFrom", func() {
 			cr := validDevSuperset("rotate-prevkey-both")
-			cr.Spec.PreviousSecretKey = strPtr("old-key")
+			cr.Spec.PreviousSecretKey = new("old-key")
 			cr.Spec.PreviousSecretKeyFrom = secretRef("prev", "key")
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
@@ -673,7 +668,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			cr := validProdSuperset("init-examples-prod")
 			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 				Init: &supersetv1alpha1.InitTaskSpec{
-					LoadExamples: boolPtr(true),
+					LoadExamples: new(true),
 				},
 			}
 			err := k8sClient.Create(ctx, cr)
@@ -685,8 +680,8 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			cr := validDevSuperset("init-cmd-admin")
 			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 				Init: &supersetv1alpha1.InitTaskSpec{
-					BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Command: []string{"superset", "init"}},
-					AdminUser:    &supersetv1alpha1.AdminUserSpec{},
+					Command:   []string{"superset", "init"},
+					AdminUser: &supersetv1alpha1.AdminUserSpec{},
 				},
 			}
 			err := k8sClient.Create(ctx, cr)
@@ -701,7 +696,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		It("rejects create=true with a name different from metadata.name", func() {
 			cr := validProdSuperset("sa-name-mismatch")
 			cr.Spec.ServiceAccount = &supersetv1alpha1.ServiceAccountSpec{
-				Create: boolPtr(true),
+				Create: new(true),
 				Name:   "some-other-name",
 			}
 			err := k8sClient.Create(ctx, cr)
@@ -722,7 +717,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		It("allows create=true with a name equal to metadata.name", func() {
 			cr := validProdSuperset("sa-name-match")
 			cr.Spec.ServiceAccount = &supersetv1alpha1.ServiceAccountSpec{
-				Create: boolPtr(true),
+				Create: new(true),
 				Name:   "sa-name-match",
 			}
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
@@ -731,7 +726,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		It("allows create=false with an arbitrary pre-existing name", func() {
 			cr := validProdSuperset("sa-preexisting")
 			cr.Spec.ServiceAccount = &supersetv1alpha1.ServiceAccountSpec{
-				Create: boolPtr(false),
+				Create: new(false),
 				Name:   "some-other-name",
 			}
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
@@ -784,7 +779,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		// isolating the rule under test.
 		wsImage := func() supersetv1alpha1.ComponentSpec {
 			return supersetv1alpha1.ComponentSpec{
-				Image: &supersetv1alpha1.ImageOverrideSpec{Repository: strPtr("example.com/superset-websocket")},
+				Image: &supersetv1alpha1.ImageOverrideSpec{Repository: new("example.com/superset-websocket")},
 			}
 		}
 
@@ -861,9 +856,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			Entry("websocketServer (46)", strings.Repeat("a", 47),
 				func(s *supersetv1alpha1.Superset) {
 					s.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
-						ComponentSpec: supersetv1alpha1.ComponentSpec{
-							Image: &supersetv1alpha1.ImageOverrideSpec{Repository: strPtr("example.com/ws")},
-						},
+						Image: &supersetv1alpha1.ImageOverrideSpec{Repository: new("example.com/ws")},
 					}
 				}, "at most 46 characters when websocketServer is enabled"),
 			Entry("mcpServer (52)", strings.Repeat("a", 53),
@@ -873,15 +866,15 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			Entry("maintenancePage (46)", strings.Repeat("a", 47),
 				func(s *supersetv1alpha1.Superset) {
 					s.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-						Disabled:        boolPtr(true),
+						Disabled:        new(true),
 						MaintenancePage: &supersetv1alpha1.MaintenancePageSpec{},
 					}
 				}, "at most 46 characters when lifecycle.maintenancePage is enabled"),
 			Entry("rotate (49)", strings.Repeat("a", 50),
 				func(s *supersetv1alpha1.Superset) {
-					s.Spec.PreviousSecretKey = strPtr("old-key")
+					s.Spec.PreviousSecretKey = new("old-key")
 					s.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-						Disabled: boolPtr(true),
+						Disabled: new(true),
 						Rotate:   &supersetv1alpha1.RotateTaskSpec{},
 					}
 				}, "at most 49 characters when lifecycle.rotate is enabled"),

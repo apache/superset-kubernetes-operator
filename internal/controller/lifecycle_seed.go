@@ -266,8 +266,6 @@ func convertSeedComponent(seed *supersetv1alpha1.SeedTaskSpec, command []string)
 	}
 
 	return &resolution.ComponentInput{
-		SharedInput: resolution.SharedInput{
-			PodTemplate: pt,
-		},
+		PodTemplate: pt,
 	}
 }

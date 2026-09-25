@@ -264,7 +264,7 @@ func (r *SupersetReconciler) reconcileServiceAccount(ctx context.Context, supers
 	}
 
 	sa := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{Name: saName, Namespace: superset.Namespace},
+		Name: saName, Namespace: superset.Namespace,
 	}
 
 	_, err := createOrUpdateWithRetry(ctx, r.Client, sa, func() error {
@@ -460,10 +460,8 @@ func reconcileParentOwnedConfigMap(
 	}
 
 	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cmName,
-			Namespace: parent.Namespace,
-		},
+		Name:      cmName,
+		Namespace: parent.Namespace,
 	}
 
 	_, err := createOrUpdateWithRetry(ctx, c, cm, func() error {

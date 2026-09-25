@@ -29,14 +29,14 @@ import (
 )
 
 func TestComputeEngineOptions_DisabledPreset(t *testing.T) {
-	spec := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: ptr(PresetDisabled)}
+	spec := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: new(PresetDisabled)}
 	result := ComputeEngineOptions(common.ComponentWebServer, spec, nil, 2, 8)
 	assert.Nil(t, result)
 }
 
 func TestComputeEngineOptions_DisabledPerComponent(t *testing.T) {
-	topLevel := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: ptr(PresetBalanced)}
-	perComp := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: ptr(PresetDisabled)}
+	topLevel := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: new(PresetBalanced)}
+	perComp := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: new(PresetDisabled)}
 	result := ComputeEngineOptions(common.ComponentWebServer, topLevel, perComp, 2, 8)
 	assert.Nil(t, result)
 }
@@ -52,26 +52,26 @@ func TestComputeEngineOptions_NilSpecsBalancedDefault(t *testing.T) {
 }
 
 func TestComputeEngineOptions_ConservativeNullPool(t *testing.T) {
-	spec := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: ptr(PresetConservative)}
+	spec := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: new(PresetConservative)}
 	result := ComputeEngineOptions(common.ComponentWebServer, spec, nil, 2, 8)
 	assert.True(t, result.UseNullPool)
 }
 
 func TestComputeEngineOptions_PerformanceWebServer(t *testing.T) {
-	spec := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: ptr(PresetPerformance)}
+	spec := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: new(PresetPerformance)}
 	result := ComputeEngineOptions(common.ComponentWebServer, spec, nil, 4, 8)
 	assert.Equal(t, int32(4), result.PoolSize) // workers
 	assert.Equal(t, int32(-1), result.MaxOverflow)
 }
 
 func TestComputeEngineOptions_AggressiveWebServer(t *testing.T) {
-	spec := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: ptr(PresetAggressive)}
+	spec := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: new(PresetAggressive)}
 	result := ComputeEngineOptions(common.ComponentWebServer, spec, nil, 8, 16)
 	assert.Equal(t, int32(128), result.PoolSize) // workers × threads
 }
 
 func TestComputeEngineOptions_PerformanceCeleryWorker(t *testing.T) {
-	spec := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: ptr(PresetPerformance)}
+	spec := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: new(PresetPerformance)}
 	result := ComputeEngineOptions(common.ComponentCeleryWorker, spec, nil, 8, 0)
 	assert.Equal(t, int32(8), result.PoolSize) // concurrency
 }
@@ -80,7 +80,7 @@ func TestComputeEngineOptions_CeleryBeatAlwaysNullPool(t *testing.T) {
 	tests := []string{PresetBalanced, PresetPerformance, PresetAggressive}
 	for _, preset := range tests {
 		t.Run(preset, func(t *testing.T) {
-			spec := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: ptr(preset)}
+			spec := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: new(preset)}
 			result := ComputeEngineOptions(common.ComponentCeleryBeat, spec, nil, 0, 0)
 			assert.True(t, result.UseNullPool)
 		})
@@ -103,7 +103,7 @@ func TestComputeEngineOptions_McpServerPoolSizes(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.preset, func(t *testing.T) {
-			spec := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: ptr(tt.preset)}
+			spec := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: new(tt.preset)}
 			result := ComputeEngineOptions(common.ComponentMcpServer, spec, nil, 0, 0)
 			assert.Equal(t, tt.poolSize, result.PoolSize)
 		})
@@ -112,10 +112,10 @@ func TestComputeEngineOptions_McpServerPoolSizes(t *testing.T) {
 
 func TestComputeEngineOptions_ExplicitOverrides(t *testing.T) {
 	spec := &v1alpha1.SQLAlchemyEngineOptionsSpec{
-		Preset:      ptr(PresetBalanced),
-		PoolSize:    ptr(int32(10)),
-		PoolRecycle: ptr(int32(1800)),
-		PoolPrePing: ptr(true),
+		Preset:      new(PresetBalanced),
+		PoolSize:    new(int32(10)),
+		PoolRecycle: new(int32(1800)),
+		PoolPrePing: new(true),
 	}
 	result := ComputeEngineOptions(common.ComponentWebServer, spec, nil, 2, 8)
 	assert.Equal(t, int32(10), result.PoolSize)
@@ -125,8 +125,8 @@ func TestComputeEngineOptions_ExplicitOverrides(t *testing.T) {
 }
 
 func TestComputeEngineOptions_PerComponentOverridesTopLevel(t *testing.T) {
-	topLevel := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: ptr(PresetConservative)}
-	perComp := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: ptr(PresetPerformance)}
+	topLevel := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: new(PresetConservative)}
+	perComp := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: new(PresetPerformance)}
 	result := ComputeEngineOptions(common.ComponentWebServer, topLevel, perComp, 4, 8)
 	assert.False(t, result.UseNullPool)
 	assert.Equal(t, int32(4), result.PoolSize) // performance: workers
@@ -147,11 +147,11 @@ func TestApplyExplicitOverrides_EachFieldSetVsNil(t *testing.T) {
 	t.Run("all fields set override the baseline", func(t *testing.T) {
 		result := &EngineOptionsInput{PoolSize: 1, MaxOverflow: -1, PoolRecycle: 3600}
 		spec := &v1alpha1.SQLAlchemyEngineOptionsSpec{
-			PoolSize:    ptr(int32(20)),
-			MaxOverflow: ptr(int32(5)),
-			PoolRecycle: ptr(int32(900)),
-			PoolPrePing: ptr(true),
-			PoolTimeout: ptr(int32(45)),
+			PoolSize:    new(int32(20)),
+			MaxOverflow: new(int32(5)),
+			PoolRecycle: new(int32(900)),
+			PoolPrePing: new(true),
+			PoolTimeout: new(int32(45)),
 		}
 		applyExplicitOverrides(result, spec)
 		assert.Equal(t, int32(20), result.PoolSize)
@@ -174,7 +174,7 @@ func TestApplyExplicitOverrides_EachFieldSetVsNil(t *testing.T) {
 
 	t.Run("only PoolTimeout set leaves others at baseline", func(t *testing.T) {
 		result := &EngineOptionsInput{PoolSize: 3, MaxOverflow: -1, PoolRecycle: 3600}
-		applyExplicitOverrides(result, &v1alpha1.SQLAlchemyEngineOptionsSpec{PoolTimeout: ptr(int32(30))})
+		applyExplicitOverrides(result, &v1alpha1.SQLAlchemyEngineOptionsSpec{PoolTimeout: new(int32(30))})
 		assert.Equal(t, int32(30), result.PoolTimeout)
 		assert.Equal(t, int32(3), result.PoolSize)
 		assert.Equal(t, int32(-1), result.MaxOverflow)
@@ -183,15 +183,15 @@ func TestApplyExplicitOverrides_EachFieldSetVsNil(t *testing.T) {
 
 	t.Run("only PoolPrePing set leaves others at baseline", func(t *testing.T) {
 		result := &EngineOptionsInput{PoolSize: 3}
-		applyExplicitOverrides(result, &v1alpha1.SQLAlchemyEngineOptionsSpec{PoolPrePing: ptr(true)})
+		applyExplicitOverrides(result, &v1alpha1.SQLAlchemyEngineOptionsSpec{PoolPrePing: new(true)})
 		assert.True(t, result.PoolPrePing)
 		assert.Equal(t, int32(3), result.PoolSize)
 	})
 }
 
 func TestFullPipeline_WebServerPerformance(t *testing.T) {
-	g := ResolveGunicorn(&v1alpha1.GunicornSpec{Preset: ptr(PresetPerformance)})
-	sqla := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: ptr(PresetAggressive)}
+	g := ResolveGunicorn(&v1alpha1.GunicornSpec{Preset: new(PresetPerformance)})
+	sqla := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: new(PresetAggressive)}
 	opts := ComputeEngineOptions(common.ComponentWebServer, sqla, nil, g.Workers, g.Threads)
 
 	assert.Equal(t, int32(4), g.Workers)
@@ -229,7 +229,7 @@ func TestFullPipeline_CeleryWorkerBalanced(t *testing.T) {
 }
 
 func TestFullPipeline_CeleryBeatAlwaysNullPool(t *testing.T) {
-	sqla := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: ptr(PresetAggressive)}
+	sqla := &v1alpha1.SQLAlchemyEngineOptionsSpec{Preset: new(PresetAggressive)}
 	opts := ComputeEngineOptions(common.ComponentCeleryBeat, sqla, nil, 0, 0)
 
 	assert.True(t, opts.UseNullPool)

@@ -337,7 +337,7 @@ func applyContainerSecurityDefaults(sc *corev1.SecurityContext, podSC *corev1.Po
 		out = &corev1.SecurityContext{}
 	}
 	if out.AllowPrivilegeEscalation == nil {
-		out.AllowPrivilegeEscalation = common.Ptr(false)
+		out.AllowPrivilegeEscalation = new(false)
 	}
 	// Default drop: [ALL] when no drop set is specified, preserving any
 	// user-provided capability add/drop lists.

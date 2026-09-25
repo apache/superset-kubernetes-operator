@@ -40,7 +40,7 @@ func TestDrainIfNeededEmitsStartedWhenPodsRemain(t *testing.T) {
 	recorder := events.NewFakeRecorder(10)
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Name: "test", Namespace: "default",
 		Spec: supersetv1alpha1.SupersetSpec{
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
 		},
@@ -49,13 +49,11 @@ func TestDrainIfNeededEmitsStartedWhenPodsRemain(t *testing.T) {
 		},
 	}
 	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-web-server-abc",
-			Namespace: "default",
-			Labels: map[string]string{
-				common.LabelKeyParent:    "test",
-				common.LabelKeyComponent: string(common.ComponentWebServer),
-			},
+		Name:      "test-web-server-abc",
+		Namespace: "default",
+		Labels: map[string]string{
+			common.LabelKeyParent:    "test",
+			common.LabelKeyComponent: string(common.ComponentWebServer),
 		},
 	}
 	c := fake.NewClientBuilder().
@@ -83,7 +81,7 @@ func TestDrainIfNeededEmitsCompletedAfterWaitingForPods(t *testing.T) {
 	recorder := events.NewFakeRecorder(10)
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Name: "test", Namespace: "default",
 		Spec: supersetv1alpha1.SupersetSpec{
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
 		},
@@ -99,13 +97,11 @@ func TestDrainIfNeededEmitsCompletedAfterWaitingForPods(t *testing.T) {
 		},
 	}
 	maintenancePod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-maintenance-page-abc",
-			Namespace: "default",
-			Labels: map[string]string{
-				common.LabelKeyParent:    "test",
-				common.LabelKeyComponent: string(common.ComponentMaintenancePage),
-			},
+		Name:      "test-maintenance-page-abc",
+		Namespace: "default",
+		Labels: map[string]string{
+			common.LabelKeyParent:    "test",
+			common.LabelKeyComponent: string(common.ComponentMaintenancePage),
 		},
 	}
 	c := fake.NewClientBuilder().
@@ -134,12 +130,10 @@ func TestDrainIfNeededSkipsWhenNoComponentHasDesiredReplicas(t *testing.T) {
 	zero := int32(0)
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Name: "test", Namespace: "default",
 		Spec: supersetv1alpha1.SupersetSpec{
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{
-				ScalableComponentSpec: supersetv1alpha1.ScalableComponentSpec{
-					Replicas: &zero,
-				},
+				Replicas: &zero,
 			},
 		},
 		Status: supersetv1alpha1.SupersetStatus{
@@ -147,13 +141,11 @@ func TestDrainIfNeededSkipsWhenNoComponentHasDesiredReplicas(t *testing.T) {
 		},
 	}
 	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-web-server-abc",
-			Namespace: "default",
-			Labels: map[string]string{
-				common.LabelKeyParent:    "test",
-				common.LabelKeyComponent: string(common.ComponentWebServer),
-			},
+		Name:      "test-web-server-abc",
+		Namespace: "default",
+		Labels: map[string]string{
+			common.LabelKeyParent:    "test",
+			common.LabelKeyComponent: string(common.ComponentWebServer),
 		},
 	}
 	c := fake.NewClientBuilder().
@@ -176,12 +168,10 @@ func TestPrepareMaintenancePageSkipsWhenNoComponentHasDesiredReplicas(t *testing
 	ctx := context.Background()
 	zero := int32(0)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Name: "test", Namespace: "default",
 		Spec: supersetv1alpha1.SupersetSpec{
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{
-				ScalableComponentSpec: supersetv1alpha1.ScalableComponentSpec{
-					Replicas: &zero,
-				},
+				Replicas: &zero,
 			},
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{
 				MaintenancePage: &supersetv1alpha1.MaintenancePageSpec{},
@@ -206,12 +196,10 @@ func TestPrepareMaintenancePageSkipsWhenWebServerHasNoDesiredReplicas(t *testing
 	ctx := context.Background()
 	zero := int32(0)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Name: "test", Namespace: "default",
 		Spec: supersetv1alpha1.SupersetSpec{
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{
-				ScalableComponentSpec: supersetv1alpha1.ScalableComponentSpec{
-					Replicas: &zero,
-				},
+				Replicas: &zero,
 			},
 			CeleryWorker: &supersetv1alpha1.CeleryWorkerComponentSpec{},
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{
@@ -239,7 +227,7 @@ func TestPrepareMaintenancePageSkipsInitialInstallWithoutWebServerWorkload(t *te
 	recorder := events.NewFakeRecorder(10)
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "test-uid"},
+		Name: "test", Namespace: "default", UID: "test-uid",
 		Spec: supersetv1alpha1.SupersetSpec{
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{
@@ -279,7 +267,7 @@ func TestPrepareMaintenancePageStartsWhenWebServerDeploymentExists(t *testing.T)
 	replicas := int32(1)
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "test-uid"},
+		Name: "test", Namespace: "default", UID: "test-uid",
 		Spec: supersetv1alpha1.SupersetSpec{
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{
@@ -291,11 +279,9 @@ func TestPrepareMaintenancePageStartsWhenWebServerDeploymentExists(t *testing.T)
 		},
 	}
 	webDeployment := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      common.ResourceBaseName("test", common.ComponentWebServer),
-			Namespace: "default",
-		},
-		Spec: appsv1.DeploymentSpec{Replicas: &replicas},
+		Name:      common.ResourceBaseName("test", common.ComponentWebServer),
+		Namespace: "default",
+		Spec:      appsv1.DeploymentSpec{Replicas: &replicas},
 	}
 	c := fake.NewClientBuilder().
 		WithScheme(scheme).
@@ -325,7 +311,7 @@ func TestDrainIfNeededSkipsWhenOnlyNonDrainInitWillRun(t *testing.T) {
 	r := &SupersetReconciler{Recorder: recorder}
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "test-uid"},
+		Name: "test", Namespace: "default", UID: "test-uid",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "6.1.0-dev"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
@@ -340,13 +326,11 @@ func TestDrainIfNeededSkipsWhenOnlyNonDrainInitWillRun(t *testing.T) {
 		LastCompletedChecksums: completedLifecycleChecksums(r, superset),
 	}
 	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-web-server-abc",
-			Namespace: "default",
-			Labels: map[string]string{
-				common.LabelKeyParent:    "test",
-				common.LabelKeyComponent: string(common.ComponentWebServer),
-			},
+		Name:      "test-web-server-abc",
+		Namespace: "default",
+		Labels: map[string]string{
+			common.LabelKeyParent:    "test",
+			common.LabelKeyComponent: string(common.ComponentWebServer),
 		},
 	}
 	c := fake.NewClientBuilder().
@@ -414,23 +398,20 @@ func TestDrainComponents_DeletesWorkloadsAndReportsDrained(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Name: "test", Namespace: "default",
 		Spec: supersetv1alpha1.SupersetSpec{
 			WebServer:    &supersetv1alpha1.WebServerComponentSpec{},
 			CeleryWorker: &supersetv1alpha1.CeleryWorkerComponentSpec{},
 		},
 	}
 
-	webDeploy := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
-		Name: common.ResourceBaseName("test", common.ComponentWebServer), Namespace: "default",
-	}}
-	workerDeploy := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{
-		Name: common.ResourceBaseName("test", common.ComponentCeleryWorker), Namespace: "default",
-	}}
+	webDeploy := &appsv1.Deployment{
+		Name: common.ResourceBaseName("test", common.ComponentWebServer), Namespace: "default"}
+	workerDeploy := &appsv1.Deployment{
+		Name: common.ResourceBaseName("test", common.ComponentCeleryWorker), Namespace: "default"}
 	// A celery-worker Service (non-web-server) should be deleted too.
-	workerSvc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
-		Name: common.ResourceBaseName("test", common.ComponentCeleryWorker), Namespace: "default",
-	}}
+	workerSvc := &corev1.Service{
+		Name: common.ResourceBaseName("test", common.ComponentCeleryWorker), Namespace: "default"}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).
 		WithObjects(superset, webDeploy, workerDeploy, workerSvc).Build()
@@ -465,25 +446,23 @@ func TestDrainComponents_WaitsForComponentPods(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-		Spec:       supersetv1alpha1.SupersetSpec{WebServer: &supersetv1alpha1.WebServerComponentSpec{}},
+		Name: "test", Namespace: "default",
+		Spec: supersetv1alpha1.SupersetSpec{WebServer: &supersetv1alpha1.WebServerComponentSpec{}},
 	}
 	// A surviving web-server pod blocks drain completion.
-	pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+	pod := &corev1.Pod{
 		Name: "test-web-server-x", Namespace: "default",
 		Labels: map[string]string{
 			common.LabelKeyParent:    "test",
 			common.LabelKeyComponent: string(common.ComponentWebServer),
-		},
-	}}
+		}}
 	// An init pod must NOT block drain.
-	initPod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+	initPod := &corev1.Pod{
 		Name: "test-init-y", Namespace: "default",
 		Labels: map[string]string{
 			common.LabelKeyParent:    "test",
 			common.LabelKeyComponent: string(common.ComponentInit),
-		},
-	}}
+		}}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, pod, initPod).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
@@ -501,7 +480,7 @@ func TestHasExistingWebServerWorkload(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Name: "test", Namespace: "default",
 	}
 
 	t.Run("no workload returns false", func(t *testing.T) {
@@ -519,9 +498,7 @@ func TestHasExistingWebServerWorkload(t *testing.T) {
 	t.Run("deployment with replicas returns true", func(t *testing.T) {
 		one := int32(1)
 		deploy := &appsv1.Deployment{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: common.ResourceBaseName("test", common.ComponentWebServer), Namespace: "default",
-			},
+			Name: common.ResourceBaseName("test", common.ComponentWebServer), Namespace: "default",
 			Spec: appsv1.DeploymentSpec{Replicas: &one},
 		}
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, deploy).Build()
@@ -536,13 +513,12 @@ func TestHasExistingWebServerWorkload(t *testing.T) {
 	})
 
 	t.Run("live web-server pod returns true even without deployment", func(t *testing.T) {
-		pod := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
+		pod := &corev1.Pod{
 			Name: "test-web-server-z", Namespace: "default",
 			Labels: map[string]string{
 				common.LabelKeyParent:    "test",
 				common.LabelKeyComponent: string(common.ComponentWebServer),
-			},
-		}}
+			}}
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, pod).Build()
 		r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 		has, err := r.hasExistingWebServerWorkload(ctx, superset)

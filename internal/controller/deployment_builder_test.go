@@ -171,10 +171,8 @@ func TestBuildDeploymentSpec(t *testing.T) {
 				Volumes: []corev1.Volume{
 					{
 						Name: "superset-extensions",
-						VolumeSource: corev1.VolumeSource{
-							PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-								ClaimName: "superset-extensions",
-							},
+						PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+							ClaimName: "superset-extensions",
 						},
 					},
 				},
@@ -528,9 +526,9 @@ func TestApplyContainerSecurityDefaults(t *testing.T) {
 
 	t.Run("preserves explicitly-set fields", func(t *testing.T) {
 		user := &corev1.SecurityContext{
-			AllowPrivilegeEscalation: common.Ptr(true),
+			AllowPrivilegeEscalation: new(true),
 			SeccompProfile:           &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeUnconfined},
-			RunAsUser:                common.Ptr(int64(1000)),
+			RunAsUser:                new(int64(1000)),
 		}
 		got := applyContainerSecurityDefaults(user, nil)
 		if got.AllowPrivilegeEscalation == nil || !*got.AllowPrivilegeEscalation {
@@ -583,7 +581,7 @@ func TestApplyContainerSecurityDefaults(t *testing.T) {
 	})
 
 	t.Run("does not mutate the input", func(t *testing.T) {
-		user := &corev1.SecurityContext{RunAsUser: common.Ptr(int64(1000))}
+		user := &corev1.SecurityContext{RunAsUser: new(int64(1000))}
 		_ = applyContainerSecurityDefaults(user, nil)
 		if user.AllowPrivilegeEscalation != nil || user.Capabilities != nil || user.SeccompProfile != nil {
 			t.Error("input securityContext must not be mutated")

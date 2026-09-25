@@ -82,7 +82,7 @@ func TestBuildInitPod(t *testing.T) {
 				TerminationGracePeriodSeconds: &gracePeriod,
 				PodSecurityContext:            &corev1.PodSecurityContext{RunAsUser: &runAsUser},
 				Volumes: []corev1.Volume{
-					{Name: "config", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+					{Name: "config", EmptyDir: &corev1.EmptyDirVolumeSource{}},
 				},
 				Sidecars:       []corev1.Container{{Name: "sidecar"}},
 				InitContainers: []corev1.Container{{Name: "pre"}},

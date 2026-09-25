@@ -106,10 +106,8 @@ func reconcileComponentDeployment(
 	resourceBaseName string,
 ) error {
 	deploy := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      resourceBaseName,
-			Namespace: owner.GetNamespace(),
-		},
+		Name:      resourceBaseName,
+		Namespace: owner.GetNamespace(),
 	}
 
 	labels := componentLabels(componentName, owner.GetName())
@@ -170,10 +168,8 @@ func reconcileComponentService(
 	resourceBaseName string,
 ) error {
 	svc := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      resourceBaseName,
-			Namespace: owner.GetNamespace(),
-		},
+		Name:      resourceBaseName,
+		Namespace: owner.GetNamespace(),
 	}
 
 	labels := componentLabels(componentName, owner.GetName())
