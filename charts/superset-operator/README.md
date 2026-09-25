@@ -73,7 +73,7 @@ The chart values schema intentionally allows undeclared top-level keys so shared
 | metrics.serviceMonitor.tlsConfig | object | `{"insecureSkipVerify":true}` | TLS configuration for the ServiceMonitor scrape. The default trusts any certificate, matching the operator's built-in self-signed flow. Override to scrape over verified TLS. |
 | nodeSelector | object | `{}` | Node selector for the manager pod. |
 | podAnnotations | object | `{}` | Extra annotations to add to the manager pod. |
-| podDisruptionBudget.enabled | bool | `false` | Create a PodDisruptionBudget for the manager pod. |
+| podDisruptionBudget.enabled | bool | `false` | Create a PodDisruptionBudget for the manager pod. Only useful with `replicas >= 2`. |
 | podDisruptionBudget.maxUnavailable | intOrString | `nil` | Maximum unavailable pods (integer or percentage). Defaults to `1` when neither is set. |
 | podDisruptionBudget.minAvailable | intOrString | `nil` | Minimum available pods (integer or percentage). Mutually exclusive with `maxUnavailable`. |
 | podDisruptionBudget.unhealthyPodEvictionPolicy | string | `""` | Unhealthy pod eviction policy (`IfHealthyBudget` or `AlwaysAllow`). Empty uses the Kubernetes default. |

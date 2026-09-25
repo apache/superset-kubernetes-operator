@@ -20,6 +20,25 @@
 {{- if and $hasMin $hasMax }}
 {{- fail "podDisruptionBudget: set at most one of minAvailable or maxUnavailable" }}
 {{- end }}
+{{- /*
+Reject budgets that allow zero voluntary evictions, which would hang node drains.
+replicas is static (no HPA), and the disruption controller rounds percentages up
+against it, so both integer and percentage bounds can be checked exactly here.
+*/}}
+{{- $replicas := int $.Values.replicas }}
+{{- if $hasMin }}
+{{- if kindIs "string" .minAvailable }}
+{{- $pct := int (trimSuffix "%" .minAvailable) }}
+{{- if gt (mul $pct $replicas) (mul 100 (sub $replicas 1)) }}
+{{- fail (printf "podDisruptionBudget.minAvailable (%s) leaves no allowed disruptions at replicas=%d, so node drains would be blocked" .minAvailable $replicas) }}
+{{- end }}
+{{- else if and (gt (int .minAvailable) 0) (ge (int .minAvailable) $replicas) }}
+{{- fail (printf "podDisruptionBudget.minAvailable (%d) must be less than replicas (%d), otherwise node drains are blocked" (int .minAvailable) $replicas) }}
+{{- end }}
+{{- end }}
+{{- if and $hasMax (eq (int (trimSuffix "%" (toString .maxUnavailable))) 0) }}
+{{- fail (printf "podDisruptionBudget.maxUnavailable (%v) blocks all node drains" .maxUnavailable) }}
+{{- end }}
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:

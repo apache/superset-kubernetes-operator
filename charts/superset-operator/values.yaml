@@ -120,7 +120,7 @@ affinity: {}
 topologySpreadConstraints: []
 
 podDisruptionBudget:
-  # -- Create a PodDisruptionBudget for the manager pod.
+  # -- Create a PodDisruptionBudget for the manager pod. Only useful with `replicas >= 2`.
   enabled: false
   # -- (intOrString) Minimum available pods (integer or percentage). Mutually exclusive with `maxUnavailable`.
   minAvailable: ~
