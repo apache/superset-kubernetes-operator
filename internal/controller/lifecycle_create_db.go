@@ -93,7 +93,7 @@ echo "Ensured MySQL database $SUPERSET_OPERATOR__DB_NAME exists"`
 // Standards, Kyverno, OPA) by configuring lifecycle hardening once. The
 // image stays operator-default — the migrate task uses the Superset image,
 // but this init container needs psql/mysql clients (postgres:17-alpine /
-// mysql:8-alpine).
+// mysql:8.4).
 //
 // The DB-tool images run as root by default, so an inherited pod-level
 // runAsNonRoot would make kubelet reject this container with

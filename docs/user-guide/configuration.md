@@ -188,7 +188,7 @@ Requirements and caveats:
 
 - **Structured metastore only.** Rejected by CRD validation when `uri` or `uriFrom` is set — the operator needs the individual host/database/username fields to issue admin-level statements.
 - **Privileges.** The configured metastore user must have `CREATEDB` (PostgreSQL) or `CREATE` (MySQL) privilege on the server. The init container connects to the `postgres` admin database (PostgreSQL) or runs `CREATE DATABASE IF NOT EXISTS` (MySQL).
-- **Init container image.** The operator uses `postgres:17-alpine` or `mysql:8-alpine` (matching the seed task) — the Superset image is not assumed to ship database client tools.
+- **Init container image.** The operator uses `postgres:17-alpine` or `mysql:8.4` (matching the seed task) — the Superset image is not assumed to ship database client tools.
 - **Resources and securityContext are inherited from `spec.lifecycle.podTemplate.container`.** Whatever you set on `spec.lifecycle.podTemplate.container.resources` and `spec.lifecycle.podTemplate.container.securityContext` is applied to the create-database init container. This lets you satisfy strict admission policies (Pod Security Standards `restricted`, Kyverno, OPA) without a dedicated knob. The init container also defaults to a non-root UID (matching its DB-tool image), so it starts cleanly under a pod-level `runAsNonRoot: true` even when you don't pin a UID — an explicit `runAsUser` at the pod or container level is always respected.
 - **Redundant with `lifecycle.seed`.** Seed already drops and re-creates its target database every time it runs, so toggling `createDatabase` on alongside seed is harmless but does no extra work in practice — the init container detects the existing database (created by seed) and no-ops.
 

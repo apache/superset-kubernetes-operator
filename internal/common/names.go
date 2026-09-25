@@ -96,7 +96,7 @@ const (
 // Seed default images.
 const (
 	SeedImagePostgres = "postgres:17-alpine"
-	SeedImageMySQL    = "mysql:8-alpine"
+	SeedImageMySQL    = "mysql:8.4"
 )
 
 // Env var names for operator-managed environment variables.
