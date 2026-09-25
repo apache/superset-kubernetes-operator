@@ -160,3 +160,145 @@ tests:
       - equal:
           path: spec.replicas
           value: 0
+
+  # --- podDisruptionBudget ---
+  - it: renders no PDB by default
+    template: templates/poddisruptionbudget.yaml
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: defaults the PDB to maxUnavailable 1 when neither bound is set
+    set:
+      podDisruptionBudget:
+        enabled: true
+    template: templates/poddisruptionbudget.yaml
+    asserts:
+      - equal:
+          path: spec.maxUnavailable
+          value: 1
+      - notExists:
+          path: spec.minAvailable
+      - notExists:
+          path: spec.unhealthyPodEvictionPolicy
+      - equal:
+          path: spec.selector.matchLabels
+          value:
+            app.kubernetes.io/name: superset-operator
+            app.kubernetes.io/instance: my-release
+            control-plane: controller-manager
+
+  - it: renders a percentage maxUnavailable and the eviction policy
+    set:
+      podDisruptionBudget:
+        enabled: true
+        maxUnavailable: 50%
+        unhealthyPodEvictionPolicy: IfHealthyBudget
+    template: templates/poddisruptionbudget.yaml
+    asserts:
+      - equal:
+          path: spec.maxUnavailable
+          value: 50%
+      - equal:
+          path: spec.unhealthyPodEvictionPolicy
+          value: IfHealthyBudget
+
+  - it: fails when both minAvailable and maxUnavailable are set
+    set:
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 1
+        maxUnavailable: 1
+    template: templates/poddisruptionbudget.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "podDisruptionBudget: set at most one of minAvailable or maxUnavailable"
+
+  - it: rejects an unknown unhealthyPodEvictionPolicy
+    set:
+      podDisruptionBudget:
+        enabled: true
+        unhealthyPodEvictionPolicy: Never
+    template: templates/poddisruptionbudget.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: "unhealthyPodEvictionPolicy"
+
+  # --- podDisruptionBudget: reject budgets that block every voluntary eviction ---
+  - it: fails when minAvailable equals the single default replica
+    set:
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 1
+    template: templates/poddisruptionbudget.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "podDisruptionBudget.minAvailable (1) must be less than replicas (1), otherwise node drains are blocked"
+
+  - it: fails when maxUnavailable is 0
+    set:
+      replicas: 3
+      podDisruptionBudget:
+        enabled: true
+        maxUnavailable: 0
+    template: templates/poddisruptionbudget.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "podDisruptionBudget.maxUnavailable (0) blocks all node drains"
+
+  - it: fails when maxUnavailable is 0%
+    set:
+      replicas: 3
+      podDisruptionBudget:
+        enabled: true
+        maxUnavailable: 0%
+    template: templates/poddisruptionbudget.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "podDisruptionBudget.maxUnavailable (0%) blocks all node drains"
+
+  - it: fails when a minAvailable percentage rounds up to every replica
+    set:
+      replicas: 2
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 51%
+    template: templates/poddisruptionbudget.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "podDisruptionBudget.minAvailable (51%) leaves no allowed disruptions at replicas=2, so node drains would be blocked"
+
+  - it: renders minAvailable 1 with two replicas
+    set:
+      replicas: 2
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 1
+    template: templates/poddisruptionbudget.yaml
+    asserts:
+      - equal:
+          path: spec.minAvailable
+          value: 1
+
+  - it: renders a minAvailable percentage that still allows one disruption
+    set:
+      replicas: 2
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 50%
+    template: templates/poddisruptionbudget.yaml
+    asserts:
+      - equal:
+          path: spec.minAvailable
+          value: 50%
+
+  - it: renders minAvailable 0 on a single replica
+    set:
+      podDisruptionBudget:
+        enabled: true
+        minAvailable: 0
+    template: templates/poddisruptionbudget.yaml
+    asserts:
+      - equal:
+          path: spec.minAvailable
+          value: 0

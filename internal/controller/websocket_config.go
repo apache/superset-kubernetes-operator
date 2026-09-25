@@ -25,7 +25,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -76,10 +75,8 @@ func reconcileParentOwnedWebsocketConfigMap(
 	}
 
 	cm := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cmName,
-			Namespace: parent.Namespace,
-		},
+		Name:      cmName,
+		Namespace: parent.Namespace,
 	}
 
 	_, err := createOrUpdateWithRetry(ctx, c, cm, func() error {
@@ -96,13 +93,9 @@ func reconcileParentOwnedWebsocketConfigMap(
 func injectWebsocketConfigMap(op *resolution.OperatorInjected, resourceBaseName string) {
 	op.Volumes = append(op.Volumes, corev1.Volume{
 		Name: websocketConfigVolume,
-		VolumeSource: corev1.VolumeSource{
-			ConfigMap: &corev1.ConfigMapVolumeSource{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: naming.ConfigMapName(resourceBaseName),
-				},
-				Items: []corev1.KeyToPath{{Key: websocketConfigKey, Path: websocketConfigKey}},
-			},
+		ConfigMap: &corev1.ConfigMapVolumeSource{
+			Name:  naming.ConfigMapName(resourceBaseName),
+			Items: []corev1.KeyToPath{{Key: websocketConfigKey, Path: websocketConfigKey}},
 		},
 	})
 	injectWebsocketConfigMount(op)
@@ -111,12 +104,10 @@ func injectWebsocketConfigMap(op *resolution.OperatorInjected, resourceBaseName 
 func injectWebsocketConfigSecret(op *resolution.OperatorInjected, configFrom *corev1.SecretKeySelector) {
 	op.Volumes = append(op.Volumes, corev1.Volume{
 		Name: websocketConfigVolume,
-		VolumeSource: corev1.VolumeSource{
-			Secret: &corev1.SecretVolumeSource{
-				SecretName: configFrom.Name,
-				Items:      []corev1.KeyToPath{{Key: configFrom.Key, Path: websocketConfigKey}},
-				Optional:   configFrom.Optional,
-			},
+		Secret: &corev1.SecretVolumeSource{
+			SecretName: configFrom.Name,
+			Items:      []corev1.KeyToPath{{Key: configFrom.Key, Path: websocketConfigKey}},
+			Optional:   configFrom.Optional,
 		},
 	})
 	injectWebsocketConfigMount(op)

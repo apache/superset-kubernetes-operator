@@ -140,6 +140,32 @@
       "description": "Topology spread constraints for the manager pod. See https://pkg.go.dev/k8s.io/api/core/v1#TopologySpreadConstraint",
       "type": "array"
     },
+    "podDisruptionBudget": {
+      "description": "PodDisruptionBudget for the manager pod. See https://pkg.go.dev/k8s.io/api/policy/v1#PodDisruptionBudgetSpec",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minAvailable": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "integer", "minimum": 0 },
+            { "type": "string", "pattern": "^[0-9]+%$" }
+          ]
+        },
+        "maxUnavailable": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "integer", "minimum": 0 },
+            { "type": "string", "pattern": "^[0-9]+%$" }
+          ]
+        },
+        "unhealthyPodEvictionPolicy": {
+          "type": "string",
+          "enum": ["", "IfHealthyBudget", "AlwaysAllow"]
+        }
+      }
+    },
     "podAnnotations": { "type": "object" },
     "podLabels": { "type": "object" },
     "watch": {

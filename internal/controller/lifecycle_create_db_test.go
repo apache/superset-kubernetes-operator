@@ -19,6 +19,7 @@ limitations under the License.
 package controller
 
 import (
+	"maps"
 	"reflect"
 	"strings"
 	"testing"
@@ -39,8 +40,8 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 	t.Run("disabled by default", func(t *testing.T) {
 		cases := map[string]*supersetv1alpha1.Superset{
 			"nil metastore":       {},
-			"flag unset":          {Spec: supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Host: common.Ptr("pg")}}},
-			"flag explicit false": {Spec: supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Host: common.Ptr("pg"), CreateDatabase: common.Ptr(false)}}},
+			"flag unset":          {Spec: supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Host: new("pg")}}},
+			"flag explicit false": {Spec: supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Host: new("pg"), CreateDatabase: new(false)}}},
 		}
 		for name, ss := range cases {
 			t.Run(name, func(t *testing.T) {
@@ -55,13 +56,13 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 		pw := "p@$$"
 		superset := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{
-				Environment: common.Ptr(common.EnvironmentDev),
+				Environment: new(common.EnvironmentDev),
 				Metastore: &supersetv1alpha1.MetastoreSpec{
-					Host:           common.Ptr("pg.svc"),
-					Database:       common.Ptr("superset"),
-					Username:       common.Ptr("superset"),
+					Host:           new("pg.svc"),
+					Database:       new("superset"),
+					Username:       new("superset"),
 					Password:       &pw,
-					CreateDatabase: common.Ptr(true),
+					CreateDatabase: new(true),
 				},
 			},
 		}
@@ -124,14 +125,14 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 			Spec: supersetv1alpha1.SupersetSpec{
 				Metastore: &supersetv1alpha1.MetastoreSpec{
 					Type:     &mysqlType,
-					Host:     common.Ptr("mysql.svc"),
-					Database: common.Ptr("superset"),
-					Username: common.Ptr("superset"),
+					Host:     new("mysql.svc"),
+					Database: new("superset"),
+					Username: new("superset"),
 					PasswordFrom: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{Name: "metastore-secret"},
-						Key:                  "password",
+						Name: "metastore-secret",
+						Key:  "password",
 					},
-					CreateDatabase: common.Ptr(true),
+					CreateDatabase: new(true),
 				},
 			},
 		}
@@ -179,11 +180,11 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{
 				Metastore: &supersetv1alpha1.MetastoreSpec{
-					Host:           common.Ptr("pg.svc"),
+					Host:           new("pg.svc"),
 					Port:           &port,
-					Database:       common.Ptr("superset"),
-					Username:       common.Ptr("superset"),
-					CreateDatabase: common.Ptr(true),
+					Database:       new("superset"),
+					Username:       new("superset"),
+					CreateDatabase: new(true),
 				},
 			},
 		}
@@ -207,13 +208,13 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 		weirdName := `it's"weird` + "`db`"
 		superset := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{
-				Environment: common.Ptr(common.EnvironmentDev),
+				Environment: new(common.EnvironmentDev),
 				Metastore: &supersetv1alpha1.MetastoreSpec{
-					Host:           common.Ptr("pg.svc"),
+					Host:           new("pg.svc"),
 					Database:       &weirdName,
-					Username:       common.Ptr(funky),
+					Username:       new(funky),
 					Password:       &funky,
-					CreateDatabase: common.Ptr(true),
+					CreateDatabase: new(true),
 				},
 			},
 		}
@@ -247,13 +248,13 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 		for kind, wantSnippet := range cases {
 			t.Run(kind, func(t *testing.T) {
 				meta := &supersetv1alpha1.MetastoreSpec{
-					Host:           common.Ptr("db.svc"),
-					Database:       common.Ptr("superset"),
-					Username:       common.Ptr("superset"),
-					CreateDatabase: common.Ptr(true),
+					Host:           new("db.svc"),
+					Database:       new("superset"),
+					Username:       new("superset"),
+					CreateDatabase: new(true),
 				}
 				if kind == "mysql" {
-					meta.Type = common.Ptr("MySQL")
+					meta.Type = new("MySQL")
 				}
 				ctr := buildCreateDatabaseInitContainer(&supersetv1alpha1.Superset{
 					Spec: supersetv1alpha1.SupersetSpec{Metastore: meta},
@@ -281,9 +282,9 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 		// init container — the migrate command itself will then fail with a
 		// clear connection/identifier error rather than crashing the operator.
 		cases := map[string]*supersetv1alpha1.MetastoreSpec{
-			"missing host":     {Database: common.Ptr("d"), Username: common.Ptr("u"), CreateDatabase: common.Ptr(true)},
-			"missing database": {Host: common.Ptr("h"), Username: common.Ptr("u"), CreateDatabase: common.Ptr(true)},
-			"missing username": {Host: common.Ptr("h"), Database: common.Ptr("d"), CreateDatabase: common.Ptr(true)},
+			"missing host":     {Database: new("d"), Username: new("u"), CreateDatabase: new(true)},
+			"missing database": {Host: new("h"), Username: new("u"), CreateDatabase: new(true)},
+			"missing username": {Host: new("h"), Database: new("d"), CreateDatabase: new(true)},
 		}
 		for name, m := range cases {
 			t.Run(name, func(t *testing.T) {
@@ -310,13 +311,13 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 			},
 		}
 		wantSecCtx := &corev1.SecurityContext{
-			RunAsNonRoot:             common.Ptr(true),
-			AllowPrivilegeEscalation: common.Ptr(false),
-			ReadOnlyRootFilesystem:   common.Ptr(true),
+			RunAsNonRoot:             new(true),
+			AllowPrivilegeEscalation: new(false),
+			ReadOnlyRootFilesystem:   new(true),
 			// The user set runAsNonRoot but no UID; the operator defaults the helper
 			// to the image's non-root UID so kubelet does not reject the root-default
 			// postgres image with CreateContainerConfigError.
-			RunAsUser: common.Ptr(int64(70)),
+			RunAsUser: new(int64(70)),
 			// The operator also fills its UID-independent hardening defaults where
 			// the user left them unset (here: capabilities and seccomp; the user
 			// already set allowPrivilegeEscalation).
@@ -332,10 +333,10 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{
 				Metastore: &supersetv1alpha1.MetastoreSpec{
-					Host:           common.Ptr("pg.svc"),
-					Database:       common.Ptr("superset"),
-					Username:       common.Ptr("superset"),
-					CreateDatabase: common.Ptr(true),
+					Host:           new("pg.svc"),
+					Database:       new("superset"),
+					Username:       new("superset"),
+					CreateDatabase: new(true),
 				},
 			},
 		}
@@ -365,11 +366,11 @@ func TestBuildStandardTaskFlatSpec(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{}
 		superset.Name = "demo"
 		superset.Spec.SecretKeyFrom = &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: "secret"},
-			Key:                  "key",
+			Name: "secret",
+			Key:  "key",
 		}
 		connectionRef := func(key string) *corev1.SecretKeySelector {
-			return &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "metastore-secret"}, Key: key}
+			return &corev1.SecretKeySelector{Name: "metastore-secret", Key: key}
 		}
 		superset.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
 			HostFrom:       connectionRef("host"),
@@ -377,14 +378,14 @@ func TestBuildStandardTaskFlatSpec(t *testing.T) {
 			DatabaseFrom:   connectionRef("dbname"),
 			UsernameFrom:   connectionRef("user"),
 			PasswordFrom:   connectionRef("password"),
-			CreateDatabase: common.Ptr(true),
+			CreateDatabase: new(true),
 		}
 		superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 			PodTemplate: &supersetv1alpha1.PodTemplate{
 				Container: &supersetv1alpha1.ContainerTemplate{
 					SecurityContext: &corev1.SecurityContext{
-						RunAsNonRoot:             common.Ptr(true),
-						AllowPrivilegeEscalation: common.Ptr(false),
+						RunAsNonRoot:             new(true),
+						AllowPrivilegeEscalation: new(false),
 					},
 				},
 			},
@@ -417,9 +418,7 @@ func TestBuildStandardTaskFlatSpec(t *testing.T) {
 		assertConnectionRefs := func(container corev1.Container) {
 			t.Helper()
 			missing := make(map[string]string, len(wantKeys))
-			for name, key := range wantKeys {
-				missing[name] = key
-			}
+			maps.Copy(missing, wantKeys)
 			for _, env := range container.Env {
 				wantKey, ok := missing[env.Name]
 				if !ok {
@@ -449,15 +448,15 @@ func TestBuildStandardTaskFlatSpec(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{}
 		superset.Name = "demo"
 		superset.Spec.SecretKeyFrom = &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: "secret"},
-			Key:                  "key",
+			Name: "secret",
+			Key:  "key",
 		}
 		superset.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-			Host:           common.Ptr("pg.svc"),
-			Database:       common.Ptr("superset"),
-			Username:       common.Ptr("superset"),
-			PasswordFrom:   &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "metastore-secret"}, Key: "password"},
-			CreateDatabase: common.Ptr(true),
+			Host:           new("pg.svc"),
+			Database:       new("superset"),
+			Username:       new("superset"),
+			PasswordFrom:   &corev1.SecretKeySelector{Name: "metastore-secret", Key: "password"},
+			CreateDatabase: new(true),
 		}
 		superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 			PodTemplate: &supersetv1alpha1.PodTemplate{
@@ -495,15 +494,15 @@ func TestBuildStandardTaskFlatSpec(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{}
 		superset.Name = "demo"
 		superset.Spec.SecretKeyFrom = &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: "secret"},
-			Key:                  "key",
+			Name: "secret",
+			Key:  "key",
 		}
 		superset.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-			Host:           common.Ptr("pg.svc"),
-			Database:       common.Ptr("superset"),
-			Username:       common.Ptr("superset"),
-			PasswordFrom:   &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "metastore-secret"}, Key: "password"},
-			CreateDatabase: common.Ptr(true),
+			Host:           new("pg.svc"),
+			Database:       new("superset"),
+			Username:       new("superset"),
+			PasswordFrom:   &corev1.SecretKeySelector{Name: "metastore-secret", Key: "password"},
+			CreateDatabase: new(true),
 		}
 
 		r := &SupersetReconciler{}
@@ -524,14 +523,14 @@ func TestBuildStandardTaskFlatSpec(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{}
 		superset.Name = "demo"
 		superset.Spec.SecretKeyFrom = &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: "secret"},
-			Key:                  "key",
+			Name: "secret",
+			Key:  "key",
 		}
 		superset.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-			Host:         common.Ptr("pg.svc"),
-			Database:     common.Ptr("superset"),
-			Username:     common.Ptr("superset"),
-			PasswordFrom: &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "metastore-secret"}, Key: "password"},
+			Host:         new("pg.svc"),
+			Database:     new("superset"),
+			Username:     new("superset"),
+			PasswordFrom: &corev1.SecretKeySelector{Name: "metastore-secret", Key: "password"},
 		}
 
 		r := &SupersetReconciler{}
@@ -550,17 +549,17 @@ func TestMigrateInputs_CreateDatabaseAffectsChecksum(t *testing.T) {
 
 	off := *base
 	off.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-		Host:           common.Ptr("pg"),
-		Database:       common.Ptr("superset"),
-		Username:       common.Ptr("superset"),
-		CreateDatabase: common.Ptr(false),
+		Host:           new("pg"),
+		Database:       new("superset"),
+		Username:       new("superset"),
+		CreateDatabase: new(false),
 	}
 	on := *base
 	on.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-		Host:           common.Ptr("pg"),
-		Database:       common.Ptr("superset"),
-		Username:       common.Ptr("superset"),
-		CreateDatabase: common.Ptr(true),
+		Host:           new("pg"),
+		Database:       new("superset"),
+		Username:       new("superset"),
+		CreateDatabase: new(true),
 	}
 
 	if r.migrateInputs(&off) == r.migrateInputs(&on) {
@@ -579,11 +578,11 @@ func TestMigrateInputs_StructuredTargetAffectsChecksumWhenCreateDatabaseTrue(t *
 		s := &supersetv1alpha1.Superset{}
 		s.Spec.Image = supersetv1alpha1.ImageSpec{Repository: "superset", Tag: "1.0"}
 		s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-			Host:           common.Ptr("pg-old"),
-			Port:           common.Ptr(int32(5432)),
-			Database:       common.Ptr("superset"),
-			Username:       common.Ptr("superset"),
-			CreateDatabase: common.Ptr(true),
+			Host:           new("pg-old"),
+			Port:           new(int32(5432)),
+			Database:       new("superset"),
+			Username:       new("superset"),
+			CreateDatabase: new(true),
 		}
 		mutate(s.Spec.Metastore)
 		return s
@@ -592,11 +591,11 @@ func TestMigrateInputs_StructuredTargetAffectsChecksumWhenCreateDatabaseTrue(t *
 	baseline := r.migrateInputs(mkSuperset(func(m *supersetv1alpha1.MetastoreSpec) {}))
 
 	cases := map[string]func(*supersetv1alpha1.MetastoreSpec){
-		"host":     func(m *supersetv1alpha1.MetastoreSpec) { m.Host = common.Ptr("pg-new") },
-		"port":     func(m *supersetv1alpha1.MetastoreSpec) { m.Port = common.Ptr(int32(15432)) },
-		"database": func(m *supersetv1alpha1.MetastoreSpec) { m.Database = common.Ptr("superset_new") },
-		"username": func(m *supersetv1alpha1.MetastoreSpec) { m.Username = common.Ptr("superset_new") },
-		"type":     func(m *supersetv1alpha1.MetastoreSpec) { m.Type = common.Ptr("MySQL") },
+		"host":     func(m *supersetv1alpha1.MetastoreSpec) { m.Host = new("pg-new") },
+		"port":     func(m *supersetv1alpha1.MetastoreSpec) { m.Port = new(int32(15432)) },
+		"database": func(m *supersetv1alpha1.MetastoreSpec) { m.Database = new("superset_new") },
+		"username": func(m *supersetv1alpha1.MetastoreSpec) { m.Username = new("superset_new") },
+		"type":     func(m *supersetv1alpha1.MetastoreSpec) { m.Type = new("MySQL") },
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -613,10 +612,10 @@ func TestMigrateInputs_SelectorIdentityAffectsChecksumWhenCreateDatabaseTrue(t *
 		s := &supersetv1alpha1.Superset{}
 		s.Spec.Image = supersetv1alpha1.ImageSpec{Repository: "superset", Tag: "1.0"}
 		s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-			HostFrom:       &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "database"}, Key: key},
-			DatabaseFrom:   &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "database"}, Key: "dbname"},
-			UsernameFrom:   &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "database"}, Key: "username"},
-			CreateDatabase: common.Ptr(true),
+			HostFrom:       &corev1.SecretKeySelector{Name: "database", Key: key},
+			DatabaseFrom:   &corev1.SecretKeySelector{Name: "database", Key: "dbname"},
+			UsernameFrom:   &corev1.SecretKeySelector{Name: "database", Key: "username"},
+			CreateDatabase: new(true),
 		}
 		return s
 	}
@@ -631,8 +630,8 @@ func TestMigrateInputs_LiteralTargetPreservesChecksumShape(t *testing.T) {
 	s := &supersetv1alpha1.Superset{}
 	s.Spec.Image = supersetv1alpha1.ImageSpec{Repository: "superset", Tag: "1.0"}
 	s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-		Host: common.Ptr("pg"), Port: common.Ptr(int32(5432)), Database: common.Ptr("superset"),
-		Username: common.Ptr("superset"), CreateDatabase: common.Ptr(true),
+		Host: new("pg"), Port: new(int32(5432)), Database: new("superset"),
+		Username: new("superset"), CreateDatabase: new(true),
 	}
 	legacyShape := struct {
 		Image               string
@@ -668,9 +667,9 @@ func TestMigrateInputs_StructuredTargetIgnoredWhenCreateDatabaseFalse(t *testing
 		s := &supersetv1alpha1.Superset{}
 		s.Spec.Image = supersetv1alpha1.ImageSpec{Repository: "superset", Tag: "1.0"}
 		s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-			Host:     common.Ptr(host),
-			Database: common.Ptr("superset"),
-			Username: common.Ptr("superset"),
+			Host:     new(host),
+			Database: new("superset"),
+			Username: new("superset"),
 		}
 		return s
 	}
@@ -692,16 +691,16 @@ func TestMigrateInputs_InitContainerScriptParticipatesInChecksum(t *testing.T) {
 		s := &supersetv1alpha1.Superset{}
 		s.Spec.Image = supersetv1alpha1.ImageSpec{Repository: "superset", Tag: "1.0"}
 		s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-			Host:           common.Ptr("pg.svc"),
-			Database:       common.Ptr("superset"),
-			Username:       common.Ptr("superset"),
-			CreateDatabase: common.Ptr(true),
+			Host:           new("pg.svc"),
+			Database:       new("superset"),
+			Username:       new("superset"),
+			CreateDatabase: new(true),
 			Type:           dbType,
 		}
 		return s
 	}
 	pgInputs := r.migrateInputs(mkSuperset(nil))
-	mysqlInputs := r.migrateInputs(mkSuperset(common.Ptr("MySQL")))
+	mysqlInputs := r.migrateInputs(mkSuperset(new("MySQL")))
 
 	pgStruct, ok := pgInputs.(struct {
 		Image               string
@@ -747,39 +746,39 @@ func TestHelperNonRootSecurityContext(t *testing.T) {
 	}{
 		"nothing pinned -> default postgres uid": {
 			dbType:      dbTypePostgresql,
-			wantUID:     common.Ptr(int64(70)),
-			wantNonRoot: common.Ptr(true),
+			wantUID:     new(int64(70)),
+			wantNonRoot: new(true),
 		},
 		"nothing pinned -> default mysql uid": {
 			dbType:      dbTypeMySQL,
-			wantUID:     common.Ptr(int64(999)),
-			wantNonRoot: common.Ptr(true),
+			wantUID:     new(int64(999)),
+			wantNonRoot: new(true),
 		},
 		"pod runAsNonRoot but no uid -> default uid, do not override nonRoot": {
-			podSC:       &corev1.PodSecurityContext{RunAsNonRoot: common.Ptr(true)},
+			podSC:       &corev1.PodSecurityContext{RunAsNonRoot: new(true)},
 			dbType:      dbTypePostgresql,
-			wantUID:     common.Ptr(int64(70)),
+			wantUID:     new(int64(70)),
 			wantNonRoot: nil, // pod-level runAsNonRoot already applies; container stays unset
 		},
 		"explicit container uid respected": {
-			containerSC: &corev1.SecurityContext{RunAsUser: common.Ptr(int64(1234))},
+			containerSC: &corev1.SecurityContext{RunAsUser: new(int64(1234))},
 			dbType:      dbTypePostgresql,
-			wantUID:     common.Ptr(int64(1234)),
+			wantUID:     new(int64(1234)),
 			wantNonRoot: nil,
 		},
 		"pod pins uid -> container not defaulted": {
-			podSC:       &corev1.PodSecurityContext{RunAsUser: common.Ptr(int64(2000))},
+			podSC:       &corev1.PodSecurityContext{RunAsUser: new(int64(2000))},
 			dbType:      dbTypePostgresql,
 			wantUID:     nil,
 			wantNonRoot: nil,
 		},
 		"explicit runAsNonRoot false honored (no uid forced)": {
-			containerSC: &corev1.SecurityContext{RunAsNonRoot: common.Ptr(false)},
+			containerSC: &corev1.SecurityContext{RunAsNonRoot: new(false)},
 			dbType:      dbTypePostgresql,
 			// no uid pinned anywhere, so the helper still defaults a uid, but
 			// must not flip the user's explicit runAsNonRoot:false.
-			wantUID:     common.Ptr(int64(70)),
-			wantNonRoot: common.Ptr(false),
+			wantUID:     new(int64(70)),
+			wantNonRoot: new(false),
 		},
 	}
 	for name, tc := range cases {

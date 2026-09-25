@@ -103,7 +103,7 @@ func TestComputeChecksum(t *testing.T) {
 		SecretKey *string
 		Metastore *supersetv1alpha1.MetastoreSpec
 		Config    *string
-	}{common.Ptr("test"), nil, nil}
+	}{new("test"), nil, nil}
 
 	c1 := computeChecksum(obj)
 	c2 := computeChecksum(obj)
@@ -115,7 +115,7 @@ func TestComputeChecksum(t *testing.T) {
 		t.Error("checksum should not be empty")
 	}
 
-	obj2 := struct{ Key *string }{common.Ptr("key2")}
+	obj2 := struct{ Key *string }{new("key2")}
 	if c1 == computeChecksum(obj2) {
 		t.Error("different inputs should produce different checksums")
 	}
@@ -137,45 +137,45 @@ func TestBuildConfigInput(t *testing.T) {
 		},
 		{
 			"with config",
-			&supersetv1alpha1.SupersetSpec{Config: common.Ptr("FEATURE_FLAGS = {}")},
+			&supersetv1alpha1.SupersetSpec{Config: new("FEATURE_FLAGS = {}")},
 			supersetconfig.MetastoreNone, "", "", "FEATURE_FLAGS = {}",
 		},
 		{
 			"metastore passthrough",
-			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{URI: common.Ptr("postgresql://user:pass@host/db")}},
+			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{URI: new("postgresql://user:pass@host/db")}},
 			supersetconfig.MetastorePassthrough, "", "", "",
 		},
 		{
 			"metastore structured postgresql",
-			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Host: common.Ptr("db.example.com")}},
+			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Host: new("db.example.com")}},
 			supersetconfig.MetastoreStructured, "PostgreSQL", "", "",
 		},
 		{
 			"hostFrom triggers structured mode",
 			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{HostFrom: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: "db-secret"}, Key: "host",
+				Name: "db-secret", Key: "host",
 			}}},
 			supersetconfig.MetastoreStructured, "PostgreSQL", "", "",
 		},
 		{
 			"metastore structured mysql",
-			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Type: common.Ptr("MySQL"), Host: common.Ptr("db.example.com")}},
+			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Type: new("MySQL"), Host: new("db.example.com")}},
 			supersetconfig.MetastoreStructured, "MySQL", "", "",
 		},
 		{
 			"metastore structured custom driver",
-			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Type: common.Ptr("MySQL"), Host: common.Ptr("db.example.com"), Driver: common.Ptr("pymysql")}},
+			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Type: new("MySQL"), Host: new("db.example.com"), Driver: new("pymysql")}},
 			supersetconfig.MetastoreStructured, "MySQL", "pymysql", "",
 		},
 		{
 			"URI takes precedence over host",
-			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{URI: common.Ptr("postgresql://..."), Host: common.Ptr("ignored")}},
+			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{URI: new("postgresql://..."), Host: new("ignored")}},
 			supersetconfig.MetastorePassthrough, "", "", "",
 		},
 		{
 			"uriFrom triggers passthrough mode",
 			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{URIFrom: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: "db-secret"}, Key: "uri",
+				Name: "db-secret", Key: "uri",
 			}}},
 			supersetconfig.MetastorePassthrough, "", "", "",
 		},
@@ -215,8 +215,8 @@ func TestCollectSecretEnvVars_SecretKey(t *testing.T) {
 		wantKey bool
 	}{
 		{"empty spec", &supersetv1alpha1.SupersetSpec{}, false},
-		{"dev with key", &supersetv1alpha1.SupersetSpec{Environment: common.Ptr("Development"), SecretKey: common.Ptr("mykey")}, true},
-		{"prod with key", &supersetv1alpha1.SupersetSpec{Environment: common.Ptr("Production"), SecretKey: common.Ptr("mykey")}, false},
+		{"dev with key", &supersetv1alpha1.SupersetSpec{Environment: new("Development"), SecretKey: new("mykey")}, true},
+		{"prod with key", &supersetv1alpha1.SupersetSpec{Environment: new("Production"), SecretKey: new("mykey")}, false},
 	}
 
 	for _, tt := range tests {
@@ -240,7 +240,7 @@ func TestCollectSecretEnvVars_Metastore(t *testing.T) {
 	t.Run("passthrough", func(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
 			Environment: &dev,
-			Metastore:   &supersetv1alpha1.MetastoreSpec{URI: common.Ptr("postgresql://user:pass@host/db")},
+			Metastore:   &supersetv1alpha1.MetastoreSpec{URI: new("postgresql://user:pass@host/db")},
 		}
 		envs := collectSecretEnvVars(spec, "test")
 		envMap := envSliceToMap(envs)
@@ -253,8 +253,8 @@ func TestCollectSecretEnvVars_Metastore(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
 			Environment: &dev,
 			Metastore: &supersetv1alpha1.MetastoreSpec{
-				Host: common.Ptr("db.example.com"), Port: common.Ptr(int32(5433)),
-				Database: common.Ptr("superset"), Username: common.Ptr("admin"), Password: common.Ptr("secret"),
+				Host: new("db.example.com"), Port: new(int32(5433)),
+				Database: new("superset"), Username: new("admin"), Password: new("secret"),
 			},
 		}
 		envMap := envSliceToMap(collectSecretEnvVars(spec, "test"))
@@ -278,7 +278,7 @@ func TestCollectSecretEnvVars_Metastore(t *testing.T) {
 
 	t.Run("default postgresql port", func(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
-			Metastore: &supersetv1alpha1.MetastoreSpec{Host: common.Ptr("db.example.com")},
+			Metastore: &supersetv1alpha1.MetastoreSpec{Host: new("db.example.com")},
 		}
 		envMap := envSliceToMap(collectSecretEnvVars(spec, "test"))
 		if envMap["SUPERSET_OPERATOR__DB_PORT"] != "5432" {
@@ -288,7 +288,7 @@ func TestCollectSecretEnvVars_Metastore(t *testing.T) {
 
 	t.Run("default mysql port", func(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
-			Metastore: &supersetv1alpha1.MetastoreSpec{Type: common.Ptr("MySQL"), Host: common.Ptr("db.example.com")},
+			Metastore: &supersetv1alpha1.MetastoreSpec{Type: new("MySQL"), Host: new("db.example.com")},
 		}
 		envMap := envSliceToMap(collectSecretEnvVars(spec, "test"))
 		if envMap["SUPERSET_OPERATOR__DB_PORT"] != "3306" {
@@ -303,7 +303,7 @@ func TestCollectSecretEnvVars_Metastore(t *testing.T) {
 		prod := common.EnvironmentProd
 		spec := &supersetv1alpha1.SupersetSpec{
 			Environment: &prod,
-			Metastore:   &supersetv1alpha1.MetastoreSpec{URI: common.Ptr("postgresql://user:pass@host/db")},
+			Metastore:   &supersetv1alpha1.MetastoreSpec{URI: new("postgresql://user:pass@host/db")},
 		}
 		envMap := envSliceToMap(collectSecretEnvVars(spec, "test"))
 		if _, ok := envMap["SUPERSET_OPERATOR__DB_URI"]; ok {
@@ -316,9 +316,9 @@ func TestCollectSecretEnvVars_Metastore(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
 			Environment: &prod,
 			Metastore: &supersetv1alpha1.MetastoreSpec{
-				Host: common.Ptr("db.example.com"), Database: common.Ptr("superset"), Username: common.Ptr("admin"),
-				Password:     common.Ptr("secret"),
-				PasswordFrom: &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "db"}, Key: "password"},
+				Host: new("db.example.com"), Database: new("superset"), Username: new("admin"),
+				Password:     new("secret"),
+				PasswordFrom: &corev1.SecretKeySelector{Name: "db", Key: "password"},
 			},
 		}
 		envs := collectSecretEnvVars(spec, "test")
@@ -394,7 +394,7 @@ func TestFlatSpecFromResolution_ImageOverride(t *testing.T) {
 	image := &supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "4.0.0"}
 
 	t.Run("full override", func(t *testing.T) {
-		override := &supersetv1alpha1.ImageOverrideSpec{Tag: common.Ptr("custom-tag"), Repository: common.Ptr("custom/repo")}
+		override := &supersetv1alpha1.ImageOverrideSpec{Tag: new("custom-tag"), Repository: new("custom/repo")}
 		result := flatSpecFromResolution(flat, image, override, "")
 		if result.Image.Tag != "custom-tag" || result.Image.Repository != "custom/repo" {
 			t.Errorf("expected custom/repo:custom-tag, got %s:%s", result.Image.Repository, result.Image.Tag)
@@ -402,7 +402,7 @@ func TestFlatSpecFromResolution_ImageOverride(t *testing.T) {
 	})
 
 	t.Run("partial override", func(t *testing.T) {
-		override := &supersetv1alpha1.ImageOverrideSpec{Tag: common.Ptr("custom-tag")}
+		override := &supersetv1alpha1.ImageOverrideSpec{Tag: new("custom-tag")}
 		result := flatSpecFromResolution(flat, image, override, "")
 		if result.Image.Tag != "custom-tag" {
 			t.Errorf("expected tag override, got %s", result.Image.Tag)
@@ -436,7 +436,7 @@ func TestFlatSpecFromResolution_ImageOverride(t *testing.T) {
 			Tag:        "4.0.0",
 			PullPolicy: corev1.PullIfNotPresent,
 		}
-		override := &supersetv1alpha1.ImageOverrideSpec{Tag: common.Ptr("custom-tag")}
+		override := &supersetv1alpha1.ImageOverrideSpec{Tag: new("custom-tag")}
 		result := flatSpecFromResolution(flat, imageWithPolicy, override, "")
 		if result.Image.PullPolicy != corev1.PullIfNotPresent {
 			t.Errorf("expected parent PullIfNotPresent preserved, got %s", result.Image.PullPolicy)
@@ -447,8 +447,8 @@ func TestFlatSpecFromResolution_ImageOverride(t *testing.T) {
 func TestCollectSecretEnvVars_FromFields(t *testing.T) {
 	secretRef := func(name, key string) *corev1.SecretKeySelector {
 		return &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: name},
-			Key:                  key,
+			Name: name,
+			Key:  key,
 		}
 	}
 
@@ -536,7 +536,7 @@ func TestResolveValkeyResults(t *testing.T) {
 	})
 
 	t.Run("disabled true", func(t *testing.T) {
-		got := resolveValkeyResults(&supersetv1alpha1.ValkeyResultsBackendSpec{Disabled: common.Ptr(true)}, 6, "superset_results_")
+		got := resolveValkeyResults(&supersetv1alpha1.ValkeyResultsBackendSpec{Disabled: new(true)}, 6, "superset_results_")
 		if !got.Disabled {
 			t.Error("expected disabled=true")
 		}
@@ -546,7 +546,7 @@ func TestResolveValkeyResults(t *testing.T) {
 	})
 
 	t.Run("database override", func(t *testing.T) {
-		got := resolveValkeyResults(&supersetv1alpha1.ValkeyResultsBackendSpec{Database: common.Ptr(int32(9))}, 6, "superset_results_")
+		got := resolveValkeyResults(&supersetv1alpha1.ValkeyResultsBackendSpec{Database: new(int32(9))}, 6, "superset_results_")
 		if got.Database != 9 {
 			t.Errorf("expected database override 9, got %d", got.Database)
 		}
@@ -556,7 +556,7 @@ func TestResolveValkeyResults(t *testing.T) {
 	})
 
 	t.Run("key prefix override", func(t *testing.T) {
-		got := resolveValkeyResults(&supersetv1alpha1.ValkeyResultsBackendSpec{KeyPrefix: common.Ptr("custom_results_")}, 6, "superset_results_")
+		got := resolveValkeyResults(&supersetv1alpha1.ValkeyResultsBackendSpec{KeyPrefix: new("custom_results_")}, 6, "superset_results_")
 		if got.KeyPrefix != "custom_results_" {
 			t.Errorf("expected key prefix override, got %q", got.KeyPrefix)
 		}
@@ -585,7 +585,7 @@ func TestResolveValkeyCache(t *testing.T) {
 	})
 
 	t.Run("disabled true", func(t *testing.T) {
-		got := resolveValkeyCache(&supersetv1alpha1.ValkeyCacheSpec{Disabled: common.Ptr(true)}, 1, "superset_cache_", 300)
+		got := resolveValkeyCache(&supersetv1alpha1.ValkeyCacheSpec{Disabled: new(true)}, 1, "superset_cache_", 300)
 		if !got.Disabled {
 			t.Error("expected disabled=true")
 		}
@@ -596,14 +596,14 @@ func TestResolveValkeyCache(t *testing.T) {
 
 	t.Run("disabled false keeps defaults", func(t *testing.T) {
 		// An explicit false must not flip the (false) zero value or disturb defaults.
-		got := resolveValkeyCache(&supersetv1alpha1.ValkeyCacheSpec{Disabled: common.Ptr(false)}, 1, "superset_cache_", 300)
+		got := resolveValkeyCache(&supersetv1alpha1.ValkeyCacheSpec{Disabled: new(false)}, 1, "superset_cache_", 300)
 		if got.Disabled {
 			t.Error("expected disabled=false")
 		}
 	})
 
 	t.Run("database override", func(t *testing.T) {
-		got := resolveValkeyCache(&supersetv1alpha1.ValkeyCacheSpec{Database: common.Ptr(int32(4))}, 1, "superset_cache_", 300)
+		got := resolveValkeyCache(&supersetv1alpha1.ValkeyCacheSpec{Database: new(int32(4))}, 1, "superset_cache_", 300)
 		if got.Database != 4 {
 			t.Errorf("expected database override 4, got %d", got.Database)
 		}
@@ -616,14 +616,14 @@ func TestResolveValkeyCache(t *testing.T) {
 	})
 
 	t.Run("key prefix override", func(t *testing.T) {
-		got := resolveValkeyCache(&supersetv1alpha1.ValkeyCacheSpec{KeyPrefix: common.Ptr("custom_cache_")}, 1, "superset_cache_", 300)
+		got := resolveValkeyCache(&supersetv1alpha1.ValkeyCacheSpec{KeyPrefix: new("custom_cache_")}, 1, "superset_cache_", 300)
 		if got.KeyPrefix != "custom_cache_" {
 			t.Errorf("expected key prefix override, got %q", got.KeyPrefix)
 		}
 	})
 
 	t.Run("default timeout override", func(t *testing.T) {
-		got := resolveValkeyCache(&supersetv1alpha1.ValkeyCacheSpec{DefaultTimeout: common.Ptr(int32(900))}, 1, "superset_cache_", 300)
+		got := resolveValkeyCache(&supersetv1alpha1.ValkeyCacheSpec{DefaultTimeout: new(int32(900))}, 1, "superset_cache_", 300)
 		if got.DefaultTimeout != 900 {
 			t.Errorf("expected default timeout override 900, got %d", got.DefaultTimeout)
 		}
@@ -645,7 +645,7 @@ func TestResolveValkeyCelery(t *testing.T) {
 	})
 
 	t.Run("disabled true", func(t *testing.T) {
-		got := resolveValkeyCelery(&supersetv1alpha1.ValkeyCelerySpec{Disabled: common.Ptr(true)}, 0)
+		got := resolveValkeyCelery(&supersetv1alpha1.ValkeyCelerySpec{Disabled: new(true)}, 0)
 		if !got.Disabled {
 			t.Error("expected disabled=true")
 		}
@@ -655,7 +655,7 @@ func TestResolveValkeyCelery(t *testing.T) {
 	})
 
 	t.Run("database override", func(t *testing.T) {
-		got := resolveValkeyCelery(&supersetv1alpha1.ValkeyCelerySpec{Database: common.Ptr(int32(2))}, 0)
+		got := resolveValkeyCelery(&supersetv1alpha1.ValkeyCelerySpec{Database: new(int32(2))}, 0)
 		if got.Database != 2 {
 			t.Errorf("expected database override 2, got %d", got.Database)
 		}
@@ -709,15 +709,15 @@ func TestBuildConfigInput_Valkey(t *testing.T) {
 			Valkey: &supersetv1alpha1.ValkeySpec{
 				Host: "valkey.default.svc",
 				Cache: &supersetv1alpha1.ValkeyCacheSpec{
-					Database:       common.Ptr(int32(10)),
-					KeyPrefix:      common.Ptr("custom_"),
-					DefaultTimeout: common.Ptr(int32(600)),
+					Database:       new(int32(10)),
+					KeyPrefix:      new("custom_"),
+					DefaultTimeout: new(int32(600)),
 				},
 				CeleryBroker: &supersetv1alpha1.ValkeyCelerySpec{
-					Database: common.Ptr(int32(14)),
+					Database: new(int32(14)),
 				},
 				ResultsBackend: &supersetv1alpha1.ValkeyResultsBackendSpec{
-					Disabled: common.Ptr(true),
+					Disabled: new(true),
 				},
 			},
 		})
@@ -743,10 +743,10 @@ func TestBuildConfigInput_Valkey(t *testing.T) {
 			Valkey: &supersetv1alpha1.ValkeySpec{
 				Host: "valkey.default.svc",
 				SSL: &supersetv1alpha1.ValkeySSLSpec{
-					CertRequired: common.Ptr("required"),
-					KeyFile:      common.Ptr("/tls/key.pem"),
-					CertFile:     common.Ptr("/tls/cert.pem"),
-					CACertFile:   common.Ptr("/tls/ca.pem"),
+					CertRequired: new("required"),
+					KeyFile:      new("/tls/key.pem"),
+					CertFile:     new("/tls/cert.pem"),
+					CACertFile:   new("/tls/ca.pem"),
 				},
 			},
 		})
@@ -778,7 +778,7 @@ func TestCollectSecretEnvVars_Valkey(t *testing.T) {
 
 	t.Run("custom port", func(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
-			Valkey: &supersetv1alpha1.ValkeySpec{Host: "valkey", Port: common.Ptr(int32(6380))},
+			Valkey: &supersetv1alpha1.ValkeySpec{Host: "valkey", Port: new(int32(6380))},
 		}
 		envMap := envSliceToMap(collectSecretEnvVars(spec, "test"))
 		if envMap["SUPERSET_OPERATOR__VALKEY_PORT"] != "6380" {
@@ -788,7 +788,7 @@ func TestCollectSecretEnvVars_Valkey(t *testing.T) {
 
 	t.Run("username", func(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
-			Valkey: &supersetv1alpha1.ValkeySpec{Host: "valkey", Username: common.Ptr("acl-user")},
+			Valkey: &supersetv1alpha1.ValkeySpec{Host: "valkey", Username: new("acl-user")},
 		}
 		envMap := envSliceToMap(collectSecretEnvVars(spec, "test"))
 		if envMap["SUPERSET_OPERATOR__VALKEY_USER"] != "acl-user" {
@@ -798,8 +798,8 @@ func TestCollectSecretEnvVars_Valkey(t *testing.T) {
 
 	t.Run("dev mode password", func(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
-			Environment: common.Ptr("Development"),
-			Valkey:      &supersetv1alpha1.ValkeySpec{Host: "valkey", Password: common.Ptr("secret")},
+			Environment: new("Development"),
+			Valkey:      &supersetv1alpha1.ValkeySpec{Host: "valkey", Password: new("secret")},
 		}
 		envMap := envSliceToMap(collectSecretEnvVars(spec, "test"))
 		if envMap["SUPERSET_OPERATOR__VALKEY_PASS"] != "secret" {
@@ -809,8 +809,8 @@ func TestCollectSecretEnvVars_Valkey(t *testing.T) {
 
 	t.Run("prod mode password ignored", func(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
-			Environment: common.Ptr("Production"),
-			Valkey:      &supersetv1alpha1.ValkeySpec{Host: "valkey", Password: common.Ptr("secret")},
+			Environment: new("Production"),
+			Valkey:      &supersetv1alpha1.ValkeySpec{Host: "valkey", Password: new("secret")},
 		}
 		envMap := envSliceToMap(collectSecretEnvVars(spec, "test"))
 		if _, ok := envMap["SUPERSET_OPERATOR__VALKEY_PASS"]; ok {
@@ -823,8 +823,8 @@ func TestCollectSecretEnvVars_Valkey(t *testing.T) {
 			Valkey: &supersetv1alpha1.ValkeySpec{
 				Host: "valkey",
 				PasswordFrom: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{Name: "valkey-secret"},
-					Key:                  "password",
+					Name: "valkey-secret",
+					Key:  "password",
 				},
 			},
 		}
@@ -843,8 +843,8 @@ func TestCollectSecretEnvVars_Valkey(t *testing.T) {
 	t.Run("connection fields from Secret keys", func(t *testing.T) {
 		ref := func(key string) *corev1.SecretKeySelector {
 			return &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: "valkey-connection"},
-				Key:                  key,
+				Name: "valkey-connection",
+				Key:  key,
 			}
 		}
 		spec := &supersetv1alpha1.SupersetSpec{

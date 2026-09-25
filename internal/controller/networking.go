@@ -95,7 +95,7 @@ func (r *SupersetReconciler) reconcileWebServerService(ctx context.Context, supe
 
 	if superset.Spec.WebServer == nil {
 		svc := &corev1.Service{
-			ObjectMeta: metav1.ObjectMeta{Name: svcName, Namespace: superset.Namespace},
+			Name: svcName, Namespace: superset.Namespace,
 		}
 		if err := deleteIfNotForeignOwned(ctx, r.Client, superset, svc); err != nil && !errors.IsNotFound(err) {
 			return fmt.Errorf("deleting web-server Service: %w", err)
@@ -104,10 +104,8 @@ func (r *SupersetReconciler) reconcileWebServerService(ctx context.Context, supe
 	}
 
 	svc := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      svcName,
-			Namespace: superset.Namespace,
-		},
+		Name:      svcName,
+		Namespace: superset.Namespace,
 	}
 
 	// Determine selector based on lifecycle state.
@@ -186,10 +184,8 @@ func (r *SupersetReconciler) reconcileHTTPRoute(ctx context.Context, superset *s
 	gw := superset.Spec.Networking.Gateway
 
 	route := &gatewayv1.HTTPRoute{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      superset.Name,
-			Namespace: superset.Namespace,
-		},
+		Name:      superset.Name,
+		Namespace: superset.Namespace,
 	}
 
 	_, err := createOrUpdateWithRetry(ctx, r.Client, route, func() error {
@@ -207,11 +203,9 @@ func (r *SupersetReconciler) reconcileHTTPRoute(ctx context.Context, superset *s
 		}
 
 		route.Spec = gatewayv1.HTTPRouteSpec{
-			CommonRouteSpec: gatewayv1.CommonRouteSpec{
-				ParentRefs: []gatewayv1.ParentReference{gw.GatewayRef},
-			},
-			Hostnames: gw.Hostnames,
-			Rules:     rules,
+			ParentRefs: []gatewayv1.ParentReference{gw.GatewayRef},
+			Hostnames:  gw.Hostnames,
+			Rules:      rules,
 		}
 
 		return nil
@@ -264,12 +258,8 @@ func buildHTTPRouteRule(svcName gatewayv1.ObjectName, port gatewayv1.PortNumber,
 		},
 		BackendRefs: []gatewayv1.HTTPBackendRef{
 			{
-				BackendRef: gatewayv1.BackendRef{
-					BackendObjectReference: gatewayv1.BackendObjectReference{
-						Name: svcName,
-						Port: &port,
-					},
-				},
+				Name: svcName,
+				Port: &port,
 			},
 		},
 	}
@@ -366,10 +356,8 @@ func (r *SupersetReconciler) reconcileIngress(ctx context.Context, superset *sup
 	ing := superset.Spec.Networking.Ingress
 
 	ingress := &networkingv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      superset.Name,
-			Namespace: superset.Namespace,
-		},
+		Name:      superset.Name,
+		Namespace: superset.Namespace,
 	}
 
 	webServerSvcName, webServerPort := webServerServiceRef(superset)
@@ -404,9 +392,7 @@ func (r *SupersetReconciler) reconcileIngress(ctx context.Context, superset *sup
 		for _, h := range hosts {
 			rule := networkingv1.IngressRule{
 				Host: h.Host,
-				IngressRuleValue: networkingv1.IngressRuleValue{
-					HTTP: &networkingv1.HTTPIngressRuleValue{},
-				},
+				HTTP: &networkingv1.HTTPIngressRuleValue{},
 			}
 
 			if len(h.Paths) > 0 {

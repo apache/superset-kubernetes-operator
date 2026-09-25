@@ -51,16 +51,16 @@ func TestResolveComponentSpec_NilTopLevelAndNilComponent(t *testing.T) {
 
 func TestResolveComponentSpec_TopLevelInheritedWhenComponentNil(t *testing.T) {
 	topLevel := &SharedInput{
-		Replicas: Ptr(int32(3)),
+		Replicas: new(int32(3)),
 		PodTemplate: pt(
 			&supersetv1alpha1.PodTemplate{
 				Annotations:        map[string]string{"prometheus.io/scrape": "true"},
 				Labels:             map[string]string{"team": "platform"},
 				NodeSelector:       map[string]string{"workload": "data"},
 				Tolerations:        []corev1.Toleration{{Key: "data-workload"}},
-				PriorityClassName:  Ptr("high"),
+				PriorityClassName:  new("high"),
 				Affinity:           &corev1.Affinity{NodeAffinity: &corev1.NodeAffinity{}},
-				PodSecurityContext: &corev1.PodSecurityContext{RunAsUser: Ptr(int64(1000))},
+				PodSecurityContext: &corev1.PodSecurityContext{RunAsUser: new(int64(1000))},
 				Sidecars:           []corev1.Container{{Name: "sidecar", Image: "sidecar:1"}},
 				InitContainers:     []corev1.Container{{Name: "init", Image: "init:1"}},
 				HostAliases:        []corev1.HostAlias{{IP: "10.0.0.1", Hostnames: []string{"db"}}},
@@ -73,7 +73,7 @@ func TestResolveComponentSpec_TopLevelInheritedWhenComponentNil(t *testing.T) {
 					Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")},
 				},
 				Env:             []corev1.EnvVar{{Name: "ENV", Value: "prod"}},
-				SecurityContext: &corev1.SecurityContext{RunAsNonRoot: Ptr(true)},
+				SecurityContext: &corev1.SecurityContext{RunAsNonRoot: new(true)},
 			},
 		),
 	}
@@ -131,16 +131,16 @@ func TestResolveComponentSpec_TopLevelInheritedWhenComponentNil(t *testing.T) {
 
 func TestResolveComponentSpec_ComponentMergesWithTopLevel(t *testing.T) {
 	topLevel := &SharedInput{
-		Replicas: Ptr(int32(2)),
+		Replicas: new(int32(2)),
 		PodTemplate: pt(
 			&supersetv1alpha1.PodTemplate{
 				Annotations:        map[string]string{"prometheus.io/scrape": "true", "shared": "top"},
 				Labels:             map[string]string{"team": "platform", "env": "prod"},
 				NodeSelector:       map[string]string{"workload": "data", "region": "us"},
 				Tolerations:        []corev1.Toleration{{Key: "top-toleration"}},
-				PriorityClassName:  Ptr("low"),
+				PriorityClassName:  new("low"),
 				Affinity:           &corev1.Affinity{NodeAffinity: &corev1.NodeAffinity{}},
-				PodSecurityContext: &corev1.PodSecurityContext{RunAsUser: Ptr(int64(1000))},
+				PodSecurityContext: &corev1.PodSecurityContext{RunAsUser: new(int64(1000))},
 				Sidecars:           []corev1.Container{{Name: "vault-agent", Image: "vault:1.15"}},
 				TopologySpreadConstraints: []corev1.TopologySpreadConstraint{
 					{MaxSkew: 1, TopologyKey: "topology.kubernetes.io/zone"},
@@ -151,38 +151,36 @@ func TestResolveComponentSpec_ComponentMergesWithTopLevel(t *testing.T) {
 					Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")},
 				},
 				Env:             []corev1.EnvVar{{Name: "ENV", Value: "prod"}, {Name: "TOP_ONLY", Value: "yes"}},
-				SecurityContext: &corev1.SecurityContext{RunAsNonRoot: Ptr(true)},
+				SecurityContext: &corev1.SecurityContext{RunAsNonRoot: new(true)},
 			},
 		),
 	}
 
 	compAffinity := &corev1.Affinity{PodAntiAffinity: &corev1.PodAntiAffinity{}}
 	component := &ComponentInput{
-		SharedInput: SharedInput{
-			Replicas: Ptr(int32(8)),
-			PodTemplate: pt(
-				&supersetv1alpha1.PodTemplate{
-					Annotations:        map[string]string{"istio/inject": "true", "shared": "comp"},
-					Labels:             map[string]string{"team": "overridden"},
-					NodeSelector:       map[string]string{"workload": "data-heavy", "node-type": "compute"},
-					Tolerations:        []corev1.Toleration{{Key: "comp-toleration"}},
-					PriorityClassName:  Ptr("critical"),
-					Affinity:           compAffinity,
-					PodSecurityContext: &corev1.PodSecurityContext{RunAsUser: Ptr(int64(2000))},
-					TopologySpreadConstraints: []corev1.TopologySpreadConstraint{
-						{MaxSkew: 2, TopologyKey: "kubernetes.io/hostname"},
-					},
+		Replicas: new(int32(8)),
+		PodTemplate: pt(
+			&supersetv1alpha1.PodTemplate{
+				Annotations:        map[string]string{"istio/inject": "true", "shared": "comp"},
+				Labels:             map[string]string{"team": "overridden"},
+				NodeSelector:       map[string]string{"workload": "data-heavy", "node-type": "compute"},
+				Tolerations:        []corev1.Toleration{{Key: "comp-toleration"}},
+				PriorityClassName:  new("critical"),
+				Affinity:           compAffinity,
+				PodSecurityContext: &corev1.PodSecurityContext{RunAsUser: new(int64(2000))},
+				TopologySpreadConstraints: []corev1.TopologySpreadConstraint{
+					{MaxSkew: 2, TopologyKey: "kubernetes.io/hostname"},
 				},
-				&supersetv1alpha1.ContainerTemplate{
-					Resources: &corev1.ResourceRequirements{
-						Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("4")},
-					},
-					Env:             []corev1.EnvVar{{Name: "COMP_ONLY", Value: "yes"}, {Name: "ENV", Value: "staging"}},
-					SecurityContext: &corev1.SecurityContext{RunAsNonRoot: Ptr(false)},
-					Command:         []string{"celery", "worker"},
+			},
+			&supersetv1alpha1.ContainerTemplate{
+				Resources: &corev1.ResourceRequirements{
+					Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("4")},
 				},
-			),
-		},
+				Env:             []corev1.EnvVar{{Name: "COMP_ONLY", Value: "yes"}, {Name: "ENV", Value: "staging"}},
+				SecurityContext: &corev1.SecurityContext{RunAsNonRoot: new(false)},
+				Command:         []string{"celery", "worker"},
+			},
+		),
 	}
 
 	operatorLabels := map[string]string{
@@ -297,9 +295,9 @@ func TestResolveComponentSpec_ComponentMergesWithTopLevel(t *testing.T) {
 }
 
 func TestResolveComponentSpec_BeatSingleton(t *testing.T) {
-	topLevel := &SharedInput{Replicas: Ptr(int32(4))}
+	topLevel := &SharedInput{Replicas: new(int32(4))}
 	component := &ComponentInput{
-		SharedInput: SharedInput{Replicas: Ptr(int32(3))},
+		Replicas: new(int32(3)),
 	}
 
 	result := ResolveComponentSpec(ComponentCeleryBeat, topLevel, component, nil, nil)
@@ -332,7 +330,7 @@ func TestResolveComponentSpec_OperatorInjectedMerged(t *testing.T) {
 		PodTemplate: pt(
 			&supersetv1alpha1.PodTemplate{
 				Volumes: []corev1.Volume{
-					{Name: "user-vol", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+					{Name: "user-vol", EmptyDir: &corev1.EmptyDirVolumeSource{}},
 				},
 			},
 			&supersetv1alpha1.ContainerTemplate{
@@ -343,11 +341,10 @@ func TestResolveComponentSpec_OperatorInjectedMerged(t *testing.T) {
 	operator := &OperatorInjected{
 		Env: []corev1.EnvVar{{Name: "OPERATOR_VAR", Value: "operator"}},
 		Volumes: []corev1.Volume{
-			{Name: "config", VolumeSource: corev1.VolumeSource{
+			{Name: "config",
 				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{Name: "cm1"},
-				},
-			}},
+					Name: "cm1",
+				}},
 		},
 		VolumeMounts:   []corev1.VolumeMount{{Name: "config", MountPath: "/app/pythonpath"}},
 		InitContainers: []corev1.Container{{Name: "op-init", Image: "init:op"}},
@@ -393,7 +390,7 @@ func TestResolveComponentSpec_OperatorVolumesWinOnConflict(t *testing.T) {
 		PodTemplate: pt(
 			&supersetv1alpha1.PodTemplate{
 				Volumes: []corev1.Volume{
-					{Name: "superset-config", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+					{Name: "superset-config", EmptyDir: &corev1.EmptyDirVolumeSource{}},
 				},
 			},
 			&supersetv1alpha1.ContainerTemplate{
@@ -403,11 +400,10 @@ func TestResolveComponentSpec_OperatorVolumesWinOnConflict(t *testing.T) {
 	}
 	operator := &OperatorInjected{
 		Volumes: []corev1.Volume{
-			{Name: "superset-config", VolumeSource: corev1.VolumeSource{
+			{Name: "superset-config",
 				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{Name: "real-config"},
-				},
-			}},
+					Name: "real-config",
+				}},
 		},
 		VolumeMounts: []corev1.VolumeMount{{Name: "superset-config", MountPath: "/app/pythonpath"}},
 	}
@@ -437,18 +433,16 @@ func TestResolveComponentSpec_DeploymentLevelFields(t *testing.T) {
 	}
 	topLevel := &SharedInput{
 		DeploymentTemplate: &supersetv1alpha1.DeploymentTemplate{
-			RevisionHistoryLimit: Ptr(int32(5)),
+			RevisionHistoryLimit: new(int32(5)),
 			Strategy:             strategy,
 			Labels:               map[string]string{"team": "data", "tier": "top"},
 			Annotations:          map[string]string{"owner": "platform"},
 		},
 	}
 	component := &ComponentInput{
-		SharedInput: SharedInput{
-			DeploymentTemplate: &supersetv1alpha1.DeploymentTemplate{
-				Labels:      map[string]string{"tier": "web"},
-				Annotations: map[string]string{"scrape": "true"},
-			},
+		DeploymentTemplate: &supersetv1alpha1.DeploymentTemplate{
+			Labels:      map[string]string{"tier": "web"},
+			Annotations: map[string]string{"scrape": "true"},
 		},
 	}
 
@@ -489,20 +483,16 @@ func TestResolveComponentSpec_ContainerCommandNotInherited(t *testing.T) {
 
 func TestResolveComponentSpec_ContainerProbesFromComponent(t *testing.T) {
 	probe := &corev1.Probe{
-		ProbeHandler: corev1.ProbeHandler{
-			HTTPGet: &corev1.HTTPGetAction{Path: "/health", Port: intstr.FromInt(8088)},
-		},
+		HTTPGet: &corev1.HTTPGetAction{Path: "/health", Port: intstr.FromInt(8088)},
 	}
 	component := &ComponentInput{
-		SharedInput: SharedInput{
-			PodTemplate: pt(nil, &supersetv1alpha1.ContainerTemplate{
-				LivenessProbe:  probe,
-				ReadinessProbe: probe,
-				StartupProbe:   probe,
-				Command:        []string{"gunicorn"},
-				Args:           []string{"--bind", "0.0.0.0:8088"},
-			}),
-		},
+		PodTemplate: pt(nil, &supersetv1alpha1.ContainerTemplate{
+			LivenessProbe:  probe,
+			ReadinessProbe: probe,
+			StartupProbe:   probe,
+			Command:        []string{"gunicorn"},
+			Args:           []string{"--bind", "0.0.0.0:8088"},
+		}),
 	}
 
 	result := ResolveComponentSpec(ComponentWebServer, nil, component, nil, nil)
@@ -549,16 +539,16 @@ func TestResolveComponentSpec_NewPodFields(t *testing.T) {
 	dnsPolicy := corev1.DNSClusterFirstWithHostNet
 	topLevel := &SharedInput{
 		DeploymentTemplate: &supersetv1alpha1.DeploymentTemplate{
-			MinReadySeconds:         Ptr(int32(10)),
-			ProgressDeadlineSeconds: Ptr(int32(300)),
+			MinReadySeconds:         new(int32(10)),
+			ProgressDeadlineSeconds: new(int32(300)),
 		},
 		PodTemplate: pt(
 			&supersetv1alpha1.PodTemplate{
 				TerminationGracePeriodSeconds: &gracePeriod,
 				DNSPolicy:                     &dnsPolicy,
-				RuntimeClassName:              Ptr("gvisor"),
-				ShareProcessNamespace:         Ptr(true),
-				EnableServiceLinks:            Ptr(false),
+				RuntimeClassName:              new("gvisor"),
+				ShareProcessNamespace:         new(true),
+				EnableServiceLinks:            new(false),
 			},
 			&supersetv1alpha1.ContainerTemplate{
 				Lifecycle: &corev1.Lifecycle{
@@ -619,10 +609,8 @@ func TestResolveComponentSpec_AutoscalingPDB_Inheritance(t *testing.T) {
 
 	t.Run("component overrides top-level", func(t *testing.T) {
 		component := &ComponentInput{
-			SharedInput: SharedInput{
-				Autoscaling:         &supersetv1alpha1.AutoscalingSpec{MaxReplicas: 20},
-				PodDisruptionBudget: &supersetv1alpha1.PDBSpec{MaxUnavailable: &intstr.IntOrString{IntVal: 2}},
-			},
+			Autoscaling:         &supersetv1alpha1.AutoscalingSpec{MaxReplicas: 20},
+			PodDisruptionBudget: &supersetv1alpha1.PDBSpec{MaxUnavailable: &intstr.IntOrString{IntVal: 2}},
 		}
 		result := ResolveComponentSpec(ComponentCeleryWorker, topLevel, component, nil, nil)
 		if result.Autoscaling.MaxReplicas != 20 {

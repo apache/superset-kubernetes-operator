@@ -101,7 +101,7 @@ func TestValidateSchedules_SetsTrueWhenScheduleValid(t *testing.T) {
 		Spec: supersetv1alpha1.SupersetSpec{
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{
 				Seed: &supersetv1alpha1.SeedTaskSpec{
-					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &schedule},
+					CronSchedule: &schedule,
 				},
 			},
 		},
@@ -157,7 +157,7 @@ func TestNextScheduleRequeue(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{Lifecycle: &supersetv1alpha1.LifecycleSpec{
 				Seed: &supersetv1alpha1.SeedTaskSpec{
-					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &sched},
+					CronSchedule: &sched,
 				},
 			}},
 		}
@@ -175,10 +175,8 @@ func TestNextScheduleRequeue(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{Lifecycle: &supersetv1alpha1.LifecycleSpec{
 				Seed: &supersetv1alpha1.SeedTaskSpec{
-					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
-						BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: boolPtr(true)},
-						CronSchedule: &sched,
-					},
+					Disabled:     new(true),
+					CronSchedule: &sched,
 				},
 			}},
 		}
@@ -200,7 +198,7 @@ func TestNextScheduleRequeue(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{Lifecycle: &supersetv1alpha1.LifecycleSpec{
 				Seed: &supersetv1alpha1.SeedTaskSpec{
-					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &sched},
+					CronSchedule: &sched,
 				},
 			}},
 		}
@@ -244,7 +242,7 @@ func TestProjectScheduleStatus(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{Lifecycle: &supersetv1alpha1.LifecycleSpec{
 				Seed: &supersetv1alpha1.SeedTaskSpec{
-					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &sched},
+					CronSchedule: &sched,
 				},
 			}},
 		}
@@ -261,7 +259,7 @@ func TestProjectScheduleStatus(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{Lifecycle: &supersetv1alpha1.LifecycleSpec{
 				Seed: &supersetv1alpha1.SeedTaskSpec{
-					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &sched},
+					CronSchedule: &sched,
 				},
 			}},
 		}

@@ -299,7 +299,7 @@ ContainerImageSpec defines a generic container image. Unlike ImageSpec, it
 has no Superset-specific repository default — the operator selects a
 context-appropriate default at reconcile time when fields are omitted (e.g.,
 `nginx:alpine` for the maintenance page, `postgres:17-alpine` /
-`mysql:8-alpine` for the seed Job). Use this type for non-Superset images.
+`mysql:8.4` for the seed Job). Use this type for non-Superset images.
 
 
 
@@ -995,7 +995,7 @@ _Appears in:_
 | `excludeTables` _string array_ | Tables to exclude entirely from the dump (schema and data). |  | Optional: \{\} <br /> |
 | `excludeTableData` _string array_ | Tables where schema is dumped but data is not. Useful for large tables needed by migrations but not for testing (e.g., "logs", "query"). |  | Optional: \{\} <br /> |
 | `postSeedSQL` _string array_ | SQL statements to execute against the target database after seeding. Useful for sanitizing seeded data (e.g., disabling alerts, deleting OAuth tokens, masking PII). |  | Optional: \{\} <br /> |
-| `image` _[ContainerImageSpec](#containerimagespec)_ | Image for the seed Job. Defaults to postgres:17-alpine (PostgreSQL) or mysql:8-alpine (MySQL) based on source.type. Partial specs (e.g., only `tag` set) inherit the type-appropriate default for omitted fields. |  | Optional: \{\} <br /> |
+| `image` _[ContainerImageSpec](#containerimagespec)_ | Image for the seed Job. Defaults to postgres:17-alpine (PostgreSQL) or mysql:8.4 (MySQL) based on source.type. Partial specs (e.g., only `tag` set) inherit the type-appropriate default for omitted fields. |  | Optional: \{\} <br /> |
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for the seed task Job. |  | Optional: \{\} <br /> |
 | `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Retention policy for completed seed Jobs and their Pods. |  | Optional: \{\} <br /> |
 

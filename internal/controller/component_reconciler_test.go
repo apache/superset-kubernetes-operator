@@ -156,7 +156,7 @@ func TestReconcileComponentResources_NoServiceNoScaling(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	owner := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner).Build()
 	recorder := events.NewFakeRecorder(20)
@@ -185,7 +185,7 @@ func TestReconcileComponentService_PreservesClusterIPAcrossUpdate(t *testing.T) 
 	ctx := context.Background()
 	scheme := testScheme(t)
 	owner := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner).Build()
 
@@ -217,7 +217,7 @@ func TestReconcileScaling_NoAutoscalingOrPDB(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	owner := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner).Build()
 
@@ -232,7 +232,7 @@ func TestReconcileComponentResources_CreatesDeploymentAndService(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	owner := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner).Build()
 	recorder := events.NewFakeRecorder(20)
@@ -274,8 +274,8 @@ func TestPreserveDeploymentReplicasWhenUnmanaged(t *testing.T) {
 		{
 			name:             "unmanaged desired preserves existing replicas",
 			desiredReplicas:  nil,
-			existingReplicas: int32Ptr(3),
-			wantReplicas:     int32Ptr(3),
+			existingReplicas: new(int32(3)),
+			wantReplicas:     new(int32(3)),
 		},
 		{
 			name:             "unmanaged desired remains nil on create path",
@@ -285,9 +285,9 @@ func TestPreserveDeploymentReplicasWhenUnmanaged(t *testing.T) {
 		},
 		{
 			name:             "managed desired ignores existing drift",
-			desiredReplicas:  int32Ptr(2),
-			existingReplicas: int32Ptr(3),
-			wantReplicas:     int32Ptr(2),
+			desiredReplicas:  new(int32(2)),
+			existingReplicas: new(int32(3)),
+			wantReplicas:     new(int32(2)),
 		},
 	}
 
@@ -312,7 +312,7 @@ func TestReconcileComponentDeployment_PreservesReplicasWhenAutoscaling(t *testin
 	ctx := context.Background()
 	scheme := testScheme(t)
 	owner := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner).Build()
 	recorder := events.NewFakeRecorder(20)
@@ -354,9 +354,9 @@ func TestDeleteByLabels_KeepsNamedAndDeletesRest(t *testing.T) {
 	scheme := testScheme(t)
 	labels := map[string]string{"app": "x"}
 
-	keep := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "keep", Namespace: "default", Labels: labels}}
-	drop := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "drop", Namespace: "default", Labels: labels}}
-	unrelated := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "other", Namespace: "default", Labels: map[string]string{"app": "y"}}}
+	keep := &corev1.Service{Name: "keep", Namespace: "default", Labels: labels}
+	drop := &corev1.Service{Name: "drop", Namespace: "default", Labels: labels}
+	unrelated := &corev1.Service{Name: "other", Namespace: "default", Labels: map[string]string{"app": "y"}}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(keep, drop, unrelated).Build()
 
@@ -381,23 +381,21 @@ func TestDeleteByLabels_SkipsForeignControllerOwned(t *testing.T) {
 	scheme := testScheme(t)
 	labels := map[string]string{"app": "x"}
 
-	owner := &supersetv1alpha1.Superset{ObjectMeta: metav1.ObjectMeta{Name: "owner", Namespace: "default", UID: "owner-uid"}}
+	owner := &supersetv1alpha1.Superset{Name: "owner", Namespace: "default", UID: "owner-uid"}
 
-	ours := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+	ours := &corev1.Service{
 		Name: "ours", Namespace: "default", UID: "ours-uid", Labels: labels,
 		OwnerReferences: []metav1.OwnerReference{{
 			APIVersion: "superset.apache.org/v1alpha1", Kind: "Superset", Name: "owner",
-			UID: "owner-uid", Controller: boolPtr(true),
-		}},
-	}}
-	foreign := &corev1.Service{ObjectMeta: metav1.ObjectMeta{
+			UID: "owner-uid", Controller: new(true),
+		}}}
+	foreign := &corev1.Service{
 		Name: "foreign", Namespace: "default", UID: "foreign-uid", Labels: labels,
 		OwnerReferences: []metav1.OwnerReference{{
 			APIVersion: "batch/v1", Kind: "CronJob", Name: "cj",
-			UID: "cj-uid", Controller: boolPtr(true),
-		}},
-	}}
-	unowned := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "unowned", Namespace: "default", UID: "unowned-uid", Labels: labels}}
+			UID: "cj-uid", Controller: new(true),
+		}}}
+	unowned := &corev1.Service{Name: "unowned", Namespace: "default", UID: "unowned-uid", Labels: labels}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(ours, foreign, unowned).Build()
 	require.NoError(t, deleteByLabels(ctx, c, owner, "default", labels,
@@ -416,8 +414,8 @@ func TestDeleteByLabels_EmptyKeepNameDeletesAll(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	labels := map[string]string{"app": "x"}
-	a := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "a", Namespace: "default", Labels: labels}}
-	b := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: "b", Namespace: "default", Labels: labels}}
+	a := &corev1.Service{Name: "a", Namespace: "default", Labels: labels}
+	b := &corev1.Service{Name: "b", Namespace: "default", Labels: labels}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(a, b).Build()
 
 	require.NoError(t, deleteByLabels(ctx, c, nil, "default", labels, func() client.ObjectList { return &corev1.ServiceList{} }, ""))

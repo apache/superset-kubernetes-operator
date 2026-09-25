@@ -537,7 +537,7 @@ The seed pod uses a database-tool image (not the Superset image):
 | Source type | Default image |
 |---|---|
 | `postgresql` | `postgres:17-alpine` |
-| `mysql` | `mysql:8-alpine` |
+| `mysql` | `mysql:8.4` |
 
 Override with `seed.image` if you need additional tools.
 

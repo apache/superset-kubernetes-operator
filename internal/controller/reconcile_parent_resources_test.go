@@ -27,7 +27,6 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -46,7 +45,7 @@ func TestReconcile_CreatesParentOwnedComponentResources(t *testing.T) {
 	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
 	spec.McpServer = &supersetv1alpha1.McpServerComponentSpec{}
 	connectionRef := func(secretName, key string) *corev1.SecretKeySelector {
-		return &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: secretName}, Key: key}
+		return &corev1.SecretKeySelector{Name: secretName, Key: key}
 	}
 	spec.Metastore = &supersetv1alpha1.MetastoreSpec{
 		HostFrom: connectionRef("db-endpoint", "host"), PortFrom: connectionRef("db-endpoint", "port"),
@@ -59,8 +58,8 @@ func TestReconcile_CreatesParentOwnedComponentResources(t *testing.T) {
 	}
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
-		Spec:       spec,
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: spec,
 	}
 
 	c := reconcileOnce(t, scheme, superset).Build()
@@ -131,11 +130,11 @@ func TestReconcile_DisabledComponentDeletesParentOwnedResources(t *testing.T) {
 	scheme := testScheme(t)
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
-		Spec:       minimalSupersetSpec(),
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: minimalSupersetSpec(),
 	}
-	workerDeploy := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: "test-celery-worker", Namespace: "default"}}
-	workerConfig := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "test-celery-worker-config", Namespace: "default"}}
+	workerDeploy := &appsv1.Deployment{Name: "test-celery-worker", Namespace: "default"}
+	workerConfig := &corev1.ConfigMap{Name: "test-celery-worker-config", Namespace: "default"}
 
 	c := reconcileOnce(t, scheme, superset).WithObjects(workerDeploy, workerConfig).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
@@ -153,16 +152,14 @@ func TestReconcile_WebsocketInlineConfigCreatesConfigMapAndMount(t *testing.T) {
 	scheme := testScheme(t)
 
 	spec := minimalSupersetSpec()
-	spec.Environment = common.Ptr("Development")
+	spec.Environment = new("Development")
 	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
-		ComponentSpec: supersetv1alpha1.ComponentSpec{
-			Image: &supersetv1alpha1.ImageOverrideSpec{Repository: common.Ptr("example.com/superset-websocket")},
-		},
+		Image:  &supersetv1alpha1.ImageOverrideSpec{Repository: new("example.com/superset-websocket")},
 		Config: &apiextensionsv1.JSON{Raw: []byte(`{"port":8080,"jwtSecret":"dev-secret"}`)},
 	}
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
-		Spec:       spec,
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: spec,
 	}
 
 	c := reconcileOnce(t, scheme, superset).Build()
@@ -199,17 +196,15 @@ func TestReconcile_WebsocketConfigFromMountsSecret(t *testing.T) {
 
 	spec := minimalSupersetSpec()
 	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
-		ComponentSpec: supersetv1alpha1.ComponentSpec{
-			Image: &supersetv1alpha1.ImageOverrideSpec{Repository: common.Ptr("example.com/superset-websocket")},
-		},
+		Image: &supersetv1alpha1.ImageOverrideSpec{Repository: new("example.com/superset-websocket")},
 		ConfigFrom: &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: "ws-config"},
-			Key:                  "config.json",
+			Name: "ws-config",
+			Key:  "config.json",
 		},
 	}
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
-		Spec:       spec,
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: spec,
 	}
 
 	c := reconcileOnce(t, scheme, superset).Build()
@@ -240,18 +235,16 @@ func TestReconcile_BootstrapScriptAppliesToPythonComponentsOnly(t *testing.T) {
 	scheme := testScheme(t)
 
 	spec := minimalSupersetSpec()
-	spec.BootstrapScript = common.Ptr("echo top-level")
+	spec.BootstrapScript = new("echo top-level")
 	spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{
-		BootstrapScript: common.Ptr("echo worker"),
+		BootstrapScript: new("echo worker"),
 	}
 	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
-		ComponentSpec: supersetv1alpha1.ComponentSpec{
-			Image: &supersetv1alpha1.ImageOverrideSpec{Repository: common.Ptr("example.com/superset-websocket")},
-		},
+		Image: &supersetv1alpha1.ImageOverrideSpec{Repository: new("example.com/superset-websocket")},
 	}
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
-		Spec:       spec,
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: spec,
 	}
 
 	c := reconcileOnce(t, scheme, superset).Build()
@@ -297,8 +290,8 @@ func TestReconcile_ComponentResourcesCarryLabels(t *testing.T) {
 
 	spec := minimalSupersetSpec()
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
-		Spec:       spec,
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: spec,
 	}
 
 	c := reconcileOnce(t, scheme, superset).Build()
@@ -357,8 +350,8 @@ func TestReconcile_DeploymentTemplateLabelsAndAnnotations(t *testing.T) {
 		Annotations: map[string]string{"scrape": "true"},
 	}
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
-		Spec:       spec,
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: spec,
 	}
 
 	c := reconcileOnce(t, scheme, superset).Build()
@@ -396,8 +389,8 @@ func TestReconcile_LifecycleCreatesParentOwnedTaskJobAndStatus(t *testing.T) {
 	spec := minimalSupersetSpec()
 	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{}
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
-		Spec:       spec,
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: spec,
 	}
 
 	c := reconcileOnce(t, scheme, superset).Build()

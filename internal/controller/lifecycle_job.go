@@ -428,24 +428,19 @@ func (r *SupersetReconciler) buildLifecycleTaskJob(
 	})
 	var activeDeadlineSeconds *int64
 	if timeout > 0 {
-		seconds := int64(timeout.Seconds())
-		if seconds < 1 {
-			seconds = 1
-		}
+		seconds := max(int64(timeout.Seconds()), 1)
 		activeDeadlineSeconds = &seconds
 	}
 
 	return &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        taskName,
-			Namespace:   superset.Namespace,
-			Labels:      labels,
-			Annotations: jobAnnotations,
-		},
+		Name:        taskName,
+		Namespace:   superset.Namespace,
+		Labels:      labels,
+		Annotations: jobAnnotations,
 		Spec: batchv1.JobSpec{
-			BackoffLimit:          ptrInt32(jobBackoffLimit),
-			Completions:           ptrInt32(1),
-			Parallelism:           ptrInt32(1),
+			BackoffLimit:          new(jobBackoffLimit),
+			Completions:           new(int32(1)),
+			Parallelism:           new(int32(1)),
 			ActiveDeadlineSeconds: activeDeadlineSeconds,
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
@@ -456,10 +451,6 @@ func (r *SupersetReconciler) buildLifecycleTaskJob(
 			},
 		},
 	}
-}
-
-func ptrInt32(v int32) *int32 {
-	return &v
 }
 
 // podSpecHash returns a stable hash of a task Job's rendered pod spec. It is
@@ -531,7 +522,7 @@ func (r *SupersetReconciler) lifecycleTaskLabels(superset *supersetv1alpha1.Supe
 
 func (r *SupersetReconciler) deleteTaskJobs(ctx context.Context, superset *supersetv1alpha1.Superset, taskName string) error {
 	job := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{Name: taskName, Namespace: superset.Namespace},
+		Name: taskName, Namespace: superset.Namespace,
 	}
 	if err := r.deleteLifecycleJob(ctx, superset, job); err != nil {
 		return fmt.Errorf("deleting lifecycle task job: %w", err)

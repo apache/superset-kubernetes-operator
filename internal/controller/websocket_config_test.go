@@ -66,26 +66,26 @@ func TestWebsocketConfigRefChecksumInput(t *testing.T) {
 
 	t.Run("optional nil formats as false", func(t *testing.T) {
 		ref := &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: "ws-secret"},
-			Key:                  "config.json",
+			Name: "ws-secret",
+			Key:  "config.json",
 		}
 		assert.Equal(t, "secret:ws-secret:config.json:false", websocketConfigRefChecksumInput(ref))
 	})
 
 	t.Run("optional true formats as true", func(t *testing.T) {
 		ref := &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: "ws-secret"},
-			Key:                  "config.json",
-			Optional:             boolPtr(true),
+			Name:     "ws-secret",
+			Key:      "config.json",
+			Optional: new(true),
 		}
 		assert.Equal(t, "secret:ws-secret:config.json:true", websocketConfigRefChecksumInput(ref))
 	})
 
 	t.Run("optional false formats as false", func(t *testing.T) {
 		ref := &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: "ws-secret"},
-			Key:                  "config.json",
-			Optional:             boolPtr(false),
+			Name:     "ws-secret",
+			Key:      "config.json",
+			Optional: new(false),
 		}
 		assert.Equal(t, "secret:ws-secret:config.json:false", websocketConfigRefChecksumInput(ref))
 	})
@@ -118,9 +118,9 @@ func TestInjectWebsocketConfigMap(t *testing.T) {
 func TestInjectWebsocketConfigSecret(t *testing.T) {
 	op := &resolution.OperatorInjected{}
 	configFrom := &corev1.SecretKeySelector{
-		LocalObjectReference: corev1.LocalObjectReference{Name: "ws-secret"},
-		Key:                  "config",
-		Optional:             boolPtr(true),
+		Name:     "ws-secret",
+		Key:      "config",
+		Optional: new(true),
 	}
 	injectWebsocketConfigSecret(op, configFrom)
 
@@ -129,7 +129,7 @@ func TestInjectWebsocketConfigSecret(t *testing.T) {
 		assert.Equal(t, websocketConfigVolume, v.Name)
 		if assert.NotNil(t, v.Secret) {
 			assert.Equal(t, "ws-secret", v.Secret.SecretName)
-			assert.Equal(t, boolPtr(true), v.Secret.Optional)
+			assert.Equal(t, new(true), v.Secret.Optional)
 			if assert.Len(t, v.Secret.Items, 1) {
 				assert.Equal(t, "config", v.Secret.Items[0].Key)
 				assert.Equal(t, websocketConfigKey, v.Secret.Items[0].Path)

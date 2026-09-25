@@ -29,11 +29,9 @@ var celeryBeatSingletonReplica = int32(1)
 
 func httpProbe(path string, port int32, initialDelay int32) *corev1.Probe {
 	return &corev1.Probe{
-		ProbeHandler: corev1.ProbeHandler{
-			HTTPGet: &corev1.HTTPGetAction{
-				Path: path,
-				Port: intstr.FromInt32(port),
-			},
+		HTTPGet: &corev1.HTTPGetAction{
+			Path: path,
+			Port: intstr.FromInt32(port),
 		},
 		InitialDelaySeconds: initialDelay,
 		PeriodSeconds:       10,
@@ -44,10 +42,8 @@ func httpProbe(path string, port int32, initialDelay int32) *corev1.Probe {
 
 func tcpProbe(port int32, initialDelay int32) *corev1.Probe {
 	return &corev1.Probe{
-		ProbeHandler: corev1.ProbeHandler{
-			TCPSocket: &corev1.TCPSocketAction{
-				Port: intstr.FromInt32(port),
-			},
+		TCPSocket: &corev1.TCPSocketAction{
+			Port: intstr.FromInt32(port),
 		},
 		InitialDelaySeconds: initialDelay,
 		PeriodSeconds:       10,

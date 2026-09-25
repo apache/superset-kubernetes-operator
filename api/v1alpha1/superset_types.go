@@ -599,7 +599,7 @@ type SeedTaskSpec struct {
 	PostSeedSQL []string `json:"postSeedSQL,omitempty"`
 
 	// Image for the seed Job. Defaults to postgres:17-alpine (PostgreSQL)
-	// or mysql:8-alpine (MySQL) based on source.type. Partial specs (e.g.,
+	// or mysql:8.4 (MySQL) based on source.type. Partial specs (e.g.,
 	// only `tag` set) inherit the type-appropriate default for omitted fields.
 	// +optional
 	Image *ContainerImageSpec `json:"image,omitempty"`

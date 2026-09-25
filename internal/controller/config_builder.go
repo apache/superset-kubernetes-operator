@@ -84,9 +84,7 @@ func convertTaskComponent(lifecycle *supersetv1alpha1.LifecycleSpec, command []s
 	}
 
 	return &resolution.ComponentInput{
-		SharedInput: resolution.SharedInput{
-			PodTemplate: pt,
-		},
+		PodTemplate: pt,
 	}
 }
 
@@ -380,12 +378,8 @@ func buildOperatorInjected(renderedConfig, bootstrapScript, resourceBaseName, fo
 		// Config volume + mount.
 		injected.Volumes = append(injected.Volumes, corev1.Volume{
 			Name: configVolumeName,
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: naming.ConfigMapName(resourceBaseName),
-					},
-				},
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				Name: naming.ConfigMapName(resourceBaseName),
 			},
 		})
 		injected.VolumeMounts = append(injected.VolumeMounts, corev1.VolumeMount{

@@ -50,7 +50,7 @@ func reconcileHPA(
 		// now requires, so it would be missed. Delete it by its managed name too,
 		// but only if it is owned by this CR (or unowned) — never a foreign one.
 		hpa := &autoscalingv2.HorizontalPodAutoscaler{
-			ObjectMeta: metav1.ObjectMeta{Name: deploymentName, Namespace: namespace},
+			Name: deploymentName, Namespace: namespace,
 		}
 		if err := deleteIfNotForeignOwned(ctx, c, owner, hpa); err != nil {
 			return err
@@ -60,10 +60,8 @@ func reconcileHPA(
 	}
 
 	hpa := &autoscalingv2.HorizontalPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      deploymentName,
-			Namespace: namespace,
-		},
+		Name:      deploymentName,
+		Namespace: namespace,
 	}
 
 	op, err := createOrUpdateWithRetry(ctx, c, hpa, func() error {
@@ -109,7 +107,7 @@ func reconcilePDB(
 		// Owner-checked exact-name fallback for a pre-patch PDB that lacks the
 		// reserved parent label the selector below now requires.
 		pdb := &policyv1.PodDisruptionBudget{
-			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace},
+			Name: name, Namespace: namespace,
 		}
 		if err := deleteIfNotForeignOwned(ctx, c, owner, pdb); err != nil {
 			return err
@@ -119,10 +117,8 @@ func reconcilePDB(
 	}
 
 	pdb := &policyv1.PodDisruptionBudget{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
+		Name:      name,
+		Namespace: namespace,
 	}
 
 	op, err := createOrUpdateWithRetry(ctx, c, pdb, func() error {
