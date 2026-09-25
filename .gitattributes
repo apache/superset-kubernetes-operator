@@ -3,4 +3,6 @@
 # (vendor-neutral) file and ships in the release; GEMINI.md is a symlink to it
 # and is tool-specific clutter in an official ASF source release. Claude Code
 # reads AGENTS.md directly when no CLAUDE.md exists, so no CLAUDE.md is kept.
+# The Claude Code release skills in .claude/ are excluded for the same reason.
 GEMINI.md export-ignore
+.claude export-ignore
