@@ -13,6 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+{{- /*
+Replicas are active/standby behind the leader election Lease. Without it every
+replica reconciles the same Superset resources and they race on Jobs, drains,
+and status, so the combination is never valid.
+*/}}
+{{- if and (gt (int .Values.replicas) 1) (not .Values.leaderElection.enabled) }}
+{{- fail "replicas > 1 requires leaderElection.enabled=true" }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
