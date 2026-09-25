@@ -124,3 +124,39 @@ tests:
       - contains:
           path: spec.template.spec.containers[0].args
           content: --leader-elect=false
+
+  # --- replicas > 1 requires leader election ---
+  - it: fails when replicas > 1 and leader election is disabled
+    set:
+      replicas: 2
+      leaderElection:
+        enabled: false
+    template: templates/deployment.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "replicas > 1 requires leaderElection.enabled=true"
+
+  - it: renders multiple replicas with leader election enabled
+    set:
+      replicas: 3
+      leaderElection:
+        enabled: true
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 3
+      - contains:
+          path: spec.template.spec.containers[0].args
+          content: --leader-elect=true
+
+  - it: renders zero replicas with leader election disabled
+    set:
+      replicas: 0
+      leaderElection:
+        enabled: false
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 0

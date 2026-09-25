@@ -39,7 +39,7 @@ serviceAccount:
   annotations: {}
 
 leaderElection:
-  # -- Enable leader election so only one replica is active at a time.
+  # -- Enable leader election so only one replica is active at a time. Required when `replicas > 1`.
   enabled: true
 
 # -- Operator log verbosity (`--zap-log-level`). Leave empty for the default (`info`).
