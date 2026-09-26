@@ -140,6 +140,9 @@ const (
 	EnvBackupDir      = "SUPERSET_OPERATOR__BACKUP_DIR"
 	EnvBackupFromTag  = "SUPERSET_OPERATOR__BACKUP_FROM_TAG"
 	EnvBackupFirstRun = "SUPERSET_OPERATOR__BACKUP_FIRST_RUN"
+	EnvBackupUID      = "SUPERSET_OPERATOR__BACKUP_UID"
+	EnvBackupMetadata = "SUPERSET_OPERATOR__BACKUP_METADATA"
+	EnvBackupKeepLast = "SUPERSET_OPERATOR__BACKUP_KEEP_LAST"
 
 	// Maintenance page content transport vars.
 	EnvMaintenanceTitle   = "SUPERSET_OPERATOR__MAINTENANCE_TITLE"

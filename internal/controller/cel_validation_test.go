@@ -676,6 +676,37 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			Expect(err.Error()).To(ContainSubstring("lifecycle.backup with the default command requires structured metastore"))
 		})
 
+		It("accepts retention with a destination", func() {
+			cr := validProdSuperset("backup-retention")
+			cr.Spec.Metastore = structuredProdMetastore()
+			b := backupToPVC()
+			b.Retention = &supersetv1alpha1.BackupRetentionSpec{KeepLast: 3}
+			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{Backup: b}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+
+		It("rejects retention without a destination", func() {
+			cr := validProdSuperset("backup-retention-no-dest")
+			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{Backup: &supersetv1alpha1.BackupTaskSpec{
+				Command:   []string{"/bin/sh", "-c", "ship-elsewhere"},
+				Retention: &supersetv1alpha1.BackupRetentionSpec{KeepLast: 3},
+			}}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("lifecycle.backup.retention requires destination"))
+		})
+
+		It("rejects keepLast below 1", func() {
+			cr := validProdSuperset("backup-retention-zero")
+			cr.Spec.Metastore = structuredProdMetastore()
+			b := backupToPVC()
+			b.Retention = &supersetv1alpha1.BackupRetentionSpec{KeepLast: 0}
+			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{Backup: b}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("keepLast"))
+		})
+
 		It("rejects a destination without persistentVolumeClaim", func() {
 			cr := validProdSuperset("backup-empty-dest")
 			cr.Spec.Metastore = structuredProdMetastore()

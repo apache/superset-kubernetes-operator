@@ -336,7 +336,7 @@ type BaseTaskSpec struct {
 	// executing the task Job, preventing database connection conflicts. Drain is
 	// skipped when the task is already complete for the current checksum, or when
 	// no configured component has desired replicas greater than zero.
-	// Defaults vary per task type: true for seed, backup, migrate, and rotate; false for init.
+	// Defaults vary per task type: true for seed, migrate, and rotate; false for backup and init.
 	// +optional
 	RequiresDrain *bool `json:"requiresDrain,omitempty"`
 
@@ -445,8 +445,10 @@ type LifecycleSpec struct {
 	// Backup snapshots the metastore before a data-mutating task (migrate or
 	// rotate) runs, so a failed or unwanted upgrade can be reverted by
 	// restoring the snapshot. Presence enables the task. It runs at most once
-	// per lifecycle run, after drain and before the first pending migrate or
-	// rotate task; config-only changes that re-run only init never trigger it.
+	// per lifecycle run, before the first pending migrate or rotate task;
+	// config-only changes that re-run only init never trigger it. By default
+	// it runs before drain, while the current version keeps serving, so a
+	// failed backup blocks the upgrade without causing downtime.
 	// +optional
 	Backup *BackupTaskSpec `json:"backup,omitempty"`
 
@@ -481,16 +483,28 @@ type RotateTaskSpec struct {
 // BackupTaskSpec defines the pre-upgrade metastore backup task.
 // The default command dumps the metastore with pg_dump (custom format) or
 // mysqldump into destination.persistentVolumeClaim, mounted at /backup. Each
-// run writes a new timestamped file; the operator never deletes completed
-// backups. requiresDrain defaults to true so the snapshot contains every
-// write made before the upgrade; timeout defaults to 1h.
+// run writes a new timestamped dump plus a JSON manifest (image tags, Alembic
+// revision, size, SHA-256); a dump is only committed after it has been read
+// back in full and its checksum re-verified, and completed backups are never
+// overwritten. Completed backups are only deleted when retention.keepLast is
+// set. requiresDrain defaults to false: the dump is a consistent snapshot
+// taken while the current version keeps serving; set it to true to drain
+// first so the snapshot also contains the writes made right before the
+// upgrade, at the cost of longer downtime. timeout defaults to 1h.
 // +kubebuilder:validation:XValidation:rule="(has(self.disabled) && self.disabled) || (has(self.command) && size(self.command) > 0) || has(self.destination)",message="lifecycle.backup requires destination (or a custom command that ships the dump elsewhere); without it the dump would be written to the ephemeral container filesystem and lost"
+// +kubebuilder:validation:XValidation:rule="!has(self.retention) || has(self.destination)",message="lifecycle.backup.retention requires destination; retention prunes dumps on the backup volume"
 type BackupTaskSpec struct {
 	BaseTaskSpec `json:",inline"`
 
 	// Destination for backup files written by the default command.
 	// +optional
 	Destination *BackupDestinationSpec `json:"destination,omitempty"`
+
+	// Retention prunes older backups of this Superset from the destination
+	// after a new backup is committed. When unset, completed backups are
+	// never deleted.
+	// +optional
+	Retention *BackupRetentionSpec `json:"retention,omitempty"`
 
 	// Image for the backup Job. Defaults to postgres:17-alpine (PostgreSQL)
 	// or mysql:8.4 (MySQL) based on metastore.type. The pg_dump client
@@ -529,6 +543,17 @@ type BackupPVCSource struct {
 	// +optional
 	// +kubebuilder:validation:MaxLength=1024
 	SubPath *string `json:"subPath,omitempty"`
+}
+
+// BackupRetentionSpec bounds how many backups are kept on the destination.
+type BackupRetentionSpec struct {
+	// KeepLast keeps the N most recent committed backups of this Superset
+	// (matched by UID through their manifests) and deletes older ones after a
+	// new backup has been committed and verified. Files without a manifest,
+	// and backups written by other Superset resources sharing the volume, are
+	// never deleted.
+	// +kubebuilder:validation:Minimum=1
+	KeepLast int32 `json:"keepLast"`
 }
 
 // InitTaskSpec defines the application initialization task.
@@ -915,6 +940,15 @@ type LifecycleStatus struct {
 	// progress, which is what limits the backup task to one snapshot per run.
 	// +optional
 	SettledChecksum string `json:"settledChecksum,omitempty"`
+	// Backups lists the most recent verified backups written by the default
+	// backup command, newest first (at most 5). It is a convenience view of the
+	// backup Job results; the manifest stored next to each dump on the backup
+	// volume is the source of truth, and entries are kept when backup is
+	// disabled or removed.
+	// +optional
+	// +listType=atomic
+	// +kubebuilder:validation:MaxItems=5
+	Backups []BackupRecord `json:"backups,omitempty"`
 	// Migrate task status summary.
 	// +optional
 	Migrate *TaskRefStatus `json:"migrate,omitempty"`
@@ -927,6 +961,30 @@ type LifecycleStatus struct {
 	// Upgrade context (populated during active upgrade).
 	// +optional
 	Upgrade *UpgradeContext `json:"upgrade,omitempty"`
+}
+
+// BackupRecord describes one committed, verified metastore backup.
+type BackupRecord struct {
+	// Location of the dump: pvc://{claimName}/{subPath}/{file}.
+	Location string `json:"location"`
+	// SizeBytes is the dump size in bytes.
+	SizeBytes int64 `json:"sizeBytes"`
+	// SHA256 is the hex SHA-256 digest of the dump, re-verified after commit.
+	SHA256 string `json:"sha256"`
+	// AlembicRevision is the metastore schema revision captured in the dump.
+	// +optional
+	AlembicRevision string `json:"alembicRevision,omitempty"`
+	// FromImage is the lifecycle image the metastore was on when it was
+	// dumped (empty before the first completed lifecycle run). Restore the
+	// dump with this image.
+	// +optional
+	FromImage string `json:"fromImage,omitempty"`
+	// ToImage is the lifecycle image the upgrade that triggered the backup
+	// was moving to.
+	// +optional
+	ToImage string `json:"toImage,omitempty"`
+	// CreatedAt is when the dump was committed.
+	CreatedAt metav1.Time `json:"createdAt"`
 }
 
 // TaskRefStatus holds the projected status summary of a lifecycle task.
