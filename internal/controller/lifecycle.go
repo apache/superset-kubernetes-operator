@@ -25,10 +25,10 @@ limitations under the License.
 // (seed → migrate → rotate → init) executed as parent-owned Jobs with
 // backoffLimit: 0. An optional backup task runs outside the checksum cascade,
 // once per run, in front of the first pending data-mutating task (migrate or
-// rotate). Per-task wiring (suffix, phase, command builder, inputs
-// builder, IsEnabled, BaseSpec accessor, status slot) lives in
-// lifecycleTaskDescriptors (lifecycle_taskdescriptor.go); per-task spec
-// construction lives in lifecycle_<task>.go; cascade math (per-task checksum
+// rotate), before drain unless it requires drain. Per-task wiring (suffix,
+// phase, command builder, inputs builder, IsEnabled, BaseSpec accessor,
+// status slot) lives in lifecycleTaskDescriptors (lifecycle_taskdescriptor.go);
+// per-task spec construction lives in lifecycle_<task>.go; cascade math (per-task checksum
 // computation, "all complete?", "what's pending?") lives in
 // lifecycle_cascade.go; Job creation/state mechanics live in lifecycle_job.go.
 // Adding a new task means appending a descriptor and providing a per-task
@@ -238,6 +238,15 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 			metav1.ConditionTrue, "LifecycleComplete", "Lifecycle tasks completed successfully", superset.Generation)
 		return lifecycleComplete(), nil
+	}
+
+	// Take the pre-upgrade backup before drain (the default), while the
+	// current version keeps serving: a slow backup adds no downtime and a
+	// failed one blocks the upgrade without taking the instance down.
+	if result, handled, err := r.backupBeforeDrain(ctx, superset, parentLifecyclePhase, configChecksum, topLevel, saName); err != nil {
+		return lifecycleResult{}, err
+	} else if handled {
+		return result, nil
 	}
 
 	// Spin up the maintenance page before drain (if configured).
@@ -503,6 +512,41 @@ func (r *SupersetReconciler) runLifecyclePipeline(
 		}
 	}
 	return lifecycleComplete(), nil
+}
+
+// backupBeforeDrain runs the backup task ahead of maintenance and drain when
+// it does not require drain (the default) and a pending migrate or rotate
+// task needs a snapshot. It returns handled=true while the backup is still
+// running or has failed, so the caller stops before touching any workload.
+// Once it completes, the pipeline finds the backup already done for this run
+// and proceeds straight to the guarded task. With requiresDrain: true the
+// backup instead runs inside the pipeline, after drain.
+func (r *SupersetReconciler) backupBeforeDrain(
+	ctx context.Context,
+	superset *supersetv1alpha1.Superset,
+	parentPhase string,
+	configChecksum string,
+	topLevel *resolution.SharedInput,
+	saName string,
+) (lifecycleResult, bool, error) {
+	if !r.isTaskEnabled(superset, taskTypeBackup) || r.taskRequiresDrain(superset, taskTypeBackup) {
+		return lifecycleResult{}, false, nil
+	}
+	gated := false
+	for _, step := range r.walkLifecycleCascade(superset, configChecksum) {
+		if r.backupGatesStep(superset, step) {
+			gated = true
+			break
+		}
+	}
+	if !gated {
+		return lifecycleResult{}, false, nil
+	}
+	result, err := r.runBackupTask(ctx, superset, parentPhase, configChecksum, topLevel, saName)
+	if err != nil {
+		return lifecycleResult{}, false, err
+	}
+	return result, !result.Complete, nil
 }
 
 // runBackupTask reconciles the backup task Job for the current settled
@@ -801,9 +845,10 @@ func getUpgradeMode(superset *supersetv1alpha1.Superset) string {
 }
 
 // taskRequiresDrain returns whether a task requires components to be drained.
-// Defaults: seed=true (DROP DATABASE needs no connections), backup=true (the
-// snapshot must include every pre-upgrade write), migrate=true (schema
-// changes risk deadlocks), init=false (roles/permissions are safe).
+// Defaults: seed=true (DROP DATABASE needs no connections), backup=false (the
+// dump is a consistent snapshot taken while the current version serves; see
+// backupBeforeDrain), migrate=true (schema changes risk deadlocks),
+// init=false (roles/permissions are safe).
 func (r *SupersetReconciler) taskRequiresDrain(superset *supersetv1alpha1.Superset, taskType string) bool {
 	desc := lifecycleTaskDescriptorByType(taskType)
 	if desc == nil {
