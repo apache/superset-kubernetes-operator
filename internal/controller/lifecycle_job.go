@@ -141,7 +141,7 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 		if jobComplete(existingJob) {
 			log.Info("Lifecycle task completed", "task", taskType, "attempt", taskRef.Attempts+1,
 				"duration", jobAttemptDuration(existingJob, batchv1.JobComplete).String())
-			return r.recordTaskCompletion(superset, existingJob, taskChecksum, taskRef), nil
+			return r.completeTaskJob(ctx, superset, existingJob, taskType, taskChecksum, taskRef)
 		}
 
 		if jobFailed(existingJob) {
@@ -153,7 +153,11 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 			}
 
 			taskRef.Attempts++
-			taskRef.Message = jobFailureMessage(existingJob)
+			message, err := r.taskFailureMessage(ctx, superset, existingJob)
+			if err != nil {
+				return lifecycleResult{}, err
+			}
+			taskRef.Message = message
 			if taskRef.Attempts >= maxRetries {
 				taskRef.State = taskStateFailed
 				taskRef.CompletedChecksum = taskChecksum
@@ -232,6 +236,25 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 	r.Recorder.Eventf(superset, nil, corev1.EventTypeNormal, "TaskStarted", "Lifecycle",
 		"Started %s task job: %s", taskType, job.Name)
 	return lifecycleWait(), nil
+}
+
+// completeTaskJob records a completed task Job attempt and runs the task's
+// OnJobComplete hook, if any.
+func (r *SupersetReconciler) completeTaskJob(
+	ctx context.Context,
+	superset *supersetv1alpha1.Superset,
+	existingJob *batchv1.Job,
+	taskType string,
+	taskChecksum string,
+	taskRef *supersetv1alpha1.TaskRefStatus,
+) (lifecycleResult, error) {
+	result := r.recordTaskCompletion(superset, existingJob, taskChecksum, taskRef)
+	if desc := lifecycleTaskDescriptorByType(taskType); desc != nil && desc.OnJobComplete != nil {
+		if err := desc.OnJobComplete(ctx, r, superset, existingJob, taskRef); err != nil {
+			return lifecycleResult{}, fmt.Errorf("recording %s task result: %w", taskType, err)
+		}
+	}
+	return result, nil
 }
 
 // recordTaskCompletion stamps a successfully completed task's status onto its
@@ -641,6 +664,49 @@ func jobConditionTransitionTime(job *batchv1.Job, conditionType batchv1.JobCondi
 		}
 	}
 	return nil
+}
+
+// taskFailureMessage returns the reason a task Job attempt failed. It prefers
+// the termination message of the task container, which tool-image tasks
+// (backup) write with the failing step and the tail of its error output, and
+// falls back to the Job's failure condition ("BackoffLimitExceeded",
+// "DeadlineExceeded") when the container reported nothing, which is the case
+// for tasks that do not write one and for attempts killed by the timeout.
+func (r *SupersetReconciler) taskFailureMessage(ctx context.Context, superset *supersetv1alpha1.Superset, job *batchv1.Job) (string, error) {
+	message, err := r.taskTerminationMessage(ctx, superset, job)
+	if err != nil {
+		return "", err
+	}
+	if message = strings.TrimSpace(message); message != "" {
+		return truncateFailureMessage(redactCredentials(message)), nil
+	}
+	return jobFailureMessage(job), nil
+}
+
+// taskTerminationMessage returns the termination message of the main
+// container of the task Job's Pod, or "" when there is none. Like
+// taskPodStartupError, it only trusts Pods controller-owned by the Job, so a
+// foreign Pod carrying a spoofed instance label can never inject a message.
+func (r *SupersetReconciler) taskTerminationMessage(ctx context.Context, superset *supersetv1alpha1.Superset, job *batchv1.Job) (string, error) {
+	pods := &corev1.PodList{}
+	if err := r.List(ctx, pods,
+		client.InNamespace(superset.Namespace),
+		client.MatchingLabels{labelInitInstance: job.Name},
+	); err != nil {
+		return "", fmt.Errorf("listing task pods for %s: %w", job.Name, err)
+	}
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		if !metav1.IsControlledBy(pod, job) {
+			continue
+		}
+		for _, status := range pod.Status.ContainerStatuses {
+			if status.Name == naming.Container && status.State.Terminated != nil && status.State.Terminated.Message != "" {
+				return status.State.Terminated.Message, nil
+			}
+		}
+	}
+	return "", nil
 }
 
 func jobFailureMessage(job *batchv1.Job) string {

@@ -162,7 +162,7 @@ Each task declares whether it requires components to be drained (scaled to zero)
 | Task | Default `requiresDrain` | Rationale |
 |------|------------------------|-----------|
 | Seed | `true` | DROP DATABASE fails with active connections |
-| Backup | `true` | The snapshot must include every write made before the upgrade |
+| Backup | `false` | Runs before drain: the dump is a consistent snapshot taken while the current version keeps serving, so a slow or failed backup causes no downtime |
 | Migrate | `true` | Schema changes risk deadlocks and version/schema inconsistencies |
 | Rotate | `true` | After re-encryption, stored secrets use the new key — components with the old key would fail to decrypt |
 | Init | `false` | Role/permission operations are safe with components running |
@@ -254,9 +254,13 @@ flowchart TD
     A[Reconcile] --> B{Lifecycle disabled?}
     B -->|Yes| Z[Components reconcile normally]
     B -->|No| C{upgradeMode}
-    C -->|Automatic| E
+    C -->|Automatic| BK
     C -->|Supervised| D[Await approval]
-    D --> E{Any task requires drain?}
+    D --> BK{Backup enabled and migrate or rotate pending?}
+    BK -->|Yes, not yet taken this run| BK1[Execute backup job while components serve]
+    BK -->|No| E
+    BK1 -->|verified| E{Any task requires drain?}
+    BK1 -->|failed| BKF[Stop: upgrade blocked, current version keeps serving]
     E -->|Yes| MP{Maintenance page configured?}
     E -->|No| G
     MP -->|Yes| MP1[Deploy maintenance page, switch Service selector]
@@ -266,10 +270,7 @@ flowchart TD
     G -->|checksum match| H[Skip]
     G -->|checksum mismatch| G1[Execute seed job]
     G1 --> H
-    H --> BK{Backup enabled and migrate or rotate pending?}
-    BK -->|Yes, not yet taken this run| BK1[Execute backup job]
-    BK -->|No| I
-    BK1 --> I[Migrate task]
+    H --> I[Migrate task]
     I -->|checksum match| J[Skip]
     I -->|checksum mismatch| I1[Execute migrate job]
     I1 --> J
@@ -286,7 +287,7 @@ flowchart TD
     N --> Z
 ```
 
-Disabled tasks are removed from the pipeline entirely (not shown as "skip").
+Disabled tasks are removed from the pipeline entirely (not shown as "skip"). With `backup.requiresDrain: true`, the backup runs after drain instead, immediately before migrate or rotate.
 
 ## Custom Commands
 
@@ -434,7 +435,7 @@ After confirming rotation succeeded, remove `previousSecretKeyFrom` and the `lif
 
 ## Pre-Upgrade Backup
 
-The operator never runs `superset db downgrade`, so the way back from a failed or unwanted upgrade is restoring a snapshot taken before it. The backup task takes that snapshot automatically:
+The operator never runs `superset db downgrade`, so the way back from a failed or unwanted upgrade is restoring a snapshot taken before it. The backup task takes that snapshot automatically, verifies it, and blocks the upgrade if it cannot:
 
 ```yaml
 spec:
@@ -450,43 +451,68 @@ spec:
         persistentVolumeClaim:
           claimName: superset-backups   # must already exist; the operator only references it
           subPath: my-superset          # optional
+      retention:
+        keepLast: 10                    # optional; by default completed backups are never deleted
 ```
 
 ### When It Runs
 
-- At most once per lifecycle run: after drain, immediately before the first pending migrate or rotate task.
+- At most once per lifecycle run, before the first pending migrate or rotate task. That covers image upgrades, `migrate.trigger`, and secret key rotation.
+- Before drain, while the current version keeps serving. A slow backup adds no downtime, and a failed backup blocks the upgrade without taking the instance down. Set `backup.requiresDrain: true` to drain first instead, so the snapshot also contains the writes made in the minutes before the upgrade, at the cost of downtime for the duration of the dump.
+- In `Supervised` mode, only after the upgrade is approved.
 - Not for config-only changes that re-run only init, and not when only the backup spec itself changes.
 - A retried migrate (for example after bumping `migrate.trigger`) reuses the snapshot taken before the first attempt, so a partially migrated database never replaces the clean restore point.
 - Never while a migrate or rotate Job for the same run is already running (for example if backup is enabled mid-upgrade).
-- On the first install the metastore database may not exist yet; a confirmed-absent database is skipped.
+- On the first install the metastore database may not exist yet; a confirmed-absent database is skipped and reported as `Skipped` in status.
 - `backup.trigger` forces a fresh snapshot in the next run that includes migrate or rotate; on its own it does not start a run.
 
 ### What It Writes
 
-| Metastore | Tool | File |
-|---|---|---|
-| PostgreSQL | `pg_dump -Fc` (compressed custom format, verified with `pg_restore --list`) | `{parent}_{UTC timestamp}_{previousTag}.dump` |
-| MySQL | `mysqldump --single-transaction --routines --triggers --no-tablespaces` (plain SQL, verified by its completion marker) | `{parent}_{UTC timestamp}_{previousTag}.sql` |
+| Metastore | Dump | Integrity check before commit | Files |
+|---|---|---|---|
+| PostgreSQL | `pg_dump -Fc` (compressed custom format) | `pg_restore -f /dev/null` reads the whole archive back, decompressing and checking every data block | `{parent}_{UTC timestamp}_{previousTag}.dump` and `.json` |
+| MySQL | `mysqldump --single-transaction --routines --triggers --no-tablespaces` (plain SQL) | the `-- Dump completed` trailer is present | `{parent}_{UTC timestamp}_{previousTag}.sql` and `.json` |
 
-`previousTag` is the image tag the database was on before the run (`initial` on the first run); the timestamp comes first so that sorting by name is chronological. Files are created owner-only (mode `0600`, owned by the backup Job's UID), since the volume may be mounted by other pods. Dumps are written to a `.partial` file and renamed only after verification, so an interrupted or out-of-space run never leaves a file that looks complete, and an existing file is never overwritten. The operator removes its own stale `.partial` files but never deletes completed backups: retention (a CronJob, storage lifecycle policy, etc.) is your responsibility. A full volume makes the backup fail, which blocks the upgrade rather than proceeding without a snapshot.
+Each run follows the same sequence, and any failed step fails the backup:
+
+1. Check that the destination is writable and that the database is reachable. For PostgreSQL, also check that the `pg_dump` client is not older than the server (`pg_dump` refuses to dump a newer server).
+2. Dump to a `.partial` file. For PostgreSQL, `--lock-wait-timeout` makes the dump fail instead of queueing behind a long-held lock.
+3. Run the integrity check above on the `.partial` file, then compute its SHA-256.
+4. Rename it into place, then hash the committed file again and compare (post-commit check).
+5. Write the JSON manifest next to the dump, atomically. It records the image tags, Alembic revision, database and client versions, size, SHA-256, and verification method, and it is the commit marker for retention and restore.
+
+`previousTag` is the image tag the database was on before the run (`initial` on the first run); the timestamp comes first so that sorting by name is chronological. Files are created owner-only (mode `0600`, owned by the backup Job's UID), since the volume may be mounted by other pods. An interrupted, out-of-space, or corrupt run never leaves a file that looks complete, and an existing file is never overwritten. The operator removes its own stale `.partial` files.
+
+### Checking Backups
+
+The last five verified backups are listed in status, newest first:
+
+```bash
+kubectl get superset my-superset -o jsonpath='{range .status.lifecycle.backups[*]}{.createdAt}{"  "}{.location}{"  "}{.sha256}{"\n"}{end}'
+```
+
+Each entry carries `location` (`pvc://{claimName}/{subPath}/{file}`), `sizeBytes`, `sha256`, `alembicRevision`, `fromImage` (the image the database was on, which is the one to restore with), and `toImage`. `status.lifecycle.backup.message` summarizes the last run (`Backup written: ...`, `Skipped: ...`, or the failure reason), and the operator emits `BackupCompleted` and `BackupSkipped` Events. Status is a convenience view: the manifests on the volume are the source of truth, and entries are kept when backup is disabled or removed.
+
+### Retention
+
+By default the operator never deletes completed backups. With `retention.keepLast: N`, after a new backup is committed and verified, the operator deletes this Superset's older backups beyond the newest N. It matches backups by the resource UID recorded in their manifests, so backups of other Superset resources sharing the volume, and files without a manifest, are never touched. A recreated Superset gets a new UID and does not prune backups of its predecessor. A full volume makes the backup fail, which blocks the upgrade rather than proceeding without a snapshot; the failure message names the cause.
 
 ### Requirements and Defaults
 
 - **Metastore**: the default command requires structured metastore fields (`host`/`hostFrom`, ...). For `uri`/`uriFrom`, set `backup.command`; the operator injects `SUPERSET_OPERATOR__DB_URI` (a SQLAlchemy URI, so strip the `+driver` suffix before passing it to `pg_dump`).
-- **Client version**: the default images are `postgres:17-alpine` and `mysql:8.4`. `pg_dump` refuses to dump a server with a newer major version; set `backup.image` (e.g. `tag: 18-alpine`) to match. Restore with a `pg_restore` at least as new as the one that wrote the dump.
+- **Client version**: the default images are `postgres:17-alpine` and `mysql:8.4`. For a newer PostgreSQL server, the backup fails with `pg_dump 17 cannot dump PostgreSQL 18; set spec.lifecycle.backup.image.tag to 18-alpine`; set `backup.image.tag` to match the server. Restore with a `pg_restore` at least as new as the one that wrote the dump.
 - **Privileges**: the metastore user must be able to read every object in the database.
 - **Security context**: the Job runs as the image's non-root user (UID 70 for PostgreSQL, 999 for MySQL) unless you pin a UID, and defaults the pod `fsGroup` to that UID (with `fsGroupChangePolicy: OnRootMismatch`) when you have not set one, so the volume is writable. Some volume types (for example NFS) ignore `fsGroup`.
 - **OpenShift**: the default UID (70/999) and `fsGroup` are outside the UID range that the `restricted-v2` SCC assigns to a namespace, so the Job is rejected. Pin in-range values with `backup.podTemplate.podSecurityContext.runAsUser` and `fsGroup` (see the namespace's `openshift.io/sa.scc.uid-range` annotation). The same applies to the `createDatabase` init container.
 - **Volume access mode**: a `ReadWriteOnce` claim can only be mounted on one node at a time. If another pod on a different node holds it (a retention CronJob, a restore pod, or another instance's backup sharing the claim), the backup pod stays `Pending` until its timeout, fails, and blocks the upgrade. Use a separate claim per instance, schedule housekeeping outside upgrade windows, or use a `ReadWriteMany` volume when the claim is shared.
-- **Drain**: `requiresDrain` defaults to `true`, so enabling backup drains components before every migrate or rotate run, even if you set `migrate.requiresDrain: false` to migrate without downtime. To keep that, set `backup.requiresDrain: false` as well (a hot backup): the dump is still a consistent snapshot, but writes made after it are lost on restore.
+- **Load**: the dump runs against the live database before drain. `pg_dump` and `mysqldump --single-transaction` do not block writers, but they add read load for the duration of the dump.
 - **Timeout**: defaults to `1h` per attempt.
 - **Pod template**: `backup.podTemplate` is merged over the top-level `spec.podTemplate`; like seed, `spec.lifecycle.podTemplate` does not apply.
 - **Seed**: backup and seed are mutually exclusive (a seeded database is reproducible from its source, and a seed schedule would otherwise take a snapshot on every tick).
-- **Sensitive data**: a dump contains everything in the metastore, including connection secrets encrypted with `SECRET_KEY`. Protect the volume accordingly. A dump taken before a key rotation needs the previous key to be usable.
 
 ### Custom Destinations
 
-To ship dumps elsewhere, override the command and image. The operator still provides the connection env vars (`SUPERSET_OPERATOR__DB_*` or `SUPERSET_OPERATOR__DB_URI`) and `SUPERSET_OPERATOR__INSTANCE_NAME`/`SUPERSET_OPERATOR__BACKUP_FROM_TAG` for naming; `destination` is optional when `command` is set:
+To ship dumps elsewhere, override the command and image. The operator still provides the connection env vars (`SUPERSET_OPERATOR__DB_*` or `SUPERSET_OPERATOR__DB_URI`), `SUPERSET_OPERATOR__INSTANCE_NAME` and `SUPERSET_OPERATOR__BACKUP_FROM_TAG` for naming, `SUPERSET_OPERATOR__BACKUP_UID`, and `SUPERSET_OPERATOR__BACKUP_METADATA` (a JSON object with the resource name, namespace, UID, database type, and from/to images); `destination` is optional when `command` is set:
 
 ```yaml
 spec:
@@ -495,29 +521,56 @@ spec:
       image:
         repository: registry.example.com/pg-backup   # contains pg_dump and your upload tool
         tag: "17"
-      command: ["/bin/sh", "-c", "set -eu; ..."]     # dump, then upload; fail on any error
+      command: ["/bin/sh", "-c", "set -eu; ..."]     # dump, verify, then upload; fail on any error
       podTemplate:
         container:
           envFrom:
             - secretRef: {name: backup-bucket-credentials}
 ```
 
-Make the script fail when any step fails; POSIX `sh` has no `pipefail`, so avoid piping `pg_dump` straight into an upload command.
+A custom command owns the guarantees the default command provides (verification, never overwriting, retention). Make the script fail when any step fails; POSIX `sh` has no `pipefail`, so avoid piping `pg_dump` straight into an upload command. To show a failure reason in status, write it to `/dev/termination-log` before exiting non-zero. To record a backup in `status.lifecycle.backups`, write `{"file":"...","sizeBytes":N,"sha256":"...","alembicRevision":"...","createdAt":"RFC 3339"}` there on success; the operator validates every field and ignores anything else.
 
 ### When the Backup Fails
 
-The upgrade stops before touching the database, and components stay drained (bringing them up on the new image against the old schema is unsafe). Then:
+The upgrade stops before touching the database. Components are not drained and keep serving on the current version; with `requiresDrain: true` they stay drained, because bringing them up on the new image against the old schema is unsafe. `status.lifecycle.backup.message` shows the failing step and the tail of the tool's error output (credentials are redacted), for example `backup failed at connect: ... password authentication failed`. Then:
 
 - Fix the cause. Any change to the backup pod configuration (image, resources, security context, command) retries it, even after retries are exhausted. If the fix was outside the Superset spec (for example freeing space on the volume), bump `backup.trigger` to retry.
-- Or revert `spec.image.tag`: migrate no longer needs to run, so components come back on the old image without a backup.
+- Or revert `spec.image.tag`: migrate no longer needs to run, so nothing changes and no backup is needed.
 - Or set `backup.disabled: true` to proceed without a snapshot.
 
 ### Restoring
 
-1. Stop reconciliation: `kubectl patch superset my-superset --type merge -p '{"spec":{"suspend":true}}'`.
-2. Stop Superset workloads: `kubectl delete deploy -l superset.apache.org/parent=my-superset` (the operator recreates them on resume).
-3. Restore from a pod that mounts the backup volume and runs as the backup Job's UID (70 for PostgreSQL, 999 for MySQL, or the UID you pinned) so it can read the owner-only dump, for example `pg_restore --clean --if-exists --no-owner -d "$DATABASE" /backup/my-superset_6.0.1_20260924T020000Z.dump` (or `mysql "$DATABASE" < file.sql`).
-4. Set `spec.image.tag` back to the tag in the file name and resume with `suspend: false`. If migrate runs again, `superset db upgrade` for that version is a no-op on the restored schema.
+You need three things, so keep the last two outside the cluster as well:
+
+- The dump and its manifest from the backup volume.
+- The `SECRET_KEY` the database was encrypted with. Connection passwords in the metastore are encrypted with it, and it is not part of the dump. A dump taken before a key rotation needs the previous key.
+- The image to restore with: `fromImage` in status or `superset.fromImage` in the manifest.
+
+Then:
+
+1. Pick the backup: `kubectl get superset my-superset -o jsonpath='{.status.lifecycle.backups[0]}'`, or the newest manifest on the volume.
+2. Stop reconciliation: `kubectl patch superset my-superset --type merge -p '{"spec":{"suspend":true}}'`.
+3. Stop Superset workloads: `kubectl delete deploy -l superset.apache.org/parent=my-superset` (the operator recreates them on resume).
+4. From a pod that mounts the backup volume and runs as the backup Job's UID (70 for PostgreSQL, 999 for MySQL, or the UID you pinned, since dumps are owner-only), verify the dump before touching the database, then restore it:
+
+    ```bash
+    DUMP=/backup/my-superset_20260924T020000Z_6.0.1.dump
+    echo "$(sed -n 's/.*"sha256":"\([0-9a-f]*\)".*/\1/p' "${DUMP%.dump}.json")  $DUMP" | sha256sum -c -
+    pg_restore --clean --if-exists --no-owner -d "$DATABASE" "$DUMP"   # MySQL: mysql "$DATABASE" < file.sql
+    ```
+
+    To keep the current database for comparison, restore into a new database instead and point `spec.metastore` at it.
+5. Set the image back to `fromImage` and resume with `suspend: false`. If migrate runs again, `superset db upgrade` for that version is a no-op on the restored schema. The resumed run takes a new backup of the restored database first.
+
+### Limitations
+
+- Backups on a PersistentVolumeClaim live in the same cluster (and usually the same zone) as the metastore. Copy them off-cluster, or use a custom command that uploads them, if they must survive losing the cluster.
+- The pre-upgrade backup is an upgrade safety net, not a disaster-recovery strategy: there is no point-in-time recovery and no schedule. Use your database provider's snapshots or PITR alongside it.
+- With the default `requiresDrain: false`, writes made between the snapshot and drain (usually seconds to minutes) are not in the dump.
+- The integrity check proves the dump is complete and readable; it does not prove a restore succeeds against your server. Rehearse the restore procedure.
+- Dumps are not encrypted by the operator. They contain everything in the metastore, including user data and connection secrets encrypted with `SECRET_KEY`; use an encrypted StorageClass and restrict access to the volume.
+- PostgreSQL roles and tablespaces (global objects) and Valkey data are not backed up.
+- MySQL has no client/server version preflight or lock wait timeout; a blocked dump is bounded by the task timeout.
 
 ## Seed (Development and Staging Mode Only)
 
@@ -666,7 +719,7 @@ init.checksum    = hash(rotate.status.checksum, "Init", command, trigger, image,
 
 **Isolation by design:** each task watches only its own relevant inputs. Migrate is image/schema-version driven and intentionally ignores feature/config changes — a config tweak does not re-run migrations. Init is the config-sensitive task: rendered `superset_config.py` changes propagate here. Seed tracks both the source connection identity and the *target* Superset image, so a staging image change triggers a fresh seed before migrations re-run. Rotate fires on secret-key transitions.
 
-**Backup is outside the chain:** the backup task's checksum is `hash(parentUID, "Backup", settledChecksum, trigger)`, where `status.lifecycle.settledChecksum` is recorded only when a lifecycle run fully completes. It never feeds another task's checksum, so editing the backup spec cannot re-run migrate or init, and it stays fixed for the whole run, so a retried migrate reuses the snapshot taken before the first attempt.
+**Backup is outside the chain:** the backup task's checksum is `hash(parentUID, "Backup", settledChecksum, trigger)`, where `status.lifecycle.settledChecksum` is recorded only when a lifecycle run fully completes. It never feeds another task's checksum, so editing the backup spec cannot re-run migrate or init, and enabling backup leaves the checksums of every existing installation unchanged. It stays fixed for the whole run, so a retried migrate reuses the snapshot taken before the first attempt.
 
 **What checksums do NOT cover:** checksums hash *task-semantic* inputs only. Pod-level fields like resource requests/limits, node selectors, tolerations, affinity, and other `podTemplate` knobs are not part of the task checksum and do not by themselves trigger a re-run. Such changes apply on the next execution that *is* triggered by a semantic input change. This is intentional: a pure scheduling tweak should not, for example, re-run a destructive `seed`.
 

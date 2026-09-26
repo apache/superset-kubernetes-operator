@@ -55,3 +55,39 @@ func FuzzSanitizeBackupLabel(f *testing.F) {
 		}
 	})
 }
+
+// FuzzParseBackupResult checks that the backup termination-message parser
+// never panics and only accepts results whose recorded fields are safe to put
+// in status: a plain file name, a lowercase hex SHA-256, a non-negative size,
+// a bounded revision, and an RFC 3339 timestamp; or a bounded skip reason.
+func FuzzParseBackupResult(f *testing.F) {
+	sha := strings.Repeat("ab", 32)
+	f.Add(`{"file":"demo_20260926T010203Z_6.0.0.dump","sizeBytes":1,"sha256":"` + sha + `","alembicRevision":"a1","createdAt":"2026-09-26T01:02:03Z"}`)
+	f.Add(`{"skipped":"metastore database x does not exist yet"}`)
+	f.Add(`{"file":"../x","sizeBytes":1,"sha256":"` + sha + `","createdAt":"2026-09-26T01:02:03Z"}`)
+	f.Add(`backup failed at connect`)
+	f.Add(`{}`)
+	f.Add(``)
+
+	f.Fuzz(func(t *testing.T, in string) {
+		res, ok := parseBackupResult(in)
+		if !ok {
+			return
+		}
+		if res.Skipped != "" {
+			if res.File != "" || len(res.Skipped) > 256 {
+				t.Fatalf("accepted invalid skip result %+v", res)
+			}
+			return
+		}
+		if !backupFilePattern.MatchString(res.File) || strings.Contains(res.File, "/") {
+			t.Fatalf("accepted unsafe file %q", res.File)
+		}
+		if !backupSHA256Pattern.MatchString(res.SHA256) || res.SizeBytes == nil || *res.SizeBytes < 0 {
+			t.Fatalf("accepted invalid digest or size %+v", res)
+		}
+		if !backupRevisionPattern.MatchString(res.AlembicRevision) {
+			t.Fatalf("accepted unsafe revision %q", res.AlembicRevision)
+		}
+	})
+}

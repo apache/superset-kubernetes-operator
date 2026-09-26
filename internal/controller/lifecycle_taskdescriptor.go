@@ -19,7 +19,10 @@ limitations under the License.
 package controller
 
 import (
+	"context"
 	"time"
+
+	batchv1 "k8s.io/api/batch/v1"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/resolution"
@@ -81,6 +84,13 @@ type lifecycleTaskDescriptor struct {
 	// PodRetention returns a task-specific retention override (nil-safe).
 	// Nil (or a nil return) falls back to spec.lifecycle.podRetention.
 	PodRetention func(*supersetv1alpha1.Superset) *supersetv1alpha1.PodRetentionSpec
+
+	// OnJobComplete, when set, runs once a task Job attempt is observed
+	// complete, after the generic completion bookkeeping. It may refine the
+	// task message and record task-specific status (backup records the dump
+	// its Job reported). It must be idempotent: a failed status patch can
+	// replay it on the next reconcile.
+	OnJobComplete func(context.Context, *SupersetReconciler, *supersetv1alpha1.Superset, *batchv1.Job, *supersetv1alpha1.TaskRefStatus) error
 }
 
 // usesSupersetConfig reports whether the task runs the Superset image with the
@@ -138,7 +148,7 @@ var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 		TaskType:        taskTypeBackup,
 		Suffix:          suffixBackup,
 		Phase:           lifecyclePhaseBackingUp,
-		DrainsByDefault: true,
+		DrainsByDefault: false,
 		OutOfCascade:    true,
 		DefaultTimeout:  defaultBackupTimeout,
 		BuildCommand: func(_ *SupersetReconciler, s *supersetv1alpha1.Superset) []string {
@@ -167,6 +177,9 @@ var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 				return nil
 			}
 			return s.Spec.Lifecycle.Backup.PodRetention
+		},
+		OnJobComplete: func(ctx context.Context, r *SupersetReconciler, s *supersetv1alpha1.Superset, job *batchv1.Job, ref *supersetv1alpha1.TaskRefStatus) error {
+			return r.recordBackupResult(ctx, s, job, ref)
 		},
 	},
 	{

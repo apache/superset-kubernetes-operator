@@ -115,13 +115,82 @@ spec:
 	return logs
 }
 
-// creationTime returns a resource's metadata.creationTimestamp.
-func creationTime(resource, name string) time.Time {
-	out, err := jsonPath(resource, name, "{.metadata.creationTimestamp}")
+// latestEventTime returns when the Superset most recently emitted an Event
+// with the given reason (zero if never). The operator records events.k8s.io
+// Events, which carry eventTime; lastTimestamp is the core fallback.
+func latestEventTime(crName, reason string) time.Time {
+	out, err := runKubectl("get", "events", "-n", namespace,
+		"--field-selector", "involvedObject.kind=Superset,involvedObject.name="+crName+",reason="+reason,
+		"-o", `jsonpath={range .items[*]}{.eventTime}{"|"}{.lastTimestamp}{"\n"}{end}`)
 	ExpectWithOffset(1, err).NotTo(HaveOccurred())
-	t, err := time.Parse(time.RFC3339, strings.TrimSpace(out))
-	ExpectWithOffset(1, err).NotTo(HaveOccurred())
-	return t
+	var latest time.Time
+	for line := range strings.SplitSeq(strings.TrimSpace(out), "\n") {
+		for field := range strings.SplitSeq(line, "|") {
+			if t, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(field)); err == nil && t.After(latest) {
+				latest = t
+			}
+		}
+	}
+	return latest
+}
+
+// manifestCheckScript verifies every dump of the given extension in the
+// current directory against its manifest (present, SHA-256 matches) and
+// prints "FILE <name> <sha256>" and "MODE <octal>" per dump plus the number
+// of manifests, so orphans in either direction are visible.
+func manifestCheckScript(ext string) string {
+	return fmt.Sprintf(`if ls *.partial >/dev/null 2>&1; then echo "PARTIAL_LEFT"; fi
+echo "MANIFESTS $(ls -1 *.json 2>/dev/null | wc -l)"
+for f in $(ls -1 *.%[1]s | sort); do
+  m="${f%%.%[1]s}.json"
+  [ -f "$m" ] || echo "NO_MANIFEST $f"
+  want=$(sed -n 's/.*"sha256":"\([0-9a-f]*\)".*/\1/p' "$m" 2>/dev/null || true)
+  got=$(sha256sum "$f" | cut -d' ' -f1)
+  [ "$want" = "$got" ] || echo "SHA_MISMATCH $f"
+  echo "FILE $f $got"
+  echo "MODE $(stat -c %%a "$f")"
+done
+`, ext)
+}
+
+// parseDumpListing checks manifestCheckScript output and returns the dump
+// file names (oldest first) and their SHA-256 digests.
+func parseDumpListing(logs string) (files, shas []string) {
+	ExpectWithOffset(2, logs).NotTo(ContainSubstring("PARTIAL_LEFT"), "no .partial files may remain")
+	ExpectWithOffset(2, logs).NotTo(ContainSubstring("NO_MANIFEST"), "every dump must have a manifest")
+	ExpectWithOffset(2, logs).NotTo(ContainSubstring("SHA_MISMATCH"), "every dump must match its manifest checksum")
+	manifests := -1
+	for line := range strings.SplitSeq(logs, "\n") {
+		if rest, ok := strings.CutPrefix(line, "FILE "); ok {
+			name, sha, _ := strings.Cut(rest, " ")
+			files = append(files, name)
+			shas = append(shas, strings.TrimSpace(sha))
+		}
+		if mode, ok := strings.CutPrefix(line, "MODE "); ok {
+			ExpectWithOffset(2, strings.TrimSpace(mode)).To(Equal("600"), "dumps must be owner-only")
+		}
+		if n, ok := strings.CutPrefix(line, "MANIFESTS "); ok {
+			_, _ = fmt.Sscan(strings.TrimSpace(n), &manifests)
+		}
+	}
+	ExpectWithOffset(2, manifests).To(Equal(len(files)), "no orphan manifests")
+	return files, shas
+}
+
+// expectNewestBackupRecord asserts status.lifecycle.backups[0] points at the
+// given dump and carries its checksum.
+func expectNewestBackupRecord(crName, location, sha string) {
+	EventuallyWithOffset(1, func(g Gomega) {
+		got, err := jsonPath("superset", crName, "{.status.lifecycle.backups[0].location}")
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(got).To(Equal(location))
+		got, err = jsonPath("superset", crName, "{.status.lifecycle.backups[0].sha256}")
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(got).To(Equal(sha))
+		got, err = jsonPath("superset", crName, "{.status.lifecycle.backup.message}")
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(got).To(HavePrefix("Backup written: " + location))
+	}, time.Minute, 2*time.Second).Should(Succeed())
 }
 
 var _ = Describe("Superset lifecycle backup (PostgreSQL)", Ordered, func() {
@@ -145,31 +214,24 @@ var _ = Describe("Superset lifecycle backup (PostgreSQL)", Ordered, func() {
 			`-c \"UPDATE marker SET v = '%s'\""]`, value)
 	}
 
-	// dumps lists completed dumps and prints the marker value captured by the
-	// newest one.
-	dumps := func() (files []string, newestMarker string) {
+	// dumps verifies every dump against its manifest, reads each archive back
+	// in full, and returns the dumps (oldest first), their checksums, and the
+	// marker value captured by the newest one.
+	dumps := func() (files, shas []string, newestMarker string) {
 		logs := runVerifierPod(crName+"-verify", postgresImage, pvcName, pgUID, `set -eu
 cd /backup/dumps
-if ls *.partial >/dev/null 2>&1; then echo "PARTIAL_LEFT"; fi
-for f in $(ls -1 *.dump | sort); do
-  echo "FILE $f"; echo "MODE $(stat -c %a "$f")"; pg_restore --list "$f" >/dev/null
-done
+`+manifestCheckScript("dump")+`for f in *.dump; do pg_restore -f /dev/null "$f"; done
 NEWEST=$(ls -1 *.dump | sort | tail -n 1)
 echo "MARKER $(pg_restore -a -t marker -f - "$NEWEST" | sed -n '/^COPY/{n;p;}')"`)
-		Expect(logs).NotTo(ContainSubstring("PARTIAL_LEFT"), "no .partial files may remain")
+		files, shas = parseDumpListing(logs)
 		for line := range strings.SplitSeq(logs, "\n") {
-			if f, ok := strings.CutPrefix(line, "FILE "); ok {
-				files = append(files, f)
-			}
-			if mode, ok := strings.CutPrefix(line, "MODE "); ok {
-				Expect(strings.TrimSpace(mode)).To(Equal("600"), "dumps must be owner-only")
-			}
 			if m, ok := strings.CutPrefix(line, "MARKER "); ok {
 				newestMarker = strings.TrimSpace(m)
 			}
 		}
-		return files, newestMarker
+		return files, shas, newestMarker
 	}
+	location := func(file string) string { return "pvc://" + pvcName + "/dumps/" + file }
 
 	BeforeAll(func() {
 		DeferCleanup(func() {
@@ -352,10 +414,12 @@ spec:
 			dbPassRefEnvPath, pgName, time.Minute)
 		Expect(psql("SELECT v FROM marker")).To(Equal("v2"))
 
-		files, marker := dumps()
+		files, shas, marker := dumps()
 		Expect(files).To(HaveLen(1))
 		Expect(files[0]).To(HaveSuffix("_initial.dump"))
 		Expect(marker).To(Equal("v1"), "the dump predates the migrate that wrote v2")
+		expectNewestBackupRecord(crName, location(files[0]), shas[0])
+		Expect(latestEventTime(crName, "BackupCompleted").IsZero()).To(BeFalse())
 	})
 
 	It("runs the backup Job with restricted-PSS-compatible defaults", func() {
@@ -367,7 +431,7 @@ spec:
 		expectJSONPath("job", backupJob, "{.spec.activeDeadlineSeconds}", "3600", time.Minute)
 	})
 
-	It("drains the web server, then snapshots again before the next migrate", func() {
+	It("snapshots while the web server still serves, then drains and migrates", func() {
 		expectResourceExists("deployment", crName+"-web-server", 2*time.Minute)
 		firstBackup, err := jsonPath("superset", crName, "{.status.lifecycle.backup.completedChecksum}")
 		Expect(err).NotTo(HaveOccurred())
@@ -384,20 +448,18 @@ spec:
 		expectJSONPath("job", backupJob,
 			firstRunEnvPath, "false", time.Minute)
 
-		files, marker := dumps()
+		files, shas, marker := dumps()
 		Expect(files).To(HaveLen(2))
 		Expect(files[1]).To(HaveSuffix("_17-alpine.dump"))
 		Expect(marker).To(Equal("v2"))
+		expectNewestBackupRecord(crName, location(files[1]), shas[1])
 
-		// The web server is only recreated after the whole pipeline, so a
-		// Deployment newer than the backup Job proves it was drained first.
-		Expect(creationTime("deployment", crName+"-web-server")).
-			To(BeTemporally(">=", creationTime("job", backupJob)), "web server must be drained before the backup")
-		events, err := runKubectl("get", "events", "-n", namespace,
-			"--field-selector", "involvedObject.kind=Superset,involvedObject.name="+crName,
-			"-o", "jsonpath={.items[*].reason}")
-		Expect(err).NotTo(HaveOccurred())
-		Expect(events).To(ContainSubstring("DrainingCompleted"))
+		// Backup runs before drain by default: the verified backup completed
+		// before the operator started draining the web server for migrate.
+		backupDone := latestEventTime(crName, "BackupCompleted")
+		drainStart := latestEventTime(crName, "DrainingStarted")
+		Expect(drainStart.IsZero()).To(BeFalse(), "migrate drained the running web server")
+		Expect(backupDone).To(BeTemporally("<=", drainStart), "the backup must finish before drain starts")
 	})
 
 	It("does not back up on config-only changes", func() {
@@ -415,7 +477,7 @@ spec:
 		}, backupTimeout, 2*time.Second).Should(Succeed())
 		expectJSONPath("superset", crName, "{.status.lifecycle.phase}", "Complete", backupTimeout)
 		expectJSONPath("superset", crName, "{.status.lifecycle.backup.completedChecksum}", before, time.Minute)
-		files, _ := dumps()
+		files, _, _ := dumps()
 		Expect(files).To(HaveLen(2))
 	})
 
@@ -429,28 +491,36 @@ spec:
 		}, 20*time.Second, 2*time.Second).Should(Succeed())
 	})
 
-	It("blocks migrate when the backup fails and recovers once it is fixed", func() {
-		patchSuperset(crName, "merge",
-			`{"spec":{"lifecycle":{"backup":{"command":["/bin/sh","-c","echo simulated dump failure >&2; exit 1"]}}}}`)
+	It("blocks migrate on a failed backup, keeps serving, and reports why", func() {
+		By("pinning a pg_dump client older than the server, the most common real-world backup failure")
+		pgRepo, _ := splitImageRef(postgresImage)
+		patchSuperset(crName, "merge", fmt.Sprintf(
+			`{"spec":{"lifecycle":{"backup":{"image":{"repository":%q,"tag":"16-alpine"}}}}}`, pgRepo))
 		patchSuperset(crName, "merge", fmt.Sprintf(`{"spec":{"lifecycle":{"migrate":{"command":%s}}}}`, migrateCommand("v4")))
 
 		expectJSONPath("superset", crName, "{.status.lifecycle.backup.state}", "Failed", backupTimeout)
 		expectJSONPath("superset", crName,
 			"{.status.conditions[?(@.type=='LifecycleComplete')].reason}", "TaskFailed", time.Minute)
-		Consistently(func() string {
-			return psql("SELECT v FROM marker")
-		}, 15*time.Second, 3*time.Second).Should(Equal("v3"), "migrate must not run after a failed backup")
-		expectResourceGone("deployment", crName+"-web-server")
+		message, err := jsonPath("superset", crName, "{.status.lifecycle.backup.message}")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(message).To(ContainSubstring("backup failed at preflight: pg_dump 16 cannot dump PostgreSQL"),
+			"the reason from the backup script is shown instead of a generic Job failure")
+		Expect(message).To(ContainSubstring("set spec.lifecycle.backup.image.tag"))
+		Consistently(func(g Gomega) {
+			g.Expect(psql("SELECT v FROM marker")).To(Equal("v3"), "migrate must not run after a failed backup")
+			_, err := runKubectl("get", "deployment", crName+"-web-server", "-n", namespace)
+			g.Expect(err).NotTo(HaveOccurred(), "the current version keeps serving: no drain before a successful backup")
+		}, 15*time.Second, 3*time.Second).Should(Succeed())
 
-		By("removing the broken command, which changes the backup pod spec and retries it")
-		patchSuperset(crName, "json", `[{"op":"remove","path":"/spec/lifecycle/backup/command"}]`)
+		By("removing the image override, which changes the backup pod spec and retries it")
+		patchSuperset(crName, "json", `[{"op":"remove","path":"/spec/lifecycle/backup/image"}]`)
 		Eventually(func(g Gomega) {
 			g.Expect(psql("SELECT v FROM marker")).To(Equal("v4"))
 		}, backupTimeout, 2*time.Second).Should(Succeed())
 		expectJSONPath("superset", crName, "{.status.lifecycle.backup.state}", "Complete", time.Minute)
 		expectJSONPath("superset", crName, "{.status.lifecycle.phase}", "Complete", backupTimeout)
 
-		files, marker := dumps()
+		files, _, marker := dumps()
 		Expect(files).To(HaveLen(3))
 		Expect(marker).To(Equal("v3"))
 	})
@@ -460,7 +530,7 @@ spec:
 		expectJSONPath("superset", crName, "{.status.lifecycle.migrate.state}", "Failed", backupTimeout)
 		afterFirst, err := jsonPath("superset", crName, "{.status.lifecycle.backup.completedChecksum}")
 		Expect(err).NotTo(HaveOccurred())
-		files, _ := dumps()
+		files, _, _ := dumps()
 		Expect(files).To(HaveLen(4))
 
 		patchSuperset(crName, "merge", fmt.Sprintf(`{"spec":{"lifecycle":{"migrate":{"command":%s}}}}`, migrateCommand("v5")))
@@ -469,9 +539,26 @@ spec:
 		}, backupTimeout, 2*time.Second).Should(Succeed())
 		expectJSONPath("superset", crName, "{.status.lifecycle.phase}", "Complete", backupTimeout)
 		expectJSONPath("superset", crName, "{.status.lifecycle.backup.completedChecksum}", afterFirst, time.Minute)
-		files, marker := dumps()
+		files, _, marker := dumps()
 		Expect(files).To(HaveLen(4), "the retry must not take another snapshot")
 		Expect(marker).To(Equal("v4"))
+	})
+
+	It("prunes this instance's older backups with retention.keepLast", func() {
+		before, _, _ := dumps()
+		Expect(before).To(HaveLen(4))
+		patchSuperset(crName, "merge", fmt.Sprintf(
+			`{"spec":{"lifecycle":{"backup":{"retention":{"keepLast":2}},"migrate":{"command":%s}}}}`, migrateCommand("v6")))
+		Eventually(func(g Gomega) {
+			g.Expect(psql("SELECT v FROM marker")).To(Equal("v6"))
+		}, backupTimeout, 2*time.Second).Should(Succeed())
+		expectJSONPath("superset", crName, "{.status.lifecycle.phase}", "Complete", backupTimeout)
+
+		files, shas, marker := dumps()
+		Expect(files).To(HaveLen(2), "only the two newest backups remain, each with its manifest")
+		Expect(files[0]).To(Equal(before[3]), "pruning keeps the newest existing backup")
+		Expect(marker).To(Equal("v5"))
+		expectNewestBackupRecord(crName, location(files[1]), shas[1])
 	})
 })
 
@@ -495,28 +582,19 @@ var _ = Describe("Superset lifecycle backup (MySQL)", Ordered, func() {
 			`\"$SUPERSET_OPERATOR__DB_NAME\" -e \"UPDATE marker SET v = '%s'\""]`, value)
 	}
 
-	dumps := func() (files []string, newest string) {
+	dumps := func() (files, shas []string, newest string) {
 		logs := runVerifierPod(crName+"-verify", mysqlImage, pvcName, mysqlUID, `set -eu
 cd /backup
-if ls *.partial >/dev/null 2>&1; then echo "PARTIAL_LEFT"; fi
-for f in $(ls -1 *.sql | sort); do
-  echo "FILE $f"; echo "MODE $(stat -c %a "$f")"; tail -n 1 "$f" | grep -q '^-- Dump completed'
-done
+`+manifestCheckScript("sql")+`for f in *.sql; do tail -n 1 "$f" | grep -q '^-- Dump completed'; done
 NEWEST=$(ls -1 *.sql | sort | tail -n 1)
 echo "INSERT $(grep 'INSERT INTO .marker.' "$NEWEST")"`)
-		Expect(logs).NotTo(ContainSubstring("PARTIAL_LEFT"))
+		files, shas = parseDumpListing(logs)
 		for line := range strings.SplitSeq(logs, "\n") {
-			if f, ok := strings.CutPrefix(line, "FILE "); ok {
-				files = append(files, f)
-			}
-			if mode, ok := strings.CutPrefix(line, "MODE "); ok {
-				Expect(strings.TrimSpace(mode)).To(Equal("600"), "dumps must be owner-only")
-			}
 			if m, ok := strings.CutPrefix(line, "INSERT "); ok {
 				newest = m
 			}
 		}
-		return files, newest
+		return files, shas, newest
 	}
 
 	BeforeAll(func() {
@@ -671,18 +749,20 @@ spec:
 		expectJSONPath("superset", crName, "{.status.lifecycle.backup.state}", "Complete", time.Minute)
 		expectJSONPath("job", crName+"-backup", "{.spec.template.spec.containers[0].image}", "mysql:8.4", time.Minute)
 		Expect(mysqlExec("SELECT v FROM marker")).To(Equal("v2"))
-		files, insert := dumps()
+		files, shas, insert := dumps()
 		Expect(files).To(HaveLen(1))
 		Expect(insert).To(ContainSubstring("'v1'"))
+		expectNewestBackupRecord(crName, "pvc://"+pvcName+"/"+files[0], shas[0])
 
 		patchSuperset(crName, "merge", fmt.Sprintf(`{"spec":{"lifecycle":{"migrate":{"command":%s}}}}`, migrateCommand("v3")))
 		Eventually(func(g Gomega) {
 			g.Expect(mysqlExec("SELECT v FROM marker")).To(Equal("v3"))
 		}, backupTimeout, 2*time.Second).Should(Succeed())
 		expectJSONPath("superset", crName, "{.status.lifecycle.phase}", "Complete", backupTimeout)
-		files, insert = dumps()
+		files, shas, insert = dumps()
 		Expect(files).To(HaveLen(2))
 		Expect(insert).To(ContainSubstring("'v2'"))
+		expectNewestBackupRecord(crName, "pvc://"+pvcName+"/"+files[1], shas[1])
 	})
 })
 
@@ -831,6 +911,9 @@ spec:
 		logs, err := runKubectl("logs", "job/"+crName+"-backup", "-n", namespace)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(logs).To(ContainSubstring("does not exist yet; nothing to back up"))
+		expectJSONPath("superset", crName, "{.status.lifecycle.backup.message}",
+			"Skipped: metastore database superset does not exist yet", time.Minute)
+		expectJSONPath("superset", crName, "{.status.lifecycle.backups}", "", time.Minute)
 		out, err := runKubectl("exec", "-n", namespace, "deploy/"+pgName, "--",
 			"psql", "-X", "-U", "superset", "-d", "postgres", "-tA", "-c",
 			"SELECT 1 FROM pg_database WHERE datname = 'superset'")
@@ -980,6 +1063,8 @@ spec:
 		logs, err := runKubectl("logs", "job/"+crName+"-backup", "-n", namespace)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(logs).To(ContainSubstring("does not exist yet; nothing to back up"))
+		expectJSONPath("superset", crName, "{.status.lifecycle.backup.message}",
+			"Skipped: metastore database superset does not exist yet", time.Minute)
 		expectJSONPath("job", crName+"-migrate",
 			"{.spec.template.spec.initContainers[?(@.name=='create-database')].image}", "mysql:8.4", time.Minute)
 		out, err := runKubectl("exec", "-n", namespace, "deploy/"+dbName, "--",
@@ -1174,16 +1259,28 @@ spec:
 		backupBefore, err := jsonPath("superset", crName, "{.status.lifecycle.backup.completedChecksum}")
 		Expect(err).NotTo(HaveOccurred())
 
-		By("restoring the newest dump as the backup UID")
-		dump := newest()
+		By("picking the backup from status and verifying it against its manifest before restoring")
+		loc, err := jsonPath("superset", crName, "{.status.lifecycle.backups[0].location}")
+		Expect(err).NotTo(HaveOccurred())
+		sha, err := jsonPath("superset", crName, "{.status.lifecycle.backups[0].sha256}")
+		Expect(err).NotTo(HaveOccurred())
+		file, ok := strings.CutPrefix(loc, "pvc://"+pvcName+"/")
+		Expect(ok).To(BeTrue(), "location %q names the backup PVC", loc)
+		dump := "/backup/" + file
+		Expect(dump).To(Equal(newest()))
 		logs := runPVCPod(crName+"-restore", postgresImage, pvcName, pgUID, fmt.Sprintf(`    - name: PGPASSWORD
       valueFrom:
         secretKeyRef:
           name: %s
           key: password
 `, pgName), fmt.Sprintf(`set -eu
-pg_restore --clean --if-exists --no-owner -h %s -U superset -d superset %q
-echo RESTORED`, pgName, dump))
+DUMP=%[2]q
+grep -q '"sha256":"%[3]s"' "${DUMP%%.dump}.json"
+echo "%[3]s  $DUMP" | sha256sum -c -
+pg_restore -f /dev/null "$DUMP"
+pg_restore --clean --if-exists --no-owner -h %[1]s -U superset -d superset "$DUMP"
+echo RESTORED`, pgName, dump, sha))
+		Expect(logs).To(ContainSubstring("OK"), "the dump matches the checksum recorded in status and its manifest")
 		Expect(logs).To(ContainSubstring("RESTORED"))
 		Expect(psql("SELECT v FROM marker")).To(Equal("v2"), "the database is back at the pre-upgrade state")
 

@@ -16095,6 +16095,15 @@ spec:
                         type: object
                       requiresDrain:
                         type: boolean
+                      retention:
+                        properties:
+                          keepLast:
+                            format: int32
+                            minimum: 1
+                            type: integer
+                        required:
+                        - keepLast
+                        type: object
                       timeout:
                         type: string
                       trigger:
@@ -16107,6 +16116,9 @@ spec:
                         lost
                       rule: (has(self.disabled) && self.disabled) || (has(self.command)
                         && size(self.command) > 0) || has(self.destination)
+                    - message: lifecycle.backup.retention requires destination; retention
+                        prunes dumps on the backup volume
+                      rule: '!has(self.retention) || has(self.destination)'
                   bootstrapScript:
                     type: string
                   config:
@@ -44804,6 +44816,34 @@ spec:
                         - Failed
                         type: string
                     type: object
+                  backups:
+                    items:
+                      properties:
+                        alembicRevision:
+                          type: string
+                        createdAt:
+                          format: date-time
+                          type: string
+                        fromImage:
+                          type: string
+                        location:
+                          type: string
+                        sha256:
+                          type: string
+                        sizeBytes:
+                          format: int64
+                          type: integer
+                        toImage:
+                          type: string
+                      required:
+                      - createdAt
+                      - location
+                      - sha256
+                      - sizeBytes
+                      type: object
+                    maxItems: 5
+                    type: array
+                    x-kubernetes-list-type: atomic
                   init:
                     properties:
                       attempts:
