@@ -23,10 +23,12 @@ limitations under the License.
 //
 // The lifecycle pipeline is a small state machine over four sequential tasks
 // (seed → migrate → rotate → init) executed as parent-owned Jobs with
-// backoffLimit: 0. Per-task wiring (suffix, phase, command builder, inputs
-// builder, IsEnabled, BaseSpec accessor, status slot) lives in
-// lifecycleTaskDescriptors (lifecycle_taskdescriptor.go); per-task spec
-// construction lives in lifecycle_<task>.go; cascade math (per-task checksum
+// backoffLimit: 0. An optional backup task runs outside the checksum cascade,
+// once per run, in front of the first pending data-mutating task (migrate or
+// rotate), before drain unless it requires drain. Per-task wiring (suffix,
+// phase, command builder, inputs builder, IsEnabled, BaseSpec accessor,
+// status slot) lives in lifecycleTaskDescriptors (lifecycle_taskdescriptor.go);
+// per-task spec construction lives in lifecycle_<task>.go; cascade math (per-task checksum
 // computation, "all complete?", "what's pending?") lives in
 // lifecycle_cascade.go; Job creation/state mechanics live in lifecycle_job.go.
 // Adding a new task means appending a descriptor and providing a per-task
@@ -36,7 +38,7 @@ limitations under the License.
 //
 // Two phase enums coexist intentionally:
 //
-//   - lifecyclePhase* (Seeding, Draining, Migrating, Rotating, Initializing,
+//   - lifecyclePhase* (Seeding, Draining, BackingUp, Migrating, Rotating, Initializing,
 //     Restoring, Complete, Blocked, AwaitingApproval) is the lifecycle
 //     sub-state, surfaced on Status.Lifecycle.Phase. It tells operators what
 //     the lifecycle pipeline is currently doing.
@@ -68,17 +70,20 @@ const (
 	taskTypeInit    = "Init"
 	taskTypeSeed    = "Seed"
 	taskTypeRotate  = "Rotate"
+	taskTypeBackup  = "Backup"
 
 	suffixMigrate = "-migrate"
 	suffixInit    = "-init"
 	suffixSeed    = "-seed"
 	suffixRotate  = "-rotate"
+	suffixBackup  = "-backup"
 
 	upgradeModeAutomatic  = "Automatic"
 	upgradeModeSupervised = "Supervised"
 
 	lifecyclePhaseSeeding          = "Seeding"
 	lifecyclePhaseDraining         = "Draining"
+	lifecyclePhaseBackingUp        = "BackingUp"
 	lifecyclePhaseMigrating        = "Migrating"
 	lifecyclePhaseRotating         = "Rotating"
 	lifecyclePhaseInitializing     = "Initializing"
@@ -181,6 +186,13 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		return blockResult, nil
 	}
 
+	// Block the pipeline when backup and seed are both enabled. CEL already
+	// forbids the combination; the controller re-checks defensively so a CR
+	// that slips past admission does not snapshot on every seed cron tick.
+	if blockResult, blocked := r.gateOnBackupWithSeed(superset); blocked {
+		return blockResult, nil
+	}
+
 	// Resolve the current lifecycle image.
 	var imageOverride *supersetv1alpha1.ImageOverrideSpec
 	if superset.Spec.Lifecycle != nil {
@@ -205,10 +217,11 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		return lifecycleResult{}, err
 	}
 
-	// If no tasks are enabled, the pipeline is already settled. Advancing
-	// LastLifecycleImage here avoids re-gating Supervised image changes when
-	// the user has disabled every task.
-	if len(enabledTasks) == 0 {
+	// If no cascade tasks are enabled, the pipeline is already settled.
+	// Advancing LastLifecycleImage here avoids re-gating Supervised image
+	// changes when the user has disabled every task. Backup alone has nothing
+	// to guard, so it does not count.
+	if !r.anyCascadeTaskEnabled(superset) {
 		superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
 		r.settleLifecycle(superset, currentImage, "NoLifecycleTasks", "No lifecycle tasks configured")
 		return lifecycleComplete(), nil
@@ -221,9 +234,19 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		if superset.Status.Lifecycle.Phase != lifecyclePhaseRestoring {
 			superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
 		}
+		recordSettledChecksum(superset)
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 			metav1.ConditionTrue, "LifecycleComplete", "Lifecycle tasks completed successfully", superset.Generation)
 		return lifecycleComplete(), nil
+	}
+
+	// Take the pre-upgrade backup before drain (the default), while the
+	// current version keeps serving: a slow backup adds no downtime and a
+	// failed one blocks the upgrade without taking the instance down.
+	if result, handled, err := r.backupBeforeDrain(ctx, superset, parentLifecyclePhase, configChecksum, topLevel, saName); err != nil {
+		return lifecycleResult{}, err
+	} else if handled {
+		return result, nil
 	}
 
 	// Spin up the maintenance page before drain (if configured).
@@ -267,6 +290,17 @@ func (r *SupersetReconciler) enabledTaskTypes(superset *supersetv1alpha1.Superse
 		}
 	}
 	return out
+}
+
+// anyCascadeTaskEnabled reports whether at least one enabled task is part of
+// the checksum cascade.
+func (r *SupersetReconciler) anyCascadeTaskEnabled(superset *supersetv1alpha1.Superset) bool {
+	for _, desc := range lifecycleTaskDescriptors {
+		if !desc.OutOfCascade && desc.IsEnabled(superset) {
+			return true
+		}
+	}
+	return false
 }
 
 // prepareMaintenancePage brings up the maintenance Deployment and switches
@@ -371,6 +405,23 @@ func (r *SupersetReconciler) gateOnSeedEnvironment(superset *supersetv1alpha1.Su
 	return lifecycleTerminal(), true
 }
 
+// gateOnBackupWithSeed blocks the pipeline when backup and seed are both
+// enabled. Mirrors the CEL rule; see gateOnSeedEnvironment for why the
+// controller re-checks admission rules.
+func (r *SupersetReconciler) gateOnBackupWithSeed(superset *supersetv1alpha1.Superset) (lifecycleResult, bool) {
+	if !r.isTaskEnabled(superset, taskTypeBackup) || superset.Spec.Lifecycle.Seed == nil || isDisabled(superset.Spec.Lifecycle.Seed.Disabled) {
+		return lifecycleResult{}, false
+	}
+	message := "lifecycle.backup and lifecycle.seed are mutually exclusive; disable one of them"
+	superset.Status.Lifecycle.Phase = lifecyclePhaseBlocked
+	superset.Status.Phase = phaseBlocked
+	setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
+		metav1.ConditionFalse, "BackupWithSeedNotAllowed", message, superset.Generation)
+	r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "BackupWithSeedNotAllowed", "Lifecycle",
+		"Lifecycle blocked: %s", message)
+	return lifecycleTerminal(), true
+}
+
 // finalizeLifecycle updates status after all lifecycle tasks complete.
 // Maintenance teardown is handled separately in reconcileMaintenanceReturn(),
 // gated on web-server readiness. The upgrade approval annotation is cleared by
@@ -396,6 +447,7 @@ func (r *SupersetReconciler) settleLifecycle(superset *supersetv1alpha1.Superset
 	if superset.Status.Lifecycle != nil {
 		superset.Status.Lifecycle.Upgrade = nil
 	}
+	recordSettledChecksum(superset)
 	setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 		metav1.ConditionTrue, reason, message, superset.Generation)
 }
@@ -433,7 +485,21 @@ func (r *SupersetReconciler) runLifecyclePipeline(
 	saName string,
 ) (lifecycleResult, error) {
 	parentPhase := lifecycleParentPhase(upgradeInProgress)
+	backupConsidered := false
 	for _, step := range r.walkLifecycleCascade(superset, configChecksum) {
+		// Snapshot the metastore once per run, in front of the first guarded
+		// (data-mutating) task that has not started yet.
+		if !backupConsidered && r.backupGatesStep(superset, step) {
+			backupConsidered = true
+			result, err := r.runBackupTask(ctx, superset, parentPhase, configChecksum, topLevel, saName)
+			if err != nil {
+				return lifecycleResult{}, err
+			}
+			if !result.Complete {
+				return result, nil
+			}
+		}
+
 		superset.Status.Lifecycle.Phase = step.Desc.Phase
 		superset.Status.Phase = parentPhase
 
@@ -446,6 +512,61 @@ func (r *SupersetReconciler) runLifecyclePipeline(
 		}
 	}
 	return lifecycleComplete(), nil
+}
+
+// backupBeforeDrain runs the backup task ahead of maintenance and drain when
+// it does not require drain (the default) and a pending migrate or rotate
+// task needs a snapshot. It returns handled=true while the backup is still
+// running or has failed, so the caller stops before touching any workload.
+// Once it completes, the pipeline finds the backup already done for this run
+// and proceeds straight to the guarded task. With requiresDrain: true the
+// backup instead runs inside the pipeline, after drain.
+func (r *SupersetReconciler) backupBeforeDrain(
+	ctx context.Context,
+	superset *supersetv1alpha1.Superset,
+	parentPhase string,
+	configChecksum string,
+	topLevel *resolution.SharedInput,
+	saName string,
+) (lifecycleResult, bool, error) {
+	if !r.isTaskEnabled(superset, taskTypeBackup) || r.taskRequiresDrain(superset, taskTypeBackup) {
+		return lifecycleResult{}, false, nil
+	}
+	gated := false
+	for _, step := range r.walkLifecycleCascade(superset, configChecksum) {
+		if r.backupGatesStep(superset, step) {
+			gated = true
+			break
+		}
+	}
+	if !gated {
+		return lifecycleResult{}, false, nil
+	}
+	result, err := r.runBackupTask(ctx, superset, parentPhase, configChecksum, topLevel, saName)
+	if err != nil {
+		return lifecycleResult{}, false, err
+	}
+	return result, !result.Complete, nil
+}
+
+// runBackupTask reconciles the backup task Job for the current settled
+// baseline.
+func (r *SupersetReconciler) runBackupTask(
+	ctx context.Context,
+	superset *supersetv1alpha1.Superset,
+	parentPhase string,
+	configChecksum string,
+	topLevel *resolution.SharedInput,
+	saName string,
+) (lifecycleResult, error) {
+	desc := lifecycleTaskDescriptorByType(taskTypeBackup)
+	superset.Status.Lifecycle.Phase = desc.Phase
+	superset.Status.Phase = parentPhase
+	result, err := r.reconcileLifecycleTask(ctx, superset, desc.TaskType, desc.Suffix, desc.BuildCommand(r, superset), backupTaskChecksum(superset), configChecksum, topLevel, saName)
+	if err != nil {
+		return lifecycleResult{}, fmt.Errorf("reconciling %s task: %w", desc.TaskType, err)
+	}
+	return result, nil
 }
 
 // checkUpgradeGates records the in-flight image change and enforces supervised
@@ -475,8 +596,8 @@ func (r *SupersetReconciler) checkUpgradeGates(
 	// not attempt to run them — pinning back to an older image just re-runs the
 	// forward migration. Blocking the change instead strands deployments that
 	// need to pin back after a failed upgrade. The operator runs the migration
-	// on every change and relies on the (optional) pre-upgrade backup as the
-	// safety net.
+	// on every change and relies on the optional pre-upgrade backup task
+	// (spec.lifecycle.backup) as the safety net.
 	contextMatches := upgradeContextMatches(superset.Status.Lifecycle.Upgrade, oldTag, newTag, approvalToken)
 
 	if !contextMatches {
@@ -551,7 +672,7 @@ func (r *SupersetReconciler) reconcileLifecycleTask(
 	// Build the task's flat spec and pod configuration.
 	flatSpec, renderedConfig := r.buildTaskFlatSpec(superset, taskType, command, configChecksum, topLevel, saName)
 	bootstrapScript := ""
-	if taskType != taskTypeSeed {
+	if taskUsesSupersetConfig(taskType) {
 		bootstrapScript = effectiveLifecycleBootstrapScript(&superset.Spec)
 	}
 
@@ -622,8 +743,10 @@ func (r *SupersetReconciler) taskPodRetention(superset *supersetv1alpha1.Superse
 	if superset.Spec.Lifecycle == nil {
 		return nil
 	}
-	if taskType == taskTypeSeed && superset.Spec.Lifecycle.Seed != nil && superset.Spec.Lifecycle.Seed.PodRetention != nil {
-		return superset.Spec.Lifecycle.Seed.PodRetention
+	if desc := lifecycleTaskDescriptorByType(taskType); desc != nil && desc.PodRetention != nil {
+		if retention := desc.PodRetention(superset); retention != nil {
+			return retention
+		}
 	}
 	return superset.Spec.Lifecycle.PodRetention
 }
@@ -652,7 +775,7 @@ func (r *SupersetReconciler) deleteLifecycleTaskResources(ctx context.Context, s
 	if err := r.deleteTaskJobs(ctx, superset, taskName); err != nil {
 		return err
 	}
-	if taskType != taskTypeSeed {
+	if taskUsesSupersetConfig(taskType) {
 		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, "", "", taskName, nil); err != nil {
 			return err
 		}
@@ -701,6 +824,9 @@ func (r *SupersetReconciler) taskTimeoutValue(superset *supersetv1alpha1.Superse
 	if timeout := r.taskTimeout(superset, taskType); timeout != nil {
 		return timeout.Duration
 	}
+	if desc := lifecycleTaskDescriptorByType(taskType); desc != nil && desc.DefaultTimeout > 0 {
+		return desc.DefaultTimeout
+	}
 	return defaultInitTimeout
 }
 
@@ -719,8 +845,10 @@ func getUpgradeMode(superset *supersetv1alpha1.Superset) string {
 }
 
 // taskRequiresDrain returns whether a task requires components to be drained.
-// Defaults: seed=true (DROP DATABASE needs no connections), migrate=true
-// (schema changes risk deadlocks), init=false (roles/permissions are safe).
+// Defaults: seed=true (DROP DATABASE needs no connections), backup=false (the
+// dump is a consistent snapshot taken while the current version serves; see
+// backupBeforeDrain), migrate=true (schema changes risk deadlocks),
+// init=false (roles/permissions are safe).
 func (r *SupersetReconciler) taskRequiresDrain(superset *supersetv1alpha1.Superset, taskType string) bool {
 	desc := lifecycleTaskDescriptorByType(taskType)
 	if desc == nil {

@@ -120,7 +120,7 @@ We use a **pyramid testing strategy** where the vast majority of logic is covere
 make test-e2e
 ```
 
-The Kind node image is pinned in the Makefile (`KIND_NODE_IMAGE`) and matches the Kind binary version used in CI. Override `E2E_PROJECT_IMAGE` or `E2E_CURL_IMAGE` if your environment requires a mirror registry, or set `E2E_SKIP_BUILD_LOAD=1` to reuse an image you've already loaded into Kind during iteration.
+The Kind node image is pinned in the Makefile (`KIND_NODE_IMAGE`) and matches the Kind binary version used in CI. Override `E2E_PROJECT_IMAGE` or `E2E_CURL_IMAGE` if your environment requires a mirror registry, or set `E2E_SKIP_BUILD_LOAD=1` to reuse an image you've already loaded into Kind during iteration. The suite runs with `go test -timeout $(E2E_TIMEOUT)` (default `45m`), since the backup specs against real PostgreSQL and MySQL servers push it past `go test`'s 10-minute default.
 
 ### Writing a new unit test
 
