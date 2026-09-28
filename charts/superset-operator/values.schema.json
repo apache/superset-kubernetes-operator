@@ -140,6 +140,32 @@
       "description": "Topology spread constraints for the manager pod. See https://pkg.go.dev/k8s.io/api/core/v1#TopologySpreadConstraint",
       "type": "array"
     },
+    "dnsPolicy": {
+      "description": "DNS policy for the manager pod. Empty uses the Kubernetes default (ClusterFirst).",
+      "type": "string",
+      "enum": ["", "ClusterFirst", "ClusterFirstWithHostNet", "Default", "None"]
+    },
+    "dnsConfig": {
+      "description": "DNS resolver settings for the manager pod. See https://pkg.go.dev/k8s.io/api/core/v1#PodDNSConfig",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "nameservers": { "type": "array", "items": { "type": "string" } },
+        "searches": { "type": "array", "items": { "type": "string" } },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "value": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
     "podDisruptionBudget": {
       "description": "PodDisruptionBudget for the manager pod. See https://pkg.go.dev/k8s.io/api/policy/v1#PodDisruptionBudgetSpec",
       "type": "object",

@@ -91,6 +91,11 @@ renders the full install manifests:
                 - mountPath: /tmp/k8s-metrics-server/metrics-certs
                   name: metrics-certs
                   readOnly: true
+          dnsConfig:
+            options:
+              - name: ndots
+                value: "2"
+          dnsPolicy: ClusterFirst
           imagePullSecrets:
             - name: superset-operator-registry
           nodeSelector:

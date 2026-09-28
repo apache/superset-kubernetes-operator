@@ -119,6 +119,11 @@ affinity: {}
 # See [corev1.TopologySpreadConstraint](https://pkg.go.dev/k8s.io/api/core/v1#TopologySpreadConstraint).
 topologySpreadConstraints: []
 
+# -- DNS policy for the manager pod.
+dnsPolicy: ""
+# -- DNS config for the manager pod.
+dnsConfig: {}
+
 podDisruptionBudget:
   # -- Create a PodDisruptionBudget for the manager pod. Only useful with `replicas >= 2`.
   enabled: false
