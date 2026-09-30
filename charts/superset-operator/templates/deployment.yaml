@@ -21,14 +21,6 @@ and status, so the combination is never valid.
 {{- if and (gt (int .Values.replicas) 1) (not .Values.leaderElection.enabled) }}
 {{- fail "replicas > 1 requires leaderElection.enabled=true" }}
 {{- end }}
-{{- /*
-dnsPolicy None drops the cluster resolver entirely, so the pod has no nameserver
-unless dnsConfig supplies one. The API server rejects that pod spec, which would
-otherwise surface only as a stuck ReplicaSet after install.
-*/}}
-{{- if and (eq .Values.dnsPolicy "None") (not (dig "nameservers" nil (.Values.dnsConfig | default dict))) }}
-{{- fail "dnsPolicy=None requires at least one dnsConfig.nameservers entry" }}
-{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
