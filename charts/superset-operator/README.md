@@ -54,31 +54,31 @@ The chart values schema intentionally allows undeclared top-level keys so shared
 |-----|------|---------|-------------|
 | affinity | object | `{}` | Affinity rules for the manager pod. See [corev1.Affinity](https://pkg.go.dev/k8s.io/api/core/v1#Affinity). |
 | dnsConfig | object | `{}` | DNS config for the manager pod. See [corev1.PodDNSConfig](https://pkg.go.dev/k8s.io/api/core/v1#PodDNSConfig). |
-| dnsPolicy | string | `""` | DNS policy for the manager pod. |
+| dnsPolicy | string | `nil` | DNS policy for the manager pod. |
 | extraManifests | list | `[]` | Additional Kubernetes manifests rendered alongside the chart's own resources. Each entry is a YAML object or a string; both are passed through Helm's `tpl` function so template expressions such as `{{ .Release.Namespace }}` are resolved. Use for release-scoped companion resources (e.g. a cert-manager Certificate, NetworkPolicy, or ExternalSecret). Do not use for shared cluster infrastructure such as Gateway controllers, CRDs, or shared Gateways — those have their own lifecycle. |
 | healthProbes.livenessProbe | object | `{"httpGet":{"path":"/healthz","port":8081},"initialDelaySeconds":15,"periodSeconds":20}` | Liveness probe for the manager container. See [corev1.Probe](https://pkg.go.dev/k8s.io/api/core/v1#Probe). |
 | healthProbes.readinessProbe | object | `{"httpGet":{"path":"/readyz","port":8081},"initialDelaySeconds":5,"periodSeconds":10}` | Readiness probe for the manager container. See [corev1.Probe](https://pkg.go.dev/k8s.io/api/core/v1#Probe). |
 | image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
 | image.repository | string | `"ghcr.io/apache/superset-kubernetes-operator"` | Docker image repository for the operator manager. |
-| image.tag | string | `""` | Image tag. Defaults to the chart's appVersion when empty. |
+| image.tag | string | `nil` | Image tag. Defaults to the chart's appVersion when unset. |
 | imagePullSecrets | list | `[]` | Existing Secrets used to pull the operator image from a private registry. |
 | leaderElection.enabled | bool | `true` | Enable leader election so only one replica is active at a time. Required when `replicas > 1`. |
-| logLevel | string | `""` | Operator log verbosity (`--zap-log-level`). Leave empty for the default (`info`). Set to `debug` (alias `1`) for per-reconcile progress logs, or `2` for trace-level internals. |
-| metrics.certSecretName | string | `""` | Name of a Secret containing `tls.crt`, `tls.key`, and `ca.crt` to use for the metrics server instead of the built-in self-signed certificate. Typically written by cert-manager. |
+| logLevel | string | `nil` | Operator log verbosity (`--zap-log-level`). Leave unset for the default (`info`). Set to `debug` (alias `1`) for per-reconcile progress logs, or `2` for trace-level internals. |
+| metrics.certSecretName | string | `nil` | Name of a Secret containing `tls.crt`, `tls.key`, and `ca.crt` to use for the metrics server instead of the built-in self-signed certificate. Typically written by cert-manager. |
 | metrics.enabled | bool | `true` | Enable the metrics endpoint. |
 | metrics.service.port | int | `8443` | Port the metrics Service listens on. |
 | metrics.serviceMonitor.bearerTokenFile | string | `"/var/run/secrets/kubernetes.io/serviceaccount/token"` | Path to the bearer token Prometheus uses to authenticate to the metrics endpoint. |
 | metrics.serviceMonitor.enabled | bool | `false` | Create a Prometheus Operator ServiceMonitor for the operator metrics endpoint. Requires the prometheus-operator CRDs to be installed. |
 | metrics.serviceMonitor.interval | string | `"30s"` | How often Prometheus scrapes the metrics endpoint. |
 | metrics.serviceMonitor.labels | object | `{}` | Extra labels on the ServiceMonitor so Prometheus Operator selects it (e.g. `{release: prometheus}` for kube-prometheus-stack). |
-| metrics.serviceMonitor.scrapeTimeout | string | `""` | Scrape timeout. Empty inherits Prometheus' default. |
+| metrics.serviceMonitor.scrapeTimeout | string | `nil` | Scrape timeout. Unset inherits Prometheus' default. |
 | metrics.serviceMonitor.tlsConfig | object | `{"insecureSkipVerify":true}` | TLS configuration for the ServiceMonitor scrape. The default trusts any certificate, matching the operator's built-in self-signed flow. Override to scrape over verified TLS. |
 | nodeSelector | object | `{}` | Node selector for the manager pod. |
 | podAnnotations | object | `{}` | Extra annotations to add to the manager pod. |
 | podDisruptionBudget.enabled | bool | `false` | Create a PodDisruptionBudget for the manager pod. Only useful with `replicas >= 2`. |
 | podDisruptionBudget.maxUnavailable | intOrString | `nil` | Maximum unavailable pods (integer or percentage). Defaults to `1` when neither is set. |
 | podDisruptionBudget.minAvailable | intOrString | `nil` | Minimum available pods (integer or percentage). Mutually exclusive with `maxUnavailable`. |
-| podDisruptionBudget.unhealthyPodEvictionPolicy | string | `""` | Unhealthy pod eviction policy (`IfHealthyBudget` or `AlwaysAllow`). Empty uses the Kubernetes default. |
+| podDisruptionBudget.unhealthyPodEvictionPolicy | string | `nil` | Unhealthy pod eviction policy (`IfHealthyBudget` or `AlwaysAllow`). Unset uses the Kubernetes default. |
 | podLabels | object | `{}` | Extra labels to add to the manager pod. |
 | podSecurityContext | object | `{"runAsNonRoot":true,"seccompProfile":{"type":"RuntimeDefault"}}` | Pod-level security context for the manager pod. See [corev1.PodSecurityContext](https://pkg.go.dev/k8s.io/api/core/v1#PodSecurityContext). |
 | replicas | int | `1` | Number of operator manager replicas. |
@@ -88,7 +88,7 @@ The chart values schema intentionally allows undeclared top-level keys so shared
 | securityContext | object | `{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true}` | Container-level security context for the manager container. See [corev1.SecurityContext](https://pkg.go.dev/k8s.io/api/core/v1#SecurityContext). |
 | serviceAccount.annotations | object | `{}` | Annotations to add to the ServiceAccount. |
 | serviceAccount.create | bool | `true` | Whether to create a ServiceAccount for the operator. |
-| serviceAccount.name | string | `""` | Name of the ServiceAccount to use. Auto-generated from the release name when empty. |
+| serviceAccount.name | string | `nil` | Name of the ServiceAccount to use. Auto-generated from the release name when unset. |
 | tolerations | list | `[]` | Tolerations for the manager pod. See [corev1.Toleration](https://pkg.go.dev/k8s.io/api/core/v1#Toleration). |
 | topologySpreadConstraints | list | `[]` | Topology spread constraints for the manager pod. See [corev1.TopologySpreadConstraint](https://pkg.go.dev/k8s.io/api/core/v1#TopologySpreadConstraint). |
 | watch | object | `{"namespaces":[],"scope":"cluster"}` | Namespace watch configuration.  `scope: cluster` (default) watches all namespaces; manager RBAC is rendered as ClusterRole + ClusterRoleBinding and requires cluster-scoped RBAC on install.  `scope: namespaces` watches only the namespaces listed in `watch.namespaces` (falls back to the release namespace when empty); manager RBAC is rendered as Role + RoleBinding per watched namespace with no manager ClusterRole. Use on restricted clusters that forbid cluster-scoped RBAC. |

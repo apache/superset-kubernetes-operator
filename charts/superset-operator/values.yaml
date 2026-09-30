@@ -1,8 +1,8 @@
 image:
   # -- Docker image repository for the operator manager.
   repository: ghcr.io/apache/superset-kubernetes-operator
-  # -- Image tag. Defaults to the chart's appVersion when empty.
-  tag: ""  # defaults to .Chart.AppVersion
+  # -- Image tag. Defaults to the chart's appVersion when unset.
+  tag: ~
   # -- Image pull policy.
   pullPolicy: IfNotPresent
 
@@ -33,8 +33,8 @@ resizePolicy: []
 serviceAccount:
   # -- Whether to create a ServiceAccount for the operator.
   create: true
-  # -- Name of the ServiceAccount to use. Auto-generated from the release name when empty.
-  name: ""
+  # -- Name of the ServiceAccount to use. Auto-generated from the release name when unset.
+  name: ~
   # -- Annotations to add to the ServiceAccount.
   annotations: {}
 
@@ -42,9 +42,9 @@ leaderElection:
   # -- Enable leader election so only one replica is active at a time. Required when `replicas > 1`.
   enabled: true
 
-# -- Operator log verbosity (`--zap-log-level`). Leave empty for the default (`info`).
+# -- Operator log verbosity (`--zap-log-level`). Leave unset for the default (`info`).
 # Set to `debug` (alias `1`) for per-reconcile progress logs, or `2` for trace-level internals.
-logLevel: ""
+logLevel: ~
 
 metrics:
   # -- Enable the metrics endpoint.
@@ -54,15 +54,15 @@ metrics:
     port: 8443
   # -- Name of a Secret containing `tls.crt`, `tls.key`, and `ca.crt` to use for the metrics
   # server instead of the built-in self-signed certificate. Typically written by cert-manager.
-  certSecretName: ""
+  certSecretName: ~
   serviceMonitor:
     # -- Create a Prometheus Operator ServiceMonitor for the operator metrics endpoint.
     # Requires the prometheus-operator CRDs to be installed.
     enabled: false
     # -- How often Prometheus scrapes the metrics endpoint.
     interval: 30s
-    # -- Scrape timeout. Empty inherits Prometheus' default.
-    scrapeTimeout: ""
+    # -- Scrape timeout. Unset inherits Prometheus' default.
+    scrapeTimeout: ~
     # -- Extra labels on the ServiceMonitor so Prometheus Operator selects it
     # (e.g. `{release: prometheus}` for kube-prometheus-stack).
     labels: {}
@@ -120,7 +120,7 @@ affinity: {}
 topologySpreadConstraints: []
 
 # -- DNS policy for the manager pod.
-dnsPolicy: ""
+dnsPolicy: ~
 # -- DNS config for the manager pod.
 # See [corev1.PodDNSConfig](https://pkg.go.dev/k8s.io/api/core/v1#PodDNSConfig).
 dnsConfig: {}
@@ -132,8 +132,8 @@ podDisruptionBudget:
   minAvailable: ~
   # -- (intOrString) Maximum unavailable pods (integer or percentage). Defaults to `1` when neither is set.
   maxUnavailable: ~
-  # -- Unhealthy pod eviction policy (`IfHealthyBudget` or `AlwaysAllow`). Empty uses the Kubernetes default.
-  unhealthyPodEvictionPolicy: ""
+  # -- Unhealthy pod eviction policy (`IfHealthyBudget` or `AlwaysAllow`). Unset uses the Kubernetes default.
+  unhealthyPodEvictionPolicy: ~
 
 # -- Extra annotations to add to the manager pod.
 podAnnotations: {}

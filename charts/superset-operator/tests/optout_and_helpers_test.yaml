@@ -55,7 +55,7 @@ tests:
     set:
       serviceAccount:
         create: true
-        name: ""
+        name: ~
     template: templates/deployment.yaml
     asserts:
       - equal:
@@ -84,7 +84,7 @@ tests:
     set:
       serviceAccount:
         create: false
-        name: ""
+        name: ~
     asserts:
       - template: templates/deployment.yaml
         equal:
