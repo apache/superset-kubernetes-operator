@@ -53,7 +53,7 @@ The chart values schema intentionally allows undeclared top-level keys so shared
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | affinity | object | `{}` | Affinity rules for the manager pod. See [corev1.Affinity](https://pkg.go.dev/k8s.io/api/core/v1#Affinity). |
-| dnsConfig | object | `{}` | DNS config for the manager pod. |
+| dnsConfig | object | `{}` | DNS config for the manager pod. See [corev1.PodDNSConfig](https://pkg.go.dev/k8s.io/api/core/v1#PodDNSConfig). |
 | dnsPolicy | string | `""` | DNS policy for the manager pod. |
 | extraManifests | list | `[]` | Additional Kubernetes manifests rendered alongside the chart's own resources. Each entry is a YAML object or a string; both are passed through Helm's `tpl` function so template expressions such as `{{ .Release.Namespace }}` are resolved. Use for release-scoped companion resources (e.g. a cert-manager Certificate, NetworkPolicy, or ExternalSecret). Do not use for shared cluster infrastructure such as Gateway controllers, CRDs, or shared Gateways — those have their own lifecycle. |
 | healthProbes.livenessProbe | object | `{"httpGet":{"path":"/healthz","port":8081},"initialDelaySeconds":15,"periodSeconds":20}` | Liveness probe for the manager container. See [corev1.Probe](https://pkg.go.dev/k8s.io/api/core/v1#Probe). |
