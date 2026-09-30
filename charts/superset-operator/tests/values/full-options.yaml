@@ -124,6 +124,13 @@ topologySpreadConstraints:
       matchLabels:
         control-plane: controller-manager
 
+dnsPolicy: ClusterFirst
+
+dnsConfig:
+  options:
+    - name: ndots
+      value: "2"
+
 podDisruptionBudget:
   enabled: true
   minAvailable: 1

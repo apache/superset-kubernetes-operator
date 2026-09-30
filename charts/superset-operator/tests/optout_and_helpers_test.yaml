@@ -55,7 +55,7 @@ tests:
     set:
       serviceAccount:
         create: true
-        name: ""
+        name: ~
     template: templates/deployment.yaml
     asserts:
       - equal:
@@ -84,7 +84,7 @@ tests:
     set:
       serviceAccount:
         create: false
-        name: ""
+        name: ~
     asserts:
       - template: templates/deployment.yaml
         equal:
@@ -160,6 +160,39 @@ tests:
       - equal:
           path: spec.replicas
           value: 0
+
+  # --- dnsPolicy / dnsConfig ---
+  - it: omits dnsPolicy and dnsConfig by default
+    template: templates/deployment.yaml
+    asserts:
+      - notExists:
+          path: spec.template.spec.dnsPolicy
+      - notExists:
+          path: spec.template.spec.dnsConfig
+
+  - it: renders dnsPolicy None with nameservers
+    set:
+      dnsPolicy: None
+      dnsConfig:
+        nameservers:
+          - 169.254.20.10
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.dnsPolicy
+          value: None
+      - equal:
+          path: spec.template.spec.dnsConfig.nameservers
+          value:
+            - 169.254.20.10
+
+  - it: rejects an unknown dnsPolicy
+    set:
+      dnsPolicy: ClusterLast
+    template: templates/deployment.yaml
+    asserts:
+      - failedTemplate:
+          errorPattern: "dnsPolicy"
 
   # --- podDisruptionBudget ---
   - it: renders no PDB by default
