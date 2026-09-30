@@ -141,7 +141,7 @@
       "type": "array"
     },
     "dnsPolicy": {
-      "description": "DNS policy for the manager pod. Empty uses the Kubernetes default (ClusterFirst).",
+      "description": "DNS policy for the manager pod. Empty uses the Kubernetes default.",
       "type": "string",
       "enum": ["", "ClusterFirst", "ClusterFirstWithHostNet", "Default", "None"]
     },
