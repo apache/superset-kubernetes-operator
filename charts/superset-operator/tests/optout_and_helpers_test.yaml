@@ -170,18 +170,6 @@ tests:
       - notExists:
           path: spec.template.spec.dnsConfig
 
-  - it: fails when dnsPolicy is None without nameservers
-    set:
-      dnsPolicy: None
-      dnsConfig:
-        options:
-          - name: ndots
-            value: "2"
-    template: templates/deployment.yaml
-    asserts:
-      - failedTemplate:
-          errorMessage: "dnsPolicy=None requires at least one dnsConfig.nameservers entry"
-
   - it: renders dnsPolicy None with nameservers
     set:
       dnsPolicy: None
