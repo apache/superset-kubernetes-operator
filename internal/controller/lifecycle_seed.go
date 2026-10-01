@@ -235,8 +235,8 @@ func resolveContainerImage(spec *supersetv1alpha1.ContainerImageSpec, defaultRep
 }
 
 func splitImageRef(ref string) (string, string) {
-	if idx := strings.LastIndex(ref, ":"); idx != -1 {
-		return ref[:idx], ref[idx+1:]
+	if repo, tag, ok := strings.CutLast(ref, ":"); ok {
+		return repo, tag
 	}
 	return ref, defaultImageTag
 }
