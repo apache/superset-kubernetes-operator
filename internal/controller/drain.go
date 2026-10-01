@@ -234,8 +234,8 @@ func resolveLifecycleImage(parentImage *supersetv1alpha1.ImageSpec, override *su
 }
 
 func tagFromImageRef(ref string) string {
-	if idx := strings.LastIndex(ref, ":"); idx != -1 {
-		return ref[idx+1:]
+	if _, tag, ok := strings.CutLast(ref, ":"); ok {
+		return tag
 	}
 	return ref
 }
