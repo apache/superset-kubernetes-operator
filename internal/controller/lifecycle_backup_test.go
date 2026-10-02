@@ -586,6 +586,9 @@ func TestSettledChecksumExcludesBackup(t *testing.T) {
 	assert.Equal(t, base, settledChecksumFor(ls))
 	assert.Empty(t, settledChecksumFor(&supersetv1alpha1.LifecycleStatus{}))
 	assert.Empty(t, settledChecksumFor(nil))
+	assert.Empty(t, settledChecksumFor(&supersetv1alpha1.LifecycleStatus{LastCompletedChecksums: map[string]string{
+		taskTypeBackup: "b",
+	}}), "a backup alone is no settled baseline")
 }
 
 func TestBackupTaskChecksum(t *testing.T) {
@@ -617,6 +620,76 @@ func TestLifecycleNeedsDrainAccountsForBackup(t *testing.T) {
 
 	s.Spec.Lifecycle.Backup.RequiresDrain = new(true)
 	assert.True(t, r.lifecycleNeedsDrain(s, "c"), "requiresDrain: true drains for the backup even when migrate does not")
+}
+
+func TestPendingLifecycleTasksStopsAtFailedBackup(t *testing.T) {
+	r := &SupersetReconciler{}
+	s := newBackupSuperset()
+	s.Status.Lifecycle = &supersetv1alpha1.LifecycleStatus{}
+	s.Status.Lifecycle.Backup = &supersetv1alpha1.TaskRefStatus{
+		State:             taskStateFailed,
+		CompletedChecksum: backupTaskChecksum(s),
+		Attempts:          1,
+		MaxRetries:        1,
+	}
+	assert.Empty(t, r.pendingLifecycleTasks(s, "c"), "no task after a terminally failed backup is pending")
+
+	s.Status.Lifecycle.Backup.Attempts = 0
+	assert.Equal(t, []string{taskTypeBackup, taskTypeMigrate, taskTypeInit}, r.pendingLifecycleTasks(s, "c"),
+		"a backup with retries left still gates the run")
+}
+
+func TestTaskTerminationMessageTrustsOnlyJobOwnedPods(t *testing.T) {
+	ctx := context.Background()
+	s := newBackupSuperset()
+	c := fake.NewClientBuilder().WithScheme(testScheme(t)).Build()
+	r := &SupersetReconciler{Client: c}
+	job := &batchv1.Job{Name: "test-backup", Namespace: s.Namespace, UID: "job-uid"}
+
+	foreign := &corev1.Pod{
+		Name: "spoofed", Namespace: s.Namespace,
+		Labels: map[string]string{labelInitInstance: job.Name},
+		OwnerReferences: []metav1.OwnerReference{{
+			APIVersion: "batch/v1", Kind: "Job", Name: job.Name, UID: "other-uid", Controller: new(true),
+		}},
+		Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: naming.Container, Image: "x"}}},
+	}
+	require.NoError(t, c.Create(ctx, foreign))
+	foreign.Status.ContainerStatuses = []corev1.ContainerStatus{{
+		Name:  naming.Container,
+		State: corev1.ContainerState{Terminated: &corev1.ContainerStateTerminated{Message: "spoofed"}},
+	}}
+	require.NoError(t, c.Status().Update(ctx, foreign))
+
+	msg, err := r.taskTerminationMessage(ctx, s, job)
+	require.NoError(t, err)
+	assert.Empty(t, msg, "a labeled Pod not controlled by the Job is ignored")
+
+	createTerminatedTaskPod(t, c, job, "real")
+	msg, err = r.taskTerminationMessage(ctx, s, job)
+	require.NoError(t, err)
+	assert.Equal(t, "real", msg)
+}
+
+func TestCollectBackupEnvVarsInlineURI(t *testing.T) {
+	s := newBackupSuperset()
+	s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{URI: new("postgresql://u:p@db/superset")}
+	envValue := func() (string, bool) {
+		for _, e := range collectBackupEnvVars(s) {
+			if e.Name == naming.EnvDatabaseURI {
+				return e.Value, true
+			}
+		}
+		return "", false
+	}
+
+	_, ok := envValue()
+	assert.False(t, ok, "an inline URI is never passed outside Development")
+
+	s.Spec.Environment = new(naming.EnvironmentDev)
+	v, ok := envValue()
+	require.True(t, ok)
+	assert.Equal(t, "postgresql://u:p@db/superset", v)
 }
 
 // --- task wiring ---
