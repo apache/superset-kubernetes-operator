@@ -35,7 +35,7 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # renovate: datasource=github-releases depName=helm-unittest/helm-unittest
-HELM_UNITTEST_VERSION="${HELM_UNITTEST_VERSION:-v1.2.0}"
+HELM_UNITTEST_VERSION="${HELM_UNITTEST_VERSION:-v1.2.1}"
 
 want="${HELM_UNITTEST_VERSION#v}"
 installed="$(helm plugin list 2>/dev/null | awk '$1 == "unittest" { print $2 }')"
