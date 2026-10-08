@@ -335,3 +335,19 @@ tests:
       - equal:
           path: spec.minAvailable
           value: 0
+
+  # --- priorityClassName ---
+  - it: renders no priorityClassName by default
+    template: templates/deployment.yaml
+    asserts:
+      - notExists:
+          path: spec.template.spec.priorityClassName
+
+  - it: renders the configured priorityClassName
+    set:
+      priorityClassName: high-priority
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.priorityClassName
+          value: high-priority

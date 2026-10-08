@@ -118,6 +118,9 @@ affinity: {}
 # -- Topology spread constraints for the manager pod.
 # See [corev1.TopologySpreadConstraint](https://pkg.go.dev/k8s.io/api/core/v1#TopologySpreadConstraint).
 topologySpreadConstraints: []
+# -- (string) PriorityClass name for the manager pod. Leave unset for the cluster default priority.
+# See [priorityClassName](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/).
+priorityClassName: ~
 
 # -- DNS policy for the manager pod.
 dnsPolicy: ~

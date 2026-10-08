@@ -100,6 +100,7 @@ renders the full install manifests:
             - name: superset-operator-registry
           nodeSelector:
             kubernetes.io/os: linux
+          priorityClassName: high-priority
           securityContext:
             runAsNonRoot: true
             runAsUser: 65532

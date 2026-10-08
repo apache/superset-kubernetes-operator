@@ -81,6 +81,7 @@ The chart values schema intentionally allows undeclared top-level keys so shared
 | podDisruptionBudget.unhealthyPodEvictionPolicy | string | `nil` | Unhealthy pod eviction policy (`IfHealthyBudget` or `AlwaysAllow`). Unset uses the Kubernetes default. |
 | podLabels | object | `{}` | Extra labels to add to the manager pod. |
 | podSecurityContext | object | `{"runAsNonRoot":true,"seccompProfile":{"type":"RuntimeDefault"}}` | Pod-level security context for the manager pod. See [corev1.PodSecurityContext](https://pkg.go.dev/k8s.io/api/core/v1#PodSecurityContext). |
+| priorityClassName | string | `nil` | PriorityClass name for the manager pod. Leave unset for the cluster default priority. See [priorityClassName](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/). |
 | replicas | int | `1` | Number of operator manager replicas. |
 | resizePolicy | list | `[]` | Container resize policy for in-place pod resizes (InPlacePodVerticalScaling). Does not affect how Helm-driven `resources` updates behave — those still roll the Deployment. See [corev1.ContainerResizePolicy](https://pkg.go.dev/k8s.io/api/core/v1#ContainerResizePolicy). |
 | resources | object | `{"limits":{"cpu":"500m","memory":"128Mi"},"requests":{"cpu":"10m","memory":"64Mi"}}` | Compute resource requests and limits for the manager container. See [corev1.ResourceRequirements](https://pkg.go.dev/k8s.io/api/core/v1#ResourceRequirements). |
