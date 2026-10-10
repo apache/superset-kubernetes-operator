@@ -31,6 +31,7 @@ import (
 
 const (
 	defaultInitTimeout           = 300 * time.Second
+	defaultBackupTimeout         = time.Hour
 	defaultMaxRetries      int32 = 3
 	defaultRetentionPolicy       = retentionRetainOnFail
 
