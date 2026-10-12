@@ -131,6 +131,8 @@ dnsConfig:
     - name: ndots
       value: "2"
 
+priorityClassName: high-priority
+
 podDisruptionBudget:
   enabled: true
   minAvailable: 1

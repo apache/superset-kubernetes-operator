@@ -167,6 +167,10 @@
         }
       }
     },
+    "priorityClassName": {
+      "description": "PriorityClass name for the manager pod. See https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/",
+      "type": ["string", "null"]
+    },
     "podDisruptionBudget": {
       "description": "PodDisruptionBudget for the manager pod. See https://pkg.go.dev/k8s.io/api/policy/v1#PodDisruptionBudgetSpec",
       "type": "object",

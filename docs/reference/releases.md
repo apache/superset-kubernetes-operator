@@ -26,6 +26,7 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 ### Added
 
 - **Helm `dnsPolicy` and `dnsConfig`.** The Helm chart now exposes `dnsPolicy` and `dnsConfig` values for the operator manager pod ([#394](https://github.com/apache/superset-kubernetes-operator/pull/394), [@younsl](https://github.com/younsl)).
+- **Helm `priorityClassName`.** The Helm chart now exposes a [`priorityClassName`](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/) value that sets the PriorityClass of the operator manager pods. Unset by default, which keeps the cluster default priority ([#420](https://github.com/apache/superset-kubernetes-operator/pull/420), [@younsl](https://github.com/younsl)).
 
 ### Changed
 
