@@ -45,6 +45,14 @@ resizePolicy:
   - resourceName: memory
     restartPolicy: RestartContainer
 
+extraEnv:
+  - name: GODEBUG
+    value: madvdontneed=1
+  - name: GOMEMLIMIT
+    valueFrom:
+      resourceFieldRef:
+        resource: limits.memory
+
 serviceAccount:
   create: true
   name: superset-operator-custom-sa

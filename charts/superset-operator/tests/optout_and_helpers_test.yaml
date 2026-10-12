@@ -136,6 +136,17 @@ tests:
       - failedTemplate:
           errorMessage: "replicas > 1 requires leaderElection.enabled=true"
 
+  # --- extraEnv must not set WATCH_NAMESPACE ---
+  - it: fails when extraEnv sets WATCH_NAMESPACE
+    set:
+      extraEnv:
+        - name: WATCH_NAMESPACE
+          value: team-a
+    template: templates/deployment.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "extraEnv must not set WATCH_NAMESPACE; configure watch.scope and watch.namespaces instead"
+
   - it: renders multiple replicas with leader election enabled
     set:
       replicas: 3
@@ -351,3 +362,45 @@ tests:
       - equal:
           path: spec.template.spec.priorityClassName
           value: high-priority
+
+  # --- extraEnv ---
+  - it: renders no env by default
+    template: templates/deployment.yaml
+    asserts:
+      - notExists:
+          path: spec.template.spec.containers[0].env
+
+  - it: renders extraEnv without watch namespaces
+    set:
+      extraEnv:
+        - name: GOMEMLIMIT
+          valueFrom:
+            resourceFieldRef:
+              resource: limits.memory
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env
+          value:
+            - name: GOMEMLIMIT
+              valueFrom:
+                resourceFieldRef:
+                  resource: limits.memory
+
+  - it: appends extraEnv after WATCH_NAMESPACE
+    set:
+      watch:
+        scope: namespaces
+        namespaces: [team-a]
+      extraEnv:
+        - name: TZ
+          value: UTC
+    template: templates/deployment.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].env
+          value:
+            - name: WATCH_NAMESPACE
+              value: team-a
+            - name: TZ
+              value: UTC

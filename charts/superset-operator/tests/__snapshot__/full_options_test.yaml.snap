@@ -54,6 +54,12 @@ renders the full install manifests:
               env:
                 - name: WATCH_NAMESPACE
                   value: team-a,team-b
+                - name: GODEBUG
+                  value: madvdontneed=1
+                - name: GOMEMLIMIT
+                  valueFrom:
+                    resourceFieldRef:
+                      resource: limits.memory
               image: example.com/superset/superset-operator:v9.9.9-test
               imagePullPolicy: Always
               livenessProbe:
