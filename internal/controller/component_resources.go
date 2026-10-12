@@ -57,7 +57,7 @@ func tcpProbe(port int32, initialDelay int32) *corev1.Probe {
 func celeryWorkerPingProbe() *corev1.Probe {
 	return &corev1.Probe{
 		Exec: &corev1.ExecAction{
-			Command: []string{bootstrapShell, "-c", `exec celery --app=superset.tasks.celery_app:app inspect ping --destination "celery@$HOSTNAME"`},
+			Command: []string{bootstrapShell, "-c", "exec celery " + common.CeleryAppArg + ` inspect ping --destination "celery@$HOSTNAME" --timeout 10`},
 		},
 		InitialDelaySeconds: 120,
 		PeriodSeconds:       60,
@@ -106,7 +106,7 @@ func ComponentResourceDefs() []ComponentResourceDef {
 				componentName: string(common.ComponentCeleryWorker),
 				deployConfig: DeploymentConfig{
 					ContainerName:        common.Container,
-					DefaultCommand:       []string{"celery", "--app=superset.tasks.celery_app:app", "worker", "--pool=prefork", "-O", "fair", "-c", "4"},
+					DefaultCommand:       []string{"celery", common.CeleryAppArg, "worker", "--pool=prefork", "-O", "fair", "-c", "4"},
 					DefaultLivenessProbe: celeryWorkerPingProbe(),
 				},
 				defaultPort: 0,
@@ -119,7 +119,7 @@ func ComponentResourceDefs() []ComponentResourceDef {
 				componentName: string(common.ComponentCeleryBeat),
 				deployConfig: DeploymentConfig{
 					ContainerName:  common.Container,
-					DefaultCommand: []string{"celery", "--app=superset.tasks.celery_app:app", "beat", "--pidfile", "/tmp/celerybeat.pid", "--schedule", "/tmp/celerybeat-schedule"},
+					DefaultCommand: []string{"celery", common.CeleryAppArg, "beat", "--pidfile", "/tmp/celerybeat.pid", "--schedule", "/tmp/celerybeat-schedule"},
 					ForceReplicas:  &celeryBeatSingletonReplica,
 				},
 				defaultPort: 0,
@@ -132,7 +132,7 @@ func ComponentResourceDefs() []ComponentResourceDef {
 				componentName: string(common.ComponentCeleryFlower),
 				deployConfig: DeploymentConfig{
 					ContainerName:  common.Container,
-					DefaultCommand: []string{bootstrapShell, "-c", "exec celery --app=superset.tasks.celery_app:app flower --url_prefix=\"$SUPERSET_OPERATOR__FLOWER_URL_PREFIX\""},
+					DefaultCommand: []string{bootstrapShell, "-c", "exec celery " + common.CeleryAppArg + " flower --url_prefix=\"$SUPERSET_OPERATOR__FLOWER_URL_PREFIX\""},
 					DefaultPorts: []corev1.ContainerPort{
 						{Name: common.PortNameHTTP, ContainerPort: common.PortCeleryFlower, Protocol: corev1.ProtocolTCP},
 					},

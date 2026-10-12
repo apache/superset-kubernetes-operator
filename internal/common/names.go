@@ -50,6 +50,9 @@ const (
 // Container name (uniform across all components — pods never collide).
 const Container = "superset"
 
+// CeleryAppArg selects the Superset Celery app for every celery command and probe.
+const CeleryAppArg = "--app=superset.tasks.celery_app:app"
+
 // Label keys for lifecycle task Jobs and their Pods.
 const (
 	LabelKeyInitTask     = "superset.apache.org/init-task"
