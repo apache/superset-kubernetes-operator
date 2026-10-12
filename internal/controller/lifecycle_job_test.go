@@ -574,3 +574,30 @@ func TestTaskJobMatchesChecksum(t *testing.T) {
 		assert.False(t, r.taskJobMatchesChecksum(job, "sha:1"))
 	})
 }
+
+func TestJobAttemptDuration(t *testing.T) {
+	base := time.Date(2026, 9, 24, 2, 0, 0, 0, time.UTC)
+	at := func(d time.Duration) metav1.Time { return metav1.NewTime(base.Add(d)) }
+	job := func(created metav1.Time, started *metav1.Time, cond batchv1.JobConditionType, end metav1.Time) *batchv1.Job {
+		j := &batchv1.Job{}
+		j.CreationTimestamp = created
+		j.Status.StartTime = started
+		if cond != "" {
+			j.Status.Conditions = []batchv1.JobCondition{{Type: cond, Status: corev1.ConditionTrue, LastTransitionTime: end}}
+		}
+		return j
+	}
+	start := at(2 * time.Second)
+
+	assert.Equal(t, 90*time.Second+500*time.Millisecond,
+		jobAttemptDuration(job(at(0), &start, batchv1.JobComplete, at(92*time.Second+500*time.Millisecond)), batchv1.JobComplete),
+		"measured from the Job start time")
+	assert.Equal(t, 30*time.Second,
+		jobAttemptDuration(job(at(0), nil, batchv1.JobFailed, at(30*time.Second)), batchv1.JobFailed),
+		"falls back to the creation time")
+	assert.Zero(t, jobAttemptDuration(job(at(0), &start, "", at(0)), batchv1.JobComplete), "no terminal condition")
+	assert.Zero(t, jobAttemptDuration(job(at(0), &start, batchv1.JobFailed, at(time.Minute)), batchv1.JobComplete),
+		"only the requested condition counts")
+	assert.Zero(t, jobAttemptDuration(job(at(0), &start, batchv1.JobComplete, at(time.Second)), batchv1.JobComplete),
+		"inconsistent clocks never yield a negative duration")
+}

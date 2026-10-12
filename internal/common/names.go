@@ -136,6 +136,14 @@ const (
 	EnvSeedSrcUser = "SUPERSET_OPERATOR__SEED_SRC_USER"
 	EnvSeedSrcPass = "SUPERSET_OPERATOR__SEED_SRC_PASS"
 
+	// Backup task transport vars (consumed by the default backup script).
+	EnvBackupDir      = "SUPERSET_OPERATOR__BACKUP_DIR"
+	EnvBackupFromTag  = "SUPERSET_OPERATOR__BACKUP_FROM_TAG"
+	EnvBackupFirstRun = "SUPERSET_OPERATOR__BACKUP_FIRST_RUN"
+	EnvBackupUID      = "SUPERSET_OPERATOR__BACKUP_UID"
+	EnvBackupMetadata = "SUPERSET_OPERATOR__BACKUP_METADATA"
+	EnvBackupKeepLast = "SUPERSET_OPERATOR__BACKUP_KEEP_LAST"
+
 	// Maintenance page content transport vars.
 	EnvMaintenanceTitle   = "SUPERSET_OPERATOR__MAINTENANCE_TITLE"
 	EnvMaintenanceMessage = "SUPERSET_OPERATOR__MAINTENANCE_MESSAGE"
