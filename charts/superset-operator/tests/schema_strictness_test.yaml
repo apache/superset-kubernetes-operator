@@ -40,3 +40,12 @@ tests:
     asserts:
       - failedTemplate:
           errorPattern: "at '/image': additional properties 'unknownField' not allowed"
+
+  - it: rejects WATCH_NAMESPACE in extraEnv
+    set:
+      extraEnv:
+        - name: WATCH_NAMESPACE
+          value: team-a
+    asserts:
+      - failedTemplate:
+          errorPattern: "at '/extraEnv/0/name'"

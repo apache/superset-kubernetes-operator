@@ -100,10 +100,16 @@ spec:
           readinessProbe:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          {{- if eq (default "cluster" .Values.watch.scope) "namespaces" }}
+          {{- $watchNamespaces := eq (default "cluster" .Values.watch.scope) "namespaces" }}
+          {{- if or $watchNamespaces .Values.extraEnv }}
           env:
+            {{- if $watchNamespaces }}
             - name: WATCH_NAMESPACE
               value: {{ include "superset-operator.watchNamespacesCSV" . | quote }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
           {{- with .Values.resources }}
           resources:

@@ -54,6 +54,12 @@ renders the full install manifests:
               env:
                 - name: WATCH_NAMESPACE
                   value: team-a,team-b
+                - name: HTTPS_PROXY
+                  value: http://proxy.example.com:3128
+                - name: GOMEMLIMIT
+                  valueFrom:
+                    resourceFieldRef:
+                      resource: limits.memory
               image: example.com/superset/superset-operator:v9.9.9-test
               imagePullPolicy: Always
               livenessProbe:

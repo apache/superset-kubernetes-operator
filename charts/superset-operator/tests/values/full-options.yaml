@@ -45,6 +45,14 @@ resizePolicy:
   - resourceName: memory
     restartPolicy: RestartContainer
 
+extraEnv:
+  - name: HTTPS_PROXY
+    value: http://proxy.example.com:3128
+  - name: GOMEMLIMIT
+    valueFrom:
+      resourceFieldRef:
+        resource: limits.memory
+
 serviceAccount:
   create: true
   name: superset-operator-custom-sa
