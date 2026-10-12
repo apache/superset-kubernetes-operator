@@ -15,6 +15,12 @@
 
 # WARNING: This sample uses dev mode with inline secrets for local development only.
 # For production, see superset_v1alpha1_superset_prod.yaml.
+#
+# Expects the PostgreSQL and Valkey from the companion manifest:
+#   kubectl apply -f config/samples/dev-dependencies.yaml
+#
+# The -dev image variant ships the psycopg2 driver; the lean image (e.g. 6.1.0)
+# has no database drivers, so migrations against PostgreSQL would fail.
 apiVersion: superset.apache.org/v1alpha1
 kind: Superset
 metadata:
@@ -24,13 +30,14 @@ metadata:
   name: superset-sample
 spec:
   image:
-    tag: 6.1.0
+    tag: 6.1.0-dev
   environment: Development
   secretKey: thisIsNotSecure_changeInProduction!
   metastore:
     uri: postgresql+psycopg2://superset:superset@postgres:5432/superset
   valkey:
     host: valkey
+    password: superset
   featureFlags:
     ENABLE_TEMPLATE_PROCESSING: true
   webServer: {}

@@ -14,9 +14,11 @@
 # limitations under the License.
 
 # Throwaway PostgreSQL + Valkey for local DEVELOPMENT/testing on Kind.
-# Provides the two backing services that superset_v1alpha1_superset_dev_full.yaml
-# expects: a PostgreSQL at host "postgres" and a Valkey at host "valkey", with
+# Provides the two backing services that the Development-mode samples
+# (superset_v1alpha1_superset.yaml and superset_v1alpha1_superset_dev_full.yaml)
+# expect: a PostgreSQL at host "postgres" and a Valkey at host "valkey", with
 # matching credentials (user/db "superset", password "superset").
+# test/samples verifies that the samples stay in sync with this file.
 #
 # WARNING: ephemeral (emptyDir) storage, plain-text passwords, single replica —
 # NOT for production. Data is lost when the pod restarts.
