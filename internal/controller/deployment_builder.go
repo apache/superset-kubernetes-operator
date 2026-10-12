@@ -114,27 +114,9 @@ func buildDeploymentSpec(
 	// When the user overrides container ports, retarget any default probes to
 	// the first resolved port; otherwise the Service targetPort tracks the new
 	// port while probes remain on the hard-coded default port.
-	livenessProbe := ct.LivenessProbe
-	if livenessProbe == nil {
-		livenessProbe = cfg.DefaultLivenessProbe
-		if portsOverridden && livenessProbe != nil {
-			livenessProbe = retargetProbe(livenessProbe, ports[0].ContainerPort)
-		}
-	}
-	readinessProbe := ct.ReadinessProbe
-	if readinessProbe == nil {
-		readinessProbe = cfg.DefaultReadinessProbe
-		if portsOverridden && readinessProbe != nil {
-			readinessProbe = retargetProbe(readinessProbe, ports[0].ContainerPort)
-		}
-	}
-	startupProbe := ct.StartupProbe
-	if startupProbe == nil {
-		startupProbe = cfg.DefaultStartupProbe
-		if portsOverridden && startupProbe != nil {
-			startupProbe = retargetProbe(startupProbe, ports[0].ContainerPort)
-		}
-	}
+	livenessProbe := resolveProbe(ct.LivenessProbe, cfg.DefaultLivenessProbe, portsOverridden, ports)
+	readinessProbe := resolveProbe(ct.ReadinessProbe, cfg.DefaultReadinessProbe, portsOverridden, ports)
+	startupProbe := resolveProbe(ct.StartupProbe, cfg.DefaultStartupProbe, portsOverridden, ports)
 
 	// Build the main container from ContainerTemplate.
 	mainContainer := corev1.Container{
@@ -253,6 +235,22 @@ func resolveContainerPort(spec *supersetv1alpha1.FlatComponentSpec, defaultPort 
 		return spec.PodTemplate.Container.Ports[0].ContainerPort
 	}
 	return defaultPort
+}
+
+// resolveProbe returns the user probe, or the component default when the user
+// set none. An empty user probe ({}) disables the probe, since a CR cannot use
+// null to remove a default.
+func resolveProbe(user, def *corev1.Probe, portsOverridden bool, ports []corev1.ContainerPort) *corev1.Probe {
+	if user != nil {
+		if *user == (corev1.Probe{}) {
+			return nil
+		}
+		return user
+	}
+	if portsOverridden && def != nil {
+		return retargetProbe(def, ports[0].ContainerPort)
+	}
+	return def
 }
 
 // retargetProbe returns a copy of probe with HTTPGet/TCPSocket port replaced.

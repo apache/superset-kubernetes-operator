@@ -387,6 +387,31 @@ func TestBuildDeploymentSpec(t *testing.T) {
 		}
 	})
 
+	t.Run("empty user probe disables the default", func(t *testing.T) {
+		spec := &supersetv1alpha1.FlatComponentSpec{
+			Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+			PodTemplate: &supersetv1alpha1.PodTemplate{
+				Container: &supersetv1alpha1.ContainerTemplate{
+					LivenessProbe:  &corev1.Probe{},
+					ReadinessProbe: &corev1.Probe{},
+					StartupProbe:   &corev1.Probe{},
+				},
+			},
+		}
+		cfg := DeploymentConfig{
+			ContainerName:         common.Container,
+			DefaultLivenessProbe:  httpProbe("/health", common.PortWebServer, 15),
+			DefaultReadinessProbe: httpProbe("/health", common.PortWebServer, 15),
+			DefaultStartupProbe:   httpProbe("/health", common.PortWebServer, 15),
+		}
+
+		container := buildDeploymentSpec(spec, cfg, nil, map[string]string{}).Template.Spec.Containers[0]
+		if container.LivenessProbe != nil || container.ReadinessProbe != nil || container.StartupProbe != nil {
+			t.Errorf("empty probes should disable defaults, got liveness=%+v readiness=%+v startup=%+v",
+				container.LivenessProbe, container.ReadinessProbe, container.StartupProbe)
+		}
+	})
+
 	t.Run("operator config-checksum annotation wins over user pod annotations", func(t *testing.T) {
 		spec := &supersetv1alpha1.FlatComponentSpec{
 			Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},

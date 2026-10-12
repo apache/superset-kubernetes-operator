@@ -792,6 +792,16 @@ spec:
 
 Components that serve traffic get HTTP or TCP probes on their port by default. The Celery worker serves no traffic, so it gets only a liveness probe that runs `celery inspect ping` against the pod's own worker node (`celery@$HOSTNAME`), checking that the worker still answers over the broker. It starts after 120 seconds and runs every 60 seconds with a 60-second timeout, restarting the container after 3 consecutive failures. Each run imports the Superset app, so size worker memory limits with that headroom. A broker outage fails the probe on every worker, which restarts them after about 3 minutes. Each run also connects to the metastore while the app starts. Connection errors are only logged, but a metastore that does not answer at all, such as during a failover, can hold the probe past its timeout and restart every worker the same way. Setting `livenessProbe` replaces the default, and a custom worker command that changes the node name (`-n`) needs a matching probe. Celery beat has no default probe.
 
+To remove a default probe, set it to an empty object. A Superset resource cannot use `null` to remove a default the way Helm values can, so `{}` is the signal. This works for `livenessProbe`, `readinessProbe`, and `startupProbe` on every component, and follows the usual top-level and per-component override rules:
+
+```yaml
+spec:
+  celeryWorker:
+    podTemplate:
+      container:
+        livenessProbe: {}
+```
+
 ## Security Context
 
 Security context can be set at the top level (shared by all components) or overridden per component:

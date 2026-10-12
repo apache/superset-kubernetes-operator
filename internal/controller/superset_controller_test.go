@@ -414,6 +414,34 @@ var _ = Describe("Integration", Ordered, func() {
 			Expect(cm.Data).To(HaveKey("superset_config.py"))
 		})
 
+		It("should drop a default probe set to an empty object", func() {
+			cr := newSuperset("probe-optout", ns)
+			cr.Spec.PodTemplate = &supersetv1alpha1.PodTemplate{
+				Container: &supersetv1alpha1.ContainerTemplate{LivenessProbe: &corev1.Probe{}},
+			}
+			cr.Spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{}
+			cr.Spec.WebServer.PodTemplate = &supersetv1alpha1.PodTemplate{
+				Container: &supersetv1alpha1.ContainerTemplate{LivenessProbe: httpProbe("/custom", common.PortWebServer, 5)},
+			}
+			cr.Spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+
+			worker := &appsv1.Deployment{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: "probe-optout-celery-worker", Namespace: ns}, worker)
+			}, timeout, interval).Should(Succeed())
+			Expect(worker.Spec.Template.Spec.Containers[0].LivenessProbe).To(BeNil())
+
+			web := &appsv1.Deployment{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: "probe-optout-web-server", Namespace: ns}, web)
+			}, timeout, interval).Should(Succeed())
+			Expect(web.Spec.Template.Spec.Containers[0].LivenessProbe.HTTPGet.Path).To(Equal("/custom"))
+			Expect(web.Spec.Template.Spec.Containers[0].ReadinessProbe).NotTo(BeNil())
+
+			Expect(k8sClient.Delete(ctx, cr)).To(Succeed())
+		})
+
 		It("should delete parent-owned resources when component is removed from parent", func() {
 			cr := &supersetv1alpha1.Superset{}
 			Expect(k8sClient.Get(ctx, types.NamespacedName{Name: "lifecycle", Namespace: ns}, cr)).To(Succeed())

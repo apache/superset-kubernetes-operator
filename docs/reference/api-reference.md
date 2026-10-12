@@ -336,9 +336,9 @@ _Appears in:_
 | `securityContext` _[SecurityContext](https://pkg.go.dev/k8s.io/api/core/v1#SecurityContext)_ | Container-level security context. |  | Optional: \{\} <br /> |
 | `command` _string array_ | Container entrypoint override. |  | Optional: \{\} <br /> |
 | `args` _string array_ | Container arguments override. |  | Optional: \{\} <br /> |
-| `livenessProbe` _[Probe](https://pkg.go.dev/k8s.io/api/core/v1#Probe)_ | Liveness probe; container is restarted when the probe fails. |  | Optional: \{\} <br /> |
-| `readinessProbe` _[Probe](https://pkg.go.dev/k8s.io/api/core/v1#Probe)_ | Readiness probe; pod is removed from Service endpoints when the probe fails. |  | Optional: \{\} <br /> |
-| `startupProbe` _[Probe](https://pkg.go.dev/k8s.io/api/core/v1#Probe)_ | Startup probe; liveness and readiness probes are deferred until this probe succeeds. |  | Optional: \{\} <br /> |
+| `livenessProbe` _[Probe](https://pkg.go.dev/k8s.io/api/core/v1#Probe)_ | Liveness probe; container is restarted when the probe fails. Set to \{\} to remove the operator default. |  | Optional: \{\} <br /> |
+| `readinessProbe` _[Probe](https://pkg.go.dev/k8s.io/api/core/v1#Probe)_ | Readiness probe; pod is removed from Service endpoints when the probe fails. Set to \{\} to remove the operator default. |  | Optional: \{\} <br /> |
+| `startupProbe` _[Probe](https://pkg.go.dev/k8s.io/api/core/v1#Probe)_ | Startup probe; liveness and readiness probes are deferred until this probe succeeds. Set to \{\} to remove the operator default. |  | Optional: \{\} <br /> |
 | `lifecycle` _[Lifecycle](https://pkg.go.dev/k8s.io/api/core/v1#Lifecycle)_ | Lifecycle hooks for the main container. |  | Optional: \{\} <br /> |
 
 

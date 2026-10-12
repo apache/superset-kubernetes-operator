@@ -642,12 +642,15 @@ type ContainerTemplate struct {
 	// +optional
 	Args []string `json:"args,omitempty"`
 	// Liveness probe; container is restarted when the probe fails.
+	// Set to {} to remove the operator default.
 	// +optional
 	LivenessProbe *corev1.Probe `json:"livenessProbe,omitempty"`
 	// Readiness probe; pod is removed from Service endpoints when the probe fails.
+	// Set to {} to remove the operator default.
 	// +optional
 	ReadinessProbe *corev1.Probe `json:"readinessProbe,omitempty"`
 	// Startup probe; liveness and readiness probes are deferred until this probe succeeds.
+	// Set to {} to remove the operator default.
 	// +optional
 	StartupProbe *corev1.Probe `json:"startupProbe,omitempty"`
 	// Lifecycle hooks for the main container.
