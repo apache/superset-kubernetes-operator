@@ -18,7 +18,6 @@
 # (superset_v1alpha1_superset.yaml and superset_v1alpha1_superset_dev_full.yaml)
 # expect: a PostgreSQL at host "postgres" and a Valkey at host "valkey", with
 # matching credentials (user/db "superset", password "superset").
-# test/samples verifies that the samples stay in sync with this file.
 #
 # WARNING: ephemeral (emptyDir) storage, plain-text passwords, single replica —
 # NOT for production. Data is lost when the pod restarts.
