@@ -21,6 +21,11 @@ and status, so the combination is never valid.
 {{- if and (gt (int .Values.replicas) 1) (not .Values.leaderElection.enabled) }}
 {{- fail "replicas > 1 requires leaderElection.enabled=true" }}
 {{- end }}
+{{- range .Values.extraEnv }}
+{{- if eq .name "WATCH_NAMESPACE" }}
+{{- fail "extraEnv must not set WATCH_NAMESPACE; configure watch.scope and watch.namespaces instead" }}
+{{- end }}
+{{- end }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:

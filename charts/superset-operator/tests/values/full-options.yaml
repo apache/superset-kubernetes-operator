@@ -46,8 +46,8 @@ resizePolicy:
     restartPolicy: RestartContainer
 
 extraEnv:
-  - name: HTTPS_PROXY
-    value: http://proxy.example.com:3128
+  - name: GODEBUG
+    value: madvdontneed=1
   - name: GOMEMLIMIT
     valueFrom:
       resourceFieldRef:

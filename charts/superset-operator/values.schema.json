@@ -59,7 +59,7 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "name": { "type": "string", "minLength": 1, "not": { "const": "WATCH_NAMESPACE" } },
+          "name": { "type": "string", "minLength": 1 },
           "value": { "type": "string" },
           "valueFrom": { "type": "object" }
         },

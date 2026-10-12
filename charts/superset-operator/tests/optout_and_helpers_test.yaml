@@ -136,6 +136,17 @@ tests:
       - failedTemplate:
           errorMessage: "replicas > 1 requires leaderElection.enabled=true"
 
+  # --- extraEnv must not set WATCH_NAMESPACE ---
+  - it: fails when extraEnv sets WATCH_NAMESPACE
+    set:
+      extraEnv:
+        - name: WATCH_NAMESPACE
+          value: team-a
+    template: templates/deployment.yaml
+    asserts:
+      - failedTemplate:
+          errorMessage: "extraEnv must not set WATCH_NAMESPACE; configure watch.scope and watch.namespaces instead"
+
   - it: renders multiple replicas with leader election enabled
     set:
       replicas: 3
