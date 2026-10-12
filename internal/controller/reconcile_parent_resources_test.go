@@ -81,6 +81,12 @@ func TestReconcile_CreatesParentOwnedComponentResources(t *testing.T) {
 		if !isOwnedBy(deploy, superset) {
 			t.Fatalf("expected Deployment %s to be owned by Superset", name)
 		}
+		if name == "test-celery-worker" {
+			probe := deploy.Spec.Template.Spec.Containers[0].LivenessProbe
+			if probe == nil || probe.Exec == nil {
+				t.Errorf("Deployment %s: expected default exec liveness probe, got %+v", name, probe)
+			}
+		}
 		if name == "test-websocket-server" { // Node.js; does not consume Superset Python connection config.
 			continue
 		}

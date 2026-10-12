@@ -790,6 +790,8 @@ spec:
           periodSeconds: 15
 ```
 
+Components that serve traffic get HTTP or TCP probes on their port by default. The Celery worker serves no traffic, so it gets only a liveness probe that runs `celery inspect ping` against the pod's own worker node (`celery@$HOSTNAME`), checking that the worker still answers over the broker. It starts after 120 seconds and runs every 60 seconds with a 60-second timeout, restarting the container after 3 consecutive failures. Each run imports the Superset app, so size worker memory limits with that headroom. A broker outage fails the probe on every worker, which restarts them after about 3 minutes. Setting `livenessProbe` replaces the default, and a custom worker command that changes the node name (`-n`) needs a matching probe. Celery beat has no default probe.
+
 ## Security Context
 
 Security context can be set at the top level (shared by all components) or overridden per component:

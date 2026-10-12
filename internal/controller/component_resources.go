@@ -52,6 +52,20 @@ func tcpProbe(port int32, initialDelay int32) *corev1.Probe {
 	}
 }
 
+// celeryWorkerPingProbe pings only this pod's worker node; timings follow the
+// upstream Superset Helm chart because each probe imports the full app.
+func celeryWorkerPingProbe() *corev1.Probe {
+	return &corev1.Probe{
+		Exec: &corev1.ExecAction{
+			Command: []string{bootstrapShell, "-c", `exec celery --app=superset.tasks.celery_app:app inspect ping --destination "celery@$HOSTNAME"`},
+		},
+		InitialDelaySeconds: 120,
+		PeriodSeconds:       60,
+		TimeoutSeconds:      60,
+		FailureThreshold:    3,
+	}
+}
+
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
@@ -91,8 +105,9 @@ func ComponentResourceDefs() []ComponentResourceDef {
 			config: componentReconcilerConfig{
 				componentName: string(common.ComponentCeleryWorker),
 				deployConfig: DeploymentConfig{
-					ContainerName:  common.Container,
-					DefaultCommand: []string{"celery", "--app=superset.tasks.celery_app:app", "worker", "--pool=prefork", "-O", "fair", "-c", "4"},
+					ContainerName:        common.Container,
+					DefaultCommand:       []string{"celery", "--app=superset.tasks.celery_app:app", "worker", "--pool=prefork", "-O", "fair", "-c", "4"},
+					DefaultLivenessProbe: celeryWorkerPingProbe(),
 				},
 				defaultPort: 0,
 				hasScaling:  true,
