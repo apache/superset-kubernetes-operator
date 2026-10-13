@@ -98,6 +98,8 @@ For the plumbing-curious:
 
 Contributions are welcome. Development setup, the full list of `make` commands, the testing philosophy, and the code-generation workflow live in the [contributing guide](docs/contributing/development-setup.md). After editing type definitions in `api/v1alpha1/`, run `make codegen` and commit the generated files alongside your changes.
 
+Using the operator? Add your organization to [ADOPTERS.md](ADOPTERS.md).
+
 ## License
 
 Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.

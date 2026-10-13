@@ -147,6 +147,7 @@ my-superset-mcp-server-5c6d7e8f9-x9y1z        1/1     Running   4m
 - [API Reference](reference/api-reference.md) — auto-generated CRD type documentation
 - [Security](reference/security.md) — trust boundaries, threat model, vulnerability reporting
 - [Downloads](reference/downloads.md) — images, Helm chart, verification
+- [Adopters](https://github.com/apache/superset-kubernetes-operator/blob/main/ADOPTERS.md) — organizations using the operator
 
 ## License
 
