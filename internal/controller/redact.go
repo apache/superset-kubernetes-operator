@@ -63,7 +63,9 @@ var (
 	// "authorization" is included because authorizationHeaderRe is equally
 	// quote-blind. The value is replaced with a bare placeholder so a re-run
 	// finds no quoted value to match (idempotent).
-	quotedKeyCredentialRe = regexp.MustCompile(`(?i)(["'][A-Za-z0-9_-]*(?:password|passwd|pwd|secret|token|api[_-]?key|credential|passphrase|authorization)[A-Za-z0-9_-]*["']\s*[=:]\s*)("[^"]*"|'[^']*'|[^,\s}\]]+)`)
+	// Characters glued to a closing quote belong to the value, so ""hunter2 is
+	// masked in full rather than leaving hunter2 behind.
+	quotedKeyCredentialRe = regexp.MustCompile(`(?i)(["'][A-Za-z0-9_-]*(?:password|passwd|pwd|secret|token|api[_-]?key|credential|passphrase|authorization)[A-Za-z0-9_-]*["']\s*[=:]\s*)("[^"]*"[^,\s}\]]*|'[^']*'[^,\s}\]]*|[^,\s}\]]+)`)
 )
 
 // redactCredentials masks credential-shaped substrings in free-form task

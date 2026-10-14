@@ -146,6 +146,16 @@ func TestRedactCredentials(t *testing.T) {
 			want: `"authorization": ***`,
 		},
 		{
+			name: "json value glued to empty double quotes is masked in full",
+			in:   `{"password": ""hunter2}`,
+			want: `{"password": ***}`,
+		},
+		{
+			name: "dict value glued to empty single quotes is masked in full",
+			in:   `{"password": ''hunter2, "port": 5432}`,
+			want: `{"password": ***, "port": 5432}`,
+		},
+		{
 			name: "idempotent on already-redacted output",
 			in:   "postgresql://superset:***@db:5432/superset password=*** Authorization: Bearer ***",
 			want: "postgresql://superset:***@db:5432/superset password=*** Authorization: Bearer ***",
