@@ -18,10 +18,10 @@
 # cluster, one pod per component so it fits a laptop. NOT for production — it
 # uses inline secrets and dev-only fields.
 #
-# Exercises: web server, Celery worker and beat, the MCP server, the realtime
-# websocket server, Global Async Queries, thumbnails and alerts &
-# reports, Gateway API routing, deployment/pod templating, and template
-# processing. Requires Superset 7.0+.
+# Exercises: web server, Celery worker and beat, the MCP server with API key
+# auth, the realtime websocket server, Global Async Queries, thumbnails and
+# alerts & reports, Gateway API routing, deployment/pod templating, and
+# template processing. Requires Superset 7.0+.
 #
 # Prerequisites (in the same namespace):
 #   - A Kind cluster created from config/samples/kind-cluster.yaml, with Envoy
@@ -34,7 +34,7 @@
 # Everything is served through the Gateway, on any hostname that reaches it:
 #   http://superset-dev.localhost/          web server (log in with admin / admin)
 #   http://superset-dev.localhost/ws        realtime websocket server
-#   http://superset-dev.localhost/mcp       MCP server
+#   http://superset-dev.localhost/mcp       MCP server (Bearer API key, see config)
 # *.localhost resolves to 127.0.0.1, so no /etc/hosts edit or port-forward is
 # needed locally; from another machine on your network, use this host's name or
 # IP instead. Open Superset through the Gateway (not a port-forward) to get
@@ -86,10 +86,13 @@ spec:
 
   # Application feature flags -> FEATURE_FLAGS dict in superset_config.py.
   # GLOBAL_ASYNC_QUERIES is set by spec.realtime.asyncQueries below.
+  # FAB_API_KEY_ENABLED shows API key management on the user's Info page; the
+  # matching config setting below turns the keys on.
   featureFlags:
     ENABLE_TEMPLATE_PROCESSING: true
     THUMBNAILS: true
     ALERT_REPORTS: true
+    FAB_API_KEY_ENABLED: true
 
   # Top-level deployment/pod templating — defaults inherited by every component
   # AND by the lifecycle task pods.
@@ -123,6 +126,12 @@ spec:
     # Give thumbnail and report screenshots more time on a busy dev cluster.
     SCREENSHOT_LOCATE_WAIT = 30
     SCREENSHOT_LOAD_WAIT = 60
+    # API keys (sst_...) authenticate the REST API and the MCP server as the
+    # key's owner, e.g. an MCP client sending "Authorization: Bearer sst_...".
+    # Set on every component: the init task creates the key permissions, the
+    # web server serves the key API, and the MCP server accepts the keys.
+    FAB_API_KEY_ENABLED = True
+    MCP_API_KEY_ENABLED = True
 
   webServer:
     # Per-component template override (field-level merge): a graceful-shutdown

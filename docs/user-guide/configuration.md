@@ -748,6 +748,19 @@ spec:
 
 The MCP server receives a `superset_config.py` with core config (`SECRET_KEY`, structured DB URI if applicable) and top-level/per-component `config` — but not web server port. It runs as a separate Deployment with its own Service (port 8088). The MCP server supports per-component `sqlaEngineOptions` with higher default pool sizes than other components (5 for balanced, 10 for performance, 20 for aggressive) to accommodate concurrent tool invocations.
 
+Superset rejects MCP tool calls that carry no user identity, so configure authentication through `config`. The simplest option is Superset API keys:
+
+```yaml
+spec:
+  featureFlags:
+    FAB_API_KEY_ENABLED: true # shows API key management under Settings → Info
+  config: |
+    FAB_API_KEY_ENABLED = True
+    MCP_API_KEY_ENABLED = True
+```
+
+Set these in the top-level `config`, not in `mcpServer.config`: the `init` task creates the API key permissions, the web server serves the key management API, and the MCP server accepts the keys. Users create `sst_`-prefixed keys under **Settings → Info → API Keys**, and MCP clients send them as `Authorization: Bearer sst_...`. Tools then run with the key owner's permissions. For JWTs from an identity provider, configure `MCP_AUTH_ENABLED` and its related settings as described in Superset's MCP documentation. Links in tool results use `spec.baseUrl`.
+
 ## Health Probes
 
 ```yaml
