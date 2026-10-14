@@ -76,6 +76,10 @@ func (r *SupersetReconciler) buildSeedCommand(superset *supersetv1alpha1.Superse
 func buildPostgresSeedScript(seed *supersetv1alpha1.SeedTaskSpec) string {
 	var b strings.Builder
 	b.WriteString(`set -e
+SUPERSET_OPERATOR__DB_HOST=$(printf '%s' "$SUPERSET_OPERATOR__DB_HOST" | tr -d '[:space:]')
+SUPERSET_OPERATOR__DB_PORT=$(printf '%s' "$SUPERSET_OPERATOR__DB_PORT" | tr -d '[:space:]')
+SUPERSET_OPERATOR__SEED_SRC_HOST=$(printf '%s' "$SUPERSET_OPERATOR__SEED_SRC_HOST" | tr -d '[:space:]')
+SUPERSET_OPERATOR__SEED_SRC_PORT=$(printf '%s' "$SUPERSET_OPERATOR__SEED_SRC_PORT" | tr -d '[:space:]')
 PGPASSWORD="$SUPERSET_OPERATOR__DB_PASS" dropdb --if-exists -h "$SUPERSET_OPERATOR__DB_HOST" -p "$SUPERSET_OPERATOR__DB_PORT" -U "$SUPERSET_OPERATOR__DB_USER" "$SUPERSET_OPERATOR__DB_NAME"
 PGPASSWORD="$SUPERSET_OPERATOR__DB_PASS" createdb -h "$SUPERSET_OPERATOR__DB_HOST" -p "$SUPERSET_OPERATOR__DB_PORT" -U "$SUPERSET_OPERATOR__DB_USER" "$SUPERSET_OPERATOR__DB_NAME"
 PGPASSWORD="$SUPERSET_OPERATOR__SEED_SRC_PASS" pg_dump -h "$SUPERSET_OPERATOR__SEED_SRC_HOST" -p "$SUPERSET_OPERATOR__SEED_SRC_PORT" -U "$SUPERSET_OPERATOR__SEED_SRC_USER" --no-owner --no-privileges`)
@@ -112,6 +116,10 @@ func buildMySQLSeedScript(seed *supersetv1alpha1.SeedTaskSpec) string {
 	// they reach mysql literally instead of triggering shell command
 	// substitution inside the double-quoted -e argument.
 	b.WriteString(`set -e
+SUPERSET_OPERATOR__DB_HOST=$(printf '%s' "$SUPERSET_OPERATOR__DB_HOST" | tr -d '[:space:]')
+SUPERSET_OPERATOR__DB_PORT=$(printf '%s' "$SUPERSET_OPERATOR__DB_PORT" | tr -d '[:space:]')
+SUPERSET_OPERATOR__SEED_SRC_HOST=$(printf '%s' "$SUPERSET_OPERATOR__SEED_SRC_HOST" | tr -d '[:space:]')
+SUPERSET_OPERATOR__SEED_SRC_PORT=$(printf '%s' "$SUPERSET_OPERATOR__SEED_SRC_PORT" | tr -d '[:space:]')
 if [ -n "${SUPERSET_OPERATOR__DB_PASS:-}" ]; then export MYSQL_PWD="$SUPERSET_OPERATOR__DB_PASS"; fi
 ESC_NAME=$(printf '%s' "$SUPERSET_OPERATOR__DB_NAME" | sed 's/` + "`" + `/` + "``" + `/g')
 mysql -h "$SUPERSET_OPERATOR__DB_HOST" -P "$SUPERSET_OPERATOR__DB_PORT" -u "$SUPERSET_OPERATOR__DB_USER" -e "DROP DATABASE IF EXISTS \` + "`" + `${ESC_NAME}\` + "`" + `; CREATE DATABASE \` + "`" + `${ESC_NAME}\` + "`" + `;"
@@ -164,54 +172,30 @@ func collectSeedEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVar {
 	isDev := isDevEnvironment(spec)
 
 	// Source env vars.
-	envs = append(envs, corev1.EnvVar{Name: naming.EnvSeedSrcHost, Value: seed.Source.Host})
+	envs = append(envs, literalOrSecretEnv(naming.EnvSeedSrcHost, &seed.Source.Host, seed.Source.HostFrom))
 
-	port := defaultDBPort(seed.Source.Type)
-	if seed.Source.Port != nil {
-		port = *seed.Source.Port
-	}
-	envs = append(envs, corev1.EnvVar{Name: naming.EnvSeedSrcPort, Value: fmt.Sprintf("%d", port)})
-	envs = append(envs, corev1.EnvVar{Name: naming.EnvSeedSrcDB, Value: seed.Source.Database})
-	envs = append(envs, corev1.EnvVar{Name: naming.EnvSeedSrcUser, Value: seed.Source.Username})
+	envs = append(envs, literalInt32OrSecretEnv(naming.EnvSeedSrcPort, seed.Source.Port, seed.Source.PortFrom, defaultDBPort(seed.Source.Type)))
+	envs = append(envs,
+		literalOrSecretEnv(naming.EnvSeedSrcDB, &seed.Source.Database, seed.Source.DatabaseFrom),
+		literalOrSecretEnv(naming.EnvSeedSrcUser, &seed.Source.Username, seed.Source.UsernameFrom),
+	)
 
 	if isDev && seed.Source.Password != nil {
 		envs = append(envs, corev1.EnvVar{Name: naming.EnvSeedSrcPass, Value: *seed.Source.Password})
 	} else if seed.Source.PasswordFrom != nil {
-		envs = append(envs, corev1.EnvVar{
-			Name:      naming.EnvSeedSrcPass,
-			ValueFrom: &corev1.EnvVarSource{SecretKeyRef: seed.Source.PasswordFrom},
-		})
+		envs = append(envs, literalOrSecretEnv(naming.EnvSeedSrcPass, nil, seed.Source.PasswordFrom))
 	}
 
 	// Target env vars (from spec.metastore; seed requires structured metastore).
-	if spec.Metastore != nil && spec.Metastore.Host != nil {
-		envs = append(envs, corev1.EnvVar{Name: naming.EnvDBHost, Value: *spec.Metastore.Host})
-		targetPort := defaultDBPort(spec.Metastore.Type)
-		if spec.Metastore.Port != nil {
-			targetPort = *spec.Metastore.Port
-		}
-		envs = append(envs, corev1.EnvVar{Name: naming.EnvDBPort, Value: fmt.Sprintf("%d", targetPort)})
-		if spec.Metastore.Database != nil {
-			envs = append(envs, corev1.EnvVar{Name: naming.EnvDBName, Value: *spec.Metastore.Database})
-		}
-		if spec.Metastore.Username != nil {
-			envs = append(envs, corev1.EnvVar{Name: naming.EnvDBUser, Value: *spec.Metastore.Username})
-		}
-		if isDev && spec.Metastore.Password != nil {
-			envs = append(envs, corev1.EnvVar{Name: naming.EnvDBPass, Value: *spec.Metastore.Password})
-		} else if spec.Metastore.PasswordFrom != nil {
-			envs = append(envs, corev1.EnvVar{
-				Name:      naming.EnvDBPass,
-				ValueFrom: &corev1.EnvVarSource{SecretKeyRef: spec.Metastore.PasswordFrom},
-			})
-		}
+	if isStructuredMetastore(spec.Metastore) {
+		envs = append(envs, structuredMetastoreEnvVars(spec.Metastore, isDev)...)
 	}
 
 	return envs
 }
 
 // resolveSeedImage determines the image for the seed pod. Defaults are
-// type-aware: postgres:17-alpine for PostgreSQL sources, mysql:8-alpine for
+// type-aware: postgres:17-alpine for PostgreSQL sources, mysql:8.4 for
 // MySQL. Partial user specs inherit the default repository or tag for omitted
 // fields rather than the Superset image (which would be incorrect for a
 // database tooling container).
@@ -251,8 +235,8 @@ func resolveContainerImage(spec *supersetv1alpha1.ContainerImageSpec, defaultRep
 }
 
 func splitImageRef(ref string) (string, string) {
-	if idx := strings.LastIndex(ref, ":"); idx != -1 {
-		return ref[:idx], ref[idx+1:]
+	if repo, tag, ok := strings.CutLast(ref, ":"); ok {
+		return repo, tag
 	}
 	return ref, defaultImageTag
 }
@@ -282,8 +266,6 @@ func convertSeedComponent(seed *supersetv1alpha1.SeedTaskSpec, command []string)
 	}
 
 	return &resolution.ComponentInput{
-		SharedInput: resolution.SharedInput{
-			PodTemplate: pt,
-		},
+		PodTemplate: pt,
 	}
 }

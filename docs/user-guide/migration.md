@@ -187,7 +187,7 @@ The chart runs a single install-time hook Job (`init.*`) that performs `superset
 | Component `podAnnotations`, `podLabels` | Component `podTemplate.annotations`, `podTemplate.labels` | Operator-managed labels are protected and cannot be overridden. |
 | Component `deploymentAnnotations`, `deploymentLabels` | Component `deploymentTemplate.annotations`, `deploymentTemplate.labels` | Set top-level or per component; field-level merged (component wins on key conflict). Operator-managed labels are applied last and cannot be overridden. |
 | Component `strategy` | Component `deploymentTemplate.strategy` | Also supports `revisionHistoryLimit`, `minReadySeconds`, and `progressDeadlineSeconds`. |
-| Component `startupProbe`, `livenessProbe`, `readinessProbe` | Component `podTemplate.container.startupProbe`, `livenessProbe`, `readinessProbe` | The operator provides defaults for served components. |
+| Component `startupProbe`, `livenessProbe`, `readinessProbe` | Component `podTemplate.container.startupProbe`, `livenessProbe`, `readinessProbe` | The operator provides defaults for served components and a `celery inspect ping` liveness probe for the Celery worker. Where the chart used `null` to remove a probe, set it to `{}`. |
 | Component `podSecurityContext`, `containerSecurityContext` | Component `podTemplate.podSecurityContext`, `podTemplate.container.securityContext` | Can also be set top-level. |
 | Component `extraContainers` | Component `podTemplate.sidecars` | Sidecars merge by container name. |
 | Component `initContainers` | Component `podTemplate.initContainers` | Init containers merge by container name. |
@@ -325,6 +325,10 @@ metadata:
   name: superset-secrets
 stringData:
   secret-key: "<copy the current Superset SECRET_KEY>"
+  db-host: "superset-db"
+  db-port: "5432"
+  db-name: "superset"
+  db-username: "superset"
   db-password: "<copy Helm DB_PASS or your external database password>"
 ```
 
@@ -343,10 +347,18 @@ spec:
     key: secret-key
   metastore:
     type: PostgreSQL
-    host: superset-db
-    port: 5432
-    database: superset
-    username: superset
+    hostFrom:
+      name: superset-secrets
+      key: db-host
+    portFrom:
+      name: superset-secrets
+      key: db-port
+    databaseFrom:
+      name: superset-secrets
+      key: db-name
+    usernameFrom:
+      name: superset-secrets
+      key: db-username
     passwordFrom:
       name: superset-secrets
       key: db-password

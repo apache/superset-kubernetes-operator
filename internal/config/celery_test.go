@@ -60,15 +60,15 @@ func TestResolveCelery_Presets(t *testing.T) {
 }
 
 func TestResolveCelery_Disabled(t *testing.T) {
-	c := ResolveCelery(&v1alpha1.CeleryWorkerProcessSpec{Preset: ptr(PresetDisabled)})
+	c := ResolveCelery(&v1alpha1.CeleryWorkerProcessSpec{Preset: new(PresetDisabled)})
 	assert.True(t, c.Disabled)
 }
 
 func TestResolveCelery_FieldOverrides(t *testing.T) {
 	c := ResolveCelery(&v1alpha1.CeleryWorkerProcessSpec{
-		Preset:      ptr(PresetConservative),
-		Concurrency: ptr(int32(12)),
-		Pool:        ptr("gevent"),
+		Preset:      new(PresetConservative),
+		Concurrency: new(int32(12)),
+		Pool:        new("gevent"),
 	})
 	assert.Equal(t, int32(12), c.Concurrency)
 	assert.Equal(t, "gevent", c.Pool)
@@ -87,10 +87,10 @@ func TestResolveCelery_Command(t *testing.T) {
 
 func TestResolveCelery_CommandWithOptionalFlags(t *testing.T) {
 	c := ResolveCelery(&v1alpha1.CeleryWorkerProcessSpec{
-		MaxTasksPerChild:  ptr(int32(100)),
-		MaxMemoryPerChild: ptr(int32(200000)),
-		SoftTimeLimit:     ptr(int32(300)),
-		TimeLimit:         ptr(int32(600)),
+		MaxTasksPerChild:  new(int32(100)),
+		MaxMemoryPerChild: new(int32(200000)),
+		SoftTimeLimit:     new(int32(300)),
+		TimeLimit:         new(int32(600)),
 	})
 	cmd := c.Command()
 	assert.Contains(t, cmd, "--max-tasks-per-child=100")

@@ -26,8 +26,9 @@ go.work
 *.swo
 *~
 
-# Claude Code / AI tooling
-.claude/
+# Claude Code / AI tooling (shared release skills are tracked)
+.claude/*
+!.claude/skills/
 
 # macOS
 .DS_Store

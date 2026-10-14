@@ -48,33 +48,16 @@ This guide walks through setting up a local development environment with Kind, P
 kind create cluster --name superset
 ```
 
-## 2. Deploy PostgreSQL
+## 2. Deploy PostgreSQL and Valkey
 
 ```bash
-kubectl create deployment postgres --image=postgres:16 \
-  --port=5432 \
-  -- sh -c 'exec postgres'
-kubectl set env deployment/postgres \
-  POSTGRES_USER=superset \
-  POSTGRES_PASSWORD=superset \
-  POSTGRES_DB=superset
-kubectl expose deployment postgres --port=5432
+kubectl apply -f config/samples/dev-dependencies.yaml
+kubectl wait --for=condition=available deployment/postgres deployment/valkey --timeout=120s
 ```
 
-Wait for the pod to be ready:
+This creates a throwaway PostgreSQL (user, password, and database `superset`) and a Valkey (password `superset`) with ephemeral storage. The Development-mode samples are configured to match it.
 
-```bash
-kubectl wait --for=condition=available deployment/postgres --timeout=60s
-```
-
-## 3. Deploy Valkey
-
-```bash
-kubectl create deployment valkey --image=valkey/valkey:8 --port=6379
-kubectl expose deployment valkey --port=6379
-```
-
-## 4. Run the operator
+## 3. Run the operator
 
 There are two ways to run the operator:
 
@@ -102,15 +85,15 @@ kubectl logs -n superset-operator-system deployment/superset-operator-controller
 
 `make deploy` is a superset of `make install` — it installs CRDs, RBAC, and the operator Deployment in one step.
 
-## 5. Deploy Superset
+## 4. Deploy Superset
 
 ```bash
 kubectl apply -f config/samples/superset_v1alpha1_superset.yaml
 ```
 
-The sample manifest deploys a web server in dev mode, runs the init task, and points at the Postgres instance created above.
+The sample manifest deploys a web server in dev mode, runs the migrate and init tasks, and points at the PostgreSQL and Valkey created above.
 
-## 6. Access Superset
+## 5. Access Superset
 
 ```bash
 kubectl port-forward svc/superset-sample-web-server 8088:8088
@@ -118,7 +101,7 @@ kubectl port-forward svc/superset-sample-web-server 8088:8088
 
 Open [http://localhost:8088](http://localhost:8088).
 
-## 7. Clean up
+## 6. Clean up
 
 ```bash
 kubectl delete superset superset-sample

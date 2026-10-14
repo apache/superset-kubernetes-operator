@@ -20,6 +20,7 @@ package controller
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -85,9 +86,7 @@ func convertTaskComponent(lifecycle *supersetv1alpha1.LifecycleSpec, command []s
 	}
 
 	return &resolution.ComponentInput{
-		SharedInput: resolution.SharedInput{
-			PodTemplate: pt,
-		},
+		PodTemplate: pt,
 	}
 }
 
@@ -114,7 +113,7 @@ func buildConfigInput(spec *supersetv1alpha1.SupersetSpec) *supersetconfig.Confi
 	if spec.Metastore != nil {
 		if spec.Metastore.URI != nil || spec.Metastore.URIFrom != nil {
 			input.MetastoreMode = supersetconfig.MetastorePassthrough
-		} else if spec.Metastore.Host != nil {
+		} else if isStructuredMetastore(spec.Metastore) {
 			input.MetastoreMode = supersetconfig.MetastoreStructured
 			dbType := dbTypePostgresql
 			if spec.Metastore.Type != nil {
@@ -167,9 +166,7 @@ func buildConfigInput(spec *supersetv1alpha1.SupersetSpec) *supersetconfig.Confi
 // caller's map untouched (spec.FeatureFlags is shared across components).
 func withFeatureFlag(flags map[string]bool, key string, val bool) map[string]bool {
 	merged := make(map[string]bool, len(flags)+1)
-	for k, v := range flags {
-		merged[k] = v
-	}
+	maps.Copy(merged, flags)
 	merged[key] = val
 	return merged
 }
@@ -325,40 +322,17 @@ func collectSecretEnvVars(spec *supersetv1alpha1.SupersetSpec, parentName string
 				Name:      naming.EnvDatabaseURI,
 				ValueFrom: &corev1.EnvVarSource{SecretKeyRef: spec.Metastore.URIFrom},
 			})
-		} else if spec.Metastore.Host != nil {
-			envs = append(envs, corev1.EnvVar{Name: naming.EnvDBHost, Value: *spec.Metastore.Host})
-			port := defaultDBPort(spec.Metastore.Type)
-			if spec.Metastore.Port != nil {
-				port = *spec.Metastore.Port
-			}
-			envs = append(envs, corev1.EnvVar{Name: naming.EnvDBPort, Value: fmt.Sprintf("%d", port)})
-			if spec.Metastore.Database != nil {
-				envs = append(envs, corev1.EnvVar{Name: naming.EnvDBName, Value: *spec.Metastore.Database})
-			}
-			if spec.Metastore.Username != nil {
-				envs = append(envs, corev1.EnvVar{Name: naming.EnvDBUser, Value: *spec.Metastore.Username})
-			}
-			if isDev && spec.Metastore.Password != nil {
-				envs = append(envs, corev1.EnvVar{Name: naming.EnvDBPass, Value: *spec.Metastore.Password})
-			} else if spec.Metastore.PasswordFrom != nil {
-				envs = append(envs, corev1.EnvVar{
-					Name:      naming.EnvDBPass,
-					ValueFrom: &corev1.EnvVarSource{SecretKeyRef: spec.Metastore.PasswordFrom},
-				})
-			}
+		} else if isStructuredMetastore(spec.Metastore) {
+			envs = append(envs, structuredMetastoreEnvVars(spec.Metastore, isDev)...)
 		}
 	}
 
 	// Valkey env vars.
 	if spec.Valkey != nil {
-		envs = append(envs, corev1.EnvVar{Name: naming.EnvValkeyHost, Value: spec.Valkey.Host})
-		port := int32(6379)
-		if spec.Valkey.Port != nil {
-			port = *spec.Valkey.Port
-		}
-		envs = append(envs, corev1.EnvVar{Name: naming.EnvValkeyPort, Value: fmt.Sprintf("%d", port)})
-		if spec.Valkey.Username != nil {
-			envs = append(envs, corev1.EnvVar{Name: naming.EnvValkeyUser, Value: *spec.Valkey.Username})
+		envs = append(envs, literalOrSecretEnv(naming.EnvValkeyHost, &spec.Valkey.Host, spec.Valkey.HostFrom))
+		envs = append(envs, literalInt32OrSecretEnv(naming.EnvValkeyPort, spec.Valkey.Port, spec.Valkey.PortFrom, 6379))
+		if spec.Valkey.Username != nil || spec.Valkey.UsernameFrom != nil {
+			envs = append(envs, literalOrSecretEnv(naming.EnvValkeyUser, spec.Valkey.Username, spec.Valkey.UsernameFrom))
 		}
 		if isDev && spec.Valkey.Password != nil {
 			envs = append(envs, corev1.EnvVar{Name: naming.EnvValkeyPass, Value: *spec.Valkey.Password})
@@ -460,15 +434,11 @@ func collectWebsocketEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVa
 	}
 
 	if v := spec.Valkey; v != nil {
-		envs = append(envs, corev1.EnvVar{Name: envWSRedisHost, Value: v.Host})
-		port := int32(6379)
-		if v.Port != nil {
-			port = *v.Port
-		}
-		envs = append(envs, corev1.EnvVar{Name: envWSRedisPort, Value: fmt.Sprintf("%d", port)})
+		envs = append(envs, literalOrSecretEnv(envWSRedisHost, &v.Host, v.HostFrom))
+		envs = append(envs, literalInt32OrSecretEnv(envWSRedisPort, v.Port, v.PortFrom, 6379))
 		envs = append(envs, corev1.EnvVar{Name: envWSRedisDB, Value: fmt.Sprintf("%d", resolveValkeyCache(v.DistributedCoordination, 7, "coordination_", 300).Database)})
-		if v.Username != nil {
-			envs = append(envs, corev1.EnvVar{Name: envWSRedisUser, Value: *v.Username})
+		if v.Username != nil || v.UsernameFrom != nil {
+			envs = append(envs, literalOrSecretEnv(envWSRedisUser, v.Username, v.UsernameFrom))
 		}
 		if isDev && v.Password != nil {
 			envs = append(envs, corev1.EnvVar{Name: envWSRedisPass, Value: *v.Password})
@@ -494,6 +464,46 @@ func realtimeWebSocket(spec *supersetv1alpha1.SupersetSpec) *supersetv1alpha1.We
 	return spec.Realtime.WebSocket
 }
 
+func isStructuredMetastore(metastore *supersetv1alpha1.MetastoreSpec) bool {
+	return metastore != nil && (metastore.Host != nil || metastore.HostFrom != nil)
+}
+
+func literalOrSecretEnv(name string, literal *string, selector *corev1.SecretKeySelector) corev1.EnvVar {
+	if selector != nil {
+		return corev1.EnvVar{Name: name, ValueFrom: &corev1.EnvVarSource{SecretKeyRef: selector}}
+	}
+	return corev1.EnvVar{Name: name, Value: derefOrDefault(literal, "")}
+}
+
+func literalInt32OrSecretEnv(name string, literal *int32, selector *corev1.SecretKeySelector, defaultValue int32) corev1.EnvVar {
+	if selector != nil {
+		return literalOrSecretEnv(name, nil, selector)
+	}
+	if literal != nil {
+		defaultValue = *literal
+	}
+	return corev1.EnvVar{Name: name, Value: fmt.Sprintf("%d", defaultValue)}
+}
+
+// structuredMetastoreEnvVars builds the connection env vars shared by
+// Superset components, lifecycle Jobs, and the create-database init container.
+func structuredMetastoreEnvVars(metastore *supersetv1alpha1.MetastoreSpec, isDev bool) []corev1.EnvVar {
+	envs := []corev1.EnvVar{
+		literalOrSecretEnv(naming.EnvDBHost, metastore.Host, metastore.HostFrom),
+	}
+	envs = append(envs, literalInt32OrSecretEnv(naming.EnvDBPort, metastore.Port, metastore.PortFrom, defaultDBPort(metastore.Type)))
+	envs = append(envs,
+		literalOrSecretEnv(naming.EnvDBName, metastore.Database, metastore.DatabaseFrom),
+		literalOrSecretEnv(naming.EnvDBUser, metastore.Username, metastore.UsernameFrom),
+	)
+	if isDev && metastore.Password != nil {
+		envs = append(envs, corev1.EnvVar{Name: naming.EnvDBPass, Value: *metastore.Password})
+	} else if metastore.PasswordFrom != nil {
+		envs = append(envs, literalOrSecretEnv(naming.EnvDBPass, nil, metastore.PasswordFrom))
+	}
+	return envs
+}
+
 func derefOrDefault(ptr *string, def string) string {
 	if ptr != nil {
 		return *ptr
@@ -517,12 +527,8 @@ func buildOperatorInjected(renderedConfig, bootstrapScript, resourceBaseName, fo
 		// Config volume + mount.
 		injected.Volumes = append(injected.Volumes, corev1.Volume{
 			Name: configVolumeName,
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: naming.ConfigMapName(resourceBaseName),
-					},
-				},
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				Name: naming.ConfigMapName(resourceBaseName),
 			},
 		})
 		injected.VolumeMounts = append(injected.VolumeMounts, corev1.VolumeMount{

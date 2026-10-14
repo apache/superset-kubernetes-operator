@@ -46,12 +46,12 @@ func TestResolveServiceAccountName(t *testing.T) {
 		},
 		{
 			name: "create=true with explicit name uses the name",
-			sa:   &supersetv1alpha1.ServiceAccountSpec{Create: boolPtr(true), Name: "custom-sa"},
+			sa:   &supersetv1alpha1.ServiceAccountSpec{Create: new(true), Name: "custom-sa"},
 			want: "custom-sa",
 		},
 		{
 			name: "create=true without name defaults to parent name",
-			sa:   &supersetv1alpha1.ServiceAccountSpec{Create: boolPtr(true)},
+			sa:   &supersetv1alpha1.ServiceAccountSpec{Create: new(true)},
 			want: "test",
 		},
 		{
@@ -61,7 +61,7 @@ func TestResolveServiceAccountName(t *testing.T) {
 		},
 		{
 			name: "create=false with name references the existing SA",
-			sa:   &supersetv1alpha1.ServiceAccountSpec{Create: boolPtr(false), Name: "external-sa"},
+			sa:   &supersetv1alpha1.ServiceAccountSpec{Create: new(false), Name: "external-sa"},
 			want: "external-sa",
 		},
 		{
@@ -71,7 +71,7 @@ func TestResolveServiceAccountName(t *testing.T) {
 			// defensive about it and returns empty; we assert that fallback rather
 			// than implying create=false-without-name is a supported config.
 			name: "create=false without name (CEL-rejected; defensive empty fallback)",
-			sa:   &supersetv1alpha1.ServiceAccountSpec{Create: boolPtr(false)},
+			sa:   &supersetv1alpha1.ServiceAccountSpec{Create: new(false)},
 			want: "",
 		},
 	}
@@ -79,8 +79,8 @@ func TestResolveServiceAccountName(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			superset := &supersetv1alpha1.Superset{
-				ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-				Spec:       supersetv1alpha1.SupersetSpec{ServiceAccount: tt.sa},
+				Name: "test", Namespace: "default",
+				Spec: supersetv1alpha1.SupersetSpec{ServiceAccount: tt.sa},
 			}
 			assert.Equal(t, tt.want, resolveServiceAccountName(superset))
 		})
@@ -89,9 +89,9 @@ func TestResolveServiceAccountName(t *testing.T) {
 
 func supersetForSA(annotations map[string]string) *supersetv1alpha1.Superset {
 	return &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "superset-uid"},
+		Name: "test", Namespace: "default", UID: "superset-uid",
 		Spec: supersetv1alpha1.SupersetSpec{
-			ServiceAccount: &supersetv1alpha1.ServiceAccountSpec{Create: boolPtr(true), Annotations: annotations},
+			ServiceAccount: &supersetv1alpha1.ServiceAccountSpec{Create: new(true), Annotations: annotations},
 		},
 	}
 }
@@ -106,16 +106,14 @@ func TestReconcileServiceAccount_RefusesForeignOwnedAdoption(t *testing.T) {
 	scheme := testScheme(t)
 
 	existing := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "test",
-			Namespace:   "default",
-			UID:         "existing-sa-uid",
-			Annotations: map[string]string{"eks.amazonaws.com/role-arn": "arn:aws:iam::123:role/keep"},
-			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion: "v1", Kind: "ServiceAccount", Name: "other",
-				UID: "foreign-uid", Controller: boolPtr(true),
-			}},
-		},
+		Name:        "test",
+		Namespace:   "default",
+		UID:         "existing-sa-uid",
+		Annotations: map[string]string{"eks.amazonaws.com/role-arn": "arn:aws:iam::123:role/keep"},
+		OwnerReferences: []metav1.OwnerReference{{
+			APIVersion: "v1", Kind: "ServiceAccount", Name: "other",
+			UID: "foreign-uid", Controller: new(true),
+		}},
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(existing).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
@@ -139,12 +137,10 @@ func TestReconcileServiceAccount_RefusesUnownedAdoption(t *testing.T) {
 	scheme := testScheme(t)
 
 	existing := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "test",
-			Namespace:   "default",
-			UID:         "existing-sa-uid",
-			Annotations: map[string]string{"keep": "me"},
-		},
+		Name:        "test",
+		Namespace:   "default",
+		UID:         "existing-sa-uid",
+		Annotations: map[string]string{"keep": "me"},
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(existing).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
@@ -165,15 +161,13 @@ func TestReconcileServiceAccount_UpdatesOwned(t *testing.T) {
 	scheme := testScheme(t)
 
 	existing := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test",
-			Namespace: "default",
-			UID:       "existing-sa-uid",
-			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion: "superset.apache.org/v1alpha1", Kind: "Superset", Name: "test",
-				UID: "superset-uid", Controller: boolPtr(true),
-			}},
-		},
+		Name:      "test",
+		Namespace: "default",
+		UID:       "existing-sa-uid",
+		OwnerReferences: []metav1.OwnerReference{{
+			APIVersion: "superset.apache.org/v1alpha1", Kind: "Superset", Name: "test",
+			UID: "superset-uid", Controller: new(true),
+		}},
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(existing).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}

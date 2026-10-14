@@ -27,8 +27,6 @@ import (
 	v1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 )
 
-func ptr[T any](v T) *T { return &v }
-
 func TestResolveGunicorn_NilSpec(t *testing.T) {
 	g := ResolveGunicorn(nil)
 	assert.False(t, g.Disabled)
@@ -63,15 +61,15 @@ func TestResolveGunicorn_Presets(t *testing.T) {
 }
 
 func TestResolveGunicorn_Disabled(t *testing.T) {
-	g := ResolveGunicorn(&v1alpha1.GunicornSpec{Preset: ptr(PresetDisabled)})
+	g := ResolveGunicorn(&v1alpha1.GunicornSpec{Preset: new(PresetDisabled)})
 	assert.True(t, g.Disabled)
 }
 
 func TestResolveGunicorn_FieldOverrides(t *testing.T) {
 	g := ResolveGunicorn(&v1alpha1.GunicornSpec{
-		Preset:  ptr(PresetConservative),
-		Workers: ptr(int32(6)),
-		Timeout: ptr(int32(120)),
+		Preset:  new(PresetConservative),
+		Workers: new(int32(6)),
+		Timeout: new(int32(120)),
 	})
 	assert.Equal(t, int32(6), g.Workers)
 	assert.Equal(t, int32(4), g.Threads) // preset default preserved
@@ -82,17 +80,17 @@ func TestResolveGunicorn_AllFieldOverrides(t *testing.T) {
 	// Every overridable field set to a non-default value, on top of a preset
 	// whose worker/thread defaults must be replaced by the explicit values.
 	g := ResolveGunicorn(&v1alpha1.GunicornSpec{
-		Preset:                ptr(PresetBalanced),
-		Workers:               ptr(int32(3)),
-		Threads:               ptr(int32(5)),
-		WorkerClass:           ptr("sync"),
-		Timeout:               ptr(int32(90)),
-		KeepAlive:             ptr(int32(7)),
-		MaxRequests:           ptr(int32(1000)),
-		MaxRequestsJitter:     ptr(int32(50)),
-		LimitRequestLine:      ptr(int32(8190)),
-		LimitRequestFieldSize: ptr(int32(16380)),
-		LogLevel:              ptr("debug"),
+		Preset:                new(PresetBalanced),
+		Workers:               new(int32(3)),
+		Threads:               new(int32(5)),
+		WorkerClass:           new("sync"),
+		Timeout:               new(int32(90)),
+		KeepAlive:             new(int32(7)),
+		MaxRequests:           new(int32(1000)),
+		MaxRequestsJitter:     new(int32(50)),
+		LimitRequestLine:      new(int32(8190)),
+		LimitRequestFieldSize: new(int32(16380)),
+		LogLevel:              new("debug"),
 	})
 
 	assert.False(t, g.Disabled)

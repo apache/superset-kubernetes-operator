@@ -29,11 +29,9 @@ var celeryBeatSingletonReplica = int32(1)
 
 func httpProbe(path string, port int32, initialDelay int32) *corev1.Probe {
 	return &corev1.Probe{
-		ProbeHandler: corev1.ProbeHandler{
-			HTTPGet: &corev1.HTTPGetAction{
-				Path: path,
-				Port: intstr.FromInt32(port),
-			},
+		HTTPGet: &corev1.HTTPGetAction{
+			Path: path,
+			Port: intstr.FromInt32(port),
 		},
 		InitialDelaySeconds: initialDelay,
 		PeriodSeconds:       10,
@@ -44,14 +42,26 @@ func httpProbe(path string, port int32, initialDelay int32) *corev1.Probe {
 
 func tcpProbe(port int32, initialDelay int32) *corev1.Probe {
 	return &corev1.Probe{
-		ProbeHandler: corev1.ProbeHandler{
-			TCPSocket: &corev1.TCPSocketAction{
-				Port: intstr.FromInt32(port),
-			},
+		TCPSocket: &corev1.TCPSocketAction{
+			Port: intstr.FromInt32(port),
 		},
 		InitialDelaySeconds: initialDelay,
 		PeriodSeconds:       10,
 		TimeoutSeconds:      5,
+		FailureThreshold:    3,
+	}
+}
+
+// celeryWorkerPingProbe pings only this pod's worker node; timings follow the
+// upstream Superset Helm chart because each probe imports the full app.
+func celeryWorkerPingProbe() *corev1.Probe {
+	return &corev1.Probe{
+		Exec: &corev1.ExecAction{
+			Command: []string{bootstrapShell, "-c", "exec celery " + common.CeleryAppArg + ` inspect ping --destination "celery@$HOSTNAME" --timeout 10`},
+		},
+		InitialDelaySeconds: 120,
+		PeriodSeconds:       60,
+		TimeoutSeconds:      60,
 		FailureThreshold:    3,
 	}
 }
@@ -95,8 +105,9 @@ func ComponentResourceDefs() []ComponentResourceDef {
 			config: componentReconcilerConfig{
 				componentName: string(common.ComponentCeleryWorker),
 				deployConfig: DeploymentConfig{
-					ContainerName:  common.Container,
-					DefaultCommand: []string{"celery", "--app=superset.tasks.celery_app:app", "worker", "--pool=prefork", "-O", "fair", "-c", "4"},
+					ContainerName:        common.Container,
+					DefaultCommand:       []string{"celery", common.CeleryAppArg, "worker", "--pool=prefork", "-O", "fair", "-c", "4"},
+					DefaultLivenessProbe: celeryWorkerPingProbe(),
 				},
 				defaultPort: 0,
 				hasScaling:  true,
@@ -108,7 +119,7 @@ func ComponentResourceDefs() []ComponentResourceDef {
 				componentName: string(common.ComponentCeleryBeat),
 				deployConfig: DeploymentConfig{
 					ContainerName:  common.Container,
-					DefaultCommand: []string{"celery", "--app=superset.tasks.celery_app:app", "beat", "--pidfile", "/tmp/celerybeat.pid", "--schedule", "/tmp/celerybeat-schedule"},
+					DefaultCommand: []string{"celery", common.CeleryAppArg, "beat", "--pidfile", "/tmp/celerybeat.pid", "--schedule", "/tmp/celerybeat-schedule"},
 					ForceReplicas:  &celeryBeatSingletonReplica,
 				},
 				defaultPort: 0,
@@ -121,7 +132,7 @@ func ComponentResourceDefs() []ComponentResourceDef {
 				componentName: string(common.ComponentCeleryFlower),
 				deployConfig: DeploymentConfig{
 					ContainerName:  common.Container,
-					DefaultCommand: []string{bootstrapShell, "-c", "exec celery --app=superset.tasks.celery_app:app flower --url_prefix=\"$SUPERSET_OPERATOR__FLOWER_URL_PREFIX\""},
+					DefaultCommand: []string{bootstrapShell, "-c", "exec celery " + common.CeleryAppArg + " flower --url_prefix=\"$SUPERSET_OPERATOR__FLOWER_URL_PREFIX\""},
 					DefaultPorts: []corev1.ContainerPort{
 						{Name: common.PortNameHTTP, ContainerPort: common.PortCeleryFlower, Protocol: corev1.ProtocolTCP},
 					},

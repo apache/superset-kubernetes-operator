@@ -75,7 +75,7 @@ func (r *SupersetReconciler) reconcileServiceMonitor(ctx context.Context, supers
 		labels := mergeLabels(resolution.StripReservedLabels(sm.Labels), operatorLabels)
 		obj.SetLabels(labels)
 
-		endpoint := map[string]interface{}{
+		endpoint := map[string]any{
 			"port":     common.PortNameHTTP,
 			"interval": interval,
 		}
@@ -83,18 +83,18 @@ func (r *SupersetReconciler) reconcileServiceMonitor(ctx context.Context, supers
 			endpoint["scrapeTimeout"] = *sm.ScrapeTimeout
 		}
 
-		obj.Object["spec"] = map[string]interface{}{
-			"selector": map[string]interface{}{
-				"matchLabels": map[string]interface{}{
+		obj.Object["spec"] = map[string]any{
+			"selector": map[string]any{
+				"matchLabels": map[string]any{
 					common.LabelKeyName:      common.LabelValueApp,
 					common.LabelKeyComponent: string(common.ComponentWebServer),
 					common.LabelKeyInstance:  webServerDescriptor.instanceName(&superset.Spec, superset.Name),
 				},
 			},
-			"namespaceSelector": map[string]interface{}{
-				"matchNames": []interface{}{superset.Namespace},
+			"namespaceSelector": map[string]any{
+				"matchNames": []any{superset.Namespace},
 			},
-			"endpoints": []interface{}{endpoint},
+			"endpoints": []any{endpoint},
 		}
 
 		return nil

@@ -29,7 +29,6 @@ import (
 	networkingv1 "k8s.io/api/networking/v1"
 	policyv1 "k8s.io/api/policy/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
@@ -38,8 +37,6 @@ import (
 )
 
 // Test helper functions shared across all test files.
-
-func boolPtr(b bool) *bool { return &b }
 
 func testScheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
@@ -78,11 +75,11 @@ func minimalSupersetSpec() supersetv1alpha1.SupersetSpec {
 			Tag:        "latest",
 		},
 		SecretKeyFrom: &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: "app-secret"},
-			Key:                  "secret-key",
+			Name: "app-secret",
+			Key:  "secret-key",
 		},
 		WebServer: &supersetv1alpha1.WebServerComponentSpec{},
-		Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+		Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 	}
 }
 
@@ -97,7 +94,7 @@ func reconcileOnce(t *testing.T, scheme *runtime.Scheme, superset *supersetv1alp
 func doReconcile(t *testing.T, r *SupersetReconciler) {
 	t.Helper()
 	_, err := r.Reconcile(context.Background(), reconcile.Request{
-		NamespacedName: types.NamespacedName{Name: "test", Namespace: "default"},
+		Name: "test", Namespace: "default",
 	})
 	if err != nil {
 		t.Fatalf("reconcile failed: %v", err)

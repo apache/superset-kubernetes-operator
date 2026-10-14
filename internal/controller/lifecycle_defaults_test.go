@@ -48,7 +48,7 @@ func TestTaskMaxRetriesValue(t *testing.T) {
 	t.Run("uses explicit value", func(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{Migrate: &supersetv1alpha1.MigrateTaskSpec{
-				BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{MaxRetries: int32Ptr(7)},
+				MaxRetries: new(int32(7)),
 			}},
 		}}
 		assert.Equal(t, int32(7), r.taskMaxRetriesValue(superset, taskTypeMigrate))
@@ -73,9 +73,7 @@ func TestTaskTimeoutValue(t *testing.T) {
 	t.Run("uses explicit value", func(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{Migrate: &supersetv1alpha1.MigrateTaskSpec{
-				BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{
-					Timeout: &metav1.Duration{Duration: 90 * time.Second},
-				},
+				Timeout: &metav1.Duration{Duration: 90 * time.Second},
 			}},
 		}}
 		assert.Equal(t, 90*time.Second, r.taskTimeoutValue(superset, taskTypeMigrate))
@@ -171,7 +169,7 @@ func TestDefaultMigrateCommand(t *testing.T) {
 	t.Run("user override wins", func(t *testing.T) {
 		s := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{Migrate: &supersetv1alpha1.MigrateTaskSpec{
-				BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Command: []string{"superset", "db", "stamp", "head"}},
+				Command: []string{"superset", "db", "stamp", "head"},
 			}},
 		}}
 		got := defaultMigrateCommand(s)
@@ -200,7 +198,7 @@ func TestDefaultInitCommand(t *testing.T) {
 	t.Run("user override wins", func(t *testing.T) {
 		s := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{Init: &supersetv1alpha1.InitTaskSpec{
-				BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Command: []string{"echo", "custom"}},
+				Command: []string{"echo", "custom"},
 			}},
 		}}
 		got := defaultInitCommand(s)

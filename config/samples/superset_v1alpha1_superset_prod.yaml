@@ -20,8 +20,14 @@
 #   kubectl create secret generic superset-secret \
 #     --from-literal=secret-key="$(openssl rand -base64 42)"
 #   kubectl create secret generic superset-db \
-#     --from-literal=connection-string="postgresql+psycopg2://superset:CHANGEME@postgres:5432/superset"
-#   kubectl create secret generic valkey-credentials \
+#     --from-literal=host="postgres.default.svc" \
+#     --from-literal=port="5432" \
+#     --from-literal=dbname="superset" \
+#     --from-literal=username="superset" \
+#     --from-literal=password="CHANGEME"
+#   kubectl create secret generic valkey-connection \
+#     --from-literal=endpoint="valkey.default.svc" \
+#     --from-literal=port="6379" \
 #     --from-literal=password="CHANGEME"
 apiVersion: superset.apache.org/v1alpha1
 kind: Superset
@@ -34,13 +40,30 @@ spec:
     name: superset-secret
     key: secret-key
   metastore:
-    uriFrom:
+    hostFrom:
       name: superset-db
-      key: connection-string
-  valkey:
-    host: valkey.default.svc
+      key: host
+    portFrom:
+      name: superset-db
+      key: port
+    databaseFrom:
+      name: superset-db
+      key: dbname
+    usernameFrom:
+      name: superset-db
+      key: username
     passwordFrom:
-      name: valkey-credentials
+      name: superset-db
+      key: password
+  valkey:
+    hostFrom:
+      name: valkey-connection
+      key: endpoint
+    portFrom:
+      name: valkey-connection
+      key: port
+    passwordFrom:
+      name: valkey-connection
       key: password
   deploymentTemplate:
     revisionHistoryLimit: 3

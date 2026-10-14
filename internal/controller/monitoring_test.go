@@ -23,7 +23,6 @@ import (
 	"testing"
 
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
@@ -39,11 +38,11 @@ func TestReconcileMonitoring_GracefulSkipWhenCRDAbsent(t *testing.T) {
 	interval := "60s"
 	scrapeTimeout := "10s"
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
-			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 			Monitoring: &supersetv1alpha1.MonitoringSpec{
 				ServiceMonitor: &supersetv1alpha1.ServiceMonitorSpec{
 					Interval:      &interval,
@@ -71,11 +70,11 @@ func TestReconcileMonitoring_ServiceMonitorShape(t *testing.T) {
 	interval := "60s"
 	scrapeTimeout := "10s"
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
-			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 			Monitoring: &supersetv1alpha1.MonitoringSpec{
 				ServiceMonitor: &supersetv1alpha1.ServiceMonitorSpec{
 					Interval:      &interval,
@@ -105,14 +104,14 @@ func TestReconcileMonitoring_ServiceMonitorShape(t *testing.T) {
 		t.Fatalf("get ServiceMonitor: %v", err)
 	}
 
-	spec, ok := sm.Object["spec"].(map[string]interface{})
+	spec, ok := sm.Object["spec"].(map[string]any)
 	if !ok {
 		t.Fatal("ServiceMonitor missing spec")
 	}
 
 	// Verify selector targets web-server component.
-	selector, _ := spec["selector"].(map[string]interface{})
-	matchLabels, _ := selector["matchLabels"].(map[string]interface{})
+	selector, _ := spec["selector"].(map[string]any)
+	matchLabels, _ := selector["matchLabels"].(map[string]any)
 	if matchLabels["app.kubernetes.io/component"] != string(common.ComponentWebServer) {
 		t.Errorf("selector component should be %q, got %v", common.ComponentWebServer, matchLabels["app.kubernetes.io/component"])
 	}
@@ -124,11 +123,11 @@ func TestReconcileMonitoring_ServiceMonitorShape(t *testing.T) {
 	}
 
 	// Verify endpoints shape.
-	endpoints, _ := spec["endpoints"].([]interface{})
+	endpoints, _ := spec["endpoints"].([]any)
 	if len(endpoints) != 1 {
 		t.Fatalf("expected 1 endpoint, got %d", len(endpoints))
 	}
-	ep, _ := endpoints[0].(map[string]interface{})
+	ep, _ := endpoints[0].(map[string]any)
 	if ep["port"] != common.PortNameHTTP {
 		t.Errorf("endpoint port should be %q, got %v", common.PortNameHTTP, ep["port"])
 	}
@@ -140,8 +139,8 @@ func TestReconcileMonitoring_ServiceMonitorShape(t *testing.T) {
 	}
 
 	// Verify namespace selector.
-	nsSelector, _ := spec["namespaceSelector"].(map[string]interface{})
-	matchNames, _ := nsSelector["matchNames"].([]interface{})
+	nsSelector, _ := spec["namespaceSelector"].(map[string]any)
+	matchNames, _ := nsSelector["matchNames"].([]any)
 	if len(matchNames) != 1 || matchNames[0] != "default" {
 		t.Errorf("namespaceSelector should match [default], got %v", matchNames)
 	}
@@ -166,11 +165,11 @@ func TestReconcileMonitoring_ServiceMonitorShape(t *testing.T) {
 func TestReconcileMonitoring_StripsReservedLabels(t *testing.T) {
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
-			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 			Monitoring: &supersetv1alpha1.MonitoringSpec{
 				ServiceMonitor: &supersetv1alpha1.ServiceMonitorSpec{
 					Labels: map[string]string{
@@ -211,8 +210,8 @@ func TestDeleteServiceMonitors(t *testing.T) {
 	scheme := testScheme(t)
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
-		Spec:       minimalSupersetSpec(),
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: minimalSupersetSpec(),
 	}
 
 	t.Run("not found", func(t *testing.T) {

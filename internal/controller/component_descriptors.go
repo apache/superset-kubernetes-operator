@@ -92,13 +92,11 @@ func convertComponent(a *componentAccessor) *resolution.ComponentInput {
 		return nil
 	}
 	return &resolution.ComponentInput{
-		SharedInput: resolution.SharedInput{
-			Replicas:            a.replicas,
-			DeploymentTemplate:  a.deploymentTemplate,
-			PodTemplate:         a.podTemplate,
-			Autoscaling:         a.autoscaling,
-			PodDisruptionBudget: a.pdb,
-		},
+		Replicas:            a.replicas,
+		DeploymentTemplate:  a.deploymentTemplate,
+		PodTemplate:         a.podTemplate,
+		Autoscaling:         a.autoscaling,
+		PodDisruptionBudget: a.pdb,
 	}
 }
 

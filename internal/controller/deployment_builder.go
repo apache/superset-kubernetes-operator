@@ -37,6 +37,10 @@ var (
 	configMountPath  = common.ConfigMountPath
 )
 
+// capabilityAll is the wildcard Linux capability used to drop the full default
+// capability set from operator-created containers.
+const capabilityAll corev1.Capability = "ALL"
+
 // DeploymentConfig holds the component-specific defaults needed to build
 // a Deployment for any Superset component.
 type DeploymentConfig struct {
@@ -110,27 +114,9 @@ func buildDeploymentSpec(
 	// When the user overrides container ports, retarget any default probes to
 	// the first resolved port; otherwise the Service targetPort tracks the new
 	// port while probes remain on the hard-coded default port.
-	livenessProbe := ct.LivenessProbe
-	if livenessProbe == nil {
-		livenessProbe = cfg.DefaultLivenessProbe
-		if portsOverridden && livenessProbe != nil {
-			livenessProbe = retargetProbe(livenessProbe, ports[0].ContainerPort)
-		}
-	}
-	readinessProbe := ct.ReadinessProbe
-	if readinessProbe == nil {
-		readinessProbe = cfg.DefaultReadinessProbe
-		if portsOverridden && readinessProbe != nil {
-			readinessProbe = retargetProbe(readinessProbe, ports[0].ContainerPort)
-		}
-	}
-	startupProbe := ct.StartupProbe
-	if startupProbe == nil {
-		startupProbe = cfg.DefaultStartupProbe
-		if portsOverridden && startupProbe != nil {
-			startupProbe = retargetProbe(startupProbe, ports[0].ContainerPort)
-		}
-	}
+	livenessProbe := resolveProbe(ct.LivenessProbe, cfg.DefaultLivenessProbe, portsOverridden, ports)
+	readinessProbe := resolveProbe(ct.ReadinessProbe, cfg.DefaultReadinessProbe, portsOverridden, ports)
+	startupProbe := resolveProbe(ct.StartupProbe, cfg.DefaultStartupProbe, portsOverridden, ports)
 
 	// Build the main container from ContainerTemplate.
 	mainContainer := corev1.Container{
@@ -145,7 +131,7 @@ func buildDeploymentSpec(
 		LivenessProbe:   livenessProbe,
 		ReadinessProbe:  readinessProbe,
 		StartupProbe:    startupProbe,
-		SecurityContext: ct.SecurityContext,
+		SecurityContext: applyContainerSecurityDefaults(ct.SecurityContext, pt.PodSecurityContext),
 		Lifecycle:       ct.Lifecycle,
 	}
 	if ct.Resources != nil {
@@ -251,6 +237,22 @@ func resolveContainerPort(spec *supersetv1alpha1.FlatComponentSpec, defaultPort 
 	return defaultPort
 }
 
+// resolveProbe returns the user probe, or the component default when the user
+// set none. An empty user probe ({}) disables the probe, since a CR cannot use
+// null to remove a default.
+func resolveProbe(user, def *corev1.Probe, portsOverridden bool, ports []corev1.ContainerPort) *corev1.Probe {
+	if user != nil {
+		if *user == (corev1.Probe{}) {
+			return nil
+		}
+		return user
+	}
+	if portsOverridden && def != nil {
+		return retargetProbe(def, ports[0].ContainerPort)
+	}
+	return def
+}
+
 // retargetProbe returns a copy of probe with HTTPGet/TCPSocket port replaced.
 // Used to keep default probes aligned with user-overridden container ports so
 // the Service targetPort and the probe target stay in sync.
@@ -304,4 +306,46 @@ func buildServiceSpec(
 		Selector: labels,
 		Ports:    []corev1.ServicePort{svcPort},
 	}
+}
+
+// applyContainerSecurityDefaults fills the operator's UID-independent
+// container hardening defaults into a user-provided securityContext where the
+// user left them unset: privilege escalation disabled, all Linux capabilities
+// dropped, and the RuntimeDefault seccomp profile. Defaults are applied
+// field-by-field, so any user-set field always wins.
+//
+// These harden workloads on permissive clusters and satisfy several of the
+// restricted Pod Security Standard's requirements (privilege escalation,
+// capabilities, seccomp) without pinning a UID; full restricted compatibility
+// still requires user-provided non-root settings. runAsNonRoot/runAsUser are
+// deliberately NOT defaulted: the Superset image declares a named user
+// (`USER superset`), so runAsNonRoot alone is rejected by the kubelet
+// ("non-numeric user"), and pinning a numeric UID collides with OpenShift's
+// per-namespace SCC UID range and the Flower
+// bootstrapScript root case. Achieving the restricted profile therefore stays a
+// user opt-in via podTemplate/containerTemplate securityContext.
+//
+// podSC is the resolved pod-level securityContext. Container-level seccomp
+// overrides pod-level, so a container-level seccomp default is only applied when
+// neither level sets one — otherwise a user's pod-level profile would be
+// silently overridden.
+func applyContainerSecurityDefaults(sc *corev1.SecurityContext, podSC *corev1.PodSecurityContext) *corev1.SecurityContext {
+	out := sc.DeepCopy()
+	if out == nil {
+		out = &corev1.SecurityContext{}
+	}
+	if out.AllowPrivilegeEscalation == nil {
+		out.AllowPrivilegeEscalation = new(false)
+	}
+	// Default drop: [ALL] when no drop set is specified, preserving any
+	// user-provided capability add/drop lists.
+	if out.Capabilities == nil {
+		out.Capabilities = &corev1.Capabilities{Drop: []corev1.Capability{capabilityAll}}
+	} else if out.Capabilities.Drop == nil {
+		out.Capabilities.Drop = []corev1.Capability{capabilityAll}
+	}
+	if out.SeccompProfile == nil && (podSC == nil || podSC.SeccompProfile == nil) {
+		out.SeccompProfile = &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault}
+	}
+	return out
 }

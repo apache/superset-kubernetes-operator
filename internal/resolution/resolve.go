@@ -20,8 +20,6 @@ package resolution
 
 import (
 	corev1 "k8s.io/api/core/v1"
-
-	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
 // ResolveScalar returns the first non-nil value from the provided pointers.
@@ -71,6 +69,3 @@ func ResolveOverridableValue[T any](override, defaultVal *T) *T {
 	}
 	return defaultVal
 }
-
-// Ptr returns a pointer to the given value. Delegates to common.Ptr.
-func Ptr[T any](v T) *T { return common.Ptr(v) }

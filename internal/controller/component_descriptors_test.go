@@ -27,7 +27,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -147,13 +146,13 @@ func TestWarnEnvVarOverrides(t *testing.T) {
 	// the relevant inputs.
 	t.Run("collision on both top-level and component", func(t *testing.T) {
 		tl := &resolution.SharedInput{PodTemplate: envPT("SUPERSET_OPERATOR__SECRET_KEY")}
-		comp := &resolution.ComponentInput{SharedInput: resolution.SharedInput{PodTemplate: envPT("SUPERSET_OPERATOR__SECRET_KEY")}}
+		comp := &resolution.ComponentInput{PodTemplate: envPT("SUPERSET_OPERATOR__SECRET_KEY")}
 		warnEnvVarOverrides(context.Background(), tl, comp, op)
 	})
 
 	t.Run("no collision", func(t *testing.T) {
 		tl := &resolution.SharedInput{PodTemplate: envPT("MY_OWN_VAR")}
-		comp := &resolution.ComponentInput{SharedInput: resolution.SharedInput{PodTemplate: envPT("OTHER_VAR")}}
+		comp := &resolution.ComponentInput{PodTemplate: envPT("OTHER_VAR")}
 		warnEnvVarOverrides(context.Background(), tl, comp, op)
 	})
 
@@ -184,9 +183,7 @@ func TestInjectCeleryCommand(t *testing.T) {
 
 	t.Run("creates missing container template", func(t *testing.T) {
 		comp := &resolution.ComponentInput{
-			SharedInput: resolution.SharedInput{
-				PodTemplate: &supersetv1alpha1.PodTemplate{},
-			},
+			PodTemplate: &supersetv1alpha1.PodTemplate{},
 		}
 
 		injectCeleryCommand(comp, cmd)
@@ -198,11 +195,9 @@ func TestInjectCeleryCommand(t *testing.T) {
 	t.Run("preserves explicit command", func(t *testing.T) {
 		existing := []string{"custom", "worker"}
 		comp := &resolution.ComponentInput{
-			SharedInput: resolution.SharedInput{
-				PodTemplate: &supersetv1alpha1.PodTemplate{
-					Container: &supersetv1alpha1.ContainerTemplate{
-						Command: existing,
-					},
+			PodTemplate: &supersetv1alpha1.PodTemplate{
+				Container: &supersetv1alpha1.ContainerTemplate{
+					Command: existing,
 				},
 			},
 		}
@@ -216,13 +211,13 @@ func TestInjectCeleryCommand(t *testing.T) {
 func TestDeleteComponentResources(t *testing.T) {
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Name: "test", Namespace: "default",
 	}
 
 	// A web-server component (hasPythonConfig=true, defaultPort=0 so no Service).
 	wsName := common.ResourceBaseName("test", common.ComponentWebServer)
-	deploy := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: wsName, Namespace: "default"}}
-	cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: common.ConfigMapName(wsName), Namespace: "default"}}
+	deploy := &appsv1.Deployment{Name: wsName, Namespace: "default"}
+	cm := &corev1.ConfigMap{Name: common.ConfigMapName(wsName), Namespace: "default"}
 
 	c := fake.NewClientBuilder().
 		WithScheme(scheme).

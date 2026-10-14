@@ -40,8 +40,3 @@ const (
 	EnvironmentStaging = "Staging"
 	EnvironmentProd    = "Production"
 )
-
-// Ptr returns a pointer to the given value.
-func Ptr[T any](v T) *T {
-	return &v
-}

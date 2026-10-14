@@ -16,6 +16,9 @@
 version: "2"
 run:
   allow-parallel-runners: true
+  # Lint envtest suites too, so modernize/unused see every caller.
+  build-tags:
+    - integration
 linters:
   default: none
   enable:
@@ -30,6 +33,7 @@ linters:
     - ineffassign
     - lll
     - misspell
+    - modernize
     - nakedret
     - prealloc
     - revive

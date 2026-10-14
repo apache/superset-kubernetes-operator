@@ -35,7 +35,7 @@ func TestSetIf(t *testing.T) {
 
 	t.Run("non-nil source overwrites dst", func(t *testing.T) {
 		dst := int32(7)
-		setIf(&dst, ptr(int32(42)))
+		setIf(&dst, new(int32(42)))
 		assert.Equal(t, int32(42), dst)
 	})
 
@@ -43,7 +43,7 @@ func TestSetIf(t *testing.T) {
 		dst := "default"
 		setIf(&dst, nil)
 		assert.Equal(t, "default", dst)
-		setIf(&dst, ptr("override"))
+		setIf(&dst, new("override"))
 		assert.Equal(t, "override", dst)
 	})
 }

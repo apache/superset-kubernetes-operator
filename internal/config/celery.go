@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	v1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
+	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
 const defaultPool = "prefork"
@@ -95,7 +96,7 @@ func celeryPresetDefaults(preset string) int32 {
 // Command returns the celery worker command args.
 func (c *ResolvedCelery) Command() []string {
 	cmd := []string{
-		"celery", "--app=superset.tasks.celery_app:app", "worker",
+		"celery", common.CeleryAppArg, "worker",
 		fmt.Sprintf("--pool=%s", c.Pool),
 		"-O", c.Optimization,
 		"-c", fmt.Sprintf("%d", c.Concurrency),

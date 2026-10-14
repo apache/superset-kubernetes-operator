@@ -107,7 +107,9 @@ spec:
 
 `uri` and `uriFrom` are mutually exclusive with each other and with the structured fields below.
 
-**Structured fields** — the operator sets individual env vars (`SUPERSET_OPERATOR__DB_HOST`, `SUPERSET_OPERATOR__DB_PORT`, `SUPERSET_OPERATOR__DB_NAME`, `SUPERSET_OPERATOR__DB_USER`, `SUPERSET_OPERATOR__DB_PASS`) that the generated config assembles into a connection URI. In Staging or Production, use `passwordFrom` to reference a Secret for the password:
+**Structured fields** — the operator sets individual env vars (`SUPERSET_OPERATOR__DB_HOST`, `SUPERSET_OPERATOR__DB_PORT`, `SUPERSET_OPERATOR__DB_NAME`, `SUPERSET_OPERATOR__DB_USER`, `SUPERSET_OPERATOR__DB_PASS`) that the generated config assembles into a connection URI. Every connection field can come from a Secret key. This composes with database operators and infrastructure provisioners that publish connection details in Secrets, even when endpoint data and credentials are owned separately:
+
+In this context, a Secret is also a Kubernetes-native container for provisioner output; it does not imply that every referenced value is sensitive. Fields such as host, port, and database remain valid as literals, while their `From` counterparts allow the `Superset` resource to consume values that are only known after another controller reconciles them.
 
 ```yaml
 # Development mode: inline password
@@ -123,20 +125,30 @@ spec:
 ```
 
 ```yaml
-# Staging/Production: password from Secret
+# Staging/Production: provisioner-owned connection details from Secret keys
 spec:
   metastore:
     type: PostgreSQL
-    host: db.example.com
-    port: 5432
-    database: superset
-    username: superset
+    hostFrom:
+      name: db-connection
+      key: host
+    portFrom:
+      name: db-connection
+      key: port
+    databaseFrom:
+      name: db-connection
+      key: dbname
+    usernameFrom:
+      name: db-connection
+      key: user
     passwordFrom:
       name: db-credentials
       key: password
 ```
 
-`password` and `passwordFrom` are mutually exclusive.
+Each literal and its `From` counterpart are mutually exclusive. `portFrom` must reference a decimal port string. When neither `port` nor `portFrom` is set, the port defaults to 5432 for PostgreSQL or 3306 for MySQL. Secret values are resolved by the kubelet and never enter the generated ConfigMap.
+
+Changing a selector's Secret name or key changes the `Superset` resource and updates the relevant workloads. Updating data behind an unchanged selector is deliberately invisible to the operator because it does not read Secrets. After such a rotation, change `spec.forceReload` to restart component pods. If `createDatabase` or migrations must run against the new value, also change `spec.lifecycle.migrate.trigger`; `forceReload` does not rerun lifecycle tasks.
 
 Structured mode defaults to `postgresql+psycopg2` for PostgreSQL and `mysql+mysqldb` for MySQL. The operator only selects the SQLAlchemy scheme; it does not install Python driver packages into the Superset image. The official lean Superset images do not include database drivers, so production images should add the driver package required by the selected scheme. For the default MySQL scheme, install `mysqlclient`; for the default PostgreSQL scheme, install `psycopg2` or a compatible package. See Superset's
 [Docker Builds](https://superset.apache.org/admin-docs/installation/docker-builds/#build-presets)
@@ -176,13 +188,13 @@ Requirements and caveats:
 
 - **Structured metastore only.** Rejected by CRD validation when `uri` or `uriFrom` is set — the operator needs the individual host/database/username fields to issue admin-level statements.
 - **Privileges.** The configured metastore user must have `CREATEDB` (PostgreSQL) or `CREATE` (MySQL) privilege on the server. The init container connects to the `postgres` admin database (PostgreSQL) or runs `CREATE DATABASE IF NOT EXISTS` (MySQL).
-- **Init container image.** The operator uses `postgres:17-alpine` or `mysql:8-alpine` (matching the seed task) — the Superset image is not assumed to ship database client tools.
+- **Init container image.** The operator uses `postgres:17-alpine` or `mysql:8.4` (matching the seed task) — the Superset image is not assumed to ship database client tools.
 - **Resources and securityContext are inherited from `spec.lifecycle.podTemplate.container`.** Whatever you set on `spec.lifecycle.podTemplate.container.resources` and `spec.lifecycle.podTemplate.container.securityContext` is applied to the create-database init container. This lets you satisfy strict admission policies (Pod Security Standards `restricted`, Kyverno, OPA) without a dedicated knob. The init container also defaults to a non-root UID (matching its DB-tool image), so it starts cleanly under a pod-level `runAsNonRoot: true` even when you don't pin a UID — an explicit `runAsUser` at the pod or container level is always respected.
 - **Redundant with `lifecycle.seed`.** Seed already drops and re-creates its target database every time it runs, so toggling `createDatabase` on alongside seed is harmless but does no extra work in practice — the init container detects the existing database (created by seed) and no-ops.
 
 ## Valkey
 
-The `valkey` field configures Valkey (or Redis) as the cache backend, Celery message broker, and SQL Lab results backend. Setting `valkey.host` auto-generates all cache, Celery, and results backend configuration with sensible defaults:
+The `valkey` field configures Valkey (or Redis) as the cache backend, Celery message broker, and SQL Lab results backend. Setting `valkey.host` or `valkey.hostFrom` auto-generates all cache, Celery, and results backend configuration with sensible defaults:
 
 ```yaml
 # Minimal: one field configures everything
@@ -237,6 +249,29 @@ spec:
 ```
 
 In Development mode, `valkey.password` can be set inline. In Staging or Production, use `valkey.passwordFrom` to reference a Kubernetes Secret — the operator injects the password via `valueFrom.secretKeyRef`.
+
+Managed Valkey or Redis services can supply every connection field through Secret keys:
+
+```yaml
+spec:
+  valkey:
+    hostFrom:
+      name: valkey-connection
+      key: endpoint
+    portFrom:
+      name: valkey-connection
+      key: port
+    usernameFrom:
+      name: valkey-connection
+      key: username
+    passwordFrom:
+      name: valkey-connection
+      key: password
+```
+
+Each literal and its `From` counterpart are mutually exclusive. `portFrom` must reference a decimal port string. When neither `port` nor `portFrom` is set, the runtime default is `6379`. Secret values are resolved by the kubelet and never enter the generated ConfigMap.
+
+Changing a selector's Secret name or key updates the relevant workloads. Updating data behind the same selector does not trigger a rollout; change `spec.forceReload` so component pods pick up the new values. Lifecycle tasks are not rerun by `forceReload`; change the appropriate task's `trigger` when a rotated value must be consumed by a new task Job.
 
 ### SSL/TLS
 
@@ -749,6 +784,18 @@ spec:
             port: 8088
           initialDelaySeconds: 15
           periodSeconds: 15
+```
+
+Components that serve traffic get HTTP or TCP probes on their port by default. The Celery worker serves no traffic, so it gets only a liveness probe that runs `celery inspect ping` against the pod's own worker node (`celery@$HOSTNAME`), checking that the worker still answers over the broker. It starts after 120 seconds and runs every 60 seconds with a 60-second timeout, restarting the container after 3 consecutive failures. Each run imports the Superset app, so size worker memory limits with that headroom. A broker outage fails the probe on every worker, which restarts them after about 3 minutes. Each run also connects to the metastore while the app starts. Connection errors are only logged, but a metastore that does not answer at all, such as during a failover, can hold the probe past its timeout and restart every worker the same way. Setting `livenessProbe` replaces the default, and a custom worker command that changes the node name (`-n`) needs a matching probe. Celery beat has no default probe.
+
+To remove a default probe, set it to an empty object. A Superset resource cannot use `null` to remove a default the way Helm values can, so `{}` is the signal. This works for `livenessProbe`, `readinessProbe`, and `startupProbe` on every component, and follows the usual top-level and per-component override rules:
+
+```yaml
+spec:
+  celeryWorker:
+    podTemplate:
+      container:
+        livenessProbe: {}
 ```
 
 ## Security Context

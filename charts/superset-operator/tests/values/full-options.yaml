@@ -45,6 +45,14 @@ resizePolicy:
   - resourceName: memory
     restartPolicy: RestartContainer
 
+extraEnv:
+  - name: GODEBUG
+    value: madvdontneed=1
+  - name: GOMEMLIMIT
+    valueFrom:
+      resourceFieldRef:
+        resource: limits.memory
+
 serviceAccount:
   create: true
   name: superset-operator-custom-sa
@@ -124,6 +132,22 @@ topologySpreadConstraints:
       matchLabels:
         control-plane: controller-manager
 
+dnsPolicy: ClusterFirst
+
+dnsConfig:
+  options:
+    - name: ndots
+      value: "2"
+
+priorityClassName: high-priority
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+  # Mutually exclusive with minAvailable; listed as null so the key is covered.
+  maxUnavailable: ~
+  unhealthyPodEvictionPolicy: AlwaysAllow
+
 podAnnotations:
   prometheus.io/scrape: "false"
 
@@ -147,12 +171,13 @@ extraManifests:
     data:
       hello: world
   # Object form.
-  - apiVersion: policy/v1
-    kind: PodDisruptionBudget
+  - apiVersion: networking.k8s.io/v1
+    kind: NetworkPolicy
     metadata:
-      name: superset-operator-extra-pdb
+      name: superset-operator-extra-netpol
     spec:
-      minAvailable: 1
-      selector:
+      podSelector:
         matchLabels:
           app.kubernetes.io/name: superset-operator
+      policyTypes:
+        - Ingress

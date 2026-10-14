@@ -68,6 +68,7 @@ func TestBuildInitPod(t *testing.T) {
 		assert.Equal(t, "apache/superset:4.0.0", c.Image)
 		assert.Equal(t, corev1.PullIfNotPresent, c.ImagePullPolicy)
 		assert.Empty(t, pod.ServiceAccountName)
+		assertHardenedDefaults(t, c.SecurityContext)
 	})
 
 	t.Run("propagates container and pod template fields", func(t *testing.T) {
@@ -81,7 +82,7 @@ func TestBuildInitPod(t *testing.T) {
 				TerminationGracePeriodSeconds: &gracePeriod,
 				PodSecurityContext:            &corev1.PodSecurityContext{RunAsUser: &runAsUser},
 				Volumes: []corev1.Volume{
-					{Name: "config", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}},
+					{Name: "config", EmptyDir: &corev1.EmptyDirVolumeSource{}},
 				},
 				Sidecars:       []corev1.Container{{Name: "sidecar"}},
 				InitContainers: []corev1.Container{{Name: "pre"}},

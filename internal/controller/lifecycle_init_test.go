@@ -24,7 +24,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
-	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
 // TestInitInputs_ChangesWithRenderedConfig asserts that init's checksum input
@@ -41,9 +40,9 @@ func TestInitInputs_ChangesWithRenderedConfig(t *testing.T) {
 		s.Spec.Image = supersetv1alpha1.ImageSpec{Tag: "4.1.4"}
 		s.Spec.SecretKeyFrom = secretKeyRef("secret", "key")
 		s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-			Host:         common.Ptr("db.svc"),
-			Database:     common.Ptr("superset"),
-			Username:     common.Ptr("superset"),
+			Host:         new("db.svc"),
+			Database:     new("superset"),
+			Username:     new("superset"),
 			PasswordFrom: secretKeyRef("db-secret", "password"),
 		}
 		// Valkey exercises Celery connectivity rendering in the lifecycle config.
@@ -70,20 +69,20 @@ func TestInitInputs_ChangesWithRenderedConfig(t *testing.T) {
 		{
 			name: "celery config in raw python",
 			mutate: func(s *supersetv1alpha1.Superset) {
-				s.Spec.Config = common.Ptr(`CeleryConfig.imports = ("superset.tasks.cache",)`)
+				s.Spec.Config = new(`CeleryConfig.imports = ("superset.tasks.cache",)`)
 			},
 		},
 		{
 			name: "lifecycle.config",
 			mutate: func(s *supersetv1alpha1.Superset) {
-				s.Spec.Lifecycle.Config = common.Ptr("EXTRA_LIFECYCLE = True")
+				s.Spec.Lifecycle.Config = new("EXTRA_LIFECYCLE = True")
 			},
 		},
 		{
 			name: "lifecycle.sqlaEngineOptions.preset=disabled",
 			mutate: func(s *supersetv1alpha1.Superset) {
 				s.Spec.Lifecycle.SQLAlchemyEngineOptions = &supersetv1alpha1.SQLAlchemyEngineOptionsSpec{
-					Preset: common.Ptr("disabled"),
+					Preset: new("disabled"),
 				}
 			},
 		},
@@ -102,13 +101,13 @@ func TestInitInputs_ChangesWithRenderedConfig(t *testing.T) {
 		{
 			name: "metastore.host",
 			mutate: func(s *supersetv1alpha1.Superset) {
-				s.Spec.Metastore.Host = common.Ptr("db-2.svc")
+				s.Spec.Metastore.Host = new("db-2.svc")
 			},
 		},
 		{
 			name: "metastore.database",
 			mutate: func(s *supersetv1alpha1.Superset) {
-				s.Spec.Metastore.Database = common.Ptr("superset_v2")
+				s.Spec.Metastore.Database = new("superset_v2")
 			},
 		},
 		{
@@ -139,7 +138,7 @@ func TestInitInputs_ChangesWithRenderedConfig(t *testing.T) {
 			name: "lifecycle.init.adminUser",
 			mutate: func(s *supersetv1alpha1.Superset) {
 				s.Spec.Lifecycle.Init.AdminUser = &supersetv1alpha1.AdminUserSpec{
-					Username: common.Ptr("admin"),
+					Username: new("admin"),
 				}
 			},
 		},
@@ -211,7 +210,7 @@ func TestInitInputs_StableForNonConfigFields(t *testing.T) {
 
 func secretKeyRef(name, key string) *corev1.SecretKeySelector {
 	return &corev1.SecretKeySelector{
-		LocalObjectReference: corev1.LocalObjectReference{Name: name},
-		Key:                  key,
+		Name: name,
+		Key:  key,
 	}
 }

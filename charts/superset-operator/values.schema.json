@@ -14,7 +14,7 @@
       "additionalProperties": false,
       "properties": {
         "repository": { "type": "string" },
-        "tag": { "type": "string" },
+        "tag": { "type": ["string", "null"] },
         "pullPolicy": {
           "type": "string",
           "enum": ["Always", "IfNotPresent", "Never"]
@@ -52,12 +52,26 @@
         "required": ["resourceName", "restartPolicy"]
       }
     },
+    "extraEnv": {
+      "description": "Extra environment variables for the manager container. WATCH_NAMESPACE is reserved for the watch block. See https://pkg.go.dev/k8s.io/api/core/v1#EnvVar",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "value": { "type": "string" },
+          "valueFrom": { "type": "object" }
+        },
+        "required": ["name"]
+      }
+    },
     "serviceAccount": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
         "create": { "type": "boolean" },
-        "name": { "type": "string" },
+        "name": { "type": ["string", "null"] },
         "annotations": { "type": "object" }
       }
     },
@@ -69,8 +83,9 @@
       }
     },
     "logLevel": {
-      "description": "Operator log verbosity (--zap-log-level): empty = default (info). One of \"info\", \"debug\", \"error\", \"panic\", or an integer level (1 = debug/V1, 2 = V2 trace).",
+      "description": "Operator log verbosity (--zap-log-level): unset = default (info). One of \"info\", \"debug\", \"error\", \"panic\", or an integer level (1 = debug/V1, 2 = V2 trace).",
       "oneOf": [
+        { "type": "null" },
         { "type": "string", "enum": ["", "info", "debug", "error", "panic", "1", "2"] },
         { "type": "integer", "enum": [1, 2] }
       ]
@@ -87,14 +102,14 @@
             "port": { "type": "integer" }
           }
         },
-        "certSecretName": { "type": "string" },
+        "certSecretName": { "type": ["string", "null"] },
         "serviceMonitor": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
             "enabled": { "type": "boolean" },
             "interval": { "type": "string" },
-            "scrapeTimeout": { "type": "string" },
+            "scrapeTimeout": { "type": ["string", "null"] },
             "labels": { "type": "object" },
             "tlsConfig": { "type": "object" },
             "bearerTokenFile": { "type": "string" }
@@ -139,6 +154,62 @@
     "topologySpreadConstraints": {
       "description": "Topology spread constraints for the manager pod. See https://pkg.go.dev/k8s.io/api/core/v1#TopologySpreadConstraint",
       "type": "array"
+    },
+    "dnsPolicy": {
+      "description": "DNS policy for the manager pod. Unset uses the Kubernetes default.",
+      "type": ["string", "null"],
+      "enum": [null, "", "ClusterFirst", "ClusterFirstWithHostNet", "Default", "None"]
+    },
+    "dnsConfig": {
+      "description": "DNS resolver settings for the manager pod. See https://pkg.go.dev/k8s.io/api/core/v1#PodDNSConfig",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "nameservers": { "type": "array", "items": { "type": "string" } },
+        "searches": { "type": "array", "items": { "type": "string" } },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "value": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "priorityClassName": {
+      "description": "PriorityClass name for the manager pod. See https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/",
+      "type": ["string", "null"]
+    },
+    "podDisruptionBudget": {
+      "description": "PodDisruptionBudget for the manager pod. See https://pkg.go.dev/k8s.io/api/policy/v1#PodDisruptionBudgetSpec",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minAvailable": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "integer", "minimum": 0 },
+            { "type": "string", "pattern": "^[0-9]+%$" }
+          ]
+        },
+        "maxUnavailable": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "integer", "minimum": 0 },
+            { "type": "string", "pattern": "^[0-9]+%$" }
+          ]
+        },
+        "unhealthyPodEvictionPolicy": {
+          "type": ["string", "null"],
+          "enum": [null, "", "IfHealthyBudget", "AlwaysAllow"]
+        }
+      }
     },
     "podAnnotations": { "type": "object" },
     "podLabels": { "type": "object" },

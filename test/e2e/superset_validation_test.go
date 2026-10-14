@@ -81,4 +81,35 @@ spec:
 		Expect(err).To(HaveOccurred())
 		Expect(output).To(ContainSubstring("namespace"))
 	})
+
+	It("accepts provisioner-style Secret-backed connection fields", func() {
+		cr := fmt.Sprintf(`apiVersion: superset.apache.org/v1alpha1
+kind: Superset
+metadata:
+  name: valid-secret-backed-connections
+  namespace: %s
+spec:
+  image:
+    tag: "6.1.0"
+  secretKeyFrom:
+    name: app-secret
+    key: secret-key
+  metastore:
+    hostFrom: {name: database, key: host}
+    portFrom: {name: database, key: port}
+    databaseFrom: {name: database, key: dbname}
+    usernameFrom: {name: database, key: username}
+    passwordFrom: {name: database, key: password}
+    createDatabase: true
+  valkey:
+    hostFrom: {name: valkey, key: host}
+    portFrom: {name: valkey, key: port}
+    passwordFrom: {name: valkey, key: password}
+  lifecycle:
+    disabled: true
+`, namespace)
+
+		_, err := serverDryRunYAML("valid-secret-backed-connections", cr, true)
+		Expect(err).NotTo(HaveOccurred())
+	})
 })

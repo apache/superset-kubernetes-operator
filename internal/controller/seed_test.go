@@ -26,7 +26,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -51,6 +50,7 @@ func TestBuildSeedScript(t *testing.T) {
 
 		script := buildPostgresSeedScript(seed)
 
+		assertConnectionWhitespaceNormalization(t, script)
 		if !strings.Contains(script, "set -e") {
 			t.Error("expected set -e")
 		}
@@ -111,6 +111,7 @@ func TestBuildSeedScript(t *testing.T) {
 
 		script := buildMySQLSeedScript(seed)
 
+		assertConnectionWhitespaceNormalization(t, script)
 		if !strings.Contains(script, "set -e") {
 			t.Error("expected set -e")
 		}
@@ -311,6 +312,21 @@ func TestBuildSeedScript(t *testing.T) {
 	})
 }
 
+func assertConnectionWhitespaceNormalization(t *testing.T, script string) {
+	t.Helper()
+	for _, name := range []string{
+		"SUPERSET_OPERATOR__DB_HOST",
+		"SUPERSET_OPERATOR__DB_PORT",
+		"SUPERSET_OPERATOR__SEED_SRC_HOST",
+		"SUPERSET_OPERATOR__SEED_SRC_PORT",
+	} {
+		want := name + `=$(printf '%s' "$` + name + `" | tr -d '[:space:]')`
+		if !strings.Contains(script, want) {
+			t.Errorf("script does not normalize %s whitespace\n--- script ---\n%s", name, script)
+		}
+	}
+}
+
 // TestBuildSeedCommand covers buildSeedCommand: honoring a user command override
 // and constructing the default /bin/sh dump pipeline for PostgreSQL and MySQL sources.
 func TestBuildSeedCommand(t *testing.T) {
@@ -319,11 +335,7 @@ func TestBuildSeedCommand(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{}
 		superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 			Seed: &supersetv1alpha1.SeedTaskSpec{
-				SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
-					BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{
-						Command: []string{"/bin/sh", "-c", "custom-seed-script.sh"},
-					},
-				},
+				Command: []string{"/bin/sh", "-c", "custom-seed-script.sh"},
 				Source: supersetv1alpha1.SeedSourceSpec{
 					Host:     "pg-prod.svc",
 					Database: "superset_prod",
@@ -397,15 +409,15 @@ func TestBuildSeedTaskFlatSpec_CommandOnContainer(t *testing.T) {
 				Host:     "pg-prod.svc",
 				Database: "superset_prod",
 				Username: "reader",
-				Password: common.Ptr("secret"),
+				Password: new("secret"),
 			},
 		},
 	}
 	superset.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-		Host:     common.Ptr("postgres"),
-		Database: common.Ptr("superset_staging"),
-		Username: common.Ptr("superset"),
-		Password: common.Ptr("pass"),
+		Host:     new("postgres"),
+		Database: new("superset_staging"),
+		Username: new("superset"),
+		Password: new("pass"),
 	}
 
 	flatSpec := r.buildSeedTaskFlatSpec(superset, "default", &resolution.SharedInput{})
@@ -433,7 +445,7 @@ func TestReconcileLifecycleTask_SeedIgnoresBootstrapScript(t *testing.T) {
 	username := "superset"
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			BootstrapScript: &bootstrapScript,
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{
@@ -487,12 +499,12 @@ func TestCollectSeedEnvVars(t *testing.T) {
 	port := int32(5432)
 
 	superset := &supersetv1alpha1.Superset{}
-	superset.Spec.Environment = common.Ptr(common.EnvironmentDev)
+	superset.Spec.Environment = new(common.EnvironmentDev)
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 		Seed: &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
 				Host:     "pg-prod.svc",
-				Port:     common.Ptr(int32(5433)),
+				Port:     new(int32(5433)),
 				Database: "superset_prod",
 				Username: "reader",
 				Password: &pw,
@@ -538,48 +550,50 @@ func TestCollectSeedEnvVars(t *testing.T) {
 }
 
 func TestCollectSeedEnvVars_SecretRef(t *testing.T) {
-	host := "pg-staging.svc"
-	db := "superset_staging"
-	user := "admin"
+	secretRef := func(name, key string) *corev1.SecretKeySelector {
+		return &corev1.SecretKeySelector{Name: name, Key: key}
+	}
 
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 		Seed: &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
-				Host:     "pg-prod.svc",
-				Database: "superset_prod",
-				Username: "reader",
-				PasswordFrom: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{Name: "prod-creds"},
-					Key:                  "password",
-				},
+				HostFrom:     secretRef("prod-connection", "host"),
+				PortFrom:     secretRef("prod-connection", "port"),
+				DatabaseFrom: secretRef("prod-connection", "dbname"),
+				UsernameFrom: secretRef("prod-creds", "user"),
+				PasswordFrom: secretRef("prod-creds", "password"),
 			},
 		},
 	}
 	superset.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-		Host:     &host,
-		Database: &db,
-		Username: &user,
-		PasswordFrom: &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: "staging-creds"},
-			Key:                  "password",
-		},
+		HostFrom:     secretRef("staging-connection", "host"),
+		PortFrom:     secretRef("staging-connection", "port"),
+		DatabaseFrom: secretRef("staging-connection", "dbname"),
+		UsernameFrom: secretRef("staging-creds", "user"),
+		PasswordFrom: secretRef("staging-creds", "password"),
 	}
 
 	envs := collectSeedEnvVars(superset)
 
-	for _, e := range envs {
-		if e.Name == common.EnvSeedSrcPass {
-			if e.ValueFrom == nil || e.ValueFrom.SecretKeyRef == nil {
-				t.Fatal("expected SecretKeyRef for source password")
-			}
-			if e.ValueFrom.SecretKeyRef.Name != "prod-creds" {
-				t.Errorf("expected secret name prod-creds, got: %s", e.ValueFrom.SecretKeyRef.Name)
-			}
-			return
-		}
+	wantKeys := map[string]string{
+		common.EnvSeedSrcHost: "host", common.EnvSeedSrcPort: "port", common.EnvSeedSrcDB: "dbname",
+		common.EnvSeedSrcUser: "user", common.EnvSeedSrcPass: "password", common.EnvDBHost: "host",
+		common.EnvDBPort: "port", common.EnvDBName: "dbname", common.EnvDBUser: "user", common.EnvDBPass: "password",
 	}
-	t.Error("SUPERSET_OPERATOR__SEED_SRC_PASS not found in env vars")
+	for _, e := range envs {
+		wantKey, ok := wantKeys[e.Name]
+		if !ok {
+			continue
+		}
+		if e.Value != "" || e.ValueFrom == nil || e.ValueFrom.SecretKeyRef == nil || e.ValueFrom.SecretKeyRef.Key != wantKey {
+			t.Errorf("%s: expected secretKeyRef key=%s, got %+v", e.Name, wantKey, e)
+		}
+		delete(wantKeys, e.Name)
+	}
+	if len(wantKeys) != 0 {
+		t.Errorf("missing Secret-backed seed env vars: %v", wantKeys)
+	}
 }
 
 // TestResolveSeedImage covers resolveSeedImage: type-appropriate defaults
@@ -615,8 +629,8 @@ func TestResolveSeedImage(t *testing.T) {
 
 		img := resolveSeedImage(seed)
 
-		if img.Repository != "mysql" || img.Tag != "8-alpine" {
-			t.Errorf("expected mysql:8-alpine, got: %s:%s", img.Repository, img.Tag)
+		if img.Repository != "mysql" || img.Tag != "8.4" {
+			t.Errorf("expected mysql:8.4, got: %s:%s", img.Repository, img.Tag)
 		}
 	})
 
@@ -742,8 +756,8 @@ func TestIsTaskEnabled(t *testing.T) {
 			name: "seed explicitly disabled",
 			spec: &supersetv1alpha1.LifecycleSpec{
 				Seed: &supersetv1alpha1.SeedTaskSpec{
-					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: common.Ptr(true)}},
-					Source:                  supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"},
+					Disabled: new(true),
+					Source:   supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"},
 				},
 			},
 			taskType: taskTypeSeed,
@@ -752,7 +766,7 @@ func TestIsTaskEnabled(t *testing.T) {
 		{
 			name: "migrate explicitly disabled",
 			spec: &supersetv1alpha1.LifecycleSpec{
-				Migrate: &supersetv1alpha1.MigrateTaskSpec{BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: common.Ptr(true)}},
+				Migrate: &supersetv1alpha1.MigrateTaskSpec{Disabled: new(true)},
 			},
 			taskType: taskTypeMigrate,
 			expected: false,
@@ -760,7 +774,7 @@ func TestIsTaskEnabled(t *testing.T) {
 		{
 			name: "init explicitly disabled",
 			spec: &supersetv1alpha1.LifecycleSpec{
-				Init: &supersetv1alpha1.InitTaskSpec{BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: common.Ptr(true)}},
+				Init: &supersetv1alpha1.InitTaskSpec{Disabled: new(true)},
 			},
 			taskType: taskTypeInit,
 			expected: false,
@@ -776,7 +790,7 @@ func TestIsTaskEnabled(t *testing.T) {
 		{
 			name: "rotate explicitly disabled",
 			spec: &supersetv1alpha1.LifecycleSpec{
-				Rotate: &supersetv1alpha1.RotateTaskSpec{BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: common.Ptr(true)}},
+				Rotate: &supersetv1alpha1.RotateTaskSpec{Disabled: new(true)},
 			},
 			taskType: taskTypeRotate,
 			expected: false,
@@ -881,10 +895,10 @@ func TestTaskRequiresDrain_Override(t *testing.T) {
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 		Migrate: &supersetv1alpha1.MigrateTaskSpec{
-			BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{RequiresDrain: common.Ptr(false)},
+			RequiresDrain: new(false),
 		},
 		Init: &supersetv1alpha1.InitTaskSpec{
-			BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{RequiresDrain: common.Ptr(true)},
+			RequiresDrain: new(true),
 		},
 	}
 
@@ -1152,8 +1166,8 @@ func TestSeedInputs_ScheduleTickChangesChecksum(t *testing.T) {
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 		Seed: &supersetv1alpha1.SeedTaskSpec{
-			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &cronExpr},
-			Source:                  source,
+			CronSchedule: &cronExpr,
+			Source:       source,
 		},
 	}
 
@@ -1180,11 +1194,9 @@ func TestSeedInputs_ScheduleAndTrigger_BothContribute(t *testing.T) {
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 		Seed: &supersetv1alpha1.SeedTaskSpec{
-			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
-				BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Trigger: &trigger1},
-				CronSchedule: &cronExpr,
-			},
-			Source: source,
+			Trigger:      &trigger1,
+			CronSchedule: &cronExpr,
+			Source:       source,
 		},
 	}
 
@@ -1257,8 +1269,8 @@ func TestSeedInputs_ScheduleStableWithinWindow(t *testing.T) {
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 		Seed: &supersetv1alpha1.SeedTaskSpec{
-			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &cronExpr},
-			Source:                  source,
+			CronSchedule: &cronExpr,
+			Source:       source,
 		},
 	}
 
@@ -1283,8 +1295,8 @@ func TestPipelineChain_ScheduleTickPropagatesDownstream(t *testing.T) {
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 		Seed: &supersetv1alpha1.SeedTaskSpec{
-			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &cronExpr},
-			Source:                  source,
+			CronSchedule: &cronExpr,
+			Source:       source,
 		},
 	}
 
@@ -1336,8 +1348,8 @@ func TestScheduleRequeue_ComputesCorrectDuration(t *testing.T) {
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 		Seed: &supersetv1alpha1.SeedTaskSpec{
-			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{CronSchedule: &cronExpr},
-			Source:                  supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"},
+			CronSchedule: &cronExpr,
+			Source:       supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"},
 		},
 	}
 
@@ -1373,11 +1385,9 @@ func TestScheduleRequeue_DisabledSeed(t *testing.T) {
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 		Seed: &supersetv1alpha1.SeedTaskSpec{
-			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
-				BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: common.Ptr(true)},
-				CronSchedule: &cronExpr,
-			},
-			Source: supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"},
+			Disabled:     new(true),
+			CronSchedule: &cronExpr,
+			Source:       supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"},
 		},
 	}
 
@@ -1448,7 +1458,7 @@ func TestAllTasksStillComplete_SkipsDrainWhenNothingChanged(t *testing.T) {
 	t.Run("returns false when trigger changes", func(t *testing.T) {
 		modified := superset.DeepCopy()
 		modified.Spec.Lifecycle.Migrate = &supersetv1alpha1.MigrateTaskSpec{
-			BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Trigger: common.Ptr("force-v1")},
+			Trigger: new("force-v1"),
 		}
 		if r.allTasksStillComplete(modified, configChecksum) {
 			t.Error("expected allTasksStillComplete=false when trigger changed")
@@ -1466,10 +1476,8 @@ func TestAllTasksStillComplete_WithSeedSchedule(t *testing.T) {
 	superset.Spec.Image = supersetv1alpha1.ImageSpec{Tag: "4.1.4"}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 		Seed: &supersetv1alpha1.SeedTaskSpec{
-			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
-				CronSchedule: &cronExpr,
-			},
-			Source: supersetv1alpha1.SeedSourceSpec{Host: "prod-db", Database: "superset", Username: "reader"},
+			CronSchedule: &cronExpr,
+			Source:       supersetv1alpha1.SeedSourceSpec{Host: "prod-db", Database: "superset", Username: "reader"},
 		},
 		Migrate: &supersetv1alpha1.MigrateTaskSpec{},
 		Init:    &supersetv1alpha1.InitTaskSpec{},
@@ -1512,9 +1520,9 @@ func TestAllTasksStillComplete_WithSeedSchedule(t *testing.T) {
 func TestCollectSecretEnvVars_PreviousSecretKey(t *testing.T) {
 	t.Run("dev mode plaintext", func(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
-			Environment:       common.Ptr("Development"),
-			SecretKey:         common.Ptr("new-key"),
-			PreviousSecretKey: common.Ptr("old-key"),
+			Environment:       new("Development"),
+			SecretKey:         new("new-key"),
+			PreviousSecretKey: new("old-key"),
 		}
 		envs := collectSecretEnvVars(spec, "test")
 		found := false
@@ -1533,11 +1541,11 @@ func TestCollectSecretEnvVars_PreviousSecretKey(t *testing.T) {
 
 	t.Run("prod mode secretKeyRef", func(t *testing.T) {
 		ref := &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: "prev-secret"},
-			Key:                  "key",
+			Name: "prev-secret",
+			Key:  "key",
 		}
 		spec := &supersetv1alpha1.SupersetSpec{
-			SecretKeyFrom:         &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "s"}, Key: "k"},
+			SecretKeyFrom:         &corev1.SecretKeySelector{Name: "s", Key: "k"},
 			PreviousSecretKeyFrom: ref,
 		}
 		envs := collectSecretEnvVars(spec, "test")
@@ -1560,7 +1568,7 @@ func TestCollectSecretEnvVars_PreviousSecretKey(t *testing.T) {
 
 	t.Run("not present when not configured", func(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
-			SecretKeyFrom: &corev1.SecretKeySelector{LocalObjectReference: corev1.LocalObjectReference{Name: "s"}, Key: "k"},
+			SecretKeyFrom: &corev1.SecretKeySelector{Name: "s", Key: "k"},
 		}
 		envs := collectSecretEnvVars(spec, "test")
 		for _, e := range envs {
@@ -1584,9 +1592,7 @@ func TestDefaultRotateCommand(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{}
 		superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 			Rotate: &supersetv1alpha1.RotateTaskSpec{
-				BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{
-					Command: []string{"/bin/sh", "-c", "custom-rotate"},
-				},
+				Command: []string{"/bin/sh", "-c", "custom-rotate"},
 			},
 		}
 		cmd := defaultRotateCommand(superset)
@@ -1598,7 +1604,7 @@ func TestDefaultRotateCommand(t *testing.T) {
 
 func TestDefaultLifecycleCommandsSourceBootstrap(t *testing.T) {
 	superset := &supersetv1alpha1.Superset{}
-	superset.Spec.BootstrapScript = common.Ptr("echo bootstrap")
+	superset.Spec.BootstrapScript = new("echo bootstrap")
 
 	for name, cmd := range map[string][]string{
 		"migrate": defaultMigrateCommand(superset),
@@ -1615,12 +1621,12 @@ func TestRotateInputs(t *testing.T) {
 	r := &SupersetReconciler{}
 
 	secretRef := &corev1.SecretKeySelector{
-		LocalObjectReference: corev1.LocalObjectReference{Name: "secret-v1"},
-		Key:                  "key",
+		Name: "secret-v1",
+		Key:  "key",
 	}
 	prevRef := &corev1.SecretKeySelector{
-		LocalObjectReference: corev1.LocalObjectReference{Name: "secret-v0"},
-		Key:                  "key",
+		Name: "secret-v0",
+		Key:  "key",
 	}
 
 	superset := &supersetv1alpha1.Superset{}
@@ -1636,8 +1642,8 @@ func TestRotateInputs(t *testing.T) {
 	t.Run("changes when previousSecretKeyFrom changes", func(t *testing.T) {
 		modified := superset.DeepCopy()
 		modified.Spec.PreviousSecretKeyFrom = &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: "secret-v0-changed"},
-			Key:                  "key",
+			Name: "secret-v0-changed",
+			Key:  "key",
 		}
 		check := r.computeStepChecksum("seed", taskTypeRotate, cmd, r.rotateInputs(modified))
 		if check == base {
@@ -1648,8 +1654,8 @@ func TestRotateInputs(t *testing.T) {
 	t.Run("changes when secretKeyFrom changes", func(t *testing.T) {
 		modified := superset.DeepCopy()
 		modified.Spec.SecretKeyFrom = &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: "secret-v2"},
-			Key:                  "key",
+			Name: "secret-v2",
+			Key:  "key",
 		}
 		check := r.computeStepChecksum("seed", taskTypeRotate, cmd, r.rotateInputs(modified))
 		if check == base {
@@ -1659,7 +1665,7 @@ func TestRotateInputs(t *testing.T) {
 
 	t.Run("changes when trigger changes", func(t *testing.T) {
 		modified := superset.DeepCopy()
-		modified.Spec.Lifecycle.Rotate.Trigger = common.Ptr("force-v1")
+		modified.Spec.Lifecycle.Rotate.Trigger = new("force-v1")
 		check := r.computeStepChecksum("seed", taskTypeRotate, cmd, r.rotateInputs(modified))
 		if check == base {
 			t.Error("expected checksum to change when trigger changes")
@@ -1678,12 +1684,12 @@ func TestAllTasksStillComplete_WithRotate(t *testing.T) {
 	r := &SupersetReconciler{}
 
 	secretRef := &corev1.SecretKeySelector{
-		LocalObjectReference: corev1.LocalObjectReference{Name: "secret-v1"},
-		Key:                  "key",
+		Name: "secret-v1",
+		Key:  "key",
 	}
 	prevRef := &corev1.SecretKeySelector{
-		LocalObjectReference: corev1.LocalObjectReference{Name: "secret-v0"},
-		Key:                  "key",
+		Name: "secret-v0",
+		Key:  "key",
 	}
 
 	superset := &supersetv1alpha1.Superset{}
@@ -1722,8 +1728,8 @@ func TestAllTasksStillComplete_WithRotate(t *testing.T) {
 	t.Run("returns false when previousSecretKeyFrom changes", func(t *testing.T) {
 		modified := superset.DeepCopy()
 		modified.Spec.PreviousSecretKeyFrom = &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: "rotated"},
-			Key:                  "key",
+			Name: "rotated",
+			Key:  "key",
 		}
 		if r.allTasksStillComplete(modified, configChecksum) {
 			t.Error("expected allTasksStillComplete=false when previousSecretKeyFrom changes")
@@ -1732,7 +1738,7 @@ func TestAllTasksStillComplete_WithRotate(t *testing.T) {
 
 	t.Run("rotate cascades to init", func(t *testing.T) {
 		modified := superset.DeepCopy()
-		modified.Spec.Lifecycle.Rotate.Trigger = common.Ptr("force")
+		modified.Spec.Lifecycle.Rotate.Trigger = new("force")
 		if r.allTasksStillComplete(modified, configChecksum) {
 			t.Error("expected allTasksStillComplete=false when rotate trigger changes (cascades to init)")
 		}
@@ -1750,10 +1756,8 @@ func TestIsTaskEnabled_InvalidCronScheduleGatesSeed(t *testing.T) {
 	superset := &supersetv1alpha1.Superset{}
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 		Seed: &supersetv1alpha1.SeedTaskSpec{
-			SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
-				CronSchedule: &badExpr,
-			},
-			Source: supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"},
+			CronSchedule: &badExpr,
+			Source:       supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"},
 		},
 	}
 
@@ -1780,18 +1784,18 @@ func TestIsTaskEnabled_InvalidCronScheduleGatesSeed(t *testing.T) {
 // (defense in depth behind CEL), falling back to the *From reference.
 func TestCollectSeedEnvVars_ProductionDropsInlinePasswords(t *testing.T) {
 	superset := &supersetv1alpha1.Superset{}
-	superset.Spec.Environment = common.Ptr(common.EnvironmentProd)
+	superset.Spec.Environment = new(common.EnvironmentProd)
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 		Seed: &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
 				Host: "pg-prod.svc", Database: "d", Username: "u",
-				Password: common.Ptr("inline-src"),
+				Password: new("inline-src"),
 			},
 		},
 	}
 	superset.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-		Host: common.Ptr("pg-staging.svc"), Database: common.Ptr("d"), Username: common.Ptr("u"),
-		Password: common.Ptr("inline-target"),
+		Host: new("pg-staging.svc"), Database: new("d"), Username: new("u"),
+		Password: new("inline-target"),
 	}
 
 	for _, e := range collectSeedEnvVars(superset) {
@@ -1807,7 +1811,7 @@ func TestCollectSeedEnvVars_ProductionDropsInlinePasswords(t *testing.T) {
 func TestGateOnSeedEnvironment(t *testing.T) {
 	newSuperset := func(env string, seedDisabled *bool) *supersetv1alpha1.Superset {
 		s := &supersetv1alpha1.Superset{
-			ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+			Name: "test", Namespace: "default",
 			Spec: supersetv1alpha1.SupersetSpec{
 				Lifecycle: &supersetv1alpha1.LifecycleSpec{
 					Seed: &supersetv1alpha1.SeedTaskSpec{
@@ -1818,7 +1822,7 @@ func TestGateOnSeedEnvironment(t *testing.T) {
 			},
 		}
 		if env != "" {
-			s.Spec.Environment = common.Ptr(env)
+			s.Spec.Environment = new(env)
 		}
 		s.Status.Lifecycle = &supersetv1alpha1.LifecycleStatus{}
 		return s
@@ -1851,7 +1855,7 @@ func TestGateOnSeedEnvironment(t *testing.T) {
 		}
 	})
 	t.Run("no-op when seed disabled", func(t *testing.T) {
-		if _, blocked := r.gateOnSeedEnvironment(newSuperset(common.EnvironmentProd, common.Ptr(true))); blocked {
+		if _, blocked := r.gateOnSeedEnvironment(newSuperset(common.EnvironmentProd, new(true))); blocked {
 			t.Fatal("expected no block when seed disabled")
 		}
 	})

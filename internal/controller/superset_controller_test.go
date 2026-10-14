@@ -29,14 +29,11 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
-
-func strPtr(s string) *string { return &s }
 
 var _ = Describe("Integration", Ordered, func() {
 	const (
@@ -50,19 +47,19 @@ var _ = Describe("Integration", Ordered, func() {
 
 	newSuperset := func(name, ns string) *supersetv1alpha1.Superset {
 		return &supersetv1alpha1.Superset{
-			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns},
+			Name: name, Namespace: ns,
 			Spec: supersetv1alpha1.SupersetSpec{
 				Image:       supersetv1alpha1.ImageSpec{Tag: "latest"},
 				Environment: &devEnv,
-				SecretKey:   strPtr("dev-test-key"),
-				Metastore:   &supersetv1alpha1.MetastoreSpec{URI: strPtr("postgresql+psycopg2://u:p@host/db")},
-				Lifecycle:   &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+				SecretKey:   new("dev-test-key"),
+				Metastore:   &supersetv1alpha1.MetastoreSpec{URI: new("postgresql+psycopg2://u:p@host/db")},
+				Lifecycle:   &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 			},
 		}
 	}
 
 	createNamespace := func(name string) {
-		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: name}}
+		ns := &corev1.Namespace{Name: name}
 		err := k8sClient.Create(ctx, ns)
 		if err != nil && !errors.IsAlreadyExists(err) {
 			Expect(err).NotTo(HaveOccurred())
@@ -90,11 +87,9 @@ var _ = Describe("Integration", Ordered, func() {
 		It("should reject autoscaling maxReplicas above maximum", func() {
 			cr := newSuperset("hpa-max", ns)
 			cr.Spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{
-				ScalableComponentSpec: supersetv1alpha1.ScalableComponentSpec{
-					Autoscaling: &supersetv1alpha1.AutoscalingSpec{
-						MinReplicas: common.Ptr(int32(1)),
-						MaxReplicas: 101,
-					},
+				Autoscaling: &supersetv1alpha1.AutoscalingSpec{
+					MinReplicas: new(int32(1)),
+					MaxReplicas: 101,
 				},
 			}
 			err := k8sClient.Create(ctx, cr)
@@ -105,8 +100,8 @@ var _ = Describe("Integration", Ordered, func() {
 		It("should reject invalid metastore type enum value", func() {
 			cr := newSuperset("type-enum", ns)
 			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-				Host: strPtr("db.example.com"),
-				Type: strPtr("sqlite"),
+				Host: new("db.example.com"),
+				Type: new("sqlite"),
 			}
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
@@ -136,11 +131,11 @@ var _ = Describe("Integration", Ordered, func() {
 			cr.Spec.Environment = nil
 			cr.Spec.SecretKey = nil
 			cr.Spec.SecretKeyFrom = &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: "s"},
-				Key:                  "k",
+				Name: "s",
+				Key:  "k",
 			}
 			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-				URI: strPtr("postgresql+psycopg2://u:p@host/db"),
+				URI: new("postgresql+psycopg2://u:p@host/db"),
 			}
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
@@ -152,14 +147,14 @@ var _ = Describe("Integration", Ordered, func() {
 			cr.Spec.Environment = nil
 			cr.Spec.SecretKey = nil
 			cr.Spec.SecretKeyFrom = &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: "s"},
-				Key:                  "k",
+				Name: "s",
+				Key:  "k",
 			}
 			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-				Host:     strPtr("db.example.com"),
-				Database: strPtr("superset"),
-				Username: strPtr("admin"),
-				Password: strPtr("secret"),
+				Host:     new("db.example.com"),
+				Database: new("superset"),
+				Username: new("admin"),
+				Password: new("secret"),
 			}
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
@@ -171,12 +166,12 @@ var _ = Describe("Integration", Ordered, func() {
 			cr.Spec.Environment = nil
 			cr.Spec.SecretKey = nil
 			cr.Spec.SecretKeyFrom = &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: "s"},
-				Key:                  "k",
+				Name: "s",
+				Key:  "k",
 			}
 			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
 				Host:     "valkey",
-				Password: strPtr("secret"),
+				Password: new("secret"),
 			}
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
@@ -186,11 +181,11 @@ var _ = Describe("Integration", Ordered, func() {
 		It("should allow dev-mode CR with all inline secrets", func() {
 			cr := newSuperset("dev-allow", ns)
 			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-				URI: strPtr("postgresql+psycopg2://u:p@host/db"),
+				URI: new("postgresql+psycopg2://u:p@host/db"),
 			}
 			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
 				Host:     "valkey",
-				Password: strPtr("dev-pass"),
+				Password: new("dev-pass"),
 			}
 			cr.Spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{}
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
@@ -229,8 +224,8 @@ var _ = Describe("Integration", Ordered, func() {
 		It("should reject mutually exclusive metastore fields", func() {
 			cr := newSuperset("meta-exclusive", ns)
 			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-				URI:  strPtr("postgresql+psycopg2://u:p@host/db"),
-				Host: strPtr("host"),
+				URI:  new("postgresql+psycopg2://u:p@host/db"),
+				Host: new("host"),
 			}
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
@@ -241,7 +236,7 @@ var _ = Describe("Integration", Ordered, func() {
 			cr := newSuperset("sa-no-name", ns)
 			cr.Spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{}
 			cr.Spec.ServiceAccount = &supersetv1alpha1.ServiceAccountSpec{
-				Create: boolPtr(false),
+				Create: new(false),
 			}
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
@@ -252,7 +247,7 @@ var _ = Describe("Integration", Ordered, func() {
 			cr := newSuperset("sa-with-name", ns)
 			cr.Spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{}
 			cr.Spec.ServiceAccount = &supersetv1alpha1.ServiceAccountSpec{
-				Create: boolPtr(false),
+				Create: new(false),
 				Name:   "preexisting-sa",
 			}
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
@@ -265,7 +260,7 @@ var _ = Describe("Integration", Ordered, func() {
 				ScalableComponentSpec: supersetv1alpha1.ScalableComponentSpec{},
 				Service: &supersetv1alpha1.ComponentServiceSpec{
 					Type:     corev1.ServiceTypeNodePort,
-					NodePort: int32Ptr(25000),
+					NodePort: new(int32(25000)),
 				},
 			}
 			err := k8sClient.Create(ctx, cr)
@@ -278,7 +273,7 @@ var _ = Describe("Integration", Ordered, func() {
 			cr.Spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{
 				Service: &supersetv1alpha1.ComponentServiceSpec{
 					Type:     corev1.ServiceTypeClusterIP,
-					NodePort: int32Ptr(30500),
+					NodePort: new(int32(30500)),
 				},
 			}
 			err := k8sClient.Create(ctx, cr)
@@ -300,8 +295,8 @@ var _ = Describe("Integration", Ordered, func() {
 			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
 			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
 				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
-					JwtSecret: strPtr("dev-ws-secret"),
-					URL:       strPtr("wss://superset.example.com/ws"),
+					JwtSecret: new("dev-ws-secret"),
+					URL:       new("wss://superset.example.com/ws"),
 				},
 			}
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
@@ -314,16 +309,16 @@ var _ = Describe("Integration", Ordered, func() {
 			cr.Spec.Environment = &prodEnv
 			cr.Spec.SecretKey = nil
 			cr.Spec.SecretKeyFrom = &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: "app-secret"},
-				Key:                  "secret-key",
+				Name: "app-secret",
+				Key:  "secret-key",
 			}
 			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{URIFrom: secretRef("db-secret", "uri")}
 			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
 			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
 			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
 				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
-					JwtSecret: strPtr("plain-secret"),
-					URL:       strPtr("wss://x/ws"),
+					JwtSecret: new("plain-secret"),
+					URL:       new("wss://x/ws"),
 				},
 			}
 			err := k8sClient.Create(ctx, cr)
@@ -337,8 +332,8 @@ var _ = Describe("Integration", Ordered, func() {
 			cr.Spec.Environment = &prodEnv
 			cr.Spec.SecretKey = nil
 			cr.Spec.SecretKeyFrom = &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: "app-secret"},
-				Key:                  "secret-key",
+				Name: "app-secret",
+				Key:  "secret-key",
 			}
 			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{URIFrom: secretRef("db-secret", "uri")}
 			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
@@ -346,7 +341,7 @@ var _ = Describe("Integration", Ordered, func() {
 			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
 				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
 					JwtSecretFrom: secretRef("ws", "jwt"),
-					URL:           strPtr("wss://x/ws"),
+					URL:           new("wss://x/ws"),
 				},
 			}
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
@@ -403,6 +398,34 @@ var _ = Describe("Integration", Ordered, func() {
 				}, cm)
 			}, timeout, interval).Should(Succeed())
 			Expect(cm.Data).To(HaveKey("superset_config.py"))
+		})
+
+		It("should drop a default probe set to an empty object", func() {
+			cr := newSuperset("probe-optout", ns)
+			cr.Spec.PodTemplate = &supersetv1alpha1.PodTemplate{
+				Container: &supersetv1alpha1.ContainerTemplate{LivenessProbe: &corev1.Probe{}},
+			}
+			cr.Spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{}
+			cr.Spec.WebServer.PodTemplate = &supersetv1alpha1.PodTemplate{
+				Container: &supersetv1alpha1.ContainerTemplate{LivenessProbe: httpProbe("/custom", common.PortWebServer, 5)},
+			}
+			cr.Spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+
+			worker := &appsv1.Deployment{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: "probe-optout-celery-worker", Namespace: ns}, worker)
+			}, timeout, interval).Should(Succeed())
+			Expect(worker.Spec.Template.Spec.Containers[0].LivenessProbe).To(BeNil())
+
+			web := &appsv1.Deployment{}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: "probe-optout-web-server", Namespace: ns}, web)
+			}, timeout, interval).Should(Succeed())
+			Expect(web.Spec.Template.Spec.Containers[0].LivenessProbe.HTTPGet.Path).To(Equal("/custom"))
+			Expect(web.Spec.Template.Spec.Containers[0].ReadinessProbe).NotTo(BeNil())
+
+			Expect(k8sClient.Delete(ctx, cr)).To(Succeed())
 		})
 
 		It("should delete parent-owned resources when component is removed from parent", func() {

@@ -26,7 +26,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -48,15 +50,15 @@ func TestWebServerServiceRef(t *testing.T) {
 		{
 			"defaults",
 			&supersetv1alpha1.Superset{
-				ObjectMeta: metav1.ObjectMeta{Name: "my-superset"},
-				Spec:       supersetv1alpha1.SupersetSpec{WebServer: &supersetv1alpha1.WebServerComponentSpec{}},
+				Name: "my-superset",
+				Spec: supersetv1alpha1.SupersetSpec{WebServer: &supersetv1alpha1.WebServerComponentSpec{}},
 			},
 			"my-superset-web-server", common.PortWebServer,
 		},
 		{
 			"custom port",
 			&supersetv1alpha1.Superset{
-				ObjectMeta: metav1.ObjectMeta{Name: "my-superset"},
+				Name: "my-superset",
 				Spec: supersetv1alpha1.SupersetSpec{WebServer: &supersetv1alpha1.WebServerComponentSpec{
 					Service: &supersetv1alpha1.ComponentServiceSpec{Port: &customPort},
 				}},
@@ -66,8 +68,8 @@ func TestWebServerServiceRef(t *testing.T) {
 		{
 			"nil webServer",
 			&supersetv1alpha1.Superset{
-				ObjectMeta: metav1.ObjectMeta{Name: "my-superset"},
-				Spec:       supersetv1alpha1.SupersetSpec{},
+				Name: "my-superset",
+				Spec: supersetv1alpha1.SupersetSpec{},
 			},
 			"my-superset-web-server", common.PortWebServer,
 		},
@@ -89,8 +91,8 @@ func TestWebServerServiceRef(t *testing.T) {
 func TestReconcileNetworking_NothingEnabled(t *testing.T) {
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
-		Spec:       minimalSupersetSpec(),
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: minimalSupersetSpec(),
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
@@ -106,11 +108,11 @@ func TestReconcileNetworking_GatewayEnabled_CreatesHTTPRoute(t *testing.T) {
 
 	gwNamespace := gatewayv1.Namespace("gateway-system")
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
-			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Gateway: &supersetv1alpha1.GatewaySpec{
 					GatewayRef: gatewayv1.ParentReference{
@@ -164,11 +166,11 @@ func TestReconcileNetworking_StripsReservedLabelsOnHTTPRoute(t *testing.T) {
 	scheme := testScheme(t)
 	gwNamespace := gatewayv1.Namespace("gateway-system")
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
-			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Gateway: &supersetv1alpha1.GatewaySpec{
 					GatewayRef: gatewayv1.ParentReference{Name: "my-gateway", Namespace: &gwNamespace},
@@ -206,11 +208,11 @@ func TestReconcileNetworking_StripsReservedLabelsOnIngress(t *testing.T) {
 	scheme := testScheme(t)
 	className := "nginx"
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
-			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Ingress: &supersetv1alpha1.IngressSpec{
 					ClassName: &className,
@@ -220,7 +222,7 @@ func TestReconcileNetworking_StripsReservedLabelsOnIngress(t *testing.T) {
 					},
 					Hosts: []supersetv1alpha1.IngressHost{
 						{Host: "superset.example.com", Paths: []supersetv1alpha1.IngressPath{
-							{Path: "/", PathType: pathTypePtr(networkingv1.PathTypePrefix)},
+							{Path: "/", PathType: new(networkingv1.PathTypePrefix)},
 						}},
 					},
 				},
@@ -252,12 +254,12 @@ func TestReconcileHTTPRoute_WithWebsocket(t *testing.T) {
 
 	gwNamespace := gatewayv1.Namespace("gateway-system")
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:           supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer:       &supersetv1alpha1.WebServerComponentSpec{},
 			WebsocketServer: &supersetv1alpha1.WebsocketServerComponentSpec{},
-			Lifecycle:       &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle:       &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Gateway: &supersetv1alpha1.GatewaySpec{
 					GatewayRef: gatewayv1.ParentReference{
@@ -301,12 +303,12 @@ func TestReconcileHTTPRoute_WithMcpServer(t *testing.T) {
 
 	gwNamespace := gatewayv1.Namespace("gateway-system")
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
 			McpServer: &supersetv1alpha1.McpServerComponentSpec{},
-			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Gateway: &supersetv1alpha1.GatewaySpec{
 					GatewayRef: gatewayv1.ParentReference{
@@ -349,16 +351,16 @@ func TestReconcileHTTPRoute_WithCeleryFlower(t *testing.T) {
 
 	gwNamespace := gatewayv1.Namespace("gateway-system")
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
 			// Flower is published on the external surface only via this explicit
 			// opt-in (its default command ships without authentication).
 			CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{
-				Service: &supersetv1alpha1.ComponentServiceSpec{GatewayPath: common.Ptr("/flower")},
+				Service: &supersetv1alpha1.ComponentServiceSpec{GatewayPath: new("/flower")},
 			},
-			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Gateway: &supersetv1alpha1.GatewaySpec{
 					GatewayRef: gatewayv1.ParentReference{
@@ -405,7 +407,7 @@ func TestReconcileHTTPRoute_CustomGatewayPaths(t *testing.T) {
 	customWsPath := "/websocket"
 	customMcpPath := "/api/mcp"
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
@@ -419,7 +421,7 @@ func TestReconcileHTTPRoute_CustomGatewayPaths(t *testing.T) {
 				ComponentSpec:         supersetv1alpha1.ComponentSpec{},
 				Service:               &supersetv1alpha1.ComponentServiceSpec{GatewayPath: &customMcpPath},
 			},
-			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Gateway: &supersetv1alpha1.GatewaySpec{
 					GatewayRef: gatewayv1.ParentReference{
@@ -507,12 +509,12 @@ func TestComponentRoutes(t *testing.T) {
 	// pins the ordering (most-specific first, web "/" last) and per-component
 	// path/backend mapping that both reconcilers depend on.
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Name: "test", Namespace: "default",
 		Spec: supersetv1alpha1.SupersetSpec{
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
 			McpServer: &supersetv1alpha1.McpServerComponentSpec{},
 			CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{
-				Service: &supersetv1alpha1.ComponentServiceSpec{GatewayPath: common.Ptr("/flower")},
+				Service: &supersetv1alpha1.ComponentServiceSpec{GatewayPath: new("/flower")},
 			},
 		},
 	}
@@ -532,15 +534,15 @@ func TestReconcileIngress_MultiComponentFanout(t *testing.T) {
 	// server.
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
 			McpServer: &supersetv1alpha1.McpServerComponentSpec{},
 			CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{
-				Service: &supersetv1alpha1.ComponentServiceSpec{GatewayPath: common.Ptr("/flower")},
+				Service: &supersetv1alpha1.ComponentServiceSpec{GatewayPath: new("/flower")},
 			},
-			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Ingress: &supersetv1alpha1.IngressSpec{Host: "superset.example.com"},
 			},
@@ -580,7 +582,7 @@ func TestReconcileIngress_ExplicitPathsKeepComponentRoutes(t *testing.T) {
 	// custom web routing doesn't silently drop the websocket/Flower endpoints.
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:           supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer:       &supersetv1alpha1.WebServerComponentSpec{},
@@ -588,14 +590,14 @@ func TestReconcileIngress_ExplicitPathsKeepComponentRoutes(t *testing.T) {
 			// Flower is published on the external surface only via this explicit
 			// opt-in (its default command ships without authentication).
 			CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{
-				Service: &supersetv1alpha1.ComponentServiceSpec{GatewayPath: common.Ptr("/flower")},
+				Service: &supersetv1alpha1.ComponentServiceSpec{GatewayPath: new("/flower")},
 			},
-			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Ingress: &supersetv1alpha1.IngressSpec{
 					Hosts: []supersetv1alpha1.IngressHost{
 						{Host: "superset.example.com", Paths: []supersetv1alpha1.IngressPath{
-							{Path: "/custom", PathType: pathTypePtr(networkingv1.PathTypePrefix)},
+							{Path: "/custom", PathType: new(networkingv1.PathTypePrefix)},
 						}},
 					},
 				},
@@ -632,11 +634,11 @@ func TestReconcileIngress_CreatesIngress(t *testing.T) {
 
 	className := "nginx"
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
-			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Ingress: &supersetv1alpha1.IngressSpec{
 					ClassName: &className,
@@ -644,7 +646,7 @@ func TestReconcileIngress_CreatesIngress(t *testing.T) {
 						{
 							Host: "superset.example.com",
 							Paths: []supersetv1alpha1.IngressPath{
-								{Path: "/", PathType: pathTypePtr(networkingv1.PathTypePrefix)},
+								{Path: "/", PathType: new(networkingv1.PathTypePrefix)},
 							},
 						},
 					},
@@ -690,11 +692,11 @@ func TestReconcileIngress_HostFallback(t *testing.T) {
 	scheme := testScheme(t)
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
-			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Ingress: &supersetv1alpha1.IngressSpec{
 					Host: "fallback.example.com",
@@ -732,11 +734,11 @@ func TestReconcileIngress_WithTLS(t *testing.T) {
 	scheme := testScheme(t)
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
-			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 			Networking: &supersetv1alpha1.NetworkingSpec{
 				Ingress: &supersetv1alpha1.IngressSpec{
 					Hosts: []supersetv1alpha1.IngressHost{
@@ -777,14 +779,13 @@ func TestReconcileNetworking_GatewayDisabled_CleansUpHTTPRoute(t *testing.T) {
 	scheme := testScheme(t)
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
-		Spec:       minimalSupersetSpec(),
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: minimalSupersetSpec(),
 	}
 
 	existingRoute := &gatewayv1.HTTPRoute{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default",
-			Labels: parentLabels("test"),
-		},
+		Name: "test", Namespace: "default",
+		Labels: parentLabels("test"),
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, existingRoute).Build()
@@ -805,14 +806,13 @@ func TestReconcileNetworking_IngressDisabled_CleansUpIngress(t *testing.T) {
 	scheme := testScheme(t)
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
-		Spec:       minimalSupersetSpec(),
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: minimalSupersetSpec(),
 	}
 
 	existingIngress := &networkingv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default",
-			Labels: parentLabels("test"),
-		},
+		Name: "test", Namespace: "default",
+		Labels: parentLabels("test"),
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, existingIngress).Build()
@@ -833,12 +833,12 @@ func TestDeleteByLabels_SkipsUnlabeledResource(t *testing.T) {
 	scheme := testScheme(t)
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 	}
 
 	// Ingress with same name but no operator labels — not discoverable.
 	unlabeledIngress := &networkingv1.Ingress{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Name: "test", Namespace: "default",
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, unlabeledIngress).Build()
@@ -856,8 +856,6 @@ func TestDeleteByLabels_SkipsUnlabeledResource(t *testing.T) {
 		t.Fatalf("expected unlabeled Ingress to be preserved, got: %v", err)
 	}
 }
-
-func pathTypePtr(pt networkingv1.PathType) *networkingv1.PathType { return &pt }
 
 func TestResolveServicePort(t *testing.T) {
 	custom := int32(9000)
@@ -885,7 +883,7 @@ func TestReconcileWebServerService_CreatesAndSwitchesSelector(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
 		},
@@ -928,11 +926,11 @@ func TestReconcileWebServerService_DeletesWhenWebServerRemoved(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		// WebServer nil -> Service should be deleted.
 	}
 	svcName, _ := webServerServiceRef(superset)
-	existing := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: svcName, Namespace: "default"}}
+	existing := &corev1.Service{Name: svcName, Namespace: "default"}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, existing).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
@@ -958,24 +956,22 @@ func TestReconcileWebServerService_DoesNotSeizeForeignOwnedService(t *testing.T)
 	ctx := context.Background()
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "billing", Namespace: "default", UID: "uid-1"},
+		Name: "billing", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
 		},
 	}
 	svcName, _ := webServerServiceRef(superset)
 	foreign := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      svcName,
-			Namespace: "default",
-			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion: "apps/v1",
-				Kind:       "Deployment",
-				Name:       "billing-web-server",
-				UID:        "foreign-uid",
-				Controller: boolPtr(true),
-			}},
-		},
+		Name:      svcName,
+		Namespace: "default",
+		OwnerReferences: []metav1.OwnerReference{{
+			APIVersion: "apps/v1",
+			Kind:       "Deployment",
+			Name:       "billing-web-server",
+			UID:        "foreign-uid",
+			Controller: new(true),
+		}},
 		Spec: corev1.ServiceSpec{Selector: map[string]string{"app": "billing"}},
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, foreign).Build()
@@ -1004,24 +1000,22 @@ func TestReconcileWebServerService_AdoptsLegacySupersetOwnedService(t *testing.T
 	ctx := context.Background()
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
 		},
 	}
 	svcName, _ := webServerServiceRef(superset)
 	legacy := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      svcName,
-			Namespace: "default",
-			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion: supersetv1alpha1.GroupVersion.String(),
-				Kind:       "Superset",
-				Name:       "test",
-				UID:        "legacy-uid",
-				Controller: boolPtr(true),
-			}},
-		},
+		Name:      svcName,
+		Namespace: "default",
+		OwnerReferences: []metav1.OwnerReference{{
+			APIVersion: supersetv1alpha1.GroupVersion.String(),
+			Kind:       "Superset",
+			Name:       "test",
+			UID:        "legacy-uid",
+			Controller: new(true),
+		}},
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, legacy).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
@@ -1052,7 +1046,7 @@ func TestStripLegacySupersetOwnerRefs(t *testing.T) {
 	// so SetControllerReference still rejects adoption via AlreadyOwnedError.
 	supersetRef := metav1.OwnerReference{
 		APIVersion: supersetv1alpha1.GroupVersion.String(), Kind: "Superset",
-		Name: "legacy", UID: "legacy-uid", Controller: boolPtr(true),
+		Name: "legacy", UID: "legacy-uid", Controller: new(true),
 	}
 	// Same operator group, different (hypothetical) version — still ours.
 	supersetOtherVersion := metav1.OwnerReference{
@@ -1061,7 +1055,7 @@ func TestStripLegacySupersetOwnerRefs(t *testing.T) {
 	}
 	foreignRef := metav1.OwnerReference{
 		APIVersion: "apps/v1", Kind: "Deployment",
-		Name: "billing", UID: "foreign-uid", Controller: boolPtr(true),
+		Name: "billing", UID: "foreign-uid", Controller: new(true),
 	}
 	coreRef := metav1.OwnerReference{APIVersion: "v1", Kind: "ConfigMap", Name: "cm", UID: "cm-uid"}
 
@@ -1122,11 +1116,11 @@ func TestFlowerRoutePublished_EnvironmentAware(t *testing.T) {
 	}{
 		{"flower absent", &supersetv1alpha1.Superset{}, false},
 		{"production default, no opt-in", withEnv(nil, nil), false},
-		{"production explicit, no opt-in", withEnv(common.Ptr(common.EnvironmentProd), nil), false},
-		{"production empty gatewayPath is not opt-in", withEnv(common.Ptr(common.EnvironmentProd), &empty), false},
-		{"production with opt-in", withEnv(common.Ptr(common.EnvironmentProd), &path), true},
-		{"development auto-publishes", withEnv(common.Ptr(common.EnvironmentDev), nil), true},
-		{"staging auto-publishes", withEnv(common.Ptr(common.EnvironmentStaging), nil), true},
+		{"production explicit, no opt-in", withEnv(new(common.EnvironmentProd), nil), false},
+		{"production empty gatewayPath is not opt-in", withEnv(new(common.EnvironmentProd), &empty), false},
+		{"production with opt-in", withEnv(new(common.EnvironmentProd), &path), true},
+		{"development auto-publishes", withEnv(new(common.EnvironmentDev), nil), true},
+		{"staging auto-publishes", withEnv(new(common.EnvironmentStaging), nil), true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -1140,7 +1134,7 @@ func TestFlowerRoutePublished_EnvironmentAware(t *testing.T) {
 func TestDeriveWebSocketURL(t *testing.T) {
 	wsWithPath := func(path string) *supersetv1alpha1.WebsocketServerComponentSpec {
 		return &supersetv1alpha1.WebsocketServerComponentSpec{
-			Service: &supersetv1alpha1.ComponentServiceSpec{GatewayPath: common.Ptr(path)},
+			Service: &supersetv1alpha1.ComponentServiceSpec{GatewayPath: new(path)},
 		}
 	}
 	tests := []struct {
@@ -1151,7 +1145,7 @@ func TestDeriveWebSocketURL(t *testing.T) {
 		{
 			name: "explicit url wins over networking",
 			spec: supersetv1alpha1.SupersetSpec{
-				Realtime:   &supersetv1alpha1.RealtimeSpec{WebSocket: &supersetv1alpha1.WebSocketTransportSpec{URL: common.Ptr("wss://custom/socket")}},
+				Realtime:   &supersetv1alpha1.RealtimeSpec{WebSocket: &supersetv1alpha1.WebSocketTransportSpec{URL: new("wss://custom/socket")}},
 				Networking: &supersetv1alpha1.NetworkingSpec{Ingress: &supersetv1alpha1.IngressSpec{Host: "ignored.example.com"}},
 			},
 			want: "wss://custom/socket",
@@ -1159,7 +1153,7 @@ func TestDeriveWebSocketURL(t *testing.T) {
 		{
 			name: "baseUrl wins over networking and sets scheme",
 			spec: supersetv1alpha1.SupersetSpec{
-				BaseURL:    common.Ptr("https://superset.example.com"),
+				BaseURL:    new("https://superset.example.com"),
 				Realtime:   &supersetv1alpha1.RealtimeSpec{WebSocket: &supersetv1alpha1.WebSocketTransportSpec{}},
 				Networking: &supersetv1alpha1.NetworkingSpec{Ingress: &supersetv1alpha1.IngressSpec{Host: "ignored.example.com"}},
 			},
@@ -1216,7 +1210,7 @@ func TestDeriveWebSocketAllowedOrigins(t *testing.T) {
 		{
 			name: "explicit allowedOrigins wins",
 			spec: supersetv1alpha1.SupersetSpec{
-				BaseURL:  common.Ptr("https://superset.example.com"),
+				BaseURL:  new("https://superset.example.com"),
 				Realtime: &supersetv1alpha1.RealtimeSpec{WebSocket: &supersetv1alpha1.WebSocketTransportSpec{AllowedOrigins: []string{"https://a.example.com", "https://b.example.com"}}},
 			},
 			want: []string{"https://a.example.com", "https://b.example.com"},
@@ -1224,7 +1218,7 @@ func TestDeriveWebSocketAllowedOrigins(t *testing.T) {
 		{
 			name: "defaults to the single origin of the base URL",
 			spec: supersetv1alpha1.SupersetSpec{
-				BaseURL:  common.Ptr("https://superset.example.com"),
+				BaseURL:  new("https://superset.example.com"),
 				Realtime: &supersetv1alpha1.RealtimeSpec{WebSocket: &supersetv1alpha1.WebSocketTransportSpec{}},
 			},
 			want: []string{"https://superset.example.com"},
@@ -1251,5 +1245,27 @@ func TestDeriveWebSocketAllowedOrigins(t *testing.T) {
 				t.Errorf("deriveWebSocketAllowedOrigins() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+// TestAPIVersionServed_PinsVersion verifies the optional-API detection matches
+// the exact version the operator uses, not merely the Kind. A Gateway API
+// install that serves only v1beta1 must not be treated as serving v1 (which
+// would register a watch for an unserved GVK and fail cache sync at startup).
+func TestAPIVersionServed_PinsVersion(t *testing.T) {
+	t.Parallel()
+
+	gk := schema.GroupKind{Group: "gateway.networking.k8s.io", Kind: "HTTPRoute"}
+	mapper := meta.NewDefaultRESTMapper([]schema.GroupVersion{{Group: gk.Group, Version: "v1beta1"}})
+	mapper.Add(gk.WithVersion("v1beta1"), meta.RESTScopeNamespace)
+
+	if apiVersionServed(mapper, gk.WithVersion("v1")) {
+		t.Error("apiVersionServed returned true for v1 when only v1beta1 is served")
+	}
+	if !apiVersionServed(mapper, gk.WithVersion("v1beta1")) {
+		t.Error("apiVersionServed returned false for the served v1beta1")
+	}
+	if apiVersionServed(mapper, schema.GroupVersionKind{Group: "monitoring.coreos.com", Version: "v1", Kind: "ServiceMonitor"}) {
+		t.Error("apiVersionServed returned true for a Kind that is not served at all")
 	}
 }

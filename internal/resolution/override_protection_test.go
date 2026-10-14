@@ -175,8 +175,8 @@ func TestStripReservedLabels_AllReservedReturnsNil(t *testing.T) {
 func secretEnvSource(name, key string) *corev1.EnvVarSource {
 	return &corev1.EnvVarSource{
 		SecretKeyRef: &corev1.SecretKeySelector{
-			LocalObjectReference: corev1.LocalObjectReference{Name: name},
-			Key:                  key,
+			Name: name,
+			Key:  key,
 		},
 	}
 }

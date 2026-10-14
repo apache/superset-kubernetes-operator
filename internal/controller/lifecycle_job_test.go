@@ -44,7 +44,7 @@ func TestReconcileLifecycleTaskJob_CheckpointsCompletionBeforeRetention(t *testi
 	taskChecksum := "sha256:test"
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 		},
@@ -89,7 +89,7 @@ func TestCleanupTaskJobsByRetention_DefaultKeepsFailedOnly(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 	}
 	succeeded := lifecycleTaskJobForRetention("test-migrate-succeeded", "sha256:ok", batchv1.JobComplete)
 	failed := lifecycleTaskJobForRetention("test-migrate-failed", "sha256:bad", batchv1.JobFailed)
@@ -121,7 +121,7 @@ func TestReconcileLifecycleTaskJob_DeterministicNameAvoidsDuplicateCreate(t *tes
 	taskChecksum := "sha256:test"
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 	}
 	flatSpec := &supersetv1alpha1.FlatComponentSpec{
 		Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
@@ -174,7 +174,7 @@ func TestReconcileLifecycleTaskJob_ConcurrentCreateProducesOneJob(t *testing.T) 
 	taskChecksum := "sha256:test"
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 	}
 	flatSpec := &supersetv1alpha1.FlatComponentSpec{
 		Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
@@ -230,20 +230,18 @@ func TestReconcileLifecycleTaskJob_ForeignOwnedJobIsNotDeleted(t *testing.T) {
 	taskChecksum := "sha256:test"
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 	}
 	// A completed, foreign-owned Job at the derived task name, with no operator
 	// config-checksum annotation (as a real foreign Job would have).
 	foreign := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-migrate",
-			Namespace: "default",
-			UID:       "foreign-job-uid",
-			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion: "batch/v1", Kind: "CronJob", Name: "nightly",
-				UID: "cronjob-uid", Controller: boolPtr(true),
-			}},
-		},
+		Name:      "test-migrate",
+		Namespace: "default",
+		UID:       "foreign-job-uid",
+		OwnerReferences: []metav1.OwnerReference{{
+			APIVersion: "batch/v1", Kind: "CronJob", Name: "nightly",
+			UID: "cronjob-uid", Controller: new(true),
+		}},
 	}
 	foreign.Status.Succeeded = 1
 	foreign.Status.Conditions = []batchv1.JobCondition{{
@@ -285,7 +283,7 @@ func TestReconcileLifecycleTaskJob_StaleStatusImageDoesNotDeleteMatchingJob(t *t
 	newImage := "apache/superset:new"
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 	}
 	flatSpec := &supersetv1alpha1.FlatComponentSpec{
 		Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "new"},
@@ -326,7 +324,7 @@ func TestReconcileLifecycleTaskJob_DeletesJobWhenActualImageDiffers(t *testing.T
 	taskChecksum := "sha256:test"
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 	}
 	oldSpec := &supersetv1alpha1.FlatComponentSpec{
 		Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "old"},
@@ -365,18 +363,16 @@ func TestReconcileLifecycleTaskJob_DeletesJobWhenActualImageDiffers(t *testing.T
 
 func lifecycleTaskJobForRetention(name, checksum string, conditionType batchv1.JobConditionType) *batchv1.Job {
 	job := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: "default",
-			Labels: map[string]string{
-				labelInitInstance:        "test-migrate",
-				labelInitTask:            "migrate",
-				common.LabelKeyParent:    "test",
-				common.LabelKeyComponent: string(common.ComponentInit),
-			},
-			Annotations: map[string]string{
-				common.AnnotationConfigChecksum: checksum,
-			},
+		Name:      name,
+		Namespace: "default",
+		Labels: map[string]string{
+			labelInitInstance:        "test-migrate",
+			labelInitTask:            "migrate",
+			common.LabelKeyParent:    "test",
+			common.LabelKeyComponent: string(common.ComponentInit),
+		},
+		Annotations: map[string]string{
+			common.AnnotationConfigChecksum: checksum,
 		},
 	}
 	switch conditionType {
@@ -559,9 +555,9 @@ func TestLifecycleJobMainImage(t *testing.T) {
 func TestTaskJobMatchesChecksum(t *testing.T) {
 	r := &SupersetReconciler{}
 	withChecksum := func(checksum string) *batchv1.Job {
-		return &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{
+		return &batchv1.Job{Annotations: map[string]string{
 			common.AnnotationConfigChecksum: checksum,
-		}}}
+		}}
 	}
 
 	t.Run("matching annotation matches", func(t *testing.T) {

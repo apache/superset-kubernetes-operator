@@ -140,25 +140,19 @@ func TestMergeEnvVars(t *testing.T) {
 func TestMergeVolumes(t *testing.T) {
 	configVol := corev1.Volume{
 		Name: "config",
-		VolumeSource: corev1.VolumeSource{
-			ConfigMap: &corev1.ConfigMapVolumeSource{
-				LocalObjectReference: corev1.LocalObjectReference{Name: "cm1"},
-			},
+		ConfigMap: &corev1.ConfigMapVolumeSource{
+			Name: "cm1",
 		},
 	}
 	configVolOverride := corev1.Volume{
 		Name: "config",
-		VolumeSource: corev1.VolumeSource{
-			ConfigMap: &corev1.ConfigMapVolumeSource{
-				LocalObjectReference: corev1.LocalObjectReference{Name: "cm2"},
-			},
+		ConfigMap: &corev1.ConfigMapVolumeSource{
+			Name: "cm2",
 		},
 	}
 	secretVol := corev1.Volume{
-		Name: "secret",
-		VolumeSource: corev1.VolumeSource{
-			Secret: &corev1.SecretVolumeSource{SecretName: "s1"},
-		},
+		Name:   "secret",
+		Secret: &corev1.SecretVolumeSource{SecretName: "s1"},
 	}
 
 	tests := []struct {
@@ -310,8 +304,8 @@ func TestMergeContainers(t *testing.T) {
 }
 
 func TestMergeEnvFromSources(t *testing.T) {
-	s1 := corev1.EnvFromSource{SecretRef: &corev1.SecretEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "s1"}}}
-	s2 := corev1.EnvFromSource{SecretRef: &corev1.SecretEnvSource{LocalObjectReference: corev1.LocalObjectReference{Name: "s2"}}}
+	s1 := corev1.EnvFromSource{SecretRef: &corev1.SecretEnvSource{Name: "s1"}}
+	s2 := corev1.EnvFromSource{SecretRef: &corev1.SecretEnvSource{Name: "s2"}}
 
 	result := MergeEnvFromSources([]corev1.EnvFromSource{s1}, []corev1.EnvFromSource{s2})
 	if len(result) != 2 {
@@ -470,8 +464,8 @@ func TestResolveOverridableSlice(t *testing.T) {
 }
 
 func TestResolveOverridableValue(t *testing.T) {
-	v1 := corev1.PodSecurityContext{RunAsUser: Ptr(int64(1000))}
-	v2 := corev1.PodSecurityContext{RunAsUser: Ptr(int64(2000))}
+	v1 := corev1.PodSecurityContext{RunAsUser: new(int64(1000))}
+	v2 := corev1.PodSecurityContext{RunAsUser: new(int64(2000))}
 
 	t.Run("override non-nil wins", func(t *testing.T) {
 		result := ResolveOverridableValue(&v1, &v2)
@@ -496,8 +490,8 @@ func TestMergeDeploymentTemplate(t *testing.T) {
 	})
 
 	t.Run("component scalar overrides top-level", func(t *testing.T) {
-		comp := &supersetv1alpha1.DeploymentTemplate{RevisionHistoryLimit: Ptr(int32(3))}
-		tl := &supersetv1alpha1.DeploymentTemplate{RevisionHistoryLimit: Ptr(int32(7))}
+		comp := &supersetv1alpha1.DeploymentTemplate{RevisionHistoryLimit: new(int32(3))}
+		tl := &supersetv1alpha1.DeploymentTemplate{RevisionHistoryLimit: new(int32(7))}
 		got := MergeDeploymentTemplate(comp, tl)
 		if got.RevisionHistoryLimit == nil || *got.RevisionHistoryLimit != 3 {
 			t.Errorf("expected component value 3, got %v", got.RevisionHistoryLimit)

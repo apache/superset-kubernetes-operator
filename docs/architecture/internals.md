@@ -65,7 +65,7 @@ For each of the six deployment components, the parent controller:
 2. If disabled, deletes the parent-owned resources for that component
 3. If enabled:
     - Renders component-appropriate `superset_config.py` from the parent's `secretKey`/`secretKeyFrom`, `metastore`, `config`, and per-component `config` fields via `RenderConfig()`
-    - Collects secret env vars: when `secretKeyFrom`, `metastore.uriFrom`, or `metastore.passwordFrom` are set, the operator produces env vars with `valueFrom.secretKeyRef` pointing at the referenced Secret. In dev mode, inline values produce plain `value` env vars instead. Always injects `SUPERSET_OPERATOR__INSTANCE_NAME` (the parent CR name) so raw `spec.config` Python can reference the instance — for example to compute instance-scoped Celery queue names that won't collide across Superset CRs sharing a broker.
+    - Collects Secret-backed env vars: `secretKeyFrom`, metastore and Valkey structured-field `*From` selectors, and full-URI/password selectors produce env vars with `valueFrom.secretKeyRef` pointing at the referenced Secret. In dev mode, inline values produce plain `value` env vars instead. Always injects `SUPERSET_OPERATOR__INSTANCE_NAME` (the parent CR name) so raw `spec.config` Python can reference the instance — for example to compute instance-scoped Celery queue names that won't collide across Superset CRs sharing a broker.
     - Resolves the shared spec (top-level + per-component) into a flat `FlatComponentSpec` via `ResolveComponentSpec()`
     - Computes a config checksum from shared inputs and rendered config
     - Creates or updates the component ConfigMap, Deployment, Service, HPA, and PDB
@@ -200,7 +200,7 @@ Config changes must trigger pod restarts for the new config to take effect. The 
 
 **Per-component isolation:** Changing a component's `config` only changes that component's config checksum -- only its pods restart. Other components are unaffected.
 
-**Secret safety:** In prod mode, operator-managed secret values (`secretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`, `valkey.passwordFrom`) are never read by the operator and therefore never appear in checksums, annotations, or ConfigMaps. In dev mode, inline secret values (`secretKey`, `metastore.password`, `valkey.password`) influence the shared config checksum (as a hash, not plaintext) because changes to these values must trigger a rollout.
+**Secret safety:** In prod mode, operator-managed Secret-backed values (`secretKeyFrom`, metastore and Valkey `*From` fields) are never read by the operator and therefore never appear in checksums, annotations, or ConfigMaps. In dev mode, inline secret values (`secretKey`, `metastore.password`, `valkey.password`) influence the shared config checksum (as a hash, not plaintext) because changes to these values must trigger a rollout.
 
 ---
 

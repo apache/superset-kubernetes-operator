@@ -125,7 +125,7 @@ func TestPodSpecHash_SensitiveToSecurityContext(t *testing.T) {
 	hardened := &supersetv1alpha1.FlatComponentSpec{
 		Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
 		PodTemplate: &supersetv1alpha1.PodTemplate{
-			PodSecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: common.Ptr(true)},
+			PodSecurityContext: &corev1.PodSecurityContext{RunAsNonRoot: new(true)},
 		},
 	}
 	if podSpecHash(buildInitPod(base)) == podSpecHash(buildInitPod(hardened)) {
@@ -147,15 +147,13 @@ func TestHandleStuckTaskPod_SelfHealsWhenSpecChanged(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 	}
 	job := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "test-migrate",
-			Namespace:   "default",
-			UID:         taskJobUID,
-			Annotations: map[string]string{common.AnnotationTaskPodSpecHash: "stale-hash"},
-		},
+		Name:        "test-migrate",
+		Namespace:   "default",
+		UID:         taskJobUID,
+		Annotations: map[string]string{common.AnnotationTaskPodSpecHash: "stale-hash"},
 	}
 	pod := wedgedTaskPod("test-migrate", "CreateContainerConfigError")
 
@@ -190,18 +188,16 @@ func TestHandleStuckTaskPod_SurfacesWhenSpecUnchanged(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 	}
 	flatSpec := &supersetv1alpha1.FlatComponentSpec{Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"}}
 	matchingHash := podSpecHash(buildInitPod(flatSpec))
 
 	job := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "test-migrate",
-			Namespace:   "default",
-			UID:         taskJobUID,
-			Annotations: map[string]string{common.AnnotationTaskPodSpecHash: matchingHash},
-		},
+		Name:        "test-migrate",
+		Namespace:   "default",
+		UID:         taskJobUID,
+		Annotations: map[string]string{common.AnnotationTaskPodSpecHash: matchingHash},
 	}
 	pod := wedgedTaskPod("test-migrate", "CreateContainerConfigError")
 
@@ -231,17 +227,15 @@ func TestHandleStuckTaskPod_SurfacesWhenSpecUnchanged(t *testing.T) {
 func TestHandleStuckTaskPod_NotStuckPassesThrough(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
-	superset := &supersetv1alpha1.Superset{ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"}}
-	job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "test-migrate", Namespace: "default", UID: taskJobUID}}
+	superset := &supersetv1alpha1.Superset{Name: "test", Namespace: "default"}
+	job := &batchv1.Job{Name: "test-migrate", Namespace: "default", UID: taskJobUID}
 	// A healthy (running) pod must not be treated as stuck.
 	pod := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            "test-migrate-x",
-			Namespace:       "default",
-			Labels:          map[string]string{labelInitInstance: "test-migrate"},
-			OwnerReferences: []metav1.OwnerReference{taskJobOwnerRef("test-migrate")},
-		},
-		Status: corev1.PodStatus{Phase: corev1.PodRunning},
+		Name:            "test-migrate-x",
+		Namespace:       "default",
+		Labels:          map[string]string{labelInitInstance: "test-migrate"},
+		OwnerReferences: []metav1.OwnerReference{taskJobOwnerRef("test-migrate")},
+		Status:          corev1.PodStatus{Phase: corev1.PodRunning},
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, job, pod).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
@@ -266,16 +260,14 @@ func TestHandleStuckTaskPod_IgnoresForeignPodWithSpoofedLabel(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 	}
 	flatSpec := &supersetv1alpha1.FlatComponentSpec{Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"}}
 	job := &batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "test-migrate",
-			Namespace:   "default",
-			UID:         taskJobUID,
-			Annotations: map[string]string{common.AnnotationTaskPodSpecHash: podSpecHash(buildInitPod(flatSpec))},
-		},
+		Name:        "test-migrate",
+		Namespace:   "default",
+		UID:         taskJobUID,
+		Annotations: map[string]string{common.AnnotationTaskPodSpecHash: podSpecHash(buildInitPod(flatSpec))},
 	}
 	// Foreign wedged pod: spoofed instance label, no owner reference to the Job.
 	foreign := wedgedTaskPod("test-migrate", "ImagePullBackOff")
@@ -303,7 +295,7 @@ func TestTaskPodSpecChanged(t *testing.T) {
 	// was created must be detectable so the controller can rerun it.
 	ctx := context.Background()
 	scheme := testScheme(t)
-	superset := &supersetv1alpha1.Superset{ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"}}
+	superset := &supersetv1alpha1.Superset{Name: "test", Namespace: "default"}
 	flatSpec := &supersetv1alpha1.FlatComponentSpec{Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"}}
 	matchingHash := podSpecHash(buildInitPod(flatSpec))
 
@@ -317,7 +309,7 @@ func TestTaskPodSpecChanged(t *testing.T) {
 	})
 
 	t.Run("matching hash -> not changed", func(t *testing.T) {
-		job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "test-migrate", Namespace: "default", Annotations: map[string]string{common.AnnotationTaskPodSpecHash: matchingHash}}}
+		job := &batchv1.Job{Name: "test-migrate", Namespace: "default", Annotations: map[string]string{common.AnnotationTaskPodSpecHash: matchingHash}}
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, job).Build()
 		r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 		changed, err := r.taskPodSpecChanged(ctx, superset, "test-migrate", flatSpec)
@@ -327,7 +319,7 @@ func TestTaskPodSpecChanged(t *testing.T) {
 	})
 
 	t.Run("stale hash -> changed", func(t *testing.T) {
-		job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{Name: "test-migrate", Namespace: "default", Annotations: map[string]string{common.AnnotationTaskPodSpecHash: "stale"}}}
+		job := &batchv1.Job{Name: "test-migrate", Namespace: "default", Annotations: map[string]string{common.AnnotationTaskPodSpecHash: "stale"}}
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, job).Build()
 		r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 		changed, err := r.taskPodSpecChanged(ctx, superset, "test-migrate", flatSpec)
@@ -349,18 +341,16 @@ func taskJobOwnerRef(taskName string) metav1.OwnerReference {
 		Kind:       "Job",
 		Name:       taskName,
 		UID:        taskJobUID,
-		Controller: common.Ptr(true),
+		Controller: new(true),
 	}
 }
 
 func wedgedTaskPod(taskName, reason string) *corev1.Pod {
 	return &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            taskName + "-abcde",
-			Namespace:       "default",
-			Labels:          map[string]string{labelInitInstance: taskName},
-			OwnerReferences: []metav1.OwnerReference{taskJobOwnerRef(taskName)},
-		},
+		Name:            taskName + "-abcde",
+		Namespace:       "default",
+		Labels:          map[string]string{labelInitInstance: taskName},
+		OwnerReferences: []metav1.OwnerReference{taskJobOwnerRef(taskName)},
 		Status: corev1.PodStatus{
 			Phase: corev1.PodPending,
 			InitContainerStatuses: []corev1.ContainerStatus{

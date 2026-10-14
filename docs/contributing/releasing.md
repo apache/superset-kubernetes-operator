@@ -134,9 +134,11 @@ scripts/release-source.sh
 # Push the release branch first and wait for its CI to go green (release
 # branches run the full suite). Then push the tag — the release workflow gates
 # publishing on those required checks passing for the tagged commit.
-git push origin 0.2
+# (Substitute your actual remote name for the canonical apache/ repo — see
+# "Pre-requisites for the release manager" above.)
+git push upstream 0.2
 # ... wait for CI on the 0.2 branch to complete successfully ...
-git push origin v0.2.0-rc1
+git push upstream v0.2.0-rc1
 ```
 
 Running the script again from the same release branch increments the RC number automatically (rc1, rc2, ...).
@@ -156,9 +158,11 @@ A release candidate therefore needs three artifacts staged on
 
 ### Pre-requisites for the release manager
 
-1. Be a Superset PMC member (binding vote), or coordinate with one if you are a committer driving the release.
-2. Have a PGP key registered in `https://dist.apache.org/repos/dist/release/superset/KEYS` and uploaded to the public keyservers. To add a new key, append the output of `gpg --list-sigs <fingerprint> && gpg --armor --export <fingerprint>` to `KEYS` in the SVN checkout below and commit.
-3. Have `svn` checkouts of both ASF dist locations:
+1. Be an Apache Superset **committer** — this is what grants push access to `apache/superset-kubernetes-operator`, needed to push the release branch and tags directly. Being a committer is separate from being on the PMC: a committer without PMC status can drive the whole RC/build/vote mechanics, but the vote itself still needs a PMC member's binding `+1` to pass (see next item).
+2. Be a Superset PMC member (binding vote), or coordinate with one if you are a committer driving the release.
+3. Have a PGP key registered in `https://dist.apache.org/repos/dist/release/superset/KEYS` and uploaded to the public keyservers. To add a new key, append the output of `gpg --list-sigs <fingerprint> && gpg --armor --export <fingerprint>` to `KEYS` in the SVN checkout below and commit.
+4. Have a git remote pointing at `git@github.com:apache/superset-kubernetes-operator.git` — release branches and tags must be pushed there. If you develop from a personal fork, that remote is commonly named `upstream` while `origin` points at your fork; check with `git remote -v` and substitute the right name for the `git push` commands below. Pushing a release branch/tag to your fork by mistake is harmless (just delete it there — `git push <fork-remote> --delete <branch>`), but the release workflow and vote artifacts only make sense from the canonical repo.
+5. Have `svn` checkouts of both ASF dist locations:
 
     ```sh
     svn co https://dist.apache.org/repos/dist/dev/superset/ ~/asf/dev-superset
@@ -222,12 +226,19 @@ Because the final tag points at the already-tested RC commit, the release workfl
 scripts/release-finalize.sh 0.2.0
 
 # Push the tag to trigger the release workflow
-git push origin v0.2.0
+git push upstream v0.2.0
 ```
 
 The release workflow pushes the `0.2.0` and `latest` images to GHCR.
 
-After the final tag is pushed, add the final release date to `docs/reference/releases.md` on `main` only (the docs site builds from `main`). Leave the release-branch changelog undated so it continues to match the voted source.
+After the final tag is pushed, open a PR against `main` (the docs site builds from `main`) that carries the release's changelog section with the final date. For the first RC of a minor release the reviewed `## <version>` section was committed on the release branch only, so cherry-pick that commit onto `main` and change the heading to `## <version> - <date>`. Entries that reached `main`'s `## Unreleased` after the release branch was cut belong to the next release: keep them under `## Unreleased` when resolving the cherry-pick conflict, and confirm the `## <version>` section body matches the release branch exactly:
+
+```sh
+section() { awk '/^## 0\.2\.0/{f=1;next} /^## /{f=0} f'; }
+diff <(git show 0.2:docs/reference/releases.md | section) <(section < docs/reference/releases.md)
+```
+
+Leave the release-branch changelog undated so it continues to match the voted source.
 
 After the binary release workflow finishes, promote the source artifacts. `release-source.sh` sees the final tag on `HEAD`, requires a matching RC tag on the same commit, reuses the staged RC tarball bytes (so the detached signature stays valid), and regenerates the SHA-512 file under the final filename:
 
@@ -243,7 +254,7 @@ svn add kubernetes-operator-0.2.0
 svn commit -m "Release Apache Superset Kubernetes Operator 0.2.0"
 ```
 
-Generate the release announcement after the artifacts have propagated to the ASF mirror network (typically within 24 hours), review it, then send it to `announce@apache.org` and `dev@superset.apache.org`:
+Generate the release announcement after the changelog PR has merged (the announcement links to the release notes on the docs site), review it, then send it to `announce@apache.org` and `dev@superset.apache.org`:
 
 ```sh
 scripts/release-email.sh announce > dist/0.2.0/ANNOUNCE.txt

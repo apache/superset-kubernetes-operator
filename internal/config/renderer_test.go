@@ -98,8 +98,9 @@ func TestRenderConfig_StructuredMetastore(t *testing.T) {
 		assertContains(t, result, "quote(os.environ['SUPERSET_OPERATOR__DB_USER'], safe='')")
 		assertContains(t, result, "quote(_db_pass, safe='')")
 		assertContains(t, result, "os.environ.get(\"SUPERSET_OPERATOR__DB_PASS\"")
-		assertContains(t, result, "os.environ['SUPERSET_OPERATOR__DB_HOST']")
-		assertContains(t, result, "os.environ['SUPERSET_OPERATOR__DB_PORT']")
+		assertContains(t, result, "_db_host = os.environ['SUPERSET_OPERATOR__DB_HOST'].strip()")
+		assertContains(t, result, "_db_port = int(os.environ['SUPERSET_OPERATOR__DB_PORT'])")
+		assertContains(t, result, "@{_db_host}:{_db_port}/")
 		assertContains(t, result, "quote(os.environ['SUPERSET_OPERATOR__DB_NAME'], safe='')")
 	})
 
@@ -210,6 +211,8 @@ func TestRenderConfig_ValkeyMinimal(t *testing.T) {
 	// Connection helpers
 	assertContains(t, result, "_vk_user = os.environ.get(\"SUPERSET_OPERATOR__VALKEY_USER\"")
 	assertContains(t, result, "_vk_pass = os.environ.get(\"SUPERSET_OPERATOR__VALKEY_PASS\"")
+	assertContains(t, result, "_vk_host = os.environ[\"SUPERSET_OPERATOR__VALKEY_HOST\"].strip()")
+	assertContains(t, result, "_vk_port = int(os.environ[\"SUPERSET_OPERATOR__VALKEY_PORT\"])")
 	assertContains(t, result, "_vk_scheme = \"redis\"")
 	assertContains(t, result, "from urllib.parse import quote")
 	assertContains(t, result, "quote(_vk_user, safe='')")
@@ -217,6 +220,8 @@ func TestRenderConfig_ValkeyMinimal(t *testing.T) {
 	assertContains(t, result, "_vk_base = f\"{_vk_scheme}://")
 	assertContains(t, result, "SUPERSET_OPERATOR__VALKEY_HOST")
 	assertContains(t, result, "SUPERSET_OPERATOR__VALKEY_PORT")
+	assertContains(t, result, "host=_vk_host")
+	assertContains(t, result, "port=_vk_port")
 
 	// Flask-Caching sections
 	assertContains(t, result, "CACHE_CONFIG = {")

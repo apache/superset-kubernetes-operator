@@ -28,7 +28,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -157,6 +156,9 @@ func TestBuildMaintenanceFlatSpec(t *testing.T) {
 		if sc.Capabilities == nil || len(sc.Capabilities.Drop) != 1 || sc.Capabilities.Drop[0] != "ALL" {
 			t.Errorf("Capabilities.Drop = %+v, want [ALL]", sc.Capabilities)
 		}
+		if sc.SeccompProfile == nil || sc.SeccompProfile.Type != corev1.SeccompProfileTypeRuntimeDefault {
+			t.Errorf("SeccompProfile = %+v, want RuntimeDefault", sc.SeccompProfile)
+		}
 
 		if !maintenanceMountsConf(flat, "/etc/nginx/nginx.conf") {
 			t.Error("expected nginx.conf to be mounted at /etc/nginx/nginx.conf")
@@ -170,12 +172,34 @@ func TestBuildMaintenanceFlatSpec(t *testing.T) {
 			Title: &title,
 			PodTemplate: &supersetv1alpha1.PodTemplate{
 				Container: &supersetv1alpha1.ContainerTemplate{
-					SecurityContext: &corev1.SecurityContext{RunAsUser: common.Ptr(int64(2020))},
+					SecurityContext: &corev1.SecurityContext{RunAsUser: new(int64(2020))},
 				},
 			},
 		})
 		if sc := flat.PodTemplate.Container.SecurityContext; sc.RunAsUser == nil || *sc.RunAsUser != 2020 {
 			t.Errorf("expected user RunAsUser=2020 to be respected, got %v", sc.RunAsUser)
+		}
+	})
+
+	t.Run("does not override a user pod-level seccomp profile", func(t *testing.T) {
+		// Container-level seccomp takes precedence over pod-level, so the operator
+		// must not stamp a container-level RuntimeDefault when the user already set
+		// a pod-level profile (here Localhost) — that would silently override it.
+		title := "down"
+		localhost := "operator/profile.json"
+		flat := buildMaintenanceFlatSpec("parent", &supersetv1alpha1.MaintenancePageSpec{
+			Title: &title,
+			PodTemplate: &supersetv1alpha1.PodTemplate{
+				PodSecurityContext: &corev1.PodSecurityContext{
+					SeccompProfile: &corev1.SeccompProfile{
+						Type:             corev1.SeccompProfileTypeLocalhost,
+						LocalhostProfile: &localhost,
+					},
+				},
+			},
+		})
+		if sc := flat.PodTemplate.Container.SecurityContext; sc.SeccompProfile != nil {
+			t.Errorf("container SeccompProfile must stay unset so the pod-level profile applies, got %+v", sc.SeccompProfile)
 		}
 	})
 
@@ -185,7 +209,7 @@ func TestBuildMaintenanceFlatSpec(t *testing.T) {
 		if def.Replicas == nil || *def.Replicas != 1 {
 			t.Errorf("expected default replicas 1, got %v", def.Replicas)
 		}
-		over := buildMaintenanceFlatSpec("parent", &supersetv1alpha1.MaintenancePageSpec{Replicas: common.Ptr(int32(3))})
+		over := buildMaintenanceFlatSpec("parent", &supersetv1alpha1.MaintenancePageSpec{Replicas: new(int32(3))})
 		if over.Replicas == nil || *over.Replicas != 3 {
 			t.Errorf("expected replicas override 3, got %v", over.Replicas)
 		}
@@ -297,12 +321,10 @@ func TestResolveWebServerPort(t *testing.T) {
 		s := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{
 				WebServer: &supersetv1alpha1.WebServerComponentSpec{
-					ScalableComponentSpec: supersetv1alpha1.ScalableComponentSpec{
-						PodTemplate: &supersetv1alpha1.PodTemplate{
-							Container: &supersetv1alpha1.ContainerTemplate{
-								Ports: []corev1.ContainerPort{
-									{Name: "http", ContainerPort: 9090},
-								},
+					PodTemplate: &supersetv1alpha1.PodTemplate{
+						Container: &supersetv1alpha1.ContainerTemplate{
+							Ports: []corev1.ContainerPort{
+								{Name: "http", ContainerPort: 9090},
 							},
 						},
 					},
@@ -345,7 +367,7 @@ func TestResolveWebServerPort(t *testing.T) {
 
 func TestReconcileWebServerService_SelectorBasedOnMaintenanceActive(t *testing.T) {
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "my-superset", Namespace: "default"},
+		Name: "my-superset", Namespace: "default",
 		Spec: supersetv1alpha1.SupersetSpec{
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
 		},
@@ -407,12 +429,10 @@ func TestReconcileMaintenanceReturnClearsWhenWebServerDesiredReplicasZero(t *tes
 	recorder := events.NewFakeRecorder(10)
 	zero := int32(0)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Name: "test", Namespace: "default",
 		Spec: supersetv1alpha1.SupersetSpec{
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{
-				ScalableComponentSpec: supersetv1alpha1.ScalableComponentSpec{
-					Replicas: &zero,
-				},
+				Replicas: &zero,
 			},
 		},
 		Status: supersetv1alpha1.SupersetStatus{
@@ -435,7 +455,7 @@ func TestReconcileMaintenanceReturnClearsWhenWebServerDesiredReplicasZero(t *tes
 }
 
 func TestBuildMaintenanceFlatSpec_DoesNotMutateInputSpec(t *testing.T) {
-	userVolume := corev1.Volume{Name: "user-volume", VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}}}
+	userVolume := corev1.Volume{Name: "user-volume", EmptyDir: &corev1.EmptyDirVolumeSource{}}
 	userMount := corev1.VolumeMount{Name: "user-volume", MountPath: "/data"}
 	userEnv := corev1.EnvVar{Name: "USER_VAR", Value: "v"}
 	title := "down for maintenance"
@@ -593,7 +613,7 @@ func TestReconcileMaintenancePageUp(t *testing.T) {
 	scheme := testScheme(t)
 	title := "Down for maintenance"
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{
@@ -642,8 +662,8 @@ func TestReconcileMaintenanceReturn_AlreadyInactive(t *testing.T) {
 func TestReconcileMaintenanceReturn_WebServerRemoved(t *testing.T) {
 	recorder := events.NewFakeRecorder(10)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-		Spec:       supersetv1alpha1.SupersetSpec{}, // WebServer nil
+		Name: "test", Namespace: "default",
+		Spec: supersetv1alpha1.SupersetSpec{}, // WebServer nil
 		Status: supersetv1alpha1.SupersetStatus{
 			Lifecycle: &supersetv1alpha1.LifecycleStatus{MaintenanceActive: true},
 		},
@@ -660,7 +680,7 @@ func TestReconcileMaintenanceReturn_WaitsForWebServerReady(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
 		},
@@ -670,8 +690,8 @@ func TestReconcileMaintenanceReturn_WaitsForWebServerReady(t *testing.T) {
 	}
 	webName := common.ResourceBaseName("test", common.ComponentWebServer)
 	deploy := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{Name: webName, Namespace: "default"},
-		Status:     appsv1.DeploymentStatus{ReadyReplicas: 0},
+		Name: webName, Namespace: "default",
+		Status: appsv1.DeploymentStatus{ReadyReplicas: 0},
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, deploy).WithStatusSubresource(deploy).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
@@ -695,10 +715,10 @@ func TestDeleteMaintenanceResources(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+		Name: "test", Namespace: "default",
 	}
-	deploy := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: maintenanceDeploymentName("test"), Namespace: "default"}}
-	cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: maintenanceConfigMapName("test"), Namespace: "default"}}
+	deploy := &appsv1.Deployment{Name: maintenanceDeploymentName("test"), Namespace: "default"}
+	cm := &corev1.ConfigMap{Name: maintenanceConfigMapName("test"), Namespace: "default"}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, deploy, cm).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
@@ -717,8 +737,8 @@ func TestCleanupMaintenanceResources_ClearsActiveFlag(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
-		Status:     supersetv1alpha1.SupersetStatus{Lifecycle: &supersetv1alpha1.LifecycleStatus{MaintenanceActive: true}},
+		Name: "test", Namespace: "default",
+		Status: supersetv1alpha1.SupersetStatus{Lifecycle: &supersetv1alpha1.LifecycleStatus{MaintenanceActive: true}},
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
@@ -731,7 +751,7 @@ func TestReconcileMaintenancePageUp_CustomModeSkipsConfigMap(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{

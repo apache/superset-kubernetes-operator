@@ -39,10 +39,10 @@ import (
 func TestReconcileLifecycle_DisabledAdvancesLastLifecycleImage(t *testing.T) {
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "6.0.1"},
-			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: boolPtr(true)},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
 		},
 		Status: supersetv1alpha1.SupersetStatus{LastLifecycleImage: "apache/superset:5.0.0"},
 	}
@@ -67,12 +67,12 @@ func TestReconcileLifecycle_DisabledAdvancesLastLifecycleImage(t *testing.T) {
 func TestReconcileLifecycle_NoTasksConfigured(t *testing.T) {
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "6.0.1"},
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{
-				Migrate: &supersetv1alpha1.MigrateTaskSpec{BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: boolPtr(true)}},
-				Init:    &supersetv1alpha1.InitTaskSpec{BaseTaskSpec: supersetv1alpha1.BaseTaskSpec{Disabled: boolPtr(true)}},
+				Migrate: &supersetv1alpha1.MigrateTaskSpec{Disabled: new(true)},
+				Init:    &supersetv1alpha1.InitTaskSpec{Disabled: new(true)},
 			},
 		},
 		Status: supersetv1alpha1.SupersetStatus{LastLifecycleImage: "apache/superset:5.0.0"},
@@ -104,11 +104,9 @@ func TestCheckUpgradeGates_SupervisedApprovalRequiresRecordedToken(t *testing.T)
 	currentImage := "apache/superset:1.1.0"
 	token := upgradeApprovalToken(lastImage, currentImage)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "test",
-			Namespace:   "default",
-			Annotations: map[string]string{annotationApproveUpgrade: token},
-		},
+		Name:        "test",
+		Namespace:   "default",
+		Annotations: map[string]string{annotationApproveUpgrade: token},
 		Spec: supersetv1alpha1.SupersetSpec{
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{UpgradeMode: &mode},
 		},
@@ -143,11 +141,9 @@ func TestCheckUpgradeGates_StaleApprovalDoesNotApproveChangedTarget(t *testing.T
 	oldToken := upgradeApprovalToken(lastImage, oldTarget)
 	newToken := upgradeApprovalToken(lastImage, newTarget)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "test",
-			Namespace:   "default",
-			Annotations: map[string]string{annotationApproveUpgrade: oldToken},
-		},
+		Name:        "test",
+		Namespace:   "default",
+		Annotations: map[string]string{annotationApproveUpgrade: oldToken},
 		Spec: supersetv1alpha1.SupersetSpec{
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{UpgradeMode: &mode},
 		},
@@ -181,12 +177,10 @@ func TestCheckUpgradeGates_StaleApprovalDoesNotApproveChangedTarget(t *testing.T
 func TestClearUpgradeApprovalAnnotation_RemovesAnnotation(t *testing.T) {
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "test",
-			Namespace:   "default",
-			UID:         "uid-1",
-			Annotations: map[string]string{annotationApproveUpgrade: "true", "other": "preserved"},
-		},
+		Name:        "test",
+		Namespace:   "default",
+		UID:         "uid-1",
+		Annotations: map[string]string{annotationApproveUpgrade: "true", "other": "preserved"},
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
@@ -216,7 +210,7 @@ func TestClearUpgradeApprovalAnnotation_RemovesAnnotation(t *testing.T) {
 func TestClearUpgradeApprovalAnnotation_NoOpWhenAbsent(t *testing.T) {
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
@@ -235,12 +229,10 @@ func TestClearUpgradeApprovalAnnotation_NoOpWhenAbsent(t *testing.T) {
 func TestFinalizeLifecycleDoesNotPatchAnnotation(t *testing.T) {
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        "test",
-			Namespace:   "default",
-			UID:         "uid-1",
-			Annotations: map[string]string{annotationApproveUpgrade: "true"},
-		},
+		Name:        "test",
+		Namespace:   "default",
+		UID:         "uid-1",
+		Annotations: map[string]string{annotationApproveUpgrade: "true"},
 		Spec: supersetv1alpha1.SupersetSpec{
 			Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "6.0.1"},
 		},
@@ -288,35 +280,33 @@ func TestReconcileLifecycle_BlocksOnInvalidSeedSchedule(t *testing.T) {
 	metastoreUser := "superset"
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Environment: &devMode,
 			Image:       supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "6.0.1"},
 			SecretKeyFrom: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: "app-secret"},
-				Key:                  "secret-key",
+				Name: "app-secret",
+				Key:  "secret-key",
 			},
 			Metastore: &supersetv1alpha1.MetastoreSpec{
 				Host:     &metastoreHost,
 				Database: &metastoreDB,
 				Username: &metastoreUser,
 				PasswordFrom: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{Name: "db-secret"},
-					Key:                  "password",
+					Name: "db-secret",
+					Key:  "password",
 				},
 			},
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{
 				Seed: &supersetv1alpha1.SeedTaskSpec{
-					SchedulableBaseTaskSpec: supersetv1alpha1.SchedulableBaseTaskSpec{
-						CronSchedule: &invalidSchedule,
-					},
+					CronSchedule: &invalidSchedule,
 					Source: supersetv1alpha1.SeedSourceSpec{
 						Host:     "pg-prod.svc",
 						Database: "superset_prod",
 						Username: "reader",
 						PasswordFrom: &corev1.SecretKeySelector{
-							LocalObjectReference: corev1.LocalObjectReference{Name: "src-secret"},
-							Key:                  "password",
+							Name: "src-secret",
+							Key:  "password",
 						},
 					},
 				},

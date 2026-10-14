@@ -30,7 +30,7 @@ mv ./kind /usr/local/bin/kind
 #     is validated as 64 hex chars before use so an error page cannot slip
 #     through). Bump alongside supported-k8s.json. ---
 # renovate: datasource=github-releases depName=kubernetes/kubernetes
-KUBECTL_VERSION="${KUBECTL_VERSION:-v1.37.0}"
+KUBECTL_VERSION="${KUBECTL_VERSION:-v1.37.1}"
 curl -fsSLO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
 KUBECTL_CHECKSUM="$(curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl.sha256")"
 echo "${KUBECTL_CHECKSUM}" | grep -Eq '^[a-f0-9]{64}$' || { echo "unexpected kubectl checksum: ${KUBECTL_CHECKSUM}" >&2; exit 1; }

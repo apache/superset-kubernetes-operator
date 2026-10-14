@@ -48,7 +48,7 @@ func TestReconcileHPA_CreatesHPA(t *testing.T) {
 	_ = policyv1.AddToScheme(scheme)
 
 	owner := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-web-server", Namespace: "default", UID: "uid-1"},
+		Name: "test-web-server", Namespace: "default", UID: "uid-1",
 	}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner).Build()
@@ -64,7 +64,7 @@ func TestReconcileHPA_CreatesHPA(t *testing.T) {
 					Name: corev1.ResourceCPU,
 					Target: autoscalingv2.MetricTarget{
 						Type:               autoscalingv2.UtilizationMetricType,
-						AverageUtilization: int32Ptr(75),
+						AverageUtilization: new(int32(75)),
 					},
 				},
 			},
@@ -103,15 +103,14 @@ func TestReconcileHPA_NilAutoscaling(t *testing.T) {
 	_ = autoscalingv2.AddToScheme(scheme)
 
 	owner := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-web-server", Namespace: "default", UID: "uid-1"},
+		Name: "test-web-server", Namespace: "default", UID: "uid-1",
 	}
 
 	t.Run("deletes labeled", func(t *testing.T) {
 		existingHPA := &autoscalingv2.HorizontalPodAutoscaler{
-			ObjectMeta: metav1.ObjectMeta{Name: "test-web-server", Namespace: "default",
-				Labels: testLabels,
-			},
-			Spec: autoscalingv2.HorizontalPodAutoscalerSpec{MaxReplicas: 5},
+			Name: "test-web-server", Namespace: "default",
+			Labels: testLabels,
+			Spec:   autoscalingv2.HorizontalPodAutoscalerSpec{MaxReplicas: 5},
 		}
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner, existingHPA).Build()
 
@@ -137,13 +136,11 @@ func TestReconcileHPA_NilAutoscaling(t *testing.T) {
 	// owner-checked exact-name fallback must still clean it up.
 	t.Run("deletes pre-patch owned HPA at name lacking selector labels", func(t *testing.T) {
 		hpa := &autoscalingv2.HorizontalPodAutoscaler{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "test-web-server", Namespace: "default", UID: "hpa-uid",
-				OwnerReferences: []metav1.OwnerReference{{
-					APIVersion: "superset.apache.org/v1alpha1", Kind: "Superset",
-					Name: "test-web-server", UID: "uid-1", Controller: boolPtr(true),
-				}},
-			},
+			Name: "test-web-server", Namespace: "default", UID: "hpa-uid",
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: "superset.apache.org/v1alpha1", Kind: "Superset",
+				Name: "test-web-server", UID: "uid-1", Controller: new(true),
+			}},
 			Spec: autoscalingv2.HorizontalPodAutoscalerSpec{MaxReplicas: 5},
 		}
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner, hpa).Build()
@@ -160,13 +157,11 @@ func TestReconcileHPA_NilAutoscaling(t *testing.T) {
 	// foreign owner that merely shares the managed name.
 	t.Run("keeps foreign-owned HPA at name", func(t *testing.T) {
 		hpa := &autoscalingv2.HorizontalPodAutoscaler{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "test-web-server", Namespace: "default", UID: "hpa-uid",
-				OwnerReferences: []metav1.OwnerReference{{
-					APIVersion: "batch/v1", Kind: "CronJob", Name: "cj",
-					UID: "foreign-uid", Controller: boolPtr(true),
-				}},
-			},
+			Name: "test-web-server", Namespace: "default", UID: "hpa-uid",
+			OwnerReferences: []metav1.OwnerReference{{
+				APIVersion: "batch/v1", Kind: "CronJob", Name: "cj",
+				UID: "foreign-uid", Controller: new(true),
+			}},
 			Spec: autoscalingv2.HorizontalPodAutoscalerSpec{MaxReplicas: 5},
 		}
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner, hpa).Build()
@@ -185,7 +180,7 @@ func TestReconcileHPA_CustomMetrics(t *testing.T) {
 	_ = autoscalingv2.AddToScheme(scheme)
 
 	owner := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-web-server", Namespace: "default", UID: "uid-1"},
+		Name: "test-web-server", Namespace: "default", UID: "uid-1",
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner).Build()
 
@@ -227,7 +222,7 @@ func TestReconcilePDB_CreatesPDB(t *testing.T) {
 	_ = policyv1.AddToScheme(scheme)
 
 	owner := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-web-server", Namespace: "default", UID: "uid-1"},
+		Name: "test-web-server", Namespace: "default", UID: "uid-1",
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner).Build()
 
@@ -256,7 +251,7 @@ func TestReconcilePDB_MaxUnavailable(t *testing.T) {
 	_ = policyv1.AddToScheme(scheme)
 
 	owner := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-web-server", Namespace: "default", UID: "uid-1"},
+		Name: "test-web-server", Namespace: "default", UID: "uid-1",
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner).Build()
 
@@ -282,15 +277,14 @@ func TestReconcilePDB_NilSpec(t *testing.T) {
 	_ = policyv1.AddToScheme(scheme)
 
 	owner := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test-web-server", Namespace: "default", UID: "uid-1"},
+		Name: "test-web-server", Namespace: "default", UID: "uid-1",
 	}
 	labels := map[string]string{"app": "test"}
 
 	t.Run("deletes labeled", func(t *testing.T) {
 		existingPDB := &policyv1.PodDisruptionBudget{
-			ObjectMeta: metav1.ObjectMeta{Name: "test-web-server", Namespace: "default",
-				Labels: labels,
-			},
+			Name: "test-web-server", Namespace: "default",
+			Labels: labels,
 		}
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner, existingPDB).Build()
 
@@ -311,5 +305,3 @@ func TestReconcilePDB_NilSpec(t *testing.T) {
 		}
 	})
 }
-
-func int32Ptr(i int32) *int32 { return &i }

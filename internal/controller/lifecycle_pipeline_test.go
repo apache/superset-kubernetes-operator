@@ -50,13 +50,13 @@ func TestLifecyclePipeline_FullSuccess(t *testing.T) {
 	metastoreUser := "superset"
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			Environment: &devMode,
 			Image:       supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "6.0.1"},
 			SecretKeyFrom: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{Name: "app-secret"},
-				Key:                  "secret-key",
+				Name: "app-secret",
+				Key:  "secret-key",
 			},
 			PreviousSecretKey: &previousSecretKey,
 			Metastore: &supersetv1alpha1.MetastoreSpec{
@@ -64,8 +64,8 @@ func TestLifecyclePipeline_FullSuccess(t *testing.T) {
 				Database: &metastoreDB,
 				Username: &metastoreUser,
 				PasswordFrom: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{Name: "db-secret"},
-					Key:                  "password",
+					Name: "db-secret",
+					Key:  "password",
 				},
 			},
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{
@@ -75,8 +75,8 @@ func TestLifecyclePipeline_FullSuccess(t *testing.T) {
 						Database: "superset_prod",
 						Username: "reader",
 						PasswordFrom: &corev1.SecretKeySelector{
-							LocalObjectReference: corev1.LocalObjectReference{Name: "src-secret"},
-							Key:                  "password",
+							Name: "src-secret",
+							Key:  "password",
 						},
 					},
 				},
@@ -193,7 +193,7 @@ func TestClearUpgradeApprovalAnnotation(t *testing.T) {
 
 	t.Run("no annotations is a no-op", func(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{
-			ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default"},
+			Name: "test", Namespace: "default",
 		}
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
 		r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
@@ -202,13 +202,11 @@ func TestClearUpgradeApprovalAnnotation(t *testing.T) {
 
 	t.Run("annotation present is removed via patch", func(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test",
-				Namespace: "default",
-				Annotations: map[string]string{
-					annotationApproveUpgrade: "token-123",
-					"keep":                   "me",
-				},
+			Name:      "test",
+			Namespace: "default",
+			Annotations: map[string]string{
+				annotationApproveUpgrade: "token-123",
+				"keep":                   "me",
 			},
 		}
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
@@ -225,10 +223,8 @@ func TestClearUpgradeApprovalAnnotation(t *testing.T) {
 
 	t.Run("different annotations present, no approval key is a no-op", func(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "test", Namespace: "default",
-				Annotations: map[string]string{"other": "v"},
-			},
+			Name: "test", Namespace: "default",
+			Annotations: map[string]string{"other": "v"},
 		}
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
 		r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
@@ -240,7 +236,7 @@ func TestDeleteLifecycleTaskResources(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Status: supersetv1alpha1.SupersetStatus{
 			Lifecycle: &supersetv1alpha1.LifecycleStatus{
 				Migrate:                &supersetv1alpha1.TaskRefStatus{State: taskStateComplete},
@@ -249,12 +245,11 @@ func TestDeleteLifecycleTaskResources(t *testing.T) {
 		},
 	}
 	taskName := "test" + suffixMigrate
-	job := &batchv1.Job{ObjectMeta: metav1.ObjectMeta{
+	job := &batchv1.Job{
 		Name:      taskName,
 		Namespace: "default",
-		Labels:    map[string]string{labelInitTask: taskName, labelInitInstance: "test"},
-	}}
-	cm := &corev1.ConfigMap{ObjectMeta: metav1.ObjectMeta{Name: "test-migrate-config", Namespace: "default"}}
+		Labels:    map[string]string{labelInitTask: taskName, labelInitInstance: "test"}}
+	cm := &corev1.ConfigMap{Name: "test-migrate-config", Namespace: "default"}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, job, cm).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
@@ -312,7 +307,7 @@ func TestCheckUpgradeGates(t *testing.T) {
 	t.Run("supervised upgrade awaits approval", func(t *testing.T) {
 		mode := upgradeModeSupervised
 		s := &supersetv1alpha1.Superset{
-			ObjectMeta: metav1.ObjectMeta{Name: "test"},
+			Name: "test",
 			Spec: supersetv1alpha1.SupersetSpec{
 				Lifecycle: &supersetv1alpha1.LifecycleSpec{UpgradeMode: &mode},
 			},
@@ -326,8 +321,8 @@ func TestCheckUpgradeGates(t *testing.T) {
 
 	t.Run("automatic upgrade proceeds past the gate", func(t *testing.T) {
 		s := &supersetv1alpha1.Superset{
-			ObjectMeta: metav1.ObjectMeta{Name: "test"},
-			Status:     supersetv1alpha1.SupersetStatus{Lifecycle: &supersetv1alpha1.LifecycleStatus{}},
+			Name:   "test",
+			Status: supersetv1alpha1.SupersetStatus{Lifecycle: &supersetv1alpha1.LifecycleStatus{}},
 		}
 		gated := r.checkUpgradeGates(ctx, s, true, "apache/superset:2.0.0", "apache/superset:3.0.0")
 		assert.False(t, gated)

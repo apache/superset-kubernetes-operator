@@ -31,7 +31,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -66,20 +65,20 @@ func TestReconcile_SecretsNeverLeakIntoConfigMaps(t *testing.T) {
 	sentinels := []string{sentinelSecretKey, sentinelPrevKey, sentinelDBPass, sentinelValkey}
 
 	spec := minimalSupersetSpec()
-	spec.Environment = common.Ptr("Development")
+	spec.Environment = new("Development")
 	// Inline secrets (dev-mode) so the values are present in the spec.
 	spec.SecretKeyFrom = nil
-	spec.SecretKey = common.Ptr(sentinelSecretKey)
-	spec.PreviousSecretKey = common.Ptr(sentinelPrevKey)
+	spec.SecretKey = new(sentinelSecretKey)
+	spec.PreviousSecretKey = new(sentinelPrevKey)
 	spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-		Host:     common.Ptr("postgres"),
-		Database: common.Ptr("superset"),
-		Username: common.Ptr("superset"),
-		Password: common.Ptr(sentinelDBPass),
+		Host:     new("postgres"),
+		Database: new("superset"),
+		Username: new("superset"),
+		Password: new(sentinelDBPass),
 	}
 	spec.Valkey = &supersetv1alpha1.ValkeySpec{
 		Host:     "valkey",
-		Password: common.Ptr(sentinelValkey),
+		Password: new(sentinelValkey),
 	}
 	// Exercise every Python config consumer (web-server is already set).
 	spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{}
@@ -87,8 +86,8 @@ func TestReconcile_SecretsNeverLeakIntoConfigMaps(t *testing.T) {
 	spec.McpServer = &supersetv1alpha1.McpServerComponentSpec{}
 
 	superset := &supersetv1alpha1.Superset{
-		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: "default", UID: "uid-1"},
-		Spec:       spec,
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: spec,
 	}
 
 	c := reconcileOnce(t, scheme, superset).Build()
