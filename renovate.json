@@ -136,6 +136,19 @@
     },
     {
       "customType": "regex",
+      "description": "Track the Envoy Gateway Helm chart pinned in the local development setup (kept in sync across the dev setup guide and sample headers)",
+      "managerFilePatterns": [
+        "/^docs/contributing/development-setup\\.md$/",
+        "/^config/samples/(dev-dependencies|kind-cluster)\\.yaml$/"
+      ],
+      "matchStrings": [
+        "oci://docker\\.io/envoyproxy/gateway-helm --version (?<currentValue>v[0-9.]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "envoyproxy/gateway-helm"
+    },
+    {
+      "customType": "regex",
       "description": "Track the e2e curl helper image",
       "managerFilePatterns": ["/^test\\/e2e\\/e2e_suite_test\\.go$/"],
       "matchStrings": [
