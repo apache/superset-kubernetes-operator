@@ -35,6 +35,10 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 - Optional string values in the Helm chart (`image.tag`, `serviceAccount.name`, `logLevel`, `metrics.certSecretName`, `metrics.serviceMonitor.scrapeTimeout`, `dnsPolicy`, `podDisruptionBudget.unhealthyPodEvictionPolicy`) now default to `~` (null) instead of `""`, matching the chart's other unset values. Rendered output is unchanged, and explicit empty strings are still accepted ([#394](https://github.com/apache/superset-kubernetes-operator/pull/394), [@younsl](https://github.com/younsl)).
 - **Celery worker liveness probe.** The Celery worker now gets a default liveness probe that runs `celery inspect ping` against the pod's own worker node, so a worker that stays Running but no longer answers over the broker is restarted. Timings match the upstream Superset Helm chart (120s initial delay, 60s period and timeout, 3 failures). Existing worker Deployments roll once on upgrade, and setting `livenessProbe` on the worker replaces the default ([#427](https://github.com/apache/superset-kubernetes-operator/pull/427), [@younsl](https://github.com/younsl)).
 
+### Fixed
+
+- Credential redaction in lifecycle task failure messages now masks the whole value when a quoted credential key is followed by empty quotes and more characters, such as `{"password": ""hunter2}`. Previously the characters after the empty quotes were left in the parent Superset status and Kubernetes Events ([#437](https://github.com/apache/superset-kubernetes-operator/pull/437), [@younsl](https://github.com/younsl)).
+
 ## 0.3.0 - 2026-09-30
 
 ### Added
