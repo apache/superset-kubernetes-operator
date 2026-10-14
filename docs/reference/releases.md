@@ -34,9 +34,15 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 
 ### Changed
 
+- **Breaking:** Superset 7.0 or later is required. The realtime websocket server, Global Async Queries on the Global Task Framework, and the inherited Celery defaults below all depend on it ([@villebro](https://github.com/villebro)).
+- **Breaking:** the operator-rendered `CeleryConfig` now subclasses Superset's default `CeleryConfig` and overrides only broker and result-backend connectivity, so Superset's task imports, worker settings, and beat schedule (including the 7.0 version-history and soft-delete retention tasks) stay in effect. Imports and beat schedules restated in `spec.config` only to recover Superset's defaults can be removed; extend the inherited values (`CeleryConfig.beat_schedule = {**CeleryConfig.beat_schedule, ...}`) rather than reassigning them unless you intend to drop the defaults ([@villebro](https://github.com/villebro)).
 - **Breaking:** the `websocketServer` component is reconfigured for the GA websocket server (previously marked experimental). It now inherits `spec.image` and runs from the official Superset image, so the custom-image requirement and the `websocketServer.config`/`configFrom` (`config.json`) fields are removed — configure the transport through `spec.realtime.webSocket` (shared JWT secret, URL, allowed origins) instead, and run a Superset 7.0+ image. Its readiness probe now targets `/ready` (liveness stays `/health`) ([@villebro](https://github.com/villebro)).
 - Optional string values in the Helm chart (`image.tag`, `serviceAccount.name`, `logLevel`, `metrics.certSecretName`, `metrics.serviceMonitor.scrapeTimeout`, `dnsPolicy`, `podDisruptionBudget.unhealthyPodEvictionPolicy`) now default to `~` (null) instead of `""`, matching the chart's other unset values. Rendered output is unchanged, and explicit empty strings are still accepted ([#394](https://github.com/apache/superset-kubernetes-operator/pull/394), [@younsl](https://github.com/younsl)).
 - **Celery worker liveness probe.** The Celery worker now gets a default liveness probe that runs `celery inspect ping` against the pod's own worker node, so a worker that stays Running but no longer answers over the broker is restarted. Timings match the upstream Superset Helm chart (120s initial delay, 60s period and timeout, 3 failures). Existing worker Deployments roll once on upgrade, and setting `livenessProbe` on the worker replaces the default ([#427](https://github.com/apache/superset-kubernetes-operator/pull/427), [@younsl](https://github.com/younsl)).
+
+### Fixed
+
+- `DISTRIBUTED_COORDINATION_CONFIG` now passes the Valkey connection as discrete `CACHE_REDIS_*` keys. Superset's coordination backend ignores `CACHE_REDIS_URL`, so distributed locks and Global Task Framework signalling previously fell back to `localhost:6379` ([@villebro](https://github.com/villebro)).
 
 ## 0.3.0 - 2026-09-30
 

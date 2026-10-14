@@ -23,10 +23,14 @@ import (
 	"strings"
 )
 
-// renderCeleryClass writes only the CeleryConfig fields derived from structured
-// Valkey settings. Application-level Celery behavior such as imports, task
-// annotations, and beat schedules belongs in spec.config — except the pieces
-// Global Async Queries requires, which the operator adds when asyncQueries is on.
+// renderCeleryClass writes a CeleryConfig that subclasses Superset's default
+// CeleryConfig and overrides only the connection fields derived from structured
+// Valkey settings. Superset's default task imports, worker settings, and beat
+// schedule (reports, log pruning, version-history and soft-delete retention)
+// therefore stay in effect; spec.config can extend or replace them. Global Async
+// Queries extends the inherited imports and beat schedule. Importing
+// superset.config here is safe: superset_config is loaded from the end of that
+// module, after its CeleryConfig is defined.
 func renderCeleryClass(b *strings.Builder, v *ValkeyInput, hasSSLOpts, asyncQueries bool) {
 	brokerEnabled := !v.CeleryBroker.Disabled
 	resultEnabled := !v.CeleryResultBackend.Disabled
@@ -35,7 +39,10 @@ func renderCeleryClass(b *strings.Builder, v *ValkeyInput, hasSSLOpts, asyncQuer
 	}
 
 	b.WriteString("\n")
-	b.WriteString("class CeleryConfig:\n")
+	b.WriteString("from superset.config import CeleryConfig as _SupersetCeleryConfig\n")
+	b.WriteString("\n")
+	b.WriteString("\n")
+	b.WriteString("class CeleryConfig(_SupersetCeleryConfig):\n")
 	if brokerEnabled {
 		fmt.Fprintf(b, "    broker_url = f\"{_vk_base}/%d\"\n", v.CeleryBroker.Database)
 	}
@@ -55,8 +62,9 @@ func renderCeleryClass(b *strings.Builder, v *ValkeyInput, hasSSLOpts, asyncQuer
 	// tasks.execute) but not async_queries, where the chart-data task lives; the
 	// reaper only runs when it has a short beat schedule.
 	if asyncQueries {
-		b.WriteString("    imports = (\"superset.tasks.async_queries\",)\n")
+		b.WriteString("    imports = (*_SupersetCeleryConfig.imports, \"superset.tasks.async_queries\")\n")
 		b.WriteString("    beat_schedule = {\n")
+		b.WriteString("        **_SupersetCeleryConfig.beat_schedule,\n")
 		b.WriteString("        \"reap_orphaned_tasks\": {\n")
 		b.WriteString("            \"task\": \"reap_orphaned_tasks\",\n")
 		b.WriteString("            \"schedule\": 60.0,\n")

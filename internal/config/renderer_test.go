@@ -240,10 +240,20 @@ func TestRenderConfig_ValkeyMinimal(t *testing.T) {
 	// Distributed coordination backend
 	assertContains(t, result, "DISTRIBUTED_COORDINATION_CONFIG = {")
 	assertContains(t, result, "\"CACHE_KEY_PREFIX\": f\"{_superset_instance}_\" + \"coordination_\"")
-	assertContains(t, result, "\"CACHE_REDIS_URL\": f\"{_vk_base}/7\"")
+	// Superset's coordination backend ignores CACHE_REDIS_URL; it needs discrete keys.
+	coordination := result[strings.Index(result, "DISTRIBUTED_COORDINATION_CONFIG = {"):]
+	coordination = coordination[:strings.Index(coordination, "}\n")]
+	assertContains(t, coordination, "\"CACHE_REDIS_HOST\": _vk_host,")
+	assertContains(t, coordination, "\"CACHE_REDIS_PORT\": _vk_port,")
+	assertContains(t, coordination, "\"CACHE_REDIS_DB\": 7,")
+	assertContains(t, coordination, "\"CACHE_REDIS_USER\": _vk_user,")
+	assertContains(t, coordination, "\"CACHE_REDIS_PASSWORD\": _vk_pass or None,")
+	assertNotContains(t, coordination, "CACHE_REDIS_URL")
+	assertNotContains(t, coordination, "CACHE_REDIS_SSL")
 
 	// Celery
-	assertContains(t, result, "class CeleryConfig:")
+	assertContains(t, result, "from superset.config import CeleryConfig as _SupersetCeleryConfig")
+	assertContains(t, result, "class CeleryConfig(_SupersetCeleryConfig):")
 	assertContains(t, result, "broker_url = f\"{_vk_base}/0\"")
 	assertContains(t, result, "result_backend = f\"{_vk_base}/0\"")
 	assertContains(t, result, "CELERY_CONFIG = CeleryConfig")
@@ -286,22 +296,30 @@ func TestRenderConfig_ValkeyWithSSL(t *testing.T) {
 func TestRenderConfig_ValkeyWithMTLS(t *testing.T) {
 	input := &ConfigInput{
 		Valkey: &ValkeyInput{
-			SSL:                  true,
-			SSLCertRequired:      "required",
-			SSLKeyFile:           "/mnt/tls/client.key.pem",
-			SSLCertFile:          "/mnt/tls/client.crt.pem",
-			SSLCACertFile:        "/mnt/tls/ca.pem",
-			Cache:                ValkeyCacheInput{Database: 1, KeyPrefix: "s_", DefaultTimeout: 300},
-			DataCache:            ValkeyCacheInput{Disabled: true},
-			FilterStateCache:     ValkeyCacheInput{Disabled: true},
-			ExploreFormDataCache: ValkeyCacheInput{Disabled: true},
-			ThumbnailCache:       ValkeyCacheInput{Disabled: true},
-			CeleryBroker:         ValkeyCeleryInput{Database: 0},
-			CeleryResultBackend:  ValkeyCeleryInput{Database: 0},
-			ResultsBackend:       ValkeyResultsInput{Database: 6, KeyPrefix: "r_"},
+			SSL:                     true,
+			SSLCertRequired:         "required",
+			SSLKeyFile:              "/mnt/tls/client.key.pem",
+			SSLCertFile:             "/mnt/tls/client.crt.pem",
+			SSLCACertFile:           "/mnt/tls/ca.pem",
+			Cache:                   ValkeyCacheInput{Database: 1, KeyPrefix: "s_", DefaultTimeout: 300},
+			DataCache:               ValkeyCacheInput{Disabled: true},
+			FilterStateCache:        ValkeyCacheInput{Disabled: true},
+			ExploreFormDataCache:    ValkeyCacheInput{Disabled: true},
+			ThumbnailCache:          ValkeyCacheInput{Disabled: true},
+			DistributedCoordination: ValkeyCacheInput{Database: 7, KeyPrefix: "coordination_", DefaultTimeout: 300},
+			CeleryBroker:            ValkeyCeleryInput{Database: 0},
+			CeleryResultBackend:     ValkeyCeleryInput{Database: 0},
+			ResultsBackend:          ValkeyResultsInput{Database: 6, KeyPrefix: "r_"},
 		},
 	}
 	result := RenderConfig(ComponentWebServer, input)
+
+	// The coordination backend takes TLS settings as discrete keys too.
+	assertContains(t, result, "\"CACHE_REDIS_SSL\": True,")
+	assertContains(t, result, "\"CACHE_REDIS_SSL_CERT_REQS\": \"required\",")
+	assertContains(t, result, "\"CACHE_REDIS_SSL_KEYFILE\": \"/mnt/tls/client.key.pem\",")
+	assertContains(t, result, "\"CACHE_REDIS_SSL_CERTFILE\": \"/mnt/tls/client.crt.pem\",")
+	assertContains(t, result, "\"CACHE_REDIS_SSL_CA_CERTS\": \"/mnt/tls/ca.pem\",")
 
 	assertContains(t, result, "_vk_ssl_opts = {")
 	assertContains(t, result, "\"ssl_cert_reqs\": \"required\"")
@@ -343,7 +361,7 @@ func TestRenderConfig_ValkeyDisabledSections(t *testing.T) {
 	assertNotContains(t, result, "EXPLORE_FORM_DATA_CACHE_CONFIG")
 	assertNotContains(t, result, "THUMBNAIL_CACHE_CONFIG")
 	assertNotContains(t, result, "DISTRIBUTED_COORDINATION_CONFIG")
-	assertNotContains(t, result, "class CeleryConfig:")
+	assertNotContains(t, result, "class CeleryConfig")
 	assertNotContains(t, result, "RESULTS_BACKEND")
 	// No cachelib import when results backend disabled
 	assertNotContains(t, result, "_CachelibRedis")
@@ -611,7 +629,8 @@ func TestRenderConfig_CeleryClass(t *testing.T) {
 			MetastoreMode: MetastorePassthrough,
 			Valkey:        baseValkey,
 		})
-		assertContains(t, result, "class CeleryConfig:")
+		assertContains(t, result, "from superset.config import CeleryConfig as _SupersetCeleryConfig")
+		assertContains(t, result, "class CeleryConfig(_SupersetCeleryConfig):")
 		assertContains(t, result, "    broker_url = f\"{_vk_base}/0\"")
 		assertContains(t, result, "    result_backend = f\"{_vk_base}/0\"")
 		assertContains(t, result, "CELERY_CONFIG = CeleryConfig")
@@ -629,7 +648,7 @@ func TestRenderConfig_CeleryClass(t *testing.T) {
 		result := RenderConfig(ComponentCeleryWorker, &ConfigInput{
 			MetastoreMode: MetastorePassthrough,
 		})
-		assertNotContains(t, result, "class CeleryConfig:")
+		assertNotContains(t, result, "class CeleryConfig")
 		assertNotContains(t, result, "from celery.schedules import crontab")
 	})
 
@@ -643,7 +662,7 @@ func TestRenderConfig_CeleryClass(t *testing.T) {
 				ResultsBackend:      ValkeyResultsInput{Disabled: true},
 			},
 		})
-		assertNotContains(t, result, "class CeleryConfig:")
+		assertNotContains(t, result, "class CeleryConfig")
 		assertNotContains(t, result, "from celery.schedules import crontab")
 	})
 }
@@ -678,8 +697,10 @@ func TestRenderConfig_AsyncQueriesCelery(t *testing.T) {
 			ResultsBackend:      ValkeyResultsInput{Disabled: true},
 		},
 	})
-	assertContains(t, result, `imports = ("superset.tasks.async_queries",)`)
-	assertContains(t, result, "beat_schedule = {")
+	// GAQ extends Superset's default imports and beat schedule rather than replacing them.
+	assertContains(t, result, "class CeleryConfig(_SupersetCeleryConfig):")
+	assertContains(t, result, `imports = (*_SupersetCeleryConfig.imports, "superset.tasks.async_queries")`)
+	assertContains(t, result, "beat_schedule = {\n        **_SupersetCeleryConfig.beat_schedule,")
 	assertContains(t, result, `"reap_orphaned_tasks": {`)
 	assertContains(t, result, `"task": "reap_orphaned_tasks",`)
 }

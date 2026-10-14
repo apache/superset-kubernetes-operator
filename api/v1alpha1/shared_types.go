@@ -256,8 +256,7 @@ type ValkeySpec struct {
 	// KeyPrefix namespaces this deployment's Valkey usage so multiple Superset
 	// instances can safely share one Valkey/Redis. It is prepended to every cache
 	// and results-backend key prefix, the Global Task Framework coordination
-	// channels, and (once the Superset image supports REALTIME_CHANNEL_PREFIX) the
-	// realtime Pub/Sub channel. Defaults to "<namespace>:<name>" (the CR's
+	// channels, and the realtime Pub/Sub channel (REALTIME_CHANNEL_PREFIX). Defaults to "<namespace>:<name>" (the CR's
 	// Kubernetes identity, which is unique cluster-wide). Note that Redis Pub/Sub
 	// is not scoped by database number, so isolating the realtime channel requires
 	// this prefix (or a dedicated instance); Celery queues are namespaced only by

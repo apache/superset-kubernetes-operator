@@ -341,7 +341,6 @@ func renderValkey(b *strings.Builder, v *ValkeyInput, asyncQueries bool) {
 		{"FILTER_STATE_CACHE_CONFIG", v.FilterStateCache},
 		{"EXPLORE_FORM_DATA_CACHE_CONFIG", v.ExploreFormDataCache},
 		{"THUMBNAIL_CACHE_CONFIG", v.ThumbnailCache},
-		{"DISTRIBUTED_COORDINATION_CONFIG", v.DistributedCoordination},
 	}
 	for _, s := range sections {
 		if s.input.Disabled {
@@ -357,6 +356,7 @@ func renderValkey(b *strings.Builder, v *ValkeyInput, asyncQueries bool) {
 		}
 		b.WriteString("}\n")
 	}
+	renderCoordinationConfig(b, v)
 
 	// Celery config.
 	renderCeleryClass(b, v, hasSSLOpts, asyncQueries)
@@ -380,6 +380,45 @@ func renderValkey(b *strings.Builder, v *ValkeyInput, asyncQueries bool) {
 	}
 
 	b.WriteString("\n")
+}
+
+// renderCoordinationConfig writes DISTRIBUTED_COORDINATION_CONFIG. Superset's
+// coordination backend (distributed locks, Global Task Framework signals, and
+// the realtime channel) builds its Redis client from discrete CACHE_REDIS_* keys
+// and ignores CACHE_REDIS_URL, falling back to localhost:6379, so the
+// connection is spelled out field by field here.
+func renderCoordinationConfig(b *strings.Builder, v *ValkeyInput) {
+	c := v.DistributedCoordination
+	if c.Disabled {
+		return
+	}
+	b.WriteString("DISTRIBUTED_COORDINATION_CONFIG = {\n")
+	b.WriteString("    \"CACHE_TYPE\": \"RedisCache\",\n")
+	fmt.Fprintf(b, "    \"CACHE_DEFAULT_TIMEOUT\": %d,\n", c.DefaultTimeout)
+	fmt.Fprintf(b, "    \"CACHE_KEY_PREFIX\": f\"{_superset_instance}_\" + \"%s\",\n", pyQuote(c.KeyPrefix))
+	b.WriteString("    \"CACHE_REDIS_HOST\": _vk_host,\n")
+	b.WriteString("    \"CACHE_REDIS_PORT\": _vk_port,\n")
+	fmt.Fprintf(b, "    \"CACHE_REDIS_DB\": %d,\n", c.Database)
+	b.WriteString("    \"CACHE_REDIS_USER\": _vk_user,\n")
+	b.WriteString("    \"CACHE_REDIS_PASSWORD\": _vk_pass or None,\n")
+	if v.SSL {
+		certReq := v.SSLCertRequired
+		if certReq == "" {
+			certReq = "required"
+		}
+		b.WriteString("    \"CACHE_REDIS_SSL\": True,\n")
+		fmt.Fprintf(b, "    \"CACHE_REDIS_SSL_CERT_REQS\": \"%s\",\n", pyQuote(certReq))
+		if v.SSLKeyFile != "" {
+			fmt.Fprintf(b, "    \"CACHE_REDIS_SSL_KEYFILE\": \"%s\",\n", pyQuote(v.SSLKeyFile))
+		}
+		if v.SSLCertFile != "" {
+			fmt.Fprintf(b, "    \"CACHE_REDIS_SSL_CERTFILE\": \"%s\",\n", pyQuote(v.SSLCertFile))
+		}
+		if v.SSLCACertFile != "" {
+			fmt.Fprintf(b, "    \"CACHE_REDIS_SSL_CA_CERTS\": \"%s\",\n", pyQuote(v.SSLCACertFile))
+		}
+	}
+	b.WriteString("}\n")
 }
 
 // renderEngineOptions writes the SQLALCHEMY_ENGINE_OPTIONS Python configuration.
@@ -409,9 +448,8 @@ func renderEngineOptions(b *strings.Builder, opts *EngineOptionsInput) {
 
 // renderRealtimeChannels namespaces the realtime browser channel and the GTF
 // coordination signal channels by the instance prefix (INSTANCE_NAME), so
-// deployments sharing one Valkey/Redis don't cross-deliver. REALTIME_CHANNEL_PREFIX
-// is consumed by the Superset producer and the websocket server once the image
-// supports it; the TASKS_*_CHANNEL_PREFIX knobs already exist upstream.
+// deployments sharing one Valkey/Redis don't cross-deliver. The websocket server
+// reads the same REALTIME_CHANNEL_PREFIX from its environment.
 func renderRealtimeChannels(b *strings.Builder) {
 	b.WriteString("# Realtime / GTF coordination channel namespacing\n")
 	fmt.Fprintf(b, "_superset_instance = os.environ['%s']\n", common.EnvInstanceName)

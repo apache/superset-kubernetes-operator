@@ -223,7 +223,7 @@ This generates a `superset_config.py` with `CACHE_CONFIG`, `DATA_CACHE_CONFIG`, 
 
 **Instance-scoped key prefixes.** Every rendered `CACHE_KEY_PREFIX` (and the results backend's `key_prefix`) is automatically prefixed with an instance namespace at runtime — e.g. a `Superset` named `prod` in namespace `analytics` produces `analytics:prod_superset_`, `analytics:prod_superset_data_`, `analytics:prod_coordination_`, etc. This prevents key collisions when multiple Superset deployments share a single Valkey instance. The prefix value you set on a section is appended after the instance name; setting `keyPrefix: "myapp_"` on `cache` yields `analytics:prod_myapp_`.
 
-The instance namespace defaults to `<namespace>:<name>` (the CR's Kubernetes identity, unique cluster-wide) and is customizable via `spec.valkey.keyPrefix`. Besides cache/results keys, this prefix also namespaces the Global Task Framework coordination channels (`TASKS_ABORT_CHANNEL_PREFIX`/`TASKS_COMPLETION_CHANNEL_PREFIX`) and the realtime browser Pub/Sub channel (`REALTIME_CHANNEL_PREFIX`, once the Superset image supports it). Because Redis Pub/Sub is **not** scoped by database number, isolating the realtime channel between deployments that share one Valkey/Redis requires this prefix (or a dedicated instance). Celery queues are **not** key-prefixed — on a shared instance give each deployment a distinct `celeryBroker.database`/`celeryResultBackend.database`.
+The instance namespace defaults to `<namespace>:<name>` (the CR's Kubernetes identity, unique cluster-wide) and is customizable via `spec.valkey.keyPrefix`. Besides cache/results keys, this prefix also namespaces the Global Task Framework coordination channels (`TASKS_ABORT_CHANNEL_PREFIX`/`TASKS_COMPLETION_CHANNEL_PREFIX`) and the realtime browser Pub/Sub channel (`REALTIME_CHANNEL_PREFIX`, read by both the Superset app and the websocket server). Because Redis Pub/Sub is **not** scoped by database number, isolating the realtime channel between deployments that share one Valkey/Redis requires this prefix (or a dedicated instance). Celery queues are **not** key-prefixed — on a shared instance give each deployment a distinct `celeryBroker.database`/`celeryResultBackend.database`.
 
 Each section can be individually tuned or disabled:
 
@@ -493,7 +493,7 @@ spec:
 
 ### What the operator renders
 
-When `spec.valkey` is set, the operator renders a `CeleryConfig` class assigned to `CELERY_CONFIG`. This class intentionally contains only managed connectivity:
+When `spec.valkey` is set, the operator renders a `CeleryConfig` class that subclasses Superset's default `CeleryConfig` (from the image's `superset.config`) and assigns it to `CELERY_CONFIG`. The class overrides only managed connectivity:
 
 | Field | Source | Notes |
 |---|---|---|
@@ -501,9 +501,9 @@ When `spec.valkey` is set, the operator renders a `CeleryConfig` class assigned 
 | `result_backend` | `spec.valkey` | same |
 | `broker_use_ssl` / `redis_backend_use_ssl` | `spec.valkey.ssl` | rendered when SSL is configured |
 
-Application-level Celery behavior is not defaulted by the operator. Define imports, task routes, task annotations, acknowledgement behavior, beat schedules, scheduler expiration, and other Celery app settings explicitly in `spec.config`. This keeps the CRD focused on managed connectivity and avoids freezing Superset application defaults into the Kubernetes API.
+Everything else is inherited from the Superset version you deploy: task imports, worker settings, task annotations, and the beat schedule (Alerts & Reports scheduling, log pruning, and version-history and soft-delete retention). New default tasks in a Superset upgrade therefore take effect without operator changes. When `spec.realtime.asyncQueries` is set, the operator also appends `superset.tasks.async_queries` to the inherited imports and adds a 60-second `reap_orphaned_tasks` entry to the inherited beat schedule (see [Realtime](#realtime-global-async-queries-websocket)).
 
-Because assigning `CELERY_CONFIG` replaces Superset's own Celery config class, production deployments that enable Celery should include the Celery app settings they rely on. Put settings needed by multiple Python components in top-level `spec.config`; put Beat-only settings such as `beat_schedule` in `spec.celeryBeat.config` so schedule changes roll only the Celery Beat Deployment. The example below is a starting point; review the `superset_config.py` from the Superset version you deploy and tune it for your environment.
+Customize the class from Python config. Extend the inherited collections rather than reassigning them, unless you intend to drop Superset's defaults. Put settings needed by multiple Python components in top-level `spec.config`, and Beat-only settings such as `beat_schedule` in `spec.celeryBeat.config` so schedule changes roll only the Celery Beat Deployment:
 
 ```yaml
 spec:
@@ -514,49 +514,31 @@ spec:
     config: |
       from celery.schedules import crontab
 
-      CELERY_BEAT_SCHEDULER_EXPIRES = 7 * 24 * 60 * 60
-
       CeleryConfig.beat_schedule = {
-          "reports.scheduler": {
-              "task": "reports.scheduler",
-              "schedule": crontab(minute="*", hour="*"),
-              "options": {"expires": CELERY_BEAT_SCHEDULER_EXPIRES},
-          },
-          "reports.prune_log": {
-              "task": "reports.prune_log",
-              "schedule": crontab(minute=0, hour=0),
+          **CeleryConfig.beat_schedule,
+          "cache-warmup-hourly": {
+              "task": "cache-warmup",
+              "schedule": crontab(minute=1, hour="*"),
+              "kwargs": {"strategy_name": "top_n_dashboards", "top_n": 5, "since": "7 days ago"},
           },
       }
   config: |
-    CeleryConfig.imports = (
-        "superset.sql_lab",
-        "superset.tasks.scheduler",
-        "superset.tasks.thumbnails",
-        "superset.tasks.cache",
-        "superset.tasks.slack",
-    )
-    CeleryConfig.worker_prefetch_multiplier = 1
-    CeleryConfig.task_acks_late = False
-    CeleryConfig.task_annotations = {
-        "sql_lab.get_sql_results": {
-            "rate_limit": "100/s",
-        },
-    }
+    CeleryConfig.imports = (*CeleryConfig.imports, "my_company.superset_tasks")
 ```
 
 #### Without Valkey
 
-When `spec.valkey` is unset, the operator emits no `CeleryConfig` class. Provide both connectivity and app behavior manually via `spec.config`:
+When `spec.valkey` is unset, the operator emits no `CeleryConfig` class. Provide connectivity via `spec.config`, subclassing Superset's default to keep its imports and beat schedule:
 
 ```yaml
 spec:
   config: |
-    from celery.schedules import crontab
-    class CeleryConfig:
+    from superset.config import CeleryConfig as SupersetCeleryConfig
+
+    class CeleryConfig(SupersetCeleryConfig):
         broker_url = "redis://valkey:6379/0"
         result_backend = "redis://valkey:6379/1"
-        imports = ("superset.sql_lab",)
-        beat_schedule = {}
+
     CELERY_CONFIG = CeleryConfig
   celeryWorker: {}
   celeryBeat: {}

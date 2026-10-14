@@ -409,7 +409,7 @@ func collectWebsocketEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVa
 		{Name: envWSPort, Value: fmt.Sprintf("%d", resolveWebsocketPort(superset))},
 		// Namespace the realtime Pub/Sub channel to match the Python side
 		// (REALTIME_CHANNEL_PREFIX) so instances sharing one Valkey/Redis don't
-		// cross-deliver. Consumed by superset-websocket once the image supports it.
+		// cross-deliver.
 		{Name: envWSRealtimeChannelPrefix, Value: valkeyKeyPrefix(spec, defaultInstanceName(superset)) + ":"},
 	}
 

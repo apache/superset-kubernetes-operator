@@ -142,7 +142,7 @@ The operator's intentional gaps each have a straightforward workaround: provisio
 
 The Helm chart exposes one cache DB (`cache.cacheDb`) and one Celery DB (`cache.celeryDb`). The operator gives each Superset cache role its own default DB and key prefix. To preserve Helm-like sharing, set the relevant `spec.valkey.*.database` fields to the same DB numbers you used in Helm.
 
-`spec.valkey` renders managed connectivity for Celery (`broker_url`, `result_backend`, and SSL settings), but it does not recreate Celery application behavior such as imports, task annotations, routes, beat schedules, or scheduler expiration. Carry those settings over explicitly in `spec.config` based on the Superset version you deploy.
+`spec.valkey` renders managed connectivity for Celery (`broker_url`, `result_backend`, and SSL settings) in a `CeleryConfig` that subclasses Superset's default, so Superset's default imports, task annotations, and beat schedule stay in effect. Carry over only your customizations (extra imports, routes, schedule entries) in `spec.config`, extending the inherited values; see [Celery Configuration](configuration.md#what-the-operator-renders).
 
 ### Components
 
