@@ -510,42 +510,6 @@ func TestCollectSecretEnvVars_FromFields(t *testing.T) {
 	})
 }
 
-func TestCollectWebsocketEnvVars_ValkeySecretSelectors(t *testing.T) {
-	superset := &supersetv1alpha1.Superset{
-		Name: "test", Namespace: "default",
-		Spec: supersetv1alpha1.SupersetSpec{
-			Valkey: &supersetv1alpha1.ValkeySpec{
-				HostFrom:     &corev1.SecretKeySelector{Name: "vk", Key: "host"},
-				PortFrom:     &corev1.SecretKeySelector{Name: "vk", Key: "port"},
-				UsernameFrom: &corev1.SecretKeySelector{Name: "vk", Key: "username"},
-				PasswordFrom: &corev1.SecretKeySelector{Name: "vk", Key: "password"},
-			},
-		},
-	}
-
-	envs := map[string]corev1.EnvVar{}
-	for _, e := range collectWebsocketEnvVars(superset) {
-		envs[e.Name] = e
-	}
-	for name, key := range map[string]string{
-		envWSRedisHost: "host",
-		envWSRedisPort: "port",
-		envWSRedisUser: "username",
-		envWSRedisPass: "password",
-	} {
-		e, ok := envs[name]
-		if !ok {
-			t.Fatalf("websocket env %s missing", name)
-		}
-		if e.Value != "" || e.ValueFrom == nil || e.ValueFrom.SecretKeyRef == nil {
-			t.Fatalf("websocket env %s should be a secretKeyRef, got %#v", name, e)
-		}
-		if ref := e.ValueFrom.SecretKeyRef; ref.Name != "vk" || ref.Key != key {
-			t.Fatalf("websocket env %s references %s/%s, want vk/%s", name, ref.Name, ref.Key, key)
-		}
-	}
-}
-
 func envSliceToMap(envs []corev1.EnvVar) map[string]string {
 	m := make(map[string]string)
 	for _, env := range envs {

@@ -49,9 +49,8 @@ import (
 // Development mode is the strict case to test: inline secrets are permitted, so
 // the sentinel values are actually present in the spec and *could* leak if a
 // future change rendered them into superset_config.py instead of referencing
-// the env var. websocketServer is deliberately excluded — its inline config is
-// written to a ConfigMap by design (the documented dev-only exception), so it
-// would invalidate this invariant. See TestReconcile_WebsocketInlineConfig*.
+// the env var. That includes the realtime websocket JWT secret, which reaches
+// both the app and the Node.js websocket server through env vars only.
 func TestReconcile_SecretsNeverLeakIntoConfigMaps(t *testing.T) {
 	scheme := testScheme(t)
 
@@ -61,8 +60,9 @@ func TestReconcile_SecretsNeverLeakIntoConfigMaps(t *testing.T) {
 		sentinelPrevKey   = "SENTINEL0PREVIOUS0KEY"
 		sentinelDBPass    = "SENTINEL0DATABASE0PASSWORD"
 		sentinelValkey    = "SENTINEL0VALKEY0PASSWORD"
+		sentinelWSJWT     = "SENTINEL0WEBSOCKET0JWT0SECRET"
 	)
-	sentinels := []string{sentinelSecretKey, sentinelPrevKey, sentinelDBPass, sentinelValkey}
+	sentinels := []string{sentinelSecretKey, sentinelPrevKey, sentinelDBPass, sentinelValkey, sentinelWSJWT}
 
 	spec := minimalSupersetSpec()
 	spec.Environment = new("Development")
@@ -84,6 +84,10 @@ func TestReconcile_SecretsNeverLeakIntoConfigMaps(t *testing.T) {
 	spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{}
 	spec.CeleryBeat = &supersetv1alpha1.CeleryBeatComponentSpec{}
 	spec.McpServer = &supersetv1alpha1.McpServerComponentSpec{}
+	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+	spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+		WebSocket: &supersetv1alpha1.WebSocketTransportSpec{JWTSecret: new(sentinelWSJWT), URL: new("ws://superset.example.com/ws")},
+	}
 
 	superset := &supersetv1alpha1.Superset{
 		Name: "test", Namespace: "default", UID: "uid-1",
@@ -122,7 +126,7 @@ func TestReconcile_SecretsNeverLeakIntoConfigMaps(t *testing.T) {
 		t.Fatalf("get web-server ConfigMap: %v", err)
 	}
 	pyConfig := webCM.Data["superset_config.py"]
-	for _, want := range []string{common.EnvSecretKey, common.EnvPreviousSecretKey, common.EnvDBPass, common.EnvValkeyPass} {
+	for _, want := range []string{common.EnvSecretKey, common.EnvPreviousSecretKey, common.EnvDBPass, common.EnvValkeyPass, common.EnvWSJWTSecret} {
 		if !strings.Contains(pyConfig, want) {
 			t.Errorf("expected superset_config.py to reference env var %q (os.environ), got:\n%s", want, pyConfig)
 		}
@@ -149,6 +153,16 @@ func TestReconcile_SecretsNeverLeakIntoConfigMaps(t *testing.T) {
 	}
 	if got := envValues[common.EnvValkeyPass]; got != sentinelValkey {
 		t.Errorf("expected %s env Value %q, got %q", common.EnvValkeyPass, sentinelValkey, got)
+	}
+	if got := envValues[common.EnvWSJWTSecret]; got != sentinelWSJWT {
+		t.Errorf("expected %s env Value %q, got %q", common.EnvWSJWTSecret, sentinelWSJWT, got)
+	}
+	wsDeploy := &appsv1.Deployment{}
+	if err := c.Get(ctx, types.NamespacedName{Name: "test-websocket-server", Namespace: "default"}, wsDeploy); err != nil {
+		t.Fatalf("get websocket-server Deployment: %v", err)
+	}
+	if got := envSliceToMap(wsDeploy.Spec.Template.Spec.Containers[0].Env)["JWT_SECRET"]; got != sentinelWSJWT {
+		t.Errorf("expected websocket JWT_SECRET env Value %q, got %q", sentinelWSJWT, got)
 	}
 }
 

@@ -598,6 +598,8 @@ func TestReconcileIngress_ExplicitPathsKeepComponentRoutes(t *testing.T) {
 					Hosts: []supersetv1alpha1.IngressHost{
 						{Host: "superset.example.com", Paths: []supersetv1alpha1.IngressPath{
 							{Path: "/custom", PathType: new(networkingv1.PathTypePrefix)},
+							// A listed path that collides with a component route stays the user's.
+							{Path: "/flower", PathType: new(networkingv1.PathTypePrefix)},
 						}},
 					},
 				},
@@ -616,13 +618,16 @@ func TestReconcileIngress_ExplicitPathsKeepComponentRoutes(t *testing.T) {
 	}
 	backendFor := map[string]string{}
 	for _, p := range ingress.Spec.Rules[0].HTTP.Paths {
+		if _, dup := backendFor[p.Path]; dup {
+			t.Errorf("path %s is routed twice", p.Path)
+		}
 		backendFor[p.Path] = p.Backend.Service.Name
 	}
 	if backendFor["/ws"] != "test-websocket-server" {
 		t.Errorf("expected /ws to route to the websocket server even with custom paths, got %+v", backendFor)
 	}
-	if backendFor["/flower"] != "test-celery-flower" {
-		t.Errorf("expected /flower to remain exposed, got %+v", backendFor)
+	if backendFor["/flower"] != "test-web-server" {
+		t.Errorf("expected the user-listed /flower path to route to the web server, got %+v", backendFor)
 	}
 	if backendFor["/custom"] != "test-web-server" {
 		t.Errorf("expected the user's custom path to route to the web server, got %+v", backendFor)
@@ -1149,6 +1154,26 @@ func TestDeriveWebSocketURL(t *testing.T) {
 				Networking: &supersetv1alpha1.NetworkingSpec{Ingress: &supersetv1alpha1.IngressSpec{Host: "ignored.example.com"}},
 			},
 			want: "wss://custom/socket",
+		},
+		{
+			name: "skips an empty first ingress host",
+			spec: supersetv1alpha1.SupersetSpec{
+				Realtime: &supersetv1alpha1.RealtimeSpec{WebSocket: &supersetv1alpha1.WebSocketTransportSpec{}},
+				Networking: &supersetv1alpha1.NetworkingSpec{Ingress: &supersetv1alpha1.IngressSpec{
+					Hosts: []supersetv1alpha1.IngressHost{{Host: ""}, {Host: "superset.example.com"}},
+				}},
+			},
+			want: "ws://superset.example.com/ws",
+		},
+		{
+			name: "skips wildcard gateway hostnames",
+			spec: supersetv1alpha1.SupersetSpec{
+				Realtime: &supersetv1alpha1.RealtimeSpec{WebSocket: &supersetv1alpha1.WebSocketTransportSpec{}},
+				Networking: &supersetv1alpha1.NetworkingSpec{Gateway: &supersetv1alpha1.GatewaySpec{
+					Hostnames: []gatewayv1.Hostname{"*.example.com", "superset.example.com"},
+				}},
+			},
+			want: "wss://superset.example.com/ws",
 		},
 		{
 			name: "explicit path url is passed through for the browser to resolve",

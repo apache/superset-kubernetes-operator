@@ -140,11 +140,9 @@ func buildConfigInput(spec *supersetv1alpha1.SupersetSpec) *supersetconfig.Confi
 		if ws := spec.Realtime.WebSocket; ws != nil {
 			input.WebSocketEnabled = true
 			input.WebSocketURL = deriveWebSocketURL(spec)
-			if ws.CookieName != nil {
-				input.WebSocketCookieName = *ws.CookieName
-			}
-			if ws.JwtExpirationSeconds != nil {
-				input.WebSocketJwtExpirationSeconds = *ws.JwtExpirationSeconds
+			input.WebSocketCookieName = websocketCookieName(ws)
+			if ws.JWTExpirationSeconds != nil {
+				input.WebSocketJWTExpirationSeconds = *ws.JWTExpirationSeconds
 			}
 		}
 	}
@@ -179,7 +177,7 @@ func buildValkeyInput(v *supersetv1alpha1.ValkeySpec) *supersetconfig.ValkeyInpu
 		FilterStateCache:        resolveValkeyCache(v.FilterStateCache, 3, "superset_filter_", 3600),
 		ExploreFormDataCache:    resolveValkeyCache(v.ExploreFormDataCache, 4, "superset_explore_", 3600),
 		ThumbnailCache:          resolveValkeyCache(v.ThumbnailCache, 5, "superset_thumbnail_", 3600),
-		DistributedCoordination: resolveValkeyCache(v.DistributedCoordination, 7, "coordination_", 300),
+		DistributedCoordination: resolveValkeyCoordination(v),
 		CeleryBroker:            resolveValkeyCelery(v.CeleryBroker, 0),
 		CeleryResultBackend:     resolveValkeyCelery(v.CeleryResultBackend, 0),
 		ResultsBackend:          resolveValkeyResults(v.ResultsBackend, 6, "superset_results_"),
@@ -202,6 +200,13 @@ func buildValkeyInput(v *supersetv1alpha1.ValkeySpec) *supersetconfig.ValkeyInpu
 	}
 
 	return vi
+}
+
+// resolveValkeyCoordination resolves the distributed coordination backend
+// settings. The app (DISTRIBUTED_COORDINATION_CONFIG) and the websocket server
+// (REDIS_DB) must agree on them, so both read them from here.
+func resolveValkeyCoordination(v *supersetv1alpha1.ValkeySpec) supersetconfig.ValkeyCacheInput {
+	return resolveValkeyCache(v.DistributedCoordination, 7, "coordination_", 300)
 }
 
 func resolveValkeyCache(spec *supersetv1alpha1.ValkeyCacheSpec, defaultDB int32, defaultPrefix string, defaultTimeout int32) supersetconfig.ValkeyCacheInput {
@@ -265,8 +270,8 @@ func resolveValkeyResults(spec *supersetv1alpha1.ValkeyResultsBackendSpec, defau
 // --- Secret env var collection ---
 
 // collectSecretEnvVars gathers env vars for SECRET_KEY, metastore fields, valkey, and the
-// instance name. The instance name (spec.valkey.keyPrefix, default the CR name) is the Valkey
-// namespace: it prefixes cache/results keys and coordination/realtime channels, and is exposed
+// instance name. The instance name (spec.valkey.keyPrefix, default instanceDefault, which is
+// <namespace>:<name>) is the Valkey namespace: it prefixes cache/results keys and coordination/realtime channels, and is exposed
 // so admins can compute instance-scoped values (e.g. Celery queue names) from raw Python in spec.config.
 
 // isDevEnvironment reports whether the CR is in Development mode. Inline secret
@@ -278,9 +283,9 @@ func resolveValkeyResults(spec *supersetv1alpha1.ValkeyResultsBackendSpec, defau
 func isDevEnvironment(spec *supersetv1alpha1.SupersetSpec) bool {
 	return spec.Environment != nil && *spec.Environment == naming.EnvironmentDev
 }
-func collectSecretEnvVars(spec *supersetv1alpha1.SupersetSpec, parentName string) []corev1.EnvVar {
+func collectSecretEnvVars(spec *supersetv1alpha1.SupersetSpec, instanceDefault string) []corev1.EnvVar {
 	envs := []corev1.EnvVar{
-		{Name: naming.EnvInstanceName, Value: valkeyKeyPrefix(spec, parentName)},
+		{Name: naming.EnvInstanceName, Value: valkeyKeyPrefix(spec, instanceDefault)},
 	}
 	isDev := isDevEnvironment(spec)
 
@@ -329,36 +334,53 @@ func collectSecretEnvVars(spec *supersetv1alpha1.SupersetSpec, parentName string
 
 	// Valkey env vars.
 	if spec.Valkey != nil {
-		envs = append(envs, literalOrSecretEnv(naming.EnvValkeyHost, &spec.Valkey.Host, spec.Valkey.HostFrom))
-		envs = append(envs, literalInt32OrSecretEnv(naming.EnvValkeyPort, spec.Valkey.Port, spec.Valkey.PortFrom, 6379))
-		if spec.Valkey.Username != nil || spec.Valkey.UsernameFrom != nil {
-			envs = append(envs, literalOrSecretEnv(naming.EnvValkeyUser, spec.Valkey.Username, spec.Valkey.UsernameFrom))
-		}
-		if isDev && spec.Valkey.Password != nil {
-			envs = append(envs, corev1.EnvVar{Name: naming.EnvValkeyPass, Value: *spec.Valkey.Password})
-		} else if spec.Valkey.PasswordFrom != nil {
-			envs = append(envs, corev1.EnvVar{
-				Name:      naming.EnvValkeyPass,
-				ValueFrom: &corev1.EnvVarSource{SecretKeyRef: spec.Valkey.PasswordFrom},
-			})
-		}
+		envs = append(envs, valkeyConnectionEnvVars(spec.Valkey, isDev, valkeyEnvNames{
+			host: naming.EnvValkeyHost, port: naming.EnvValkeyPort, user: naming.EnvValkeyUser, pass: naming.EnvValkeyPass,
+		})...)
 	}
 
 	// SUPERSET_OPERATOR__WS_JWT_SECRET — the app mints the cookie the websocket
 	// server validates, so it needs the same secret.
-	if spec.Realtime != nil && spec.Realtime.WebSocket != nil {
-		ws := spec.Realtime.WebSocket
-		if isDev && ws.JwtSecret != nil {
-			envs = append(envs, corev1.EnvVar{Name: naming.EnvWSJwtSecret, Value: *ws.JwtSecret})
-		} else if ws.JwtSecretFrom != nil {
-			envs = append(envs, corev1.EnvVar{
-				Name:      naming.EnvWSJwtSecret,
-				ValueFrom: &corev1.EnvVarSource{SecretKeyRef: ws.JwtSecretFrom},
-			})
+	if ws := realtimeWebSocket(spec); ws != nil {
+		if env, ok := devLiteralOrSecretEnv(naming.EnvWSJWTSecret, isDev, ws.JWTSecret, ws.JWTSecretFrom); ok {
+			envs = append(envs, env)
 		}
 	}
 
 	return envs
+}
+
+// valkeyEnvNames names the env vars a Valkey connection is projected into.
+type valkeyEnvNames struct{ host, port, user, pass string }
+
+// valkeyConnectionEnvVars projects spec.valkey's connection into env vars, each
+// field from its literal or its Secret selector. The Python components and the
+// websocket server both use it, so they always honor the same fields.
+func valkeyConnectionEnvVars(v *supersetv1alpha1.ValkeySpec, isDev bool, names valkeyEnvNames) []corev1.EnvVar {
+	envs := []corev1.EnvVar{
+		literalOrSecretEnv(names.host, &v.Host, v.HostFrom),
+		literalInt32OrSecretEnv(names.port, v.Port, v.PortFrom, 6379),
+	}
+	if v.Username != nil || v.UsernameFrom != nil {
+		envs = append(envs, literalOrSecretEnv(names.user, v.Username, v.UsernameFrom))
+	}
+	if env, ok := devLiteralOrSecretEnv(names.pass, isDev, v.Password, v.PasswordFrom); ok {
+		envs = append(envs, env)
+	}
+	return envs
+}
+
+// devLiteralOrSecretEnv returns the env var for a secret that is either an
+// inline literal (honored only in Development) or a Secret selector passed
+// through as a secretKeyRef. ok is false when neither applies.
+func devLiteralOrSecretEnv(name string, isDev bool, literal *string, selector *corev1.SecretKeySelector) (corev1.EnvVar, bool) {
+	if isDev && literal != nil {
+		return corev1.EnvVar{Name: name, Value: *literal}, true
+	}
+	if selector != nil {
+		return corev1.EnvVar{Name: name, ValueFrom: &corev1.EnvVarSource{SecretKeyRef: selector}}, true
+	}
+	return corev1.EnvVar{}, false
 }
 
 // valkeyKeyPrefix returns the Valkey namespace for this deployment: the explicit
@@ -403,7 +425,7 @@ const (
 // (DISTRIBUTED_COORDINATION_CONFIG) the Python app uses.
 func collectWebsocketEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVar {
 	spec := &superset.Spec
-	isDev := spec.Environment != nil && *spec.Environment == naming.EnvironmentDev
+	isDev := isDevEnvironment(spec)
 
 	envs := []corev1.EnvVar{
 		{Name: envWSPort, Value: fmt.Sprintf("%d", resolveWebsocketPort(superset))},
@@ -418,42 +440,33 @@ func collectWebsocketEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVa
 	}
 
 	if ws := realtimeWebSocket(spec); ws != nil {
-		cookie := defaultWSCookie
-		if ws.CookieName != nil {
-			cookie = *ws.CookieName
-		}
-		envs = append(envs, corev1.EnvVar{Name: envWSJWTCookie, Value: cookie})
-		if isDev && ws.JwtSecret != nil {
-			envs = append(envs, corev1.EnvVar{Name: envWSJWTSecret, Value: *ws.JwtSecret})
-		} else if ws.JwtSecretFrom != nil {
-			envs = append(envs, corev1.EnvVar{
-				Name:      envWSJWTSecret,
-				ValueFrom: &corev1.EnvVarSource{SecretKeyRef: ws.JwtSecretFrom},
-			})
+		envs = append(envs, corev1.EnvVar{Name: envWSJWTCookie, Value: websocketCookieName(ws)})
+		if env, ok := devLiteralOrSecretEnv(envWSJWTSecret, isDev, ws.JWTSecret, ws.JWTSecretFrom); ok {
+			envs = append(envs, env)
 		}
 	}
 
 	if v := spec.Valkey; v != nil {
-		envs = append(envs, literalOrSecretEnv(envWSRedisHost, &v.Host, v.HostFrom))
-		envs = append(envs, literalInt32OrSecretEnv(envWSRedisPort, v.Port, v.PortFrom, 6379))
-		envs = append(envs, corev1.EnvVar{Name: envWSRedisDB, Value: fmt.Sprintf("%d", resolveValkeyCache(v.DistributedCoordination, 7, "coordination_", 300).Database)})
-		if v.Username != nil || v.UsernameFrom != nil {
-			envs = append(envs, literalOrSecretEnv(envWSRedisUser, v.Username, v.UsernameFrom))
-		}
-		if isDev && v.Password != nil {
-			envs = append(envs, corev1.EnvVar{Name: envWSRedisPass, Value: *v.Password})
-		} else if v.PasswordFrom != nil {
-			envs = append(envs, corev1.EnvVar{
-				Name:      envWSRedisPass,
-				ValueFrom: &corev1.EnvVarSource{SecretKeyRef: v.PasswordFrom},
-			})
-		}
+		envs = append(envs, valkeyConnectionEnvVars(v, isDev, valkeyEnvNames{
+			host: envWSRedisHost, port: envWSRedisPort, user: envWSRedisUser, pass: envWSRedisPass,
+		})...)
+		envs = append(envs, corev1.EnvVar{Name: envWSRedisDB, Value: fmt.Sprintf("%d", resolveValkeyCoordination(v).Database)})
 		if v.SSL != nil {
 			envs = append(envs, corev1.EnvVar{Name: envWSRedisSSL, Value: "true"})
 		}
 	}
 
 	return envs
+}
+
+// websocketCookieName returns the JWT cookie name shared by the app and the
+// websocket server. Both sides are given this value explicitly so they cannot
+// drift apart.
+func websocketCookieName(ws *supersetv1alpha1.WebSocketTransportSpec) string {
+	if ws.CookieName != nil && *ws.CookieName != "" {
+		return *ws.CookieName
+	}
+	return defaultWSCookie
 }
 
 // realtimeWebSocket returns spec.realtime.webSocket, or nil when unset.

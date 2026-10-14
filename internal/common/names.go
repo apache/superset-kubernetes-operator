@@ -128,7 +128,7 @@ const (
 	// Realtime websocket JWT secret, shared by the Flask app (mints the cookie)
 	// and the websocket server (validates it). Rendered into superset_config.py
 	// as WEBSOCKET_JWT_SECRET for Python components.
-	EnvWSJwtSecret = "SUPERSET_OPERATOR__WS_JWT_SECRET"
+	EnvWSJWTSecret = "SUPERSET_OPERATOR__WS_JWT_SECRET"
 
 	// Admin user operator-internal transport vars (used by init command construction).
 	EnvAdminUsername  = "SUPERSET_OPERATOR__ADMIN_USERNAME"

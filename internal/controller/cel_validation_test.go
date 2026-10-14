@@ -789,7 +789,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
 			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
 				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
-					JwtSecretFrom: secretRef("ws", "jwt"),
+					JWTSecretFrom: secretRef("ws", "jwt"),
 					URL:           new("wss://x/ws"),
 				},
 			}
@@ -812,7 +812,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
 			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
 				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
-					JwtSecret: new("plain-secret"),
+					JWTSecret: new("plain-secret"),
 					URL:       new("wss://x/ws"),
 				},
 			}
@@ -827,8 +827,8 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
 			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
 				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
-					JwtSecret:     new("plain-secret"),
-					JwtSecretFrom: secretRef("ws", "jwt"),
+					JWTSecret:     new("plain-secret"),
+					JWTSecretFrom: secretRef("ws", "jwt"),
 					URL:           new("wss://x/ws"),
 				},
 			}
@@ -842,7 +842,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
 			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
 			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
-				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{JwtSecretFrom: secretRef("ws", "jwt")},
+				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{JWTSecretFrom: secretRef("ws", "jwt")},
 			}
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
@@ -858,7 +858,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
 				AsyncQueries: &supersetv1alpha1.AsyncQueriesSpec{},
 				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
-					JwtSecretFrom: secretRef("ws", "jwt"),
+					JWTSecretFrom: secretRef("ws", "jwt"),
 					URL:           new("wss://superset.example.com/ws"),
 				},
 			}
@@ -898,7 +898,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
 			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
 			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
-				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{JwtSecretFrom: secretRef("ws", "jwt")},
+				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{JWTSecretFrom: secretRef("ws", "jwt")},
 			}
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 		})
@@ -925,7 +925,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
 			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
 				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
-					JwtSecretFrom: secretRef("ws", "jwt"),
+					JWTSecretFrom: secretRef("ws", "jwt"),
 					URL:           new("wss:///ws"),
 				},
 			}
@@ -940,7 +940,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
 			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
 				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
-					JwtSecretFrom:  secretRef("ws", "jwt"),
+					JWTSecretFrom:  secretRef("ws", "jwt"),
 					URL:            new("wss://superset.example.com/ws"),
 					AllowedOrigins: []string{"https://example.com/path"},
 				},
@@ -950,81 +950,113 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			Expect(err.Error()).To(ContainSubstring("allowedOrigins"))
 		})
 
-		// realtimeWS builds a minimal valid webSocket-enabled spec on cr.
-		realtimeWS := func(cr *supersetv1alpha1.Superset, ws *supersetv1alpha1.WebSocketTransportSpec) {
+		// realtimeWS returns a CR with the websocket transport wired as ws, in
+		// Development (dev) or Production.
+		realtimeWS := func(name string, dev bool, ws *supersetv1alpha1.WebSocketTransportSpec) *supersetv1alpha1.Superset {
+			cr := validProdSuperset(name)
+			if dev {
+				cr = validDevSuperset(name)
+			}
 			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
 			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
 			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{WebSocket: ws}
+			return cr
 		}
+		jwtFrom := func() *corev1.SecretKeySelector { return secretRef("ws", "jwt") }
 
-		It("rejects the wildcard origin outside Development", func() {
-			cr := validProdSuperset("rt-origin-any-prod")
-			realtimeWS(cr, &supersetv1alpha1.WebSocketTransportSpec{
-				JwtSecretFrom:  secretRef("ws", "jwt"),
-				URL:            new("/ws"),
-				AllowedOrigins: []string{"*"},
-			})
-			err := k8sClient.Create(ctx, cr)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("only allowed when environment is Development"))
-		})
+		DescribeTable("rejects invalid realtime settings",
+			func(build func() *supersetv1alpha1.Superset, want string) {
+				err := k8sClient.Create(ctx, build())
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring(want))
+			},
+			Entry("wildcard origin outside Development", func() *supersetv1alpha1.Superset {
+				return realtimeWS("rt-any-origin-prod", false, &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecretFrom: jwtFrom(), URL: new("/ws"), AllowedOrigins: []string{"*"},
+				})
+			}, "only allowed when environment is Development"),
+			Entry("wildcard origin alongside other origins", func() *supersetv1alpha1.Superset {
+				return realtimeWS("rt-any-origin-mixed", true, &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecret: new("dev-secret"), URL: new("/ws"), AllowedOrigins: []string{"*", "https://example.com"},
+				})
+			}, "must be the only entry"),
+			Entry("empty allowedOrigins", func() *supersetv1alpha1.Superset {
+				return realtimeWS("rt-empty-origins", false, &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecretFrom: jwtFrom(), URL: new("/ws"), AllowedOrigins: []string{},
+				})
+			}, "allowedOrigins"),
+			Entry("path url without an origin source", func() *supersetv1alpha1.Superset {
+				return realtimeWS("rt-path-no-origin", false, &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecretFrom: jwtFrom(), URL: new("/ws"),
+				})
+			}, "resolvable websocket host"),
+			Entry("allowedOrigins without a url", func() *supersetv1alpha1.Superset {
+				return realtimeWS("rt-origins-no-url", false, &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecretFrom: jwtFrom(), AllowedOrigins: []string{"https://superset.example.com"},
+				})
+			}, "resolvable websocket host"),
+			Entry("only a wildcard gateway hostname", func() *supersetv1alpha1.Superset {
+				cr := realtimeWS("rt-wildcard-gateway", false, &supersetv1alpha1.WebSocketTransportSpec{JWTSecretFrom: jwtFrom()})
+				cr.Spec.Networking = &supersetv1alpha1.NetworkingSpec{Gateway: &supersetv1alpha1.GatewaySpec{
+					GatewayRef: gatewayv1.ParentReference{Name: "gw"},
+					Hostnames:  []gatewayv1.Hostname{"*.example.com"},
+				}}
+				return cr
+			}, "resolvable websocket host"),
+			Entry("protocol-relative url", func() *supersetv1alpha1.Superset {
+				return realtimeWS("rt-url-protocol-relative", true, &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecret: new("dev-secret"), URL: new("//evil.example.com/ws"), AllowedOrigins: []string{"*"},
+				})
+			}, "webSocket.url"),
+			Entry("cookieName that is not a cookie token", func() *supersetv1alpha1.Superset {
+				return realtimeWS("rt-bad-cookie", false, &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecretFrom: jwtFrom(), URL: new("wss://superset.example.com/ws"), CookieName: new("bad cookie"),
+				})
+			}, "cookieName"),
+			Entry("non-positive jwtExpirationSeconds", func() *supersetv1alpha1.Superset {
+				return realtimeWS("rt-bad-jwt-ttl", false, &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecretFrom: jwtFrom(), URL: new("wss://superset.example.com/ws"), JWTExpirationSeconds: new(int32(0)),
+				})
+			}, "jwtExpirationSeconds"),
+			Entry("webSocket with distributedCoordination disabled", func() *supersetv1alpha1.Superset {
+				cr := realtimeWS("rt-ws-coord-disabled", false, &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecretFrom: jwtFrom(), URL: new("wss://superset.example.com/ws"),
+				})
+				cr.Spec.Valkey.DistributedCoordination = &supersetv1alpha1.ValkeyCacheSpec{Disabled: new(true)}
+				return cr
+			}, "distributedCoordination enabled"),
+			Entry("asyncQueries without the managed Celery broker", func() *supersetv1alpha1.Superset {
+				cr := validProdSuperset("rt-async-no-broker")
+				cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
+					Host:         "valkey",
+					CeleryBroker: &supersetv1alpha1.ValkeyCelerySpec{Disabled: new(true)},
+				}
+				cr.Spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{}
+				cr.Spec.CeleryBeat = &supersetv1alpha1.CeleryBeatComponentSpec{}
+				cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{AsyncQueries: &supersetv1alpha1.AsyncQueriesSpec{}}
+				return cr
+			}, "managed Celery broker"),
+		)
 
-		It("rejects the wildcard origin alongside other origins", func() {
-			cr := validDevSuperset("rt-origin-any-mixed")
-			realtimeWS(cr, &supersetv1alpha1.WebSocketTransportSpec{
-				JwtSecret:      new("dev-secret"),
-				URL:            new("/ws"),
-				AllowedOrigins: []string{"*", "https://example.com"},
-			})
-			err := k8sClient.Create(ctx, cr)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("must be the only entry"))
-		})
-
-		It("accepts a path url with the wildcard origin in Development", func() {
-			cr := validDevSuperset("rt-path-any-dev")
-			realtimeWS(cr, &supersetv1alpha1.WebSocketTransportSpec{
-				JwtSecret:      new("dev-secret"),
-				URL:            new("/ws"),
-				AllowedOrigins: []string{"*"},
-			})
-			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
-			Expect(k8sClient.Delete(ctx, cr)).To(Succeed())
-		})
-
-		It("accepts a path url with a base URL in Production", func() {
-			cr := validProdSuperset("rt-path-baseurl")
-			cr.Spec.BaseURL = new("https://superset.example.com")
-			realtimeWS(cr, &supersetv1alpha1.WebSocketTransportSpec{
-				JwtSecretFrom: secretRef("ws", "jwt"),
-				URL:           new("/ws"),
-			})
-			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
-			Expect(k8sClient.Delete(ctx, cr)).To(Succeed())
-		})
-
-		It("rejects a path url without any origin source", func() {
-			cr := validProdSuperset("rt-path-no-origin")
-			realtimeWS(cr, &supersetv1alpha1.WebSocketTransportSpec{
-				JwtSecretFrom: secretRef("ws", "jwt"),
-				URL:           new("/ws"),
-			})
-			err := k8sClient.Create(ctx, cr)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("resolvable websocket host"))
-		})
-
-		It("rejects a protocol-relative webSocket.url", func() {
-			cr := validDevSuperset("rt-url-protocol-relative")
-			realtimeWS(cr, &supersetv1alpha1.WebSocketTransportSpec{
-				JwtSecret:      new("dev-secret"),
-				URL:            new("//evil.example.com/ws"),
-				AllowedOrigins: []string{"*"},
-			})
-			err := k8sClient.Create(ctx, cr)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("webSocket.url"))
-		})
+		DescribeTable("accepts same-origin websocket settings",
+			func(build func() *supersetv1alpha1.Superset) {
+				cr := build()
+				Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+				Expect(k8sClient.Delete(ctx, cr)).To(Succeed())
+			},
+			Entry("path url with the wildcard origin in Development", func() *supersetv1alpha1.Superset {
+				return realtimeWS("rt-path-any-dev", true, &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecret: new("dev-secret"), URL: new("/ws"), AllowedOrigins: []string{"*"},
+				})
+			}),
+			Entry("path url with a base URL in Production", func() *supersetv1alpha1.Superset {
+				cr := realtimeWS("rt-path-baseurl", false, &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecretFrom: jwtFrom(), URL: new("/ws"),
+				})
+				cr.Spec.BaseURL = new("https://superset.example.com")
+				return cr
+			}),
+		)
 
 		It("rejects webSocket relying on an ingress host that is empty", func() {
 			cr := validProdSuperset("rt-empty-ingress-host")
@@ -1032,7 +1064,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
 			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
 			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
-				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{JwtSecretFrom: secretRef("ws", "jwt")},
+				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{JWTSecretFrom: secretRef("ws", "jwt")},
 			}
 			cr.Spec.Networking = &supersetv1alpha1.NetworkingSpec{
 				Ingress: &supersetv1alpha1.IngressSpec{
@@ -1097,7 +1129,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 					s.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
 					s.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
 						WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
-							JwtSecretFrom: secretRef("ws", "jwt"),
+							JWTSecretFrom: secretRef("ws", "jwt"),
 							URL:           new("wss://x/ws"),
 						},
 					}

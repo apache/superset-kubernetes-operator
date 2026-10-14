@@ -27,9 +27,11 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/events"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
@@ -55,6 +57,12 @@ func TestReconcile_CreatesParentOwnedComponentResources(t *testing.T) {
 	spec.Valkey = &supersetv1alpha1.ValkeySpec{
 		HostFrom: connectionRef("valkey-connection", "endpoint"), PortFrom: connectionRef("valkey-connection", "port"),
 		UsernameFrom: connectionRef("valkey-connection", "username"), PasswordFrom: connectionRef("valkey-connection", "password"),
+	}
+	spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+		WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
+			JWTSecretFrom: connectionRef("websocket-jwt", "secret"),
+			URL:           new("wss://superset.example.com/ws"),
+		},
 	}
 
 	superset := &supersetv1alpha1.Superset{
@@ -87,19 +95,28 @@ func TestReconcile_CreatesParentOwnedComponentResources(t *testing.T) {
 				t.Errorf("Deployment %s: expected default exec liveness probe, got %+v", name, probe)
 			}
 		}
-		if name == "test-websocket-server" { // Node.js; does not consume Superset Python connection config.
-			continue
-		}
 		wantRefs := map[string]struct{ secret, key string }{
-			common.EnvDBHost:     {"db-endpoint", "host"},
-			common.EnvDBPort:     {"db-endpoint", "port"},
-			common.EnvDBName:     {"db-credentials", "dbname"},
-			common.EnvDBUser:     {"db-credentials", "user"},
-			common.EnvDBPass:     {"db-credentials", "password"},
-			common.EnvValkeyHost: {"valkey-connection", "endpoint"},
-			common.EnvValkeyPort: {"valkey-connection", "port"},
-			common.EnvValkeyUser: {"valkey-connection", "username"},
-			common.EnvValkeyPass: {"valkey-connection", "password"},
+			common.EnvDBHost:      {"db-endpoint", "host"},
+			common.EnvDBPort:      {"db-endpoint", "port"},
+			common.EnvDBName:      {"db-credentials", "dbname"},
+			common.EnvDBUser:      {"db-credentials", "user"},
+			common.EnvDBPass:      {"db-credentials", "password"},
+			common.EnvValkeyHost:  {"valkey-connection", "endpoint"},
+			common.EnvValkeyPort:  {"valkey-connection", "port"},
+			common.EnvValkeyUser:  {"valkey-connection", "username"},
+			common.EnvValkeyPass:  {"valkey-connection", "password"},
+			common.EnvWSJWTSecret: {"websocket-jwt", "secret"},
+		}
+		if name == "test-websocket-server" {
+			// The Node.js server reads the same Valkey connection and JWT secret
+			// under its own env names.
+			wantRefs = map[string]struct{ secret, key string }{
+				"REDIS_HOST":     {"valkey-connection", "endpoint"},
+				"REDIS_PORT":     {"valkey-connection", "port"},
+				"REDIS_USERNAME": {"valkey-connection", "username"},
+				"REDIS_PASSWORD": {"valkey-connection", "password"},
+				"JWT_SECRET":     {"websocket-jwt", "secret"},
+			}
 		}
 		for _, env := range deploy.Spec.Template.Spec.Containers[0].Env {
 			want, ok := wantRefs[env.Name]
@@ -161,16 +178,28 @@ func TestReconcile_WebsocketInjectsRealtimeEnvAndUsesMainImage(t *testing.T) {
 	spec.Environment = new("Development")
 	spec.BaseURL = new("https://superset.example.com")
 	spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey", Password: new("vk-pass")}
-	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+	// A container port override must flow into the server's PORT env.
+	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
+		PodTemplate: &supersetv1alpha1.PodTemplate{
+			Container: &supersetv1alpha1.ContainerTemplate{
+				Ports: []corev1.ContainerPort{{Name: "http", ContainerPort: 9090}},
+			},
+		},
+	}
 	spec.Realtime = &supersetv1alpha1.RealtimeSpec{
-		WebSocket: &supersetv1alpha1.WebSocketTransportSpec{JwtSecret: new("dev-ws-secret")},
+		WebSocket: &supersetv1alpha1.WebSocketTransportSpec{JWTSecret: new("dev-ws-secret")},
 	}
 	superset := &supersetv1alpha1.Superset{
 		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: spec,
 	}
 
-	c := reconcileOnce(t, scheme, superset).Build()
+	// A ConfigMap left by the removed config.json model must be cleaned up.
+	legacy := &corev1.ConfigMap{Name: "test-websocket-server-config", Namespace: "default"}
+	if err := controllerutil.SetControllerReference(superset, legacy, scheme); err != nil {
+		t.Fatalf("set owner: %v", err)
+	}
+	c := reconcileOnce(t, scheme, superset).WithObjects(legacy).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r)
 
@@ -196,7 +225,7 @@ func TestReconcile_WebsocketInjectsRealtimeEnvAndUsesMainImage(t *testing.T) {
 		"JWT_SECRET":              "dev-ws-secret",
 		"REDIS_HOST":              "valkey",
 		"REDIS_DB":                "7",
-		"PORT":                    "8080",
+		"PORT":                    "9090",
 		"ALLOWED_ORIGINS":         "https://superset.example.com",
 		"REALTIME_CHANNEL_PREFIX": "default:test:",
 	} {
@@ -207,6 +236,9 @@ func TestReconcile_WebsocketInjectsRealtimeEnvAndUsesMainImage(t *testing.T) {
 
 	if deploy.Spec.Template.Annotations[common.AnnotationConfigChecksum] == "" {
 		t.Fatal("expected websocket workload checksum annotation")
+	}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server-config", Namespace: "default"}, &corev1.ConfigMap{}); !apierrors.IsNotFound(err) {
+		t.Fatalf("expected the legacy websocket ConfigMap to be deleted, got %v", err)
 	}
 }
 
@@ -220,7 +252,7 @@ func TestReconcile_ValkeyKeyPrefixNamespacesInstance(t *testing.T) {
 	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
 	spec.Realtime = &supersetv1alpha1.RealtimeSpec{
 		AsyncQueries: &supersetv1alpha1.AsyncQueriesSpec{},
-		WebSocket:    &supersetv1alpha1.WebSocketTransportSpec{JwtSecret: new("dev-ws-secret"), URL: new("wss://x/ws")},
+		WebSocket:    &supersetv1alpha1.WebSocketTransportSpec{JWTSecret: new("dev-ws-secret"), URL: new("wss://x/ws")},
 	}
 	superset := &supersetv1alpha1.Superset{
 		Name: "test", Namespace: "default", UID: "uid-1",
@@ -254,7 +286,7 @@ func TestReconcile_ValkeyKeyPrefixNamespacesInstance(t *testing.T) {
 	}
 }
 
-func TestReconcile_WebsocketJwtSecretFromRendersWebsocketEnableInApp(t *testing.T) {
+func TestReconcile_WebsocketJWTSecretFromRendersWebsocketEnableInApp(t *testing.T) {
 	scheme := testScheme(t)
 
 	spec := minimalSupersetSpec()
@@ -268,7 +300,7 @@ func TestReconcile_WebsocketJwtSecretFromRendersWebsocketEnableInApp(t *testing.
 	spec.Realtime = &supersetv1alpha1.RealtimeSpec{
 		AsyncQueries: &supersetv1alpha1.AsyncQueriesSpec{},
 		WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
-			JwtSecretFrom: &corev1.SecretKeySelector{Name: "ws", Key: "jwt"},
+			JWTSecretFrom: &corev1.SecretKeySelector{Name: "ws", Key: "jwt"},
 		},
 	}
 	superset := &supersetv1alpha1.Superset{
@@ -307,8 +339,13 @@ func TestReconcile_BootstrapScriptAppliesToPythonComponentsOnly(t *testing.T) {
 	spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{
 		BootstrapScript: new("echo worker"),
 	}
-	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
-		Image: &supersetv1alpha1.ImageOverrideSpec{Repository: new("example.com/superset-websocket")},
+	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+	spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
+	spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+		WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
+			JWTSecretFrom: &corev1.SecretKeySelector{Name: "ws", Key: "jwt"},
+			URL:           new("wss://superset.example.com/ws"),
+		},
 	}
 	superset := &supersetv1alpha1.Superset{
 		Name: "test", Namespace: "default", UID: "uid-1",

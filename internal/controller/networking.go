@@ -161,44 +161,37 @@ func stripLegacySupersetOwnerRefs(refs []metav1.OwnerReference) []metav1.OwnerRe
 	return kept
 }
 
-// resolveWebServerPort returns the resolved web-server container port, taking
-// into account top-level and per-component pod template port overrides. Mirrors
-// the port resolution used by the generic component Service reconciler so the
-// parent-owned web-server Service, the rendered SUPERSET_WEBSERVER_PORT, and
-// the rendered Deployment container port all agree.
+// resolveWebServerPort returns the resolved web-server container port. The
+// parent-owned web-server Service, the rendered SUPERSET_WEBSERVER_PORT, and the
+// Deployment container port all use it, so they agree.
 func resolveWebServerPort(superset *supersetv1alpha1.Superset) int32 {
 	if superset == nil || superset.Spec.WebServer == nil {
 		return common.PortWebServer
 	}
-	topLevel := convertTopLevelSpec(&superset.Spec)
-	accessor := webServerDescriptor.extract(&superset.Spec)
-	flat := resolution.ResolveComponentSpec(
-		common.ComponentWebServer, topLevel, convertComponent(accessor),
-		nil, &resolution.OperatorInjected{},
-	)
-	if flat != nil && flat.PodTemplate != nil && flat.PodTemplate.Container != nil && len(flat.PodTemplate.Container.Ports) > 0 {
-		return flat.PodTemplate.Container.Ports[0].ContainerPort
-	}
-	return common.PortWebServer
+	return resolveComponentPort(superset, webServerDescriptor, common.ComponentWebServer, common.PortWebServer)
 }
 
-// resolveWebsocketPort returns the resolved websocket-server container port,
-// honoring per-component pod template port overrides, so the injected PORT env
-// var matches the container port the Service and probes target.
+// resolveWebsocketPort returns the resolved websocket-server container port, so
+// the injected PORT env var matches the port the Service and probes target.
 func resolveWebsocketPort(superset *supersetv1alpha1.Superset) int32 {
 	if superset == nil || superset.Spec.WebsocketServer == nil {
 		return common.PortWebsocket
 	}
-	topLevel := convertTopLevelSpec(&superset.Spec)
-	accessor := websocketServerDescriptor.extract(&superset.Spec)
+	return resolveComponentPort(superset, websocketServerDescriptor, common.ComponentWebsocketServer, common.PortWebsocket)
+}
+
+// resolveComponentPort returns a component's main container port after
+// top-level and per-component pod template overrides are merged, the same way
+// the component's Deployment and Service resolve it.
+func resolveComponentPort(superset *supersetv1alpha1.Superset, desc *componentDescriptor, component common.ComponentType, defaultPort int32) int32 {
 	flat := resolution.ResolveComponentSpec(
-		common.ComponentWebsocketServer, topLevel, convertComponent(accessor),
+		component, convertTopLevelSpec(&superset.Spec), convertComponent(desc.extract(&superset.Spec)),
 		nil, &resolution.OperatorInjected{},
 	)
 	if flat != nil && flat.PodTemplate != nil && flat.PodTemplate.Container != nil && len(flat.PodTemplate.Container.Ports) > 0 {
 		return flat.PodTemplate.Container.Ports[0].ContainerPort
 	}
-	return common.PortWebsocket
+	return defaultPort
 }
 
 func (r *SupersetReconciler) reconcileHTTPRoute(ctx context.Context, superset *supersetv1alpha1.Superset) error {
@@ -266,8 +259,8 @@ const (
 // realtime.webSocket.url wins; otherwise it is built from the external host
 // (spec.baseUrl, else spec.networking) and the websocket route path (default
 // /ws). The browser must reach the socket on the same host as Superset so the
-// JWT cookie is shared. Returns "" when no host is resolvable (the caller
-// renders WEBSOCKET_ENABLE without a URL and logs).
+// JWT cookie is shared. Returns "" when no host is resolvable; CEL admission
+// requires a host source whenever realtime.webSocket is set.
 func deriveWebSocketURL(spec *supersetv1alpha1.SupersetSpec) string {
 	if ws := realtimeWebSocket(spec); ws != nil && ws.URL != nil && *ws.URL != "" {
 		return *ws.URL
@@ -356,24 +349,33 @@ func externalHostScheme(spec *supersetv1alpha1.SupersetSpec) (scheme, host strin
 	}
 	switch {
 	case spec.Networking.Gateway != nil:
-		if len(spec.Networking.Gateway.Hostnames) > 0 {
-			return schemeHTTPS, string(spec.Networking.Gateway.Hostnames[0]) // Gateways typically terminate TLS.
+		for _, h := range spec.Networking.Gateway.Hostnames {
+			if concreteHost(string(h)) {
+				return schemeHTTPS, string(h) // Gateways typically terminate TLS.
+			}
 		}
 	case spec.Networking.Ingress != nil:
 		ing := spec.Networking.Ingress
-		h := ing.Host
-		if h == "" && len(ing.Hosts) > 0 {
-			h = ing.Hosts[0].Host
+		s := schemeHTTP
+		if len(ing.TLS) > 0 {
+			s = schemeHTTPS
 		}
-		if h != "" {
-			s := schemeHTTP
-			if len(ing.TLS) > 0 {
-				s = schemeHTTPS
+		if concreteHost(ing.Host) {
+			return s, ing.Host
+		}
+		for _, h := range ing.Hosts {
+			if concreteHost(h.Host) {
+				return s, h.Host
 			}
-			return s, h
 		}
 	}
 	return "", ""
+}
+
+// concreteHost reports whether h names a single browser-reachable host: not
+// empty and not a wildcard. Mirrors the CEL host-source rule on SupersetSpec.
+func concreteHost(h string) bool {
+	return h != "" && !strings.HasPrefix(h, "*")
 }
 
 // flowerHealthPath returns Flower's HTTP health endpoint. Flower runs with
@@ -544,7 +546,7 @@ func (r *SupersetReconciler) reconcileIngress(ctx context.Context, superset *sup
 		// /flower) are always exposed. A host without explicit Paths also gets the
 		// web server's "/" catch-all; a host with explicit Paths routes those paths
 		// to the web server instead (user-controlled web routing), while still
-		// keeping the component routes above.
+		// keeping the component routes, except any path the user listed.
 		componentRoutes := componentRoutesExcludingWebServer(superset)
 		for _, h := range hosts {
 			rule := networkingv1.IngressRule{
@@ -553,6 +555,9 @@ func (r *SupersetReconciler) reconcileIngress(ctx context.Context, superset *sup
 			}
 
 			for _, rt := range componentRoutes {
+				if slices.ContainsFunc(h.Paths, func(p supersetv1alpha1.IngressPath) bool { return p.Path == rt.path }) {
+					continue
+				}
 				rule.HTTP.Paths = append(rule.HTTP.Paths, ingressPath(rt.path, networkingv1.PathTypePrefix, rt.svcName, rt.port))
 			}
 

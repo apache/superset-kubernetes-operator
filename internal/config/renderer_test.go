@@ -248,8 +248,12 @@ func TestRenderConfig_ValkeyMinimal(t *testing.T) {
 	assertContains(t, coordination, "\"CACHE_REDIS_DB\": 7,")
 	assertContains(t, coordination, "\"CACHE_REDIS_USER\": _vk_user,")
 	assertContains(t, coordination, "\"CACHE_REDIS_PASSWORD\": _vk_pass or None,")
-	assertNotContains(t, coordination, "CACHE_REDIS_URL")
 	assertNotContains(t, coordination, "CACHE_REDIS_SSL")
+
+	// The coordination backend's Pub/Sub channels are namespaced by the instance
+	// prefix even without realtime, so instances sharing a Valkey stay isolated.
+	assertContains(t, result, `TASKS_ABORT_CHANNEL_PREFIX = f"{_superset_instance}:gtf:abort:"`)
+	assertContains(t, result, `REALTIME_CHANNEL_PREFIX = f"{_superset_instance}:"`)
 
 	// Celery
 	assertContains(t, result, "from superset.config import CeleryConfig as _SupersetCeleryConfig")
@@ -722,7 +726,7 @@ func TestRenderConfig_WebSocketTransport(t *testing.T) {
 			MetastoreMode:                 MetastorePassthrough,
 			WebSocketEnabled:              true,
 			WebSocketCookieName:           "custom-ws",
-			WebSocketJwtExpirationSeconds: 600,
+			WebSocketJWTExpirationSeconds: 600,
 		})
 		assertContains(t, result, "WEBSOCKET_ENABLE = True")
 		assertNotContains(t, result, "WEBSOCKET_URL =")

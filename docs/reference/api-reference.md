@@ -1356,12 +1356,12 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `jwtSecret` _string_ | JwtSecret is the plain-text WEBSOCKET_JWT_SECRET. Only allowed in Development mode; use jwtSecretFrom in Staging or Production. |  | Optional: \{\} <br /> |
-| `jwtSecretFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | JwtSecretFrom references a Secret key holding the WEBSOCKET_JWT_SECRET. Mutually exclusive with jwtSecret. |  | Optional: \{\} <br /> |
+| `jwtSecret` _string_ | JWTSecret is the plain-text WEBSOCKET_JWT_SECRET. Only allowed in Development mode; use jwtSecretFrom in Staging or Production. |  | Optional: \{\} <br /> |
+| `jwtSecretFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | JWTSecretFrom references a Secret key holding the WEBSOCKET_JWT_SECRET. Mutually exclusive with jwtSecret. |  | Optional: \{\} <br /> |
 | `url` _string_ | URL is the browser-visible websocket endpoint (WEBSOCKET_URL). When unset, the operator derives it from spec.baseUrl, else from spec.networking and the websocket route path. Either a ws:// or wss:// URL with a host, or an absolute path (e.g. "/ws") that the browser resolves against the host it loaded Superset from, so one deployment can serve several hostnames. |  | Pattern: `^(wss?://[^/]+(/.*)?\|/([^/].*)?)$` <br />Optional: \{\} <br /> |
-| `allowedOrigins` _string array_ | AllowedOrigins restricts which browser origins may open a websocket connection (the server's ALLOWED_ORIGINS, mitigating Cross-Site WebSocket Hijacking). When unset, the operator defaults it to the single origin of the resolved websocket URL (spec.baseUrl / networking). Set explicitly to permit additional origins. Each entry must be an http:// or https:// origin, or the single entry "*" to accept any origin (Development only). |  | MaxItems: 32 items:MaxLength: 512 items:Pattern: `^(https?://[^/?#]+\|\*)$` <br />Optional: \{\} <br /> |
-| `cookieName` _string_ | CookieName overrides the JWT cookie name shared by the app and the server (WEBSOCKET_JWT_COOKIE_NAME). Defaults to "superset-ws-token". |  | Optional: \{\} <br /> |
-| `jwtExpirationSeconds` _integer_ | JwtExpirationSeconds overrides the websocket JWT lifetime (WEBSOCKET_JWT_EXPIRATION_SECONDS). Defaults to 900 (15 minutes) upstream. |  | Optional: \{\} <br /> |
+| `allowedOrigins` _string array_ | AllowedOrigins restricts which browser origins may open a websocket connection (the server's ALLOWED_ORIGINS, mitigating Cross-Site WebSocket Hijacking). When unset, the operator defaults it to the single origin of the resolved websocket URL (spec.baseUrl / networking). Set explicitly to permit additional origins. Each entry must be an http:// or https:// origin, or the single entry "*" to accept any origin (Development only). |  | MaxItems: 32 MinItems: 1 items:MaxLength: 512 items:Pattern: `^(https?://[^/?#]+\|\*)$` <br />Optional: \{\} <br /> |
+| `cookieName` _string_ | CookieName overrides the JWT cookie name shared by the app and the server (WEBSOCKET_JWT_COOKIE_NAME). Defaults to "superset-ws-token". |  | MaxLength: 128 MinLength: 1 Pattern: `^[A-Za-z0-9!#$%&'*+.^_\|~-]+$` <br />Optional: \{\} <br /> |
+| `jwtExpirationSeconds` _integer_ | JWTExpirationSeconds overrides the websocket JWT lifetime (WEBSOCKET_JWT_EXPIRATION_SECONDS). When unset, Superset's default applies. |  | Minimum: 1 <br />Optional: \{\} <br /> |
 
 
 #### WebsocketServerComponentSpec

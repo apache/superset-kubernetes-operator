@@ -122,8 +122,8 @@ type ConfigInput struct {
 	WebSocketURL string
 	// WebSocketCookieName overrides WEBSOCKET_JWT_COOKIE_NAME when set.
 	WebSocketCookieName string
-	// WebSocketJwtExpirationSeconds overrides WEBSOCKET_JWT_EXPIRATION_SECONDS when > 0.
-	WebSocketJwtExpirationSeconds int32
+	// WebSocketJWTExpirationSeconds overrides WEBSOCKET_JWT_EXPIRATION_SECONDS when > 0.
+	WebSocketJWTExpirationSeconds int32
 
 	// BaseURL, when set, renders WEBDRIVER_BASEURL_USER_FRIENDLY (the external URL
 	// embedded in Alerts & Reports hyperlinks).
@@ -236,9 +236,14 @@ func RenderConfig(componentType ComponentType, input *ConfigInput) string {
 		renderWebSocket(&b, input)
 	}
 
-	// [2.85] Namespace the realtime/GTF Pub/Sub channels by the instance prefix so
-	// multiple deployments can share one Valkey/Redis (Pub/Sub is not DB-scoped).
-	if input.AsyncQueriesEnabled || input.WebSocketEnabled {
+	// [2.85] The instance prefix, and the realtime/GTF Pub/Sub channels namespaced
+	// by it so multiple deployments can share one Valkey/Redis (Pub/Sub is not
+	// DB-scoped). The channels apply whenever a coordination backend exists.
+	coordination := input.Valkey != nil && !input.Valkey.DistributedCoordination.Disabled
+	if input.Valkey != nil || input.AsyncQueriesEnabled || input.WebSocketEnabled {
+		fmt.Fprintf(&b, "_superset_instance = os.environ['%s']\n", common.EnvInstanceName)
+	}
+	if coordination || input.AsyncQueriesEnabled || input.WebSocketEnabled {
 		renderRealtimeChannels(&b)
 	}
 
@@ -303,9 +308,8 @@ func renderValkey(b *strings.Builder, v *ValkeyInput, asyncQueries bool) {
 	b.WriteString("    _vk_auth = f\"{quote(_vk_user, safe='')}:{quote(_vk_pass, safe='')}@\" if _vk_pass else f\"{quote(_vk_user, safe='')}@\"\n")
 	b.WriteString("_vk_base = f\"{_vk_scheme}://{_vk_auth}{_vk_host}:{_vk_port}\"\n")
 
-	// Instance-scoped key prefix: prepended to every CACHE_KEY_PREFIX so
-	// multiple Superset deployments sharing a Valkey/Redis don't collide.
-	fmt.Fprintf(b, "_superset_instance = os.environ['%s']\n", common.EnvInstanceName)
+	// _superset_instance (rendered earlier) is prepended to every CACHE_KEY_PREFIX
+	// so multiple Superset deployments sharing a Valkey/Redis don't collide.
 
 	// SSL options dict (used by Flask-Caching CACHE_OPTIONS, CacheLib kwargs, and Celery).
 	hasSSLOpts := v.SSL && (v.SSLKeyFile != "" || v.SSLCertFile != "" || v.SSLCACertFile != "")
@@ -452,7 +456,6 @@ func renderEngineOptions(b *strings.Builder, opts *EngineOptionsInput) {
 // reads the same REALTIME_CHANNEL_PREFIX from its environment.
 func renderRealtimeChannels(b *strings.Builder) {
 	b.WriteString("# Realtime / GTF coordination channel namespacing\n")
-	fmt.Fprintf(b, "_superset_instance = os.environ['%s']\n", common.EnvInstanceName)
 	b.WriteString("REALTIME_CHANNEL_PREFIX = f\"{_superset_instance}:\"\n")
 	b.WriteString("TASKS_ABORT_CHANNEL_PREFIX = f\"{_superset_instance}:gtf:abort:\"\n")
 	b.WriteString("TASKS_COMPLETION_CHANNEL_PREFIX = f\"{_superset_instance}:gtf:complete:\"\n\n")
@@ -467,12 +470,12 @@ func renderWebSocket(b *strings.Builder, input *ConfigInput) {
 	if input.WebSocketURL != "" {
 		fmt.Fprintf(b, "WEBSOCKET_URL = \"%s\"\n", pyQuote(input.WebSocketURL))
 	}
-	fmt.Fprintf(b, "WEBSOCKET_JWT_SECRET = os.environ['%s']\n", common.EnvWSJwtSecret)
+	fmt.Fprintf(b, "WEBSOCKET_JWT_SECRET = os.environ['%s']\n", common.EnvWSJWTSecret)
 	if input.WebSocketCookieName != "" {
 		fmt.Fprintf(b, "WEBSOCKET_JWT_COOKIE_NAME = \"%s\"\n", pyQuote(input.WebSocketCookieName))
 	}
-	if input.WebSocketJwtExpirationSeconds > 0 {
-		fmt.Fprintf(b, "WEBSOCKET_JWT_EXPIRATION_SECONDS = %d\n", input.WebSocketJwtExpirationSeconds)
+	if input.WebSocketJWTExpirationSeconds > 0 {
+		fmt.Fprintf(b, "WEBSOCKET_JWT_EXPIRATION_SECONDS = %d\n", input.WebSocketJWTExpirationSeconds)
 	}
 	b.WriteString("\n")
 }

@@ -41,7 +41,7 @@ import (
 // +kubebuilder:validation:XValidation:rule="!has(self.websocketServer) || (has(self.realtime) && has(self.realtime.webSocket))",message="spec.websocketServer requires spec.realtime.webSocket (the transport wiring: shared JWT secret and URL)"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.realtime) || !has(self.realtime.webSocket) || !has(self.realtime.webSocket.jwtSecret)",message="realtime.webSocket.jwtSecret is only allowed when environment is Development; use realtime.webSocket.jwtSecretFrom in Staging or Production"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.realtime) || !has(self.realtime.webSocket) || !has(self.realtime.webSocket.allowedOrigins) || !self.realtime.webSocket.allowedOrigins.exists(o, o == '*')",message="realtime.webSocket.allowedOrigins \"*\" (any origin) is only allowed when environment is Development; list the browser origins explicitly in Staging or Production"
-// +kubebuilder:validation:XValidation:rule="!has(self.realtime) || !has(self.realtime.webSocket) || (has(self.realtime.webSocket.url) && self.realtime.webSocket.url.startsWith('ws')) || has(self.realtime.webSocket.allowedOrigins) || has(self.baseUrl) || (has(self.networking) && ((has(self.networking.ingress) && ((has(self.networking.ingress.host) && size(self.networking.ingress.host) > 0) || (has(self.networking.ingress.hosts) && self.networking.ingress.hosts.exists(h, has(h.host) && size(h.host) > 0)))) || (has(self.networking.gateway) && has(self.networking.gateway.hostnames) && self.networking.gateway.hostnames.exists(h, size(h) > 0))))",message="realtime.webSocket requires a resolvable websocket host: set an absolute realtime.webSocket.url, realtime.webSocket.allowedOrigins, spec.baseUrl, or a spec.networking host (ingress.host/hosts or gateway.hostnames)"
+// +kubebuilder:validation:XValidation:rule="!has(self.realtime) || !has(self.realtime.webSocket) || (has(self.realtime.webSocket.url) && (self.realtime.webSocket.url.startsWith('ws') || has(self.realtime.webSocket.allowedOrigins))) || has(self.baseUrl) || (has(self.networking) && ((has(self.networking.ingress) && ((has(self.networking.ingress.host) && size(self.networking.ingress.host) > 0 && !self.networking.ingress.host.startsWith('*')) || (has(self.networking.ingress.hosts) && self.networking.ingress.hosts.exists(h, has(h.host) && size(h.host) > 0 && !h.host.startsWith('*'))))) || (has(self.networking.gateway) && has(self.networking.gateway.hostnames) && self.networking.gateway.hostnames.exists(h, size(h) > 0 && !h.startsWith('*')))))",message="realtime.webSocket requires a resolvable websocket host: set an absolute realtime.webSocket.url, a path url with realtime.webSocket.allowedOrigins, spec.baseUrl, or a non-wildcard spec.networking host (ingress.host/hosts or gateway.hostnames)"
 // +kubebuilder:validation:XValidation:rule="!has(self.networking) || !has(self.networking.gateway) || has(self.webServer) || has(self.websocketServer) || has(self.mcpServer) || has(self.celeryFlower)",message="spec.networking.gateway requires at least one component with a routable service (webServer, websocketServer, mcpServer, or celeryFlower)"
 // +kubebuilder:validation:XValidation:rule="!has(self.monitoring) || !has(self.monitoring.serviceMonitor) || has(self.webServer)",message="spec.monitoring.serviceMonitor requires spec.webServer to be set (scrapes the web server service)"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && (self.environment == 'Development' || self.environment == 'Staging')) || !has(self.lifecycle) || !has(self.lifecycle.seed) || (has(self.lifecycle.seed.disabled) && self.lifecycle.seed.disabled)",message="lifecycle.seed is only allowed when environment is Development or Staging; seeding performs a destructive DROP DATABASE on the target metastore"
@@ -325,15 +325,15 @@ type AsyncQueriesSpec struct{}
 // the Flask app and the websocket server.
 // +kubebuilder:validation:XValidation:rule="has(self.jwtSecret) != has(self.jwtSecretFrom)",message="exactly one of jwtSecret (dev only) or jwtSecretFrom must be set"
 type WebSocketTransportSpec struct {
-	// JwtSecret is the plain-text WEBSOCKET_JWT_SECRET. Only allowed in
+	// JWTSecret is the plain-text WEBSOCKET_JWT_SECRET. Only allowed in
 	// Development mode; use jwtSecretFrom in Staging or Production.
 	// +optional
-	JwtSecret *string `json:"jwtSecret,omitempty"`
+	JWTSecret *string `json:"jwtSecret,omitempty"`
 
-	// JwtSecretFrom references a Secret key holding the WEBSOCKET_JWT_SECRET.
+	// JWTSecretFrom references a Secret key holding the WEBSOCKET_JWT_SECRET.
 	// Mutually exclusive with jwtSecret.
 	// +optional
-	JwtSecretFrom *corev1.SecretKeySelector `json:"jwtSecretFrom,omitempty"`
+	JWTSecretFrom *corev1.SecretKeySelector `json:"jwtSecretFrom,omitempty"`
 
 	// URL is the browser-visible websocket endpoint (WEBSOCKET_URL). When unset,
 	// the operator derives it from spec.baseUrl, else from spec.networking and
@@ -352,6 +352,7 @@ type WebSocketTransportSpec struct {
 	// or the single entry "*" to accept any origin (Development only).
 	// +optional
 	// +listType=atomic
+	// +kubebuilder:validation:MinItems=1
 	// +kubebuilder:validation:MaxItems=32
 	// +kubebuilder:validation:items:MaxLength=512
 	// +kubebuilder:validation:items:Pattern=`^(https?://[^/?#]+|\*)$`
@@ -361,12 +362,16 @@ type WebSocketTransportSpec struct {
 	// CookieName overrides the JWT cookie name shared by the app and the server
 	// (WEBSOCKET_JWT_COOKIE_NAME). Defaults to "superset-ws-token".
 	// +optional
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=128
+	// +kubebuilder:validation:Pattern=`^[A-Za-z0-9!#$%&'*+.^_|~-]+$`
 	CookieName *string `json:"cookieName,omitempty"`
 
-	// JwtExpirationSeconds overrides the websocket JWT lifetime
-	// (WEBSOCKET_JWT_EXPIRATION_SECONDS). Defaults to 900 (15 minutes) upstream.
+	// JWTExpirationSeconds overrides the websocket JWT lifetime
+	// (WEBSOCKET_JWT_EXPIRATION_SECONDS). When unset, Superset's default applies.
 	// +optional
-	JwtExpirationSeconds *int32 `json:"jwtExpirationSeconds,omitempty"`
+	// +kubebuilder:validation:Minimum=1
+	JWTExpirationSeconds *int32 `json:"jwtExpirationSeconds,omitempty"`
 }
 
 // McpServerComponentSpec defines the MCP server component on the parent CRD.
