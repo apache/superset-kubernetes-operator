@@ -40,7 +40,8 @@ import (
 // +kubebuilder:validation:XValidation:rule="!has(self.realtime) || !has(self.realtime.webSocket) || (has(self.websocketServer) && has(self.valkey) && (!has(self.valkey.distributedCoordination) || !has(self.valkey.distributedCoordination.disabled) || !self.valkey.distributedCoordination.disabled))",message="realtime.webSocket requires spec.websocketServer (the workload) and spec.valkey with distributedCoordination enabled (the coordination backend; do not set spec.valkey.distributedCoordination.disabled)"
 // +kubebuilder:validation:XValidation:rule="!has(self.websocketServer) || (has(self.realtime) && has(self.realtime.webSocket))",message="spec.websocketServer requires spec.realtime.webSocket (the transport wiring: shared JWT secret and URL)"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.realtime) || !has(self.realtime.webSocket) || !has(self.realtime.webSocket.jwtSecret)",message="realtime.webSocket.jwtSecret is only allowed when environment is Development; use realtime.webSocket.jwtSecretFrom in Staging or Production"
-// +kubebuilder:validation:XValidation:rule="!has(self.realtime) || !has(self.realtime.webSocket) || has(self.realtime.webSocket.url) || has(self.baseUrl) || (has(self.networking) && ((has(self.networking.ingress) && ((has(self.networking.ingress.host) && size(self.networking.ingress.host) > 0) || (has(self.networking.ingress.hosts) && self.networking.ingress.hosts.exists(h, has(h.host) && size(h.host) > 0)))) || (has(self.networking.gateway) && has(self.networking.gateway.hostnames) && self.networking.gateway.hostnames.exists(h, size(h) > 0))))",message="realtime.webSocket requires a resolvable websocket host: set realtime.webSocket.url, spec.baseUrl, or a spec.networking host (ingress.host/hosts or gateway.hostnames)"
+// +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.realtime) || !has(self.realtime.webSocket) || !has(self.realtime.webSocket.allowedOrigins) || !self.realtime.webSocket.allowedOrigins.exists(o, o == '*')",message="realtime.webSocket.allowedOrigins \"*\" (any origin) is only allowed when environment is Development; list the browser origins explicitly in Staging or Production"
+// +kubebuilder:validation:XValidation:rule="!has(self.realtime) || !has(self.realtime.webSocket) || (has(self.realtime.webSocket.url) && self.realtime.webSocket.url.startsWith('ws')) || has(self.realtime.webSocket.allowedOrigins) || has(self.baseUrl) || (has(self.networking) && ((has(self.networking.ingress) && ((has(self.networking.ingress.host) && size(self.networking.ingress.host) > 0) || (has(self.networking.ingress.hosts) && self.networking.ingress.hosts.exists(h, has(h.host) && size(h.host) > 0)))) || (has(self.networking.gateway) && has(self.networking.gateway.hostnames) && self.networking.gateway.hostnames.exists(h, size(h) > 0))))",message="realtime.webSocket requires a resolvable websocket host: set an absolute realtime.webSocket.url, realtime.webSocket.allowedOrigins, spec.baseUrl, or a spec.networking host (ingress.host/hosts or gateway.hostnames)"
 // +kubebuilder:validation:XValidation:rule="!has(self.networking) || !has(self.networking.gateway) || has(self.webServer) || has(self.websocketServer) || has(self.mcpServer) || has(self.celeryFlower)",message="spec.networking.gateway requires at least one component with a routable service (webServer, websocketServer, mcpServer, or celeryFlower)"
 // +kubebuilder:validation:XValidation:rule="!has(self.monitoring) || !has(self.monitoring.serviceMonitor) || has(self.webServer)",message="spec.monitoring.serviceMonitor requires spec.webServer to be set (scrapes the web server service)"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && (self.environment == 'Development' || self.environment == 'Staging')) || !has(self.lifecycle) || !has(self.lifecycle.seed) || (has(self.lifecycle.seed.disabled) && self.lifecycle.seed.disabled)",message="lifecycle.seed is only allowed when environment is Development or Staging; seeding performs a destructive DROP DATABASE on the target metastore"
@@ -336,19 +337,25 @@ type WebSocketTransportSpec struct {
 
 	// URL is the browser-visible websocket endpoint (WEBSOCKET_URL). When unset,
 	// the operator derives it from spec.baseUrl, else from spec.networking and
-	// the websocket route path. Must be a ws:// or wss:// URL with a host.
+	// the websocket route path. Either a ws:// or wss:// URL with a host, or an
+	// absolute path (e.g. "/ws") that the browser resolves against the host it
+	// loaded Superset from, so one deployment can serve several hostnames.
 	// +optional
-	// +kubebuilder:validation:Pattern=`^wss?://[^/]+`
+	// +kubebuilder:validation:Pattern=`^(wss?://[^/]+(/.*)?|/([^/].*)?)$`
 	URL *string `json:"url,omitempty"`
 
 	// AllowedOrigins restricts which browser origins may open a websocket
 	// connection (the server's ALLOWED_ORIGINS, mitigating Cross-Site WebSocket
 	// Hijacking). When unset, the operator defaults it to the single origin of
 	// the resolved websocket URL (spec.baseUrl / networking). Set explicitly to
-	// permit additional origins. Each entry must be an http:// or https:// origin.
+	// permit additional origins. Each entry must be an http:// or https:// origin,
+	// or the single entry "*" to accept any origin (Development only).
 	// +optional
 	// +listType=atomic
-	// +kubebuilder:validation:items:Pattern=`^https?://[^/?#]+$`
+	// +kubebuilder:validation:MaxItems=32
+	// +kubebuilder:validation:items:MaxLength=512
+	// +kubebuilder:validation:items:Pattern=`^(https?://[^/?#]+|\*)$`
+	// +kubebuilder:validation:XValidation:rule="!self.exists(o, o == '*') || size(self) == 1",message="allowedOrigins \"*\" must be the only entry"
 	AllowedOrigins []string `json:"allowedOrigins,omitempty"`
 
 	// CookieName overrides the JWT cookie name shared by the app and the server

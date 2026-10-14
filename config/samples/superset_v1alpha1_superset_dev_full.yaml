@@ -31,14 +31,14 @@
 #     "dev-gateway" Gateway:
 #       kubectl apply -f config/samples/dev-dependencies.yaml
 #
-# Everything is served from one origin through the Gateway (*.localhost resolves
-# to 127.0.0.1, so no /etc/hosts edit or port-forward is needed):
+# Everything is served through the Gateway, on any hostname that reaches it:
 #   http://superset-dev.localhost/          web server (log in with admin / admin)
 #   http://superset-dev.localhost/ws        realtime websocket server
 #   http://superset-dev.localhost/mcp       MCP server
-# The websocket authenticates with a cookie the web server sets on that origin,
-# so open Superset through the Gateway URL (not a port-forward) to get realtime
-# push for async queries.
+# *.localhost resolves to 127.0.0.1, so no /etc/hosts edit or port-forward is
+# needed locally; from another machine on your network, use this host's name or
+# IP instead. Open Superset through the Gateway (not a port-forward) to get
+# realtime push for async queries: the browser connects to /ws on the same host.
 apiVersion: superset.apache.org/v1alpha1
 kind: Superset
 metadata:
@@ -49,9 +49,9 @@ spec:
   environment: Development
   secretKey: thisIsNotSecure_changeInProduction!
 
-  # External, browser-visible URL. The operator derives the websocket URL
-  # (ws://superset-dev.localhost/ws), the websocket server's origin allowlist, and
-  # the Alerts & Reports link base from it.
+  # External, browser-visible URL, used as the link base in Alerts & Reports. It
+  # would also pin the websocket URL and allowed origin, but the realtime block
+  # below opts this dev sample into any hostname instead.
   baseUrl: http://superset-dev.localhost
 
   # Structured metastore (dev-mode inline password). Renders SQLALCHEMY_DATABASE_URI
@@ -161,16 +161,20 @@ spec:
     asyncQueries: {}
     webSocket:
       jwtSecret: dev-websocket-jwt-secret-change-me-0123456789
+      # A path makes the browser connect to /ws on whichever host it loaded
+      # Superset from, and "*" (Development only) accepts any origin, so the
+      # sample works under any hostname. Production deployments should rely on
+      # spec.baseUrl or list their origins explicitly.
+      url: /ws
+      allowedOrigins: ["*"]
 
   # Gateway API routing through the "dev-gateway" Gateway from dev-dependencies.yaml.
-  # With no explicit paths, the operator routes each component by path under the
-  # hostname: / -> web, /ws -> websocket, /mcp -> MCP.
+  # The operator routes each component by path: / -> web, /ws -> websocket,
+  # /mcp -> MCP. Without hostnames the route matches any host.
   networking:
     gateway:
       gatewayRef:
         name: dev-gateway
-      hostnames:
-        - superset-dev.localhost
 
   lifecycle:
     # Lightweight maintenance page served while components are drained for

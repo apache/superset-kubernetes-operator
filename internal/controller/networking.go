@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -286,16 +287,31 @@ func deriveWebSocketURL(spec *supersetv1alpha1.SupersetSpec) string {
 	return fmt.Sprintf("%s://%s%s", wsScheme, host, resolveGatewayPath(svc, "/ws"))
 }
 
+// anyWebSocketOrigin is the realtime.webSocket.allowedOrigins entry that lets
+// any browser origin connect (Development only, enforced by CEL).
+const anyWebSocketOrigin = "*"
+
 // deriveWebSocketAllowedOrigins returns the ALLOWED_ORIGINS allowlist for the
 // websocket server. An explicit realtime.webSocket.allowedOrigins wins;
 // otherwise it defaults to the single origin of the resolved websocket URL
-// (all realtime traffic is expected from the same host as Superset). Returns
-// nil when no origin can be resolved (the server then accepts any origin).
+// (all realtime traffic is expected from the same host as Superset), or of the
+// deployment's external host when the URL is a path. Returns nil when no origin
+// can be resolved or "*" is configured: the server then accepts any origin.
 func deriveWebSocketAllowedOrigins(spec *supersetv1alpha1.SupersetSpec) []string {
 	if ws := realtimeWebSocket(spec); ws != nil && len(ws.AllowedOrigins) > 0 {
+		if slices.Contains(ws.AllowedOrigins, anyWebSocketOrigin) {
+			return nil
+		}
 		return ws.AllowedOrigins
 	}
 	wsURL := deriveWebSocketURL(spec)
+	if strings.HasPrefix(wsURL, "/") {
+		scheme, host := externalHostScheme(spec)
+		if host == "" {
+			return nil
+		}
+		return []string{fmt.Sprintf("%s://%s", scheme, host)}
+	}
 	if wsURL == "" {
 		return nil
 	}

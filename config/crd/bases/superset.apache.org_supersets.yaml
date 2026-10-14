@@ -32034,10 +32034,15 @@ spec:
                     properties:
                       allowedOrigins:
                         items:
-                          pattern: ^https?://[^/?#]+$
+                          maxLength: 512
+                          pattern: ^(https?://[^/?#]+|\*)$
                           type: string
+                        maxItems: 32
                         type: array
                         x-kubernetes-list-type: atomic
+                        x-kubernetes-validations:
+                        - message: allowedOrigins "*" must be the only entry
+                          rule: '!self.exists(o, o == ''*'') || size(self) == 1'
                       cookieName:
                         type: string
                       jwtExpirationSeconds:
@@ -32059,7 +32064,7 @@ spec:
                         type: object
                         x-kubernetes-map-type: atomic
                       url:
-                        pattern: ^wss?://[^/]+
+                        pattern: ^(wss?://[^/]+(/.*)?|/([^/].*)?)$
                         type: string
                     type: object
                     x-kubernetes-validations:
@@ -40632,10 +40637,17 @@ spec:
                 Production
               rule: (has(self.environment) && self.environment == 'Development') ||
                 !has(self.realtime) || !has(self.realtime.webSocket) || !has(self.realtime.webSocket.jwtSecret)
+            - message: realtime.webSocket.allowedOrigins "*" (any origin) is only
+                allowed when environment is Development; list the browser origins
+                explicitly in Staging or Production
+              rule: (has(self.environment) && self.environment == 'Development') ||
+                !has(self.realtime) || !has(self.realtime.webSocket) || !has(self.realtime.webSocket.allowedOrigins)
+                || !self.realtime.webSocket.allowedOrigins.exists(o, o == '*')
             - message: 'realtime.webSocket requires a resolvable websocket host: set
-                realtime.webSocket.url, spec.baseUrl, or a spec.networking host (ingress.host/hosts
-                or gateway.hostnames)'
-              rule: '!has(self.realtime) || !has(self.realtime.webSocket) || has(self.realtime.webSocket.url)
+                an absolute realtime.webSocket.url, realtime.webSocket.allowedOrigins,
+                spec.baseUrl, or a spec.networking host (ingress.host/hosts or gateway.hostnames)'
+              rule: '!has(self.realtime) || !has(self.realtime.webSocket) || (has(self.realtime.webSocket.url)
+                && self.realtime.webSocket.url.startsWith(''ws'')) || has(self.realtime.webSocket.allowedOrigins)
                 || has(self.baseUrl) || (has(self.networking) && ((has(self.networking.ingress)
                 && ((has(self.networking.ingress.host) && size(self.networking.ingress.host)
                 > 0) || (has(self.networking.ingress.hosts) && self.networking.ingress.hosts.exists(h,

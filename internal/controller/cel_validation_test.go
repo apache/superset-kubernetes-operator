@@ -950,6 +950,82 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			Expect(err.Error()).To(ContainSubstring("allowedOrigins"))
 		})
 
+		// realtimeWS builds a minimal valid webSocket-enabled spec on cr.
+		realtimeWS := func(cr *supersetv1alpha1.Superset, ws *supersetv1alpha1.WebSocketTransportSpec) {
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
+			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{WebSocket: ws}
+		}
+
+		It("rejects the wildcard origin outside Development", func() {
+			cr := validProdSuperset("rt-origin-any-prod")
+			realtimeWS(cr, &supersetv1alpha1.WebSocketTransportSpec{
+				JwtSecretFrom:  secretRef("ws", "jwt"),
+				URL:            new("/ws"),
+				AllowedOrigins: []string{"*"},
+			})
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("only allowed when environment is Development"))
+		})
+
+		It("rejects the wildcard origin alongside other origins", func() {
+			cr := validDevSuperset("rt-origin-any-mixed")
+			realtimeWS(cr, &supersetv1alpha1.WebSocketTransportSpec{
+				JwtSecret:      new("dev-secret"),
+				URL:            new("/ws"),
+				AllowedOrigins: []string{"*", "https://example.com"},
+			})
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("must be the only entry"))
+		})
+
+		It("accepts a path url with the wildcard origin in Development", func() {
+			cr := validDevSuperset("rt-path-any-dev")
+			realtimeWS(cr, &supersetv1alpha1.WebSocketTransportSpec{
+				JwtSecret:      new("dev-secret"),
+				URL:            new("/ws"),
+				AllowedOrigins: []string{"*"},
+			})
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, cr)).To(Succeed())
+		})
+
+		It("accepts a path url with a base URL in Production", func() {
+			cr := validProdSuperset("rt-path-baseurl")
+			cr.Spec.BaseURL = new("https://superset.example.com")
+			realtimeWS(cr, &supersetv1alpha1.WebSocketTransportSpec{
+				JwtSecretFrom: secretRef("ws", "jwt"),
+				URL:           new("/ws"),
+			})
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, cr)).To(Succeed())
+		})
+
+		It("rejects a path url without any origin source", func() {
+			cr := validProdSuperset("rt-path-no-origin")
+			realtimeWS(cr, &supersetv1alpha1.WebSocketTransportSpec{
+				JwtSecretFrom: secretRef("ws", "jwt"),
+				URL:           new("/ws"),
+			})
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("resolvable websocket host"))
+		})
+
+		It("rejects a protocol-relative webSocket.url", func() {
+			cr := validDevSuperset("rt-url-protocol-relative")
+			realtimeWS(cr, &supersetv1alpha1.WebSocketTransportSpec{
+				JwtSecret:      new("dev-secret"),
+				URL:            new("//evil.example.com/ws"),
+				AllowedOrigins: []string{"*"},
+			})
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("webSocket.url"))
+		})
+
 		It("rejects webSocket relying on an ingress host that is empty", func() {
 			cr := validProdSuperset("rt-empty-ingress-host")
 			cr.Spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{}

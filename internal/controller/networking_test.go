@@ -1151,6 +1151,14 @@ func TestDeriveWebSocketURL(t *testing.T) {
 			want: "wss://custom/socket",
 		},
 		{
+			name: "explicit path url is passed through for the browser to resolve",
+			spec: supersetv1alpha1.SupersetSpec{
+				BaseURL:  new("https://superset.example.com"),
+				Realtime: &supersetv1alpha1.RealtimeSpec{WebSocket: &supersetv1alpha1.WebSocketTransportSpec{URL: new("/ws")}},
+			},
+			want: "/ws",
+		},
+		{
 			name: "baseUrl wins over networking and sets scheme",
 			spec: supersetv1alpha1.SupersetSpec{
 				BaseURL:    new("https://superset.example.com"),
@@ -1237,6 +1245,30 @@ func TestDeriveWebSocketAllowedOrigins(t *testing.T) {
 				Realtime: &supersetv1alpha1.RealtimeSpec{WebSocket: &supersetv1alpha1.WebSocketTransportSpec{}},
 			},
 			want: nil,
+		},
+		{
+			name: "wildcard leaves the allowlist unset so any origin is accepted",
+			spec: supersetv1alpha1.SupersetSpec{
+				BaseURL:  new("https://superset.example.com"),
+				Realtime: &supersetv1alpha1.RealtimeSpec{WebSocket: &supersetv1alpha1.WebSocketTransportSpec{AllowedOrigins: []string{"*"}}},
+			},
+			want: nil,
+		},
+		{
+			name: "path url takes its origin from the base URL",
+			spec: supersetv1alpha1.SupersetSpec{
+				BaseURL:  new("http://superset.example.com:8080"),
+				Realtime: &supersetv1alpha1.RealtimeSpec{WebSocket: &supersetv1alpha1.WebSocketTransportSpec{URL: new("/ws")}},
+			},
+			want: []string{"http://superset.example.com:8080"},
+		},
+		{
+			name: "path url takes its origin from a gateway hostname",
+			spec: supersetv1alpha1.SupersetSpec{
+				Realtime:   &supersetv1alpha1.RealtimeSpec{WebSocket: &supersetv1alpha1.WebSocketTransportSpec{URL: new("/ws")}},
+				Networking: &supersetv1alpha1.NetworkingSpec{Gateway: &supersetv1alpha1.GatewaySpec{Hostnames: []gatewayv1.Hostname{"superset.example.com"}}},
+			},
+			want: []string{"https://superset.example.com"},
 		},
 	}
 	for _, tt := range tests {
