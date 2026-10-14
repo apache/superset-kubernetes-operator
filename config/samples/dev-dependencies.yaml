@@ -13,20 +13,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Throwaway PostgreSQL + Valkey for local DEVELOPMENT/testing on Kind.
-# Provides the two backing services that the Development-mode samples
-# (superset_v1alpha1_superset.yaml and superset_v1alpha1_superset_dev_full.yaml)
-# expect: a PostgreSQL at host "postgres" and a Valkey at host "valkey", with
-# matching credentials (user/db "superset", password "superset").
+# Throwaway backing services for local DEVELOPMENT/testing on Kind: a PostgreSQL
+# at host "postgres", a Valkey at host "valkey" (user/db "superset", password
+# "superset"), and the "dev-gateway" Gateway that serves the dev samples on one
+# browser-visible origin. superset_v1alpha1_superset_dev_full.yaml uses all three.
 #
-# WARNING: ephemeral (emptyDir) storage, plain-text passwords, single replica —
-# NOT for production. Data is lost when the pod restarts.
+# WARNING: ephemeral (emptyDir) storage, plain-text passwords, plain HTTP, single
+# replica — NOT for production. Data is lost when the pod restarts.
 #
+# The Gateway requires Envoy Gateway, which also installs the Gateway API CRDs.
+# Install it once per cluster, before the operator starts (the operator detects
+# the Gateway API at startup; restart it otherwise):
+#
+#   helm install eg oci://docker.io/envoyproxy/gateway-helm --version v1.9.2 \
+#     --namespace envoy-gateway-system --create-namespace --wait
 #   kubectl apply -f config/samples/dev-dependencies.yaml
 #
-# Prefer Helm? The Bitnami charts provide the same services with auth flags.
-# Set fullnameOverride so the Service names match the sample (or update
-# spec.metastore.host / spec.valkey.host to the chart's Service names):
+# The Envoy proxy Service is pinned to NodePort 30080, which
+# config/samples/kind-cluster.yaml maps to host port 80, so the dev sample is
+# reachable at http://superset-dev.localhost/ without a port-forward
+# (*.localhost resolves to 127.0.0.1).
+#
+# Prefer Helm for the databases? The Bitnami charts provide the same services
+# with auth flags. Set fullnameOverride so the Service names match the sample (or
+# update spec.metastore.host / spec.valkey.host to the chart's Service names):
 #
 #   helm install postgres oci://registry-1.docker.io/bitnamicharts/postgresql \
 #     --set auth.username=superset --set auth.password=superset \
@@ -161,3 +171,52 @@ spec:
             limits:
               cpu: 500m
               memory: 256Mi
+---
+# Envoy proxy settings for the dev Gateway: expose it as NodePort 30080 so
+# kind-cluster.yaml can map it to host port 80.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: dev-gateway
+  labels:
+    app.kubernetes.io/part-of: superset-dev
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyService:
+        type: NodePort
+        patch:
+          type: StrategicMerge
+          value:
+            spec:
+              ports:
+                - port: 80
+                  nodePort: 30080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: envoy-dev
+  labels:
+    app.kubernetes.io/part-of: superset-dev
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: dev-gateway
+  labels:
+    app.kubernetes.io/part-of: superset-dev
+spec:
+  gatewayClassName: envoy-dev
+  infrastructure:
+    parametersRef:
+      group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      name: dev-gateway
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80

@@ -19,7 +19,7 @@ under the License.
 
 # Development Setup
 
-This guide walks through setting up a local development environment with Kind, PostgreSQL, and Valkey. By the end you will have a working Superset instance running on your laptop.
+This guide walks through setting up a local development environment with Kind, Envoy Gateway, PostgreSQL, and Valkey. By the end you will have a working Superset instance running on your laptop.
 
 ## Prerequisites
 
@@ -45,17 +45,24 @@ This guide walks through setting up a local development environment with Kind, P
 ## 1. Create a Kind cluster
 
 ```bash
-kind create cluster --name superset
+kind create cluster --name superset --config config/samples/kind-cluster.yaml
 ```
 
-## 2. Deploy PostgreSQL and Valkey
+The config maps host port 80 to the dev Gateway, so the comprehensive sample is reachable at `http://superset-dev.localhost/` without a port-forward. If port 80 is taken, see the comments in `config/samples/kind-cluster.yaml`.
+
+## 2. Deploy Envoy Gateway, PostgreSQL, and Valkey
+
+Install [Envoy Gateway](https://gateway.envoyproxy.io/), which also installs the Gateway API CRDs. Install it before the operator starts: the operator only watches HTTPRoutes if the Gateway API is served at startup.
 
 ```bash
+helm install eg oci://docker.io/envoyproxy/gateway-helm --version v1.9.2 \
+  --namespace envoy-gateway-system --create-namespace --wait
 kubectl apply -f config/samples/dev-dependencies.yaml
 kubectl wait --for=condition=available deployment/postgres deployment/valkey --timeout=120s
+kubectl wait --for=condition=Programmed gateway/dev-gateway --timeout=180s
 ```
 
-This creates a throwaway PostgreSQL (user, password, and database `superset`) and a Valkey (password `superset`) with ephemeral storage. The Development-mode samples are configured to match it.
+This creates a throwaway PostgreSQL (user, password, and database `superset`), a Valkey (password `superset`), and the `dev-gateway` Gateway, all with ephemeral storage and no TLS. The Development-mode samples are configured to match it.
 
 ## 3. Run the operator
 
@@ -93,13 +100,15 @@ kubectl apply -f config/samples/superset_v1alpha1_superset.yaml
 
 The sample manifest deploys a web server in dev mode, runs the migrate and init tasks, and points at the PostgreSQL and Valkey created above.
 
+To exercise every component instead (Celery, the MCP server, the realtime websocket server, and Global Async Queries), apply `config/samples/superset_v1alpha1_superset_dev_full.yaml`. It is served through the dev Gateway at `http://superset-dev.localhost/`.
+
 ## 5. Access Superset
 
 ```bash
 kubectl port-forward svc/superset-sample-web-server 8088:8088
 ```
 
-Open [http://localhost:8088](http://localhost:8088).
+Open [http://localhost:8088](http://localhost:8088) and log in with `admin` / `admin`. The comprehensive sample needs no port-forward: open [http://superset-dev.localhost/](http://superset-dev.localhost/).
 
 ## 6. Clean up
 

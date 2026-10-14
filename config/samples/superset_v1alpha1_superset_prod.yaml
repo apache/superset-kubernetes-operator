@@ -35,7 +35,7 @@ metadata:
   name: superset
 spec:
   image:
-    tag: "6.1.0"
+    tag: "7.0.0rc1"
   secretKeyFrom:
     name: superset-secret
     key: secret-key

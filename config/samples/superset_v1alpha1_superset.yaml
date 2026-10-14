@@ -18,9 +18,6 @@
 #
 # Expects the PostgreSQL and Valkey from the companion manifest:
 #   kubectl apply -f config/samples/dev-dependencies.yaml
-#
-# The -dev image variant ships the psycopg2 driver; the lean image (e.g. 6.1.0)
-# has no database drivers, so migrations against PostgreSQL would fail.
 apiVersion: superset.apache.org/v1alpha1
 kind: Superset
 metadata:
@@ -30,7 +27,7 @@ metadata:
   name: superset-sample
 spec:
   image:
-    tag: 6.1.0-dev
+    tag: 7.0.0rc1
   environment: Development
   secretKey: thisIsNotSecure_changeInProduction!
   metastore:

@@ -13,49 +13,46 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Comprehensive Development-mode sample. Brings up nearly every component and
-# feature at once for end-to-end smoke testing (intended for a local Kind
-# cluster). NOT for production — it uses inline secrets and dev-only fields.
+# Comprehensive Development-mode sample. Brings up the main components and the
+# headline Superset 7.0 features at once for end-to-end testing on a local Kind
+# cluster, one pod per component so it fits a laptop. NOT for production — it
+# uses inline secrets and dev-only fields.
 #
-# Exercises: web server, Celery worker, Celery beat, Flower, MCP server, the
-# realtime websocket transport, Global Async Queries, deployment/pod templating,
-# template processing, thumbnails, and alerts & reports.
+# Exercises: web server, Celery worker and beat, the MCP server, the realtime
+# websocket server, Global Async Queries, thumbnails and alerts &
+# reports, Gateway API routing, deployment/pod templating, and template
+# processing. Requires Superset 7.0+.
 #
 # Prerequisites (in the same namespace):
-#   - A PostgreSQL reachable at host "postgres" (db/user/pass "superset").
-#   - A Valkey (or Redis) reachable at host "valkey" (password "superset").
-# The companion manifest provides both for local testing:
+#   - A Kind cluster created from config/samples/kind-cluster.yaml, with Envoy
+#     Gateway installed (see config/samples/dev-dependencies.yaml).
+#   - The dev backing services: a PostgreSQL at host "postgres" (db/user/pass
+#     "superset"), a Valkey at host "valkey" (password "superset"), and the
+#     "dev-gateway" Gateway:
 #       kubectl apply -f config/samples/dev-dependencies.yaml
-# (It also documents an equivalent Bitnami Helm install.)
 #
-# Accessing the UI:
-#   - NodePort: http://localhost:30088 (works on any Kind cluster, no ingress
-#     controller needed). On some Kind setups you may need extraPortMappings.
-#   - Port-forward (universal):
-#       kubectl port-forward svc/superset-dev-web-server 8088:8088
-#   - Ingress: spec.networking.ingress below targets the nginx IngressClass and
-#     host "superset-dev.localhost". It only takes effect if an ingress-nginx
-#     controller is installed; it is harmless otherwise. Because the host has no
-#     explicit paths, the operator fans it out per component, so you also get
-#     http://superset-dev.localhost/flower/ and /mcp on the same host. To reach
-#     it on :80 with no port-forward, create the cluster from
-#     config/samples/kind-cluster.yaml (maps host 80/443) and install ingress-nginx.
-#   Log in with admin / admin (created by the init task).
-#
-# Alerts & Reports caveat: the operator renders all the necessary config
-# (FEATURE_FLAGS, beat schedule, WebDriver settings), but actual screenshot
-# generation requires a headless browser in the image. The stock Superset image
-# does not ship one, so reports/thumbnails will configure but may not render
-# screenshots without additional browser dependencies.
+# Everything is served from one origin through the Gateway (*.localhost resolves
+# to 127.0.0.1, so no /etc/hosts edit or port-forward is needed):
+#   http://superset-dev.localhost/          web server (log in with admin / admin)
+#   http://superset-dev.localhost/ws        realtime websocket server
+#   http://superset-dev.localhost/mcp       MCP server
+# The websocket authenticates with a cookie the web server sets on that origin,
+# so open Superset through the Gateway URL (not a port-forward) to get realtime
+# push for async queries.
 apiVersion: superset.apache.org/v1alpha1
 kind: Superset
 metadata:
   name: superset-dev
 spec:
   image:
-    tag: 6.1.0-dev
+    tag: 7.0.0rc1
   environment: Development
   secretKey: thisIsNotSecure_changeInProduction!
+
+  # External, browser-visible URL. The operator derives the websocket URL
+  # (ws://superset-dev.localhost/ws), the websocket server's origin allowlist, and
+  # the Alerts & Reports link base from it.
+  baseUrl: http://superset-dev.localhost
 
   # Structured metastore (dev-mode inline password). Renders SQLALCHEMY_DATABASE_URI
   # as an f-string from operator-injected env vars. createDatabase attaches a
@@ -70,10 +67,12 @@ spec:
     password: superset
     createDatabase: true
 
-  # Valkey drives cache, Celery broker/results, and the thumbnail cache. The
-  # operator renders CACHE_CONFIG, THUMBNAIL_CACHE_CONFIG, CeleryConfig, and
-  # RESULTS_BACKEND automatically. Cache sub-specs below are shown explicitly to
-  # demonstrate the knobs; broker/result backends use their defaults.
+  # Valkey drives the caches, Celery broker/results, the results backend, and the
+  # distributed coordination backend that Global Async Queries and the websocket
+  # server share. The operator renders CACHE_CONFIG, THUMBNAIL_CACHE_CONFIG,
+  # CeleryConfig, RESULTS_BACKEND, and DISTRIBUTED_COORDINATION_CONFIG
+  # automatically. Cache sub-specs below are shown explicitly to demonstrate the
+  # knobs; everything else uses its defaults.
   valkey:
     host: valkey
     port: 6379
@@ -86,6 +85,7 @@ spec:
       defaultTimeout: 3600
 
   # Application feature flags -> FEATURE_FLAGS dict in superset_config.py.
+  # GLOBAL_ASYNC_QUERIES is set by spec.realtime.asyncQueries below.
   featureFlags:
     ENABLE_TEMPLATE_PROCESSING: true
     THUMBNAILS: true
@@ -115,34 +115,16 @@ spec:
   #         drop: ["ALL"]
   #       readOnlyRootFilesystem: false # Superset needs /tmp and /app writes
 
-  # Shared Python config (applies to all Python components). WebDriver/screenshot
-  # settings power thumbnails and alerts & reports; CeleryConfig.imports/prefetch
-  # are shared Celery app behavior layered onto the operator-rendered CeleryConfig.
+  # Shared Python config appended to every Python component's superset_config.py.
+  # The operator already renders the metastore, caches, CeleryConfig (Superset's
+  # defaults plus the Valkey broker), the realtime wiring, and WEBDRIVER_BASEURL,
+  # so this only carries application settings.
   config: |
-    # --- Reports & thumbnails: WebDriver / screenshot settings ---
-    WEBDRIVER_TYPE = "chrome"
-    WEBDRIVER_BASEURL = "http://superset-dev-web-server:8088/"
-    WEBDRIVER_BASEURL_USER_FRIENDLY = "http://localhost:30088/"
-    # Selenium/Playwright logs in as this user to render screenshots.
-    THUMBNAIL_SELENIUM_USER = "admin"
+    # Give thumbnail and report screenshots more time on a busy dev cluster.
     SCREENSHOT_LOCATE_WAIT = 30
     SCREENSHOT_LOAD_WAIT = 60
 
-    # --- Shared Celery app behavior (layered onto the operator's CeleryConfig) ---
-    CeleryConfig.imports = (
-        "superset.sql_lab",
-        "superset.tasks.scheduler",
-        "superset.tasks.thumbnails",
-        "superset.tasks.cache",
-    )
-    CeleryConfig.worker_prefetch_multiplier = 1
-    CeleryConfig.task_acks_late = False
-
   webServer:
-    replicas: 2
-    service:
-      type: NodePort
-      nodePort: 30088
     # Per-component template override (field-level merge): a graceful-shutdown
     # preStop hook layered onto the inherited top-level pod template.
     podTemplate:
@@ -152,66 +134,43 @@ spec:
             exec:
               command: ["/bin/sh", "-c", "sleep 15"]
 
+  # The conservative preset runs two worker processes, enough for a dev cluster.
   celeryWorker:
-    replicas: 2
     celery:
-      preset: balanced
+      preset: conservative
 
-  # Singleton scheduler. Beat-only settings live here so schedule edits roll just
-  # the Beat Deployment. beat_schedule mutates the operator-rendered CeleryConfig.
-  celeryBeat:
-    config: |
-      from celery.schedules import crontab
-
-      CeleryConfig.beat_schedule = {
-          "reports.scheduler": {
-              "task": "reports.scheduler",
-              "schedule": crontab(minute="*", hour="*"),
-          },
-          "reports.prune_log": {
-              "task": "reports.prune_log",
-              "schedule": crontab(minute=0, hour=0),
-          },
-      }
-
-  # Flower isn't bundled in the stock Superset image. On a custom image you'd bake
-  # it in and this becomes `celeryFlower: {}`. For dev convenience the bootstrapScript
-  # escape hatch installs it at startup — the script is sourced before the flower
-  # command. The install writes into the venv (/app/.venv), which the image owns as
-  # root, so this one pod must run as root. Dev convenience only.
-  celeryFlower:
-    bootstrapScript: |
-      uv pip install --no-cache flower
-    podTemplate:
-      podSecurityContext:
-        runAsNonRoot: false
-        runAsUser: 0
+  # Singleton scheduler. It runs Superset's default beat schedule (reports,
+  # log pruning, version-history and soft-delete retention) plus the Global
+  # Async Queries orphan reaper. To add entries, extend the inherited schedule
+  # in a component-level config so edits roll only the Beat Deployment:
+  #   CeleryConfig.beat_schedule = {**CeleryConfig.beat_schedule, "my_task": {...}}
+  celeryBeat: {}
 
   mcpServer: {}
 
-  # Realtime websocket transport workload. Ships in the official Superset image
-  # (no custom image needed); the operator injects its JWT secret and Redis
-  # connection from spec.realtime.webSocket and spec.valkey.distributedCoordination.
+  # Realtime websocket server. Ships in the official Superset image; the operator
+  # injects its JWT secret and Redis connection from spec.realtime.webSocket and
+  # spec.valkey.distributedCoordination.
   websocketServer: {}
 
   # Global Async Queries + realtime transport wiring. asyncQueries enables the
-  # GLOBAL_ASYNC_QUERIES feature flag; webSocket turns on the push transport
-  # (WEBSOCKET_ENABLE) and shares a JWT secret with the app. The browser-visible
-  # URL is derived from spec.networking below (ws://<host>/ws) when unset.
+  # GLOBAL_ASYNC_QUERIES feature flag and its Celery task and orphan reaper;
+  # webSocket turns on the push transport (WEBSOCKET_ENABLE) and shares a JWT
+  # secret between the web server and the websocket server.
   realtime:
     asyncQueries: {}
     webSocket:
       jwtSecret: dev-websocket-jwt-secret-change-me-0123456789
 
-  # Optional Ingress demo — only effective when an ingress-nginx controller is
-  # present. With no explicit paths, the operator routes every component by path
-  # under this host (/ → web, /flower → flower, /mcp → mcp, /ws → websocket), so
-  # all services are reachable from one origin. Use the NodePort or port-forward
-  # above otherwise.
+  # Gateway API routing through the "dev-gateway" Gateway from dev-dependencies.yaml.
+  # With no explicit paths, the operator routes each component by path under the
+  # hostname: / -> web, /ws -> websocket, /mcp -> MCP.
   networking:
-    ingress:
-      className: nginx
-      host: superset-dev.localhost
+    gateway:
+      gatewayRef:
+        name: dev-gateway
+      hostnames:
+        - superset-dev.localhost
 
   lifecycle:
     # Lightweight maintenance page served while components are drained for
