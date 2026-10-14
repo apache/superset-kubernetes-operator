@@ -59,7 +59,7 @@ metadata:
   name: my-superset
 spec:
   image:
-    tag: "6.1.0"
+    tag: "7.0.0"
   environment: Development
   secretKey: thisIsNotSecure_changeInProduction!
   metastore:
@@ -88,7 +88,7 @@ metadata:
   name: my-superset
 spec:
   image:
-    tag: "6.1.0"
+    tag: "7.0.0"
   secretKeyFrom:
     name: superset-secret
     key: secret-key
@@ -108,7 +108,7 @@ The operator resolves this into parent-owned resources. Lifecycle task Jobs run 
 ```text
 $ kubectl get supersets
 NAME           TAG      PHASE     LIFECYCLE   READY   AVAILABLE   AGE
-my-superset    6.1.0    Running   Complete    3/3     True        5m
+my-superset    7.0.0    Running   Complete    3/3     True        5m
 
 $ kubectl get superset my-superset -o jsonpath='{.status.lifecycle.migrate.state}'
 Complete

@@ -65,7 +65,7 @@ For each of the six deployment components, the parent controller:
 2. If disabled, deletes the parent-owned resources for that component
 3. If enabled:
     - Renders component-appropriate `superset_config.py` from the parent's `secretKey`/`secretKeyFrom`, `metastore`, `config`, and per-component `config` fields via `RenderConfig()`
-    - Collects Secret-backed env vars: `secretKeyFrom`, metastore and Valkey structured-field `*From` selectors, and full-URI/password selectors produce env vars with `valueFrom.secretKeyRef` pointing at the referenced Secret. In dev mode, inline values produce plain `value` env vars instead. Always injects `SUPERSET_OPERATOR__INSTANCE_NAME` (the parent CR name) so raw `spec.config` Python can reference the instance — for example to compute instance-scoped Celery queue names that won't collide across Superset CRs sharing a broker.
+    - Collects Secret-backed env vars: `secretKeyFrom`, metastore and Valkey structured-field `*From` selectors, and full-URI/password selectors produce env vars with `valueFrom.secretKeyRef` pointing at the referenced Secret. In dev mode, inline values produce plain `value` env vars instead. Always injects `SUPERSET_OPERATOR__INSTANCE_NAME` (the instance namespace: `spec.valkey.keyPrefix`, by default `<namespace>:<name>`) so raw `spec.config` Python can reference the instance — for example to compute instance-scoped Celery queue names that won't collide across Superset CRs sharing a broker.
     - Resolves the shared spec (top-level + per-component) into a flat `FlatComponentSpec` via `ResolveComponentSpec()`
     - Computes a config checksum from shared inputs and rendered config
     - Creates or updates the component ConfigMap, Deployment, Service, HPA, and PDB
@@ -257,14 +257,14 @@ The parent `Superset` CR reports aggregate status:
 status:
   phase: Running
   observedGeneration: 3
-  tag: "6.1.0"
+  tag: "7.0.0"
   ready: "7/7"
   components:
     webServer:
       phase: Ready
       ready: "2/2"
       ref: Deployment/example-web-server
-      image: apache/superset:6.1.0
+      image: apache/superset:7.0.0
       replicas: 2
       readyReplicas: 2
       resources:

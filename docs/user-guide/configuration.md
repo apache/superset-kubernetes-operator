@@ -53,7 +53,7 @@ Use `secretKeyFrom` and `metastore.uriFrom` to reference Kubernetes Secrets. The
 ```yaml
 spec:
   image:
-    tag: "6.1.0"
+    tag: "7.0.0"
   secretKeyFrom:
     name: superset-secret
     key: secret-key
@@ -77,7 +77,7 @@ spec:
 spec:
   image:
     repository: apachesuperset.docker.scarf.sh/apache/superset  # default
-    tag: "6.1.0"
+    tag: "7.0.0"
 ```
 
 **Pin an explicit release tag — avoid mutable tags such as `latest`.** Beyond the usual reasons (reproducible rollouts, no surprise upgrades), the operator keys the migrate task off the resolved `repository:tag` string: repointing a mutable tag at a new build leaves the string unchanged, so `superset db upgrade` does **not** run and the schema silently drifts from the running code. Distinct, immutable release tags keep upgrades — and their migrations — deterministic. See [Lifecycle › Changing the image tag](lifecycle.md#changing-the-image-tag).
@@ -319,13 +319,14 @@ The operator sets certain env vars automatically based on the CR spec. These are
 
 | Env Var | Tier | Set by | Description |
 |---|---|---|---|
-| `SUPERSET_OPERATOR__INSTANCE_NAME` | Operator-internal | Operator (from parent CR `metadata.name`) | Parent CR name; available for use in raw `spec.config` (e.g. instance-scoped Celery queue names) |
+| `SUPERSET_OPERATOR__INSTANCE_NAME` | Operator-internal | Operator (from `spec.valkey.keyPrefix`, default `<namespace>:<name>`) | Instance namespace that prefixes Valkey keys and channels; available for use in raw `spec.config` (e.g. instance-scoped Celery queue names) |
 | `SUPERSET_OPERATOR__SECRET_KEY` | Operator-internal | Operator (from `secretKey` or `secretKeyFrom`) | Superset session signing key |
 | `SUPERSET_OPERATOR__DB_URI` | Operator-internal | Operator (from `metastore.uri` or `metastore.uriFrom`) | Full database connection URI |
 | `SUPERSET_OPERATOR__DB_HOST`, `SUPERSET_OPERATOR__DB_PORT`, `SUPERSET_OPERATOR__DB_NAME` | Operator-internal | Operator (structured metastore) | Database connection fields |
 | `SUPERSET_OPERATOR__DB_USER`, `SUPERSET_OPERATOR__DB_PASS` | Operator-internal | Operator (from metastore structured fields or `passwordFrom`) | Database credentials |
 | `SUPERSET_OPERATOR__VALKEY_HOST`, `SUPERSET_OPERATOR__VALKEY_PORT` | Operator-internal | Operator (from `valkey`) | Valkey connection fields |
 | `SUPERSET_OPERATOR__VALKEY_PASS` | Operator-internal | Operator (from `valkey.password` or `valkey.passwordFrom`) | Valkey password |
+| `SUPERSET_OPERATOR__WS_JWT_SECRET` | Operator-internal | Operator (from `realtime.webSocket.jwtSecret` or `jwtSecretFrom`) | Websocket JWT secret, rendered as `WEBSOCKET_JWT_SECRET` |
 | `SUPERSET_OPERATOR__FORCE_RELOAD` | Operator-internal | Operator (from `spec.forceReload`) | Triggers rolling restart |
 | `SUPERSET_WEBSERVER_PORT` | Standard | Rendered in config | Web server port (8088) |
 
@@ -392,7 +393,7 @@ Build a Superset image that already contains the extension bundles, then point `
 spec:
   image:
     repository: example.com/superset-with-extensions
-    tag: "6.1.0-extensions-v1"
+    tag: "7.0.0-extensions-v1"
   config: |
     EXTENSIONS_PATH = "/app/extensions"
 ```
@@ -546,7 +547,7 @@ spec:
 
 ### Custom Queues And Routes
 
-The operator-rendered `CeleryConfig` is a regular Python class. Extend it from `spec.config` by mutating attributes, subclassing, or replacing `CELERY_CONFIG` outright. For instance-scoped queue naming (preventing cross-instance queue collisions on a shared broker), the operator exposes the parent CR name as `SUPERSET_OPERATOR__INSTANCE_NAME`:
+The operator-rendered `CeleryConfig` is a regular Python class. Extend it from `spec.config` by mutating attributes, subclassing, or replacing `CELERY_CONFIG` outright. For instance-scoped queue naming (preventing cross-instance queue collisions on a shared broker), the operator exposes the instance namespace (`spec.valkey.keyPrefix`, by default `<namespace>:<name>`) as `SUPERSET_OPERATOR__INSTANCE_NAME`:
 
 ```yaml
 spec:
@@ -573,7 +574,7 @@ spec:
     }
 ```
 
-Use `SUPERSET_OPERATOR__INSTANCE_NAME` whenever you need the parent CR name inside your Python config.
+Use `SUPERSET_OPERATOR__INSTANCE_NAME` whenever you need an instance-scoped value inside your Python config.
 
 ## Gunicorn Configuration
 
@@ -708,7 +709,7 @@ spec:
 ```
 
 - `jwtSecret` (plain text) is allowed only in Development; use `jwtSecretFrom` in Staging or Production.
-- `url` is the browser-visible endpoint. When unset, the operator derives it from `spec.baseUrl`, else from `spec.networking` and the websocket route (`/ws`) — `wss://` when TLS is configured, `ws://` otherwise. The browser must reach the socket on the same host as Superset so the JWT cookie is shared. Set `url` explicitly to override: either a full `ws://`/`wss://` URL, or an absolute path such as `/ws` that the browser resolves against the host it loaded Superset from. A path keeps the socket on the page's own host, so one deployment can serve several hostnames.
+- `url` is the browser-visible endpoint. When unset, the operator derives it from `spec.baseUrl`, else from `spec.networking` and the websocket route (`/ws`) — `wss://` for Gateway hostnames and for Ingress hosts with TLS, `ws://` otherwise (set `spec.baseUrl` for a plain-HTTP Gateway). The browser must reach the socket on the same host as Superset so the JWT cookie is shared. Set `url` explicitly to override: either a full `ws://`/`wss://` URL, or an absolute path such as `/ws` that the browser resolves against the host it loaded Superset from. A path keeps the socket on the page's own host, so one deployment can serve several hostnames.
 - `allowedOrigins` restricts which browser origins may open a websocket connection (the server's `ALLOWED_ORIGINS`, mitigating Cross-Site WebSocket Hijacking). When unset, the operator defaults it to the single origin of the resolved websocket URL — all realtime traffic is expected from the same host as Superset. With a path `url`, the default comes from `spec.baseUrl` or `spec.networking` instead. Set it explicitly to permit additional origins. In `environment: Development`, the single entry `"*"` accepts any origin, which suits local samples reached by several names (`localhost`, a LAN hostname, or an IP); Staging and Production reject it.
 - `cookieName` and `jwtExpirationSeconds` override `WEBSOCKET_JWT_COOKIE_NAME` and `WEBSOCKET_JWT_EXPIRATION_SECONDS`.
 
@@ -721,7 +722,7 @@ spec:
   baseUrl: https://superset.example.com
 ```
 
-The internal render target, `WEBDRIVER_BASEURL` (the in-cluster URL the headless browser navigates to for Alerts & Reports and thumbnails), is managed by the operator automatically — it points at the web-server Service — and is not something you configure. It is independent of `baseUrl`.
+The internal render target, `WEBDRIVER_BASEURL` (the in-cluster URL the headless browser navigates to for Alerts & Reports and thumbnails), is managed by the operator — it points at the web-server Service — so you don't need to set it. It is independent of `baseUrl`.
 
 ## Websocket Server
 
@@ -732,7 +733,7 @@ spec:
   websocketServer: {}          # inherits spec.image
 ```
 
-The operator configures the server entirely through environment variables it injects from `spec.realtime.webSocket`, `spec.baseUrl`/`spec.networking`, and `spec.valkey.distributedCoordination`: the JWT secret and cookie name, the `ALLOWED_ORIGINS` allowlist, and the Redis connection (host, port, DB, credentials, TLS) pointing at the same coordination backend as the app. Because the server is Node.js, it receives no `superset_config.py`, and `sqlaEngineOptions` is not available on this component. Additional server settings (for example connection caps `MAX_TOTAL_CONNECTIONS` and `MAX_CONNECTIONS_PER_CHANNEL`) can be set through `podTemplate` container env.
+The operator configures the server entirely through environment variables it injects from `spec.realtime.webSocket`, `spec.baseUrl`/`spec.networking`, and `spec.valkey.distributedCoordination`: the JWT secret and cookie name, the `ALLOWED_ORIGINS` allowlist, and the Redis connection (host, port, DB, credentials, and whether to use TLS) pointing at the same coordination backend as the app. Client certificates and custom CA bundles are not passed to the websocket server. These variables (`PORT`, `JWT_SECRET`, `JWT_COOKIE_NAME`, `ALLOWED_ORIGINS`, `REALTIME_CHANNEL_PREFIX`, and `REDIS_*`) are operator-owned and take precedence over the same names in `podTemplate` container env. Because the server is Node.js, it receives no `superset_config.py`, and `sqlaEngineOptions` is not available on this component. Additional server settings (for example connection caps `MAX_TOTAL_CONNECTIONS` and `MAX_CONNECTIONS_PER_CHANNEL`) can be set through `podTemplate` container env.
 
 It creates a Service (default port 8080), probes `/ready` for readiness and `/health` for liveness, and supports the same scaling, deployment template, and pod template fields as other scalable components.
 
@@ -879,7 +880,7 @@ podTemplate                         → PodSpec-level
 ```yaml
 spec:
   image:
-    tag: "6.1.0"
+    tag: "7.0.0"
   webServer:
     replicas: 2
 ```

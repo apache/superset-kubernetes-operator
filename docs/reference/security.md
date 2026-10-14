@@ -84,7 +84,7 @@ Key rules:
 - **Production/Staging secret rejection:** Inline `secretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, and `realtime.webSocket.jwtSecret` are rejected outside Development mode
 - **Staging seed boundary:** `lifecycle.seed` is allowed only in Development or Staging because it performs a destructive target database drop
 - **Mutual exclusivity:** `secretKey`/`secretKeyFrom`, metastore URI vs structured fields, Valkey password inline vs Secret reference, `realtime.webSocket.jwtSecret`/`jwtSecretFrom`, gateway vs ingress
-- **Realtime dependencies:** `realtime.webSocket` requires `spec.websocketServer` and `spec.valkey`; `realtime.asyncQueries` requires `spec.valkey`
+- **Realtime dependencies:** `realtime.asyncQueries` requires `spec.valkey` with `distributedCoordination` enabled, `spec.celeryWorker`, `spec.celeryBeat`, and the managed Celery broker; `realtime.webSocket` requires `spec.websocketServer`, `spec.valkey` with `distributedCoordination` enabled, and a resolvable browser origin; `spec.websocketServer` requires `realtime.webSocket`. See [Realtime](../user-guide/configuration.md#realtime-global-async-queries-websocket) for the origin rules
 - **Ingress requires webServer:** `spec.networking.ingress` rules target the web server service, so a CR cannot enable Ingress without `webServer`
 - **Gateway requires at least one routable component:** `spec.networking.gateway` routes to whichever of `webServer`, `websocketServer`, `mcpServer`, and `celeryFlower` are configured; a CR with only Beat and Worker cannot enable Gateway
 - **Monitoring requires webServer:** ServiceMonitor scrapes the web server service
