@@ -57,6 +57,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      PUBLISH_DIR: ${{ runner.temp }}/gh-pages
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -64,9 +66,44 @@ jobs:
           python-version: "3.14"
       - name: Install dependencies
         run: python -m pip install --require-hashes -r docs-requirements.txt
+      - name: Prepare gh-pages worktree
+        run: |
+          set -euo pipefail
+          git fetch origin gh-pages
+          git worktree add --detach "$PUBLISH_DIR" origin/gh-pages
       - name: Configure git
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      - name: Deploy docs
-        run: zensical gh-deploy --force --remote-branch gh-pages
+          git -C "$PUBLISH_DIR" config user.name "github-actions[bot]"
+          git -C "$PUBLISH_DIR" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Build docs
+        run: |
+          set -euo pipefail
+          make docs-build
+      - name: Copy generated site
+        run: |
+          set -euo pipefail
+          rsync -a --delete --exclude='.git' site/ "$PUBLISH_DIR/"
+      - name: Commit and push docs
+        run: |
+          set -euo pipefail
+          git -C "$PUBLISH_DIR" add -A
+          if git -C "$PUBLISH_DIR" diff --cached --quiet; then
+            echo "No documentation changes to deploy"
+            exit 0
+          fi
+          git -C "$PUBLISH_DIR" commit -m "docs: deploy ${GITHUB_SHA}"
+          for attempt in 1 2 3 4 5; do
+            if git -C "$PUBLISH_DIR" push origin HEAD:gh-pages; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 5 ]; then
+              echo "Unable to push gh-pages after ${attempt} attempts" >&2
+              exit 1
+            fi
+            echo "gh-pages changed while deploying; rebasing and retrying"
+            git -C "$PUBLISH_DIR" fetch origin gh-pages
+            git -C "$PUBLISH_DIR" rebase origin/gh-pages
+          done
+      - name: Clean up gh-pages worktree
+        if: always()
+        run: git worktree remove --force "$PUBLISH_DIR" || true
