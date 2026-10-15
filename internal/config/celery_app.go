@@ -26,7 +26,7 @@ import (
 // renderCeleryClass writes only the CeleryConfig fields derived from structured
 // Valkey settings. Application-level Celery behavior such as imports, task
 // annotations, and beat schedules belongs in spec.config.
-func renderCeleryClass(b *strings.Builder, v *ValkeyInput, hasSSLOpts bool) {
+func renderCeleryClass(b *strings.Builder, v *ValkeyInput) {
 	brokerEnabled := !v.CeleryBroker.Disabled
 	resultEnabled := !v.CeleryResultBackend.Disabled
 	if !brokerEnabled && !resultEnabled {
@@ -41,7 +41,7 @@ func renderCeleryClass(b *strings.Builder, v *ValkeyInput, hasSSLOpts bool) {
 	if resultEnabled {
 		fmt.Fprintf(b, "    result_backend = f\"{_vk_base}/%d\"\n", v.CeleryResultBackend.Database)
 	}
-	if hasSSLOpts {
+	if v.SSL {
 		if brokerEnabled {
 			b.WriteString("    broker_use_ssl = _vk_ssl_opts\n")
 		}
