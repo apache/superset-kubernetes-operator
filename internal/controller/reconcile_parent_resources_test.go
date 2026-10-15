@@ -323,6 +323,9 @@ func TestReconcile_ComponentResourcesCarryLabels(t *testing.T) {
 		t.Fatalf("get Deployment: %v", err)
 	}
 	assertLabels(t, "Deployment", deploy.Labels)
+	if got := deploy.Spec.Template.Labels[common.LabelKeyParent]; got != "test" {
+		t.Errorf("Deployment pod template missing label %s=test (got %q)", common.LabelKeyParent, got)
+	}
 
 	cm := &corev1.ConfigMap{}
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server-config", Namespace: "default"}, cm); err != nil {
@@ -414,6 +417,9 @@ func TestReconcile_LifecycleCreatesParentOwnedTaskJobAndStatus(t *testing.T) {
 	}
 	if jobs.Items[0].Labels[common.LabelKeyParent] != "test" {
 		t.Fatalf("expected task job parent label, got %q", jobs.Items[0].Labels[common.LabelKeyParent])
+	}
+	if got := jobs.Items[0].Spec.Template.Labels[common.LabelKeyParent]; got != "test" {
+		t.Fatalf("expected task pod template parent label, got %q", got)
 	}
 
 	updated := &supersetv1alpha1.Superset{}

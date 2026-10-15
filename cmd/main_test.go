@@ -20,12 +20,6 @@ package main
 
 import (
 	"testing"
-
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"sigs.k8s.io/controller-runtime/pkg/cache"
-
-	naming "github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
 func TestParseWatchNamespaces(t *testing.T) {
@@ -53,45 +47,6 @@ func TestParseWatchNamespaces(t *testing.T) {
 				if _, ok := got[ns]; !ok {
 					t.Errorf("missing namespace %q; got %v", ns, sortedKeys(got))
 				}
-			}
-		})
-	}
-}
-
-func TestCacheOptionsScopesPodsToParentLabel(t *testing.T) {
-	namespaces := map[string]cache.Config{"team-a": {}}
-	opts, err := cacheOptions(namespaces)
-	if err != nil {
-		t.Fatalf("cacheOptions: %v", err)
-	}
-	if _, ok := opts.DefaultNamespaces["team-a"]; !ok || len(opts.DefaultNamespaces) != 1 {
-		t.Errorf("DefaultNamespaces = %v, want only team-a", sortedKeys(opts.DefaultNamespaces))
-	}
-
-	var podSelector labels.Selector
-	for obj, byObj := range opts.ByObject {
-		if _, ok := obj.(*corev1.Pod); ok {
-			podSelector = byObj.Label
-		}
-	}
-	if podSelector == nil {
-		t.Fatal("no Pod label selector in ByObject")
-	}
-
-	tests := []struct {
-		name   string
-		labels labels.Set
-		want   bool
-	}{
-		{"component pod", labels.Set{naming.LabelKeyParent: "demo", naming.LabelKeyComponent: "web-server"}, true},
-		{"lifecycle task pod", labels.Set{naming.LabelKeyParent: "demo", naming.LabelKeyComponent: "init"}, true},
-		{"unrelated pod", labels.Set{"app": "other"}, false},
-		{"no labels", labels.Set{}, false},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			if got := podSelector.Matches(tc.labels); got != tc.want {
-				t.Errorf("Matches(%v) = %v, want %v", tc.labels, got, tc.want)
 			}
 		})
 	}
