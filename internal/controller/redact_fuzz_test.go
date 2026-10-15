@@ -44,6 +44,9 @@ func FuzzRedactCredentials(f *testing.F) {
 	// on the first pass, then the outer key re-matched on the second. Guards the
 	// bare-placeholder replacement in quotedKeyCredentialRe.
 	f.Add(`"seCret0000": "token0':''`)
+	// Regression seed (fuzz-discovered): a value glued to empty quotes was only
+	// masked up to the closing quote, leaking the rest and breaking idempotence.
+	f.Add(`0"pAsswd": ''00`)
 
 	f.Fuzz(func(t *testing.T, msg string) {
 		once := redactCredentials(msg)

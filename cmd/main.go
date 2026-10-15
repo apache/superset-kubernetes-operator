@@ -30,12 +30,16 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/selection"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/certwatcher"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
@@ -44,6 +48,7 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
+	naming "github.com/apache/superset-kubernetes-operator/internal/common"
 	"github.com/apache/superset-kubernetes-operator/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
@@ -161,13 +166,19 @@ func main() {
 		setupLog.Info("watching all namespaces (cluster-scoped)")
 	}
 
+	cacheOpts, err := cacheOptions(defaultNamespaces)
+	if err != nil {
+		setupLog.Error(err, "unable to build cache options")
+		os.Exit(1)
+	}
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		Metrics:                metricsServerOptions,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "258102fe.apache.org",
-		Cache:                  cache.Options{DefaultNamespaces: defaultNamespaces},
+		Cache:                  cacheOpts,
 		// LeaderElectionReleaseOnCancel defines if the leader should step down voluntarily
 		// when the Manager ends. This requires the binary to immediately end when the
 		// Manager is stopped, otherwise, this setting is unsafe. Setting this significantly
@@ -230,6 +241,21 @@ func parseWatchNamespaces(raw string) map[string]cache.Config {
 		}
 	}
 	return out
+}
+
+// cacheOptions limits the Pod informer to operator-managed pods, so every Pod
+// read in the controller must select on the parent label.
+func cacheOptions(defaultNamespaces map[string]cache.Config) (cache.Options, error) {
+	parentExists, err := labels.NewRequirement(naming.LabelKeyParent, selection.Exists, nil)
+	if err != nil {
+		return cache.Options{}, err
+	}
+	return cache.Options{
+		DefaultNamespaces: defaultNamespaces,
+		ByObject: map[client.Object]cache.ByObject{
+			&corev1.Pod{}: {Label: labels.NewSelector().Add(*parentExists)},
+		},
+	}, nil
 }
 
 func sortedKeys(m map[string]cache.Config) []string {

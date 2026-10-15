@@ -312,8 +312,7 @@ func renderValkey(b *strings.Builder, v *ValkeyInput, asyncQueries bool) {
 	// so multiple Superset deployments sharing a Valkey/Redis don't collide.
 
 	// SSL options dict (used by Flask-Caching CACHE_OPTIONS, CacheLib kwargs, and Celery).
-	hasSSLOpts := v.SSL && (v.SSLKeyFile != "" || v.SSLCertFile != "" || v.SSLCACertFile != "")
-	if hasSSLOpts {
+	if v.SSL {
 		certReq := v.SSLCertRequired
 		if certReq == "" {
 			certReq = "required"
@@ -355,7 +354,7 @@ func renderValkey(b *strings.Builder, v *ValkeyInput, asyncQueries bool) {
 		fmt.Fprintf(b, "    \"CACHE_DEFAULT_TIMEOUT\": %d,\n", s.input.DefaultTimeout)
 		fmt.Fprintf(b, "    \"CACHE_KEY_PREFIX\": f\"{_superset_instance}_\" + \"%s\",\n", pyQuote(s.input.KeyPrefix))
 		fmt.Fprintf(b, "    \"CACHE_REDIS_URL\": f\"{_vk_base}/%d\",\n", s.input.Database)
-		if hasSSLOpts {
+		if v.SSL {
 			b.WriteString("    \"CACHE_OPTIONS\": _vk_ssl_opts,\n")
 		}
 		b.WriteString("}\n")
@@ -363,7 +362,7 @@ func renderValkey(b *strings.Builder, v *ValkeyInput, asyncQueries bool) {
 	renderCoordinationConfig(b, v)
 
 	// Celery config.
-	renderCeleryClass(b, v, hasSSLOpts, asyncQueries)
+	renderCeleryClass(b, v, asyncQueries)
 
 	// Results backend (CacheLib RedisCache).
 	if !v.ResultsBackend.Disabled {
@@ -376,8 +375,6 @@ func renderValkey(b *strings.Builder, v *ValkeyInput, asyncQueries bool) {
 		fmt.Fprintf(b, "    key_prefix=f\"{_superset_instance}_\" + \"%s\",\n", pyQuote(v.ResultsBackend.KeyPrefix))
 		if v.SSL {
 			b.WriteString("    ssl=True,\n")
-		}
-		if hasSSLOpts {
 			b.WriteString("    **_vk_ssl_opts,\n")
 		}
 		b.WriteString(")\n")

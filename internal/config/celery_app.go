@@ -31,7 +31,7 @@ import (
 // Queries extends the inherited imports and beat schedule. Importing
 // superset.config here is safe: superset_config is loaded from the end of that
 // module, after its CeleryConfig is defined.
-func renderCeleryClass(b *strings.Builder, v *ValkeyInput, hasSSLOpts, asyncQueries bool) {
+func renderCeleryClass(b *strings.Builder, v *ValkeyInput, asyncQueries bool) {
 	brokerEnabled := !v.CeleryBroker.Disabled
 	resultEnabled := !v.CeleryResultBackend.Disabled
 	if !brokerEnabled && !resultEnabled {
@@ -49,7 +49,7 @@ func renderCeleryClass(b *strings.Builder, v *ValkeyInput, hasSSLOpts, asyncQuer
 	if resultEnabled {
 		fmt.Fprintf(b, "    result_backend = f\"{_vk_base}/%d\"\n", v.CeleryResultBackend.Database)
 	}
-	if hasSSLOpts {
+	if v.SSL {
 		if brokerEnabled {
 			b.WriteString("    broker_use_ssl = _vk_ssl_opts\n")
 		}

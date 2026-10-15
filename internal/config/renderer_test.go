@@ -279,8 +279,8 @@ func TestRenderConfig_ValkeyWithSSL(t *testing.T) {
 		Valkey: &ValkeyInput{
 			SSL:                  true,
 			Cache:                ValkeyCacheInput{Database: 1, KeyPrefix: "s_", DefaultTimeout: 300},
-			CeleryBroker:         ValkeyCeleryInput{Disabled: true},
-			CeleryResultBackend:  ValkeyCeleryInput{Disabled: true},
+			CeleryBroker:         ValkeyCeleryInput{Database: 0},
+			CeleryResultBackend:  ValkeyCeleryInput{Database: 0},
 			ResultsBackend:       ValkeyResultsInput{Database: 6, KeyPrefix: "r_"},
 			DataCache:            ValkeyCacheInput{Disabled: true},
 			FilterStateCache:     ValkeyCacheInput{Disabled: true},
@@ -291,10 +291,39 @@ func TestRenderConfig_ValkeyWithSSL(t *testing.T) {
 	result := RenderConfig(ComponentCeleryWorker, input)
 
 	assertContains(t, result, "_vk_scheme = \"rediss\"")
-	assertContains(t, result, "CACHE_CONFIG = {")
+	assertContains(t, result, "_vk_ssl_opts = {")
+	assertContains(t, result, "\"ssl_cert_reqs\": \"required\"")
+	assertNotContains(t, result, "ssl_keyfile")
+	assertNotContains(t, result, "ssl_certfile")
+	assertNotContains(t, result, "ssl_ca_certs")
+	assertContains(t, result, "\"CACHE_OPTIONS\": _vk_ssl_opts")
+	// Celery's rediss:// result backend refuses to start without ssl_cert_reqs.
+	assertContains(t, result, "broker_use_ssl = _vk_ssl_opts")
+	assertContains(t, result, "redis_backend_use_ssl = _vk_ssl_opts")
 	assertContains(t, result, "ssl=True")
-	// No ssl_opts when no cert paths set
-	assertNotContains(t, result, "_vk_ssl_opts")
+	assertContains(t, result, "**_vk_ssl_opts")
+}
+
+func TestRenderConfig_ValkeyWithSSLCertRequiredNone(t *testing.T) {
+	input := &ConfigInput{
+		Valkey: &ValkeyInput{
+			SSL:                  true,
+			SSLCertRequired:      "none",
+			Cache:                ValkeyCacheInput{Disabled: true},
+			DataCache:            ValkeyCacheInput{Disabled: true},
+			FilterStateCache:     ValkeyCacheInput{Disabled: true},
+			ExploreFormDataCache: ValkeyCacheInput{Disabled: true},
+			ThumbnailCache:       ValkeyCacheInput{Disabled: true},
+			CeleryBroker:         ValkeyCeleryInput{Database: 0},
+			CeleryResultBackend:  ValkeyCeleryInput{Database: 0},
+			ResultsBackend:       ValkeyResultsInput{Disabled: true},
+		},
+	}
+	result := RenderConfig(ComponentCeleryWorker, input)
+
+	assertContains(t, result, "\"ssl_cert_reqs\": \"none\"")
+	assertContains(t, result, "broker_use_ssl = _vk_ssl_opts")
+	assertContains(t, result, "redis_backend_use_ssl = _vk_ssl_opts")
 }
 
 func TestRenderConfig_ValkeyWithMTLS(t *testing.T) {
