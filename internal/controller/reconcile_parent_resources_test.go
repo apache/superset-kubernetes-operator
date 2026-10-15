@@ -20,6 +20,7 @@ package controller
 
 import (
 	"context"
+	"maps"
 	"strings"
 	"testing"
 
@@ -239,6 +240,73 @@ func TestReconcile_WebsocketInjectsRealtimeEnvAndUsesMainImage(t *testing.T) {
 	}
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server-config", Namespace: "default"}, &corev1.ConfigMap{}); !apierrors.IsNotFound(err) {
 		t.Fatalf("expected the legacy websocket ConfigMap to be deleted, got %v", err)
+	}
+}
+
+// The websocket server connects to the coordination backend with the same TLS
+// settings the Python components render into DISTRIBUTED_COORDINATION_CONFIG.
+func TestReconcile_WebsocketMirrorsValkeyTLS(t *testing.T) {
+	tests := []struct {
+		name string
+		ssl  *supersetv1alpha1.ValkeySSLSpec
+		want map[string]string
+	}{
+		{
+			name: "TLS with the default verification",
+			ssl:  &supersetv1alpha1.ValkeySSLSpec{},
+			want: map[string]string{"REDIS_SSL": "true", "REDIS_SSL_CERT_REQS": "required"},
+		},
+		{
+			name: "mutual TLS with a private CA",
+			ssl: &supersetv1alpha1.ValkeySSLSpec{
+				CertRequired: new("none"),
+				CACertFile:   new("/mnt/tls/ca.crt"),
+				CertFile:     new("/mnt/tls/tls.crt"),
+				KeyFile:      new("/mnt/tls/tls.key"),
+			},
+			want: map[string]string{
+				"REDIS_SSL":           "true",
+				"REDIS_SSL_CERT_REQS": "none",
+				"REDIS_SSL_CA_CERTS":  "/mnt/tls/ca.crt",
+				"REDIS_SSL_CERTFILE":  "/mnt/tls/tls.crt",
+				"REDIS_SSL_KEYFILE":   "/mnt/tls/tls.key",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scheme := testScheme(t)
+			spec := minimalSupersetSpec()
+			spec.Environment = new("Development")
+			spec.BaseURL = new("https://superset.example.com")
+			spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey", SSL: tt.ssl}
+			spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+			spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{JWTSecret: new("dev-ws-secret")},
+			}
+			superset := &supersetv1alpha1.Superset{
+				Name: "test", Namespace: "default", UID: "uid-1",
+				Spec: spec,
+			}
+
+			c := reconcileOnce(t, scheme, superset).Build()
+			r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+			doReconcile(t, r)
+
+			deploy := &appsv1.Deployment{}
+			if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server", Namespace: "default"}, deploy); err != nil {
+				t.Fatalf("expected websocket Deployment: %v", err)
+			}
+			got := map[string]string{}
+			for _, env := range deploy.Spec.Template.Spec.Containers[0].Env {
+				if strings.HasPrefix(env.Name, "REDIS_SSL") {
+					got[env.Name] = env.Value
+				}
+			}
+			if !maps.Equal(got, tt.want) {
+				t.Fatalf("websocket TLS env = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 

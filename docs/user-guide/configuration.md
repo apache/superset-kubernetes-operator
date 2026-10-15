@@ -291,7 +291,7 @@ spec:
       caCertFile: /mnt/tls/ca.pem
 ```
 
-Mount the certificate files via the top-level `podTemplate` so they are available to all components:
+Mount the certificate files via the top-level `podTemplate` so they are available to all components, including the websocket server:
 
 ```yaml
 spec:
@@ -733,7 +733,7 @@ spec:
   websocketServer: {}          # inherits spec.image
 ```
 
-The operator configures the server entirely through environment variables it injects from `spec.realtime.webSocket`, `spec.baseUrl`/`spec.networking`, and `spec.valkey.distributedCoordination`: the JWT secret and cookie name, the `ALLOWED_ORIGINS` allowlist, and the Redis connection (host, port, DB, credentials, and whether to use TLS) pointing at the same coordination backend as the app. Client certificates and custom CA bundles are not passed to the websocket server. These variables (`PORT`, `JWT_SECRET`, `JWT_COOKIE_NAME`, `ALLOWED_ORIGINS`, `REALTIME_CHANNEL_PREFIX`, and `REDIS_*`) are operator-owned and take precedence over the same names in `podTemplate` container env. Because the server is Node.js, it receives no `superset_config.py`, and `sqlaEngineOptions` is not available on this component. Additional server settings (for example connection caps `MAX_TOTAL_CONNECTIONS` and `MAX_CONNECTIONS_PER_CHANNEL`) can be set through `podTemplate` container env.
+The operator configures the server entirely through environment variables it injects from `spec.realtime.webSocket`, `spec.baseUrl`/`spec.networking`, and `spec.valkey.distributedCoordination`: the JWT secret and cookie name, the `ALLOWED_ORIGINS` allowlist, and the Redis connection (host, port, DB, credentials, and the `spec.valkey.ssl` settings: verification mode, CA bundle, and client certificate and key) pointing at the same coordination backend as the app. These variables (`PORT`, `JWT_SECRET`, `JWT_COOKIE_NAME`, `ALLOWED_ORIGINS`, `REALTIME_CHANNEL_PREFIX`, and `REDIS_*`) are operator-owned and take precedence over the same names in `podTemplate` container env. Because the server is Node.js, it receives no `superset_config.py`, and `sqlaEngineOptions` is not available on this component. Additional server settings (for example connection caps `MAX_TOTAL_CONNECTIONS` and `MAX_CONNECTIONS_PER_CHANNEL`) can be set through `podTemplate` container env.
 
 It creates a Service (default port 8080), probes `/ready` for readiness and `/health` for liveness, and supports the same scaling, deployment template, and pod template fields as other scalable components.
 

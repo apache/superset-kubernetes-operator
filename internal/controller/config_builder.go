@@ -185,9 +185,9 @@ func buildValkeyInput(v *supersetv1alpha1.ValkeySpec) *supersetconfig.ValkeyInpu
 
 	if v.SSL != nil {
 		vi.SSL = true
-		if v.SSL.CertRequired != nil {
-			vi.SSLCertRequired = *v.SSL.CertRequired
-		}
+		// Resolved here, not left to each consumer, so the Python config and the
+		// websocket server always verify the server the same way.
+		vi.SSLCertRequired = derefOrDefault(v.SSL.CertRequired, "required")
 		if v.SSL.KeyFile != nil {
 			vi.SSLKeyFile = *v.SSL.KeyFile
 		}
@@ -415,6 +415,10 @@ const (
 	envWSRedisUser                = "REDIS_USERNAME"
 	envWSRedisPass                = "REDIS_PASSWORD"
 	envWSRedisSSL                 = "REDIS_SSL"
+	envWSRedisSSLCertReqs         = "REDIS_SSL_CERT_REQS"
+	envWSRedisSSLCACerts          = "REDIS_SSL_CA_CERTS"
+	envWSRedisSSLCertfile         = "REDIS_SSL_CERTFILE"
+	envWSRedisSSLKeyfile          = "REDIS_SSL_KEYFILE"
 	envWSRealtimeChannelPrefix    = "REALTIME_CHANNEL_PREFIX"
 	defaultWSCookie               = "superset-ws-token"
 	featureFlagGlobalAsyncQueries = "GLOBAL_ASYNC_QUERIES"
@@ -450,9 +454,25 @@ func collectWebsocketEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVa
 		envs = append(envs, valkeyConnectionEnvVars(v, isDev, valkeyEnvNames{
 			host: envWSRedisHost, port: envWSRedisPort, user: envWSRedisUser, pass: envWSRedisPass,
 		})...)
-		envs = append(envs, corev1.EnvVar{Name: envWSRedisDB, Value: fmt.Sprintf("%d", resolveValkeyCoordination(v).Database)})
-		if v.SSL != nil {
-			envs = append(envs, corev1.EnvVar{Name: envWSRedisSSL, Value: "true"})
+		// The same resolved input the Python components render
+		// DISTRIBUTED_COORDINATION_CONFIG from, so the DB and TLS settings
+		// (CACHE_REDIS_DB, CACHE_REDIS_SSL_*) match on both sides.
+		vi := buildValkeyInput(v)
+		envs = append(envs, corev1.EnvVar{Name: envWSRedisDB, Value: fmt.Sprintf("%d", vi.DistributedCoordination.Database)})
+		if vi.SSL {
+			envs = append(envs,
+				corev1.EnvVar{Name: envWSRedisSSL, Value: "true"},
+				corev1.EnvVar{Name: envWSRedisSSLCertReqs, Value: vi.SSLCertRequired},
+			)
+			for _, f := range []struct{ name, path string }{
+				{envWSRedisSSLCACerts, vi.SSLCACertFile},
+				{envWSRedisSSLCertfile, vi.SSLCertFile},
+				{envWSRedisSSLKeyfile, vi.SSLKeyFile},
+			} {
+				if f.path != "" {
+					envs = append(envs, corev1.EnvVar{Name: f.name, Value: f.path})
+				}
+			}
 		}
 	}
 
