@@ -222,7 +222,7 @@ This sets `core.hooksPath` to `.githooks/` for this repository. To bypass the ho
 
 ## Documentation
 
-The docs are built with [mkdocs-material](https://squidfunk.github.io/mkdocs-material/). To set up and preview locally:
+The docs are built with [Zensical](https://zensical.org/). To set up and preview locally:
 
 ```sh
 virtualenv venv

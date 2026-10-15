@@ -114,7 +114,7 @@ check-license: ## Check Apache license headers using Apache Rat.
 
 ##@ Documentation
 
-MKDOCS ?= $(shell if [ -x venv/bin/mkdocs ]; then printf './venv/bin/mkdocs'; else printf 'mkdocs'; fi)
+ZENSICAL ?= $(shell if [ -x venv/bin/zensical ]; then printf './venv/bin/zensical'; else printf 'zensical'; fi)
 UV ?= uv
 
 .PHONY: docs-lock
@@ -123,11 +123,11 @@ docs-lock: ## Regenerate hash-pinned Python dependencies for documentation.
 
 .PHONY: docs-serve
 docs-serve: ## Serve documentation locally with live reload.
-	NO_MKDOCS_2_WARNING=1 $(MKDOCS) serve
+	$(ZENSICAL) serve
 
 .PHONY: docs-build
 docs-build: ## Build documentation site.
-	NO_MKDOCS_2_WARNING=1 $(MKDOCS) build --strict
+	$(ZENSICAL) build --strict
 
 .PHONY: docs-api
 docs-api: crd-ref-docs ## Generate API reference documentation from Go types.
