@@ -310,6 +310,123 @@ func TestReconcile_WebsocketMirrorsValkeyTLS(t *testing.T) {
 	}
 }
 
+// With Sentinel, the Python components and the websocket server get each node's
+// address (literal or Secret-sourced) in place of a fixed host and port.
+func TestReconcile_ValkeySentinelEnv(t *testing.T) {
+	scheme := testScheme(t)
+	spec := minimalSupersetSpec()
+	spec.Environment = new("Development")
+	spec.BaseURL = new("https://superset.example.com")
+	spec.Valkey = &supersetv1alpha1.ValkeySpec{
+		Password: new("vk-pass"),
+		Sentinel: &supersetv1alpha1.ValkeySentinelSpec{
+			MasterName: "mymaster",
+			Nodes: []supersetv1alpha1.ValkeySentinelNode{
+				{Host: "sentinel-0.valkey"},
+				{
+					HostFrom: secretKeyRef("sentinels", "host-1"),
+					PortFrom: secretKeyRef("sentinels", "port-1"),
+				},
+			},
+			PasswordFrom: secretKeyRef("sentinels", "password"),
+		},
+	}
+	spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{}
+	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+	spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+		WebSocket: &supersetv1alpha1.WebSocketTransportSpec{JWTSecret: new("dev-ws-secret")},
+	}
+	superset := &supersetv1alpha1.Superset{
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: spec,
+	}
+
+	c := reconcileOnce(t, scheme, superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r)
+
+	containerEnv := func(name string) []corev1.EnvVar {
+		t.Helper()
+		deploy := &appsv1.Deployment{}
+		if err := c.Get(context.Background(), types.NamespacedName{Name: name, Namespace: "default"}, deploy); err != nil {
+			t.Fatalf("expected Deployment %s: %v", name, err)
+		}
+		return deploy.Spec.Template.Spec.Containers[0].Env
+	}
+	secretRef := func(env corev1.EnvVar) string {
+		if env.ValueFrom == nil || env.ValueFrom.SecretKeyRef == nil {
+			return ""
+		}
+		return env.ValueFrom.SecretKeyRef.Name + "/" + env.ValueFrom.SecretKeyRef.Key
+	}
+	nodeEnv := map[string]string{
+		"SUPERSET_OPERATOR__VALKEY_SENTINEL_0_HOST": "sentinel-0.valkey",
+		"SUPERSET_OPERATOR__VALKEY_SENTINEL_0_PORT": "26379",
+		"SUPERSET_OPERATOR__VALKEY_SENTINEL_1_HOST": "secret:sentinels/host-1",
+		"SUPERSET_OPERATOR__VALKEY_SENTINEL_1_PORT": "secret:sentinels/port-1",
+	}
+
+	for _, tc := range []struct {
+		deployment string
+		want       map[string]string
+		absent     []string
+	}{
+		{
+			deployment: "test-web-server",
+			want: map[string]string{
+				common.EnvValkeySentinelPass: "secret:sentinels/password",
+				common.EnvValkeyPass:         "vk-pass",
+			},
+			absent: []string{common.EnvValkeyHost, common.EnvValkeyPort},
+		},
+		{
+			deployment: "test-websocket-server",
+			want: map[string]string{
+				"REDIS_SENTINELS":         "[$(SUPERSET_OPERATOR__VALKEY_SENTINEL_0_HOST)]:$(SUPERSET_OPERATOR__VALKEY_SENTINEL_0_PORT),[$(SUPERSET_OPERATOR__VALKEY_SENTINEL_1_HOST)]:$(SUPERSET_OPERATOR__VALKEY_SENTINEL_1_PORT)",
+				"REDIS_SENTINEL_MASTER":   "mymaster",
+				"REDIS_SENTINEL_PASSWORD": "secret:sentinels/password",
+				"REDIS_PASSWORD":          "vk-pass",
+				"REDIS_DB":                "7",
+			},
+			absent: []string{"REDIS_HOST", "REDIS_PORT"},
+		},
+	} {
+		t.Run(tc.deployment, func(t *testing.T) {
+			envs := containerEnv(tc.deployment)
+			got := map[string]string{}
+			index := map[string]int{}
+			for i, env := range envs {
+				index[env.Name] = i
+				if ref := secretRef(env); ref != "" {
+					got[env.Name] = "secret:" + ref
+				} else {
+					got[env.Name] = env.Value
+				}
+			}
+			want := maps.Clone(tc.want)
+			maps.Copy(want, nodeEnv)
+			for name, value := range want {
+				if got[name] != value {
+					t.Errorf("env %s = %q, want %q", name, got[name], value)
+				}
+			}
+			for _, name := range tc.absent {
+				if _, ok := got[name]; ok {
+					t.Errorf("env %s is set; sentinel mode has no fixed host or port", name)
+				}
+			}
+			// Kubernetes expands $(VAR) only from variables defined earlier.
+			if i, ok := index["REDIS_SENTINELS"]; ok {
+				for name := range nodeEnv {
+					if index[name] > i {
+						t.Errorf("REDIS_SENTINELS (index %d) precedes %s (index %d)", i, name, index[name])
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestReconcile_ValkeyKeyPrefixNamespacesInstance(t *testing.T) {
 	scheme := testScheme(t)
 

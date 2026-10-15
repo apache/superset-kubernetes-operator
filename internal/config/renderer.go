@@ -77,8 +77,21 @@ type ValkeyResultsInput struct {
 	KeyPrefix string
 }
 
+// ValkeySentinelInput holds the resolved Sentinel settings. The node addresses
+// and the sentinel password are read from operator-injected env vars.
+type ValkeySentinelInput struct {
+	MasterName string
+	// Nodes is the number of sentinel nodes, each injected as
+	// EnvValkeySentinelHost(i)/EnvValkeySentinelPort(i).
+	Nodes int
+}
+
 // ValkeyInput holds all resolved Valkey configuration for config rendering.
 type ValkeyInput struct {
+	// Sentinel is set when the primary is resolved through Sentinel instead of
+	// a fixed host and port.
+	Sentinel *ValkeySentinelInput
+
 	SSL             bool
 	SSLCertRequired string
 	SSLKeyFile      string
@@ -161,17 +174,7 @@ func RenderConfig(componentType ComponentType, input *ConfigInput) string {
 	var b strings.Builder
 
 	// [1] Imports
-	b.WriteString("import os\n")
-	if input.MetastoreMode == MetastoreStructured || input.Valkey != nil {
-		b.WriteString("from urllib.parse import quote\n")
-	}
-	if input.Valkey != nil && !input.Valkey.ResultsBackend.Disabled {
-		b.WriteString("from cachelib.redis import RedisCache as _CachelibRedis\n")
-	}
-	if input.EngineOptions != nil && input.EngineOptions.UseNullPool {
-		b.WriteString("from sqlalchemy.pool import NullPool\n")
-	}
-	b.WriteString("\n")
+	renderImports(&b, input)
 
 	// [2] Operator-generated configs
 	b.WriteString("# Operator-generated configs\n")
@@ -288,6 +291,24 @@ func writeConfigSection(b *strings.Builder, label, content string) {
 	b.WriteString("\n")
 }
 
+// renderImports writes the imports the rest of the rendered config uses.
+func renderImports(b *strings.Builder, input *ConfigInput) {
+	b.WriteString("import os\n")
+	if input.MetastoreMode == MetastoreStructured || input.Valkey != nil {
+		b.WriteString("from urllib.parse import quote\n")
+	}
+	if input.Valkey != nil && !input.Valkey.ResultsBackend.Disabled {
+		b.WriteString("from cachelib.redis import RedisCache as _CachelibRedis\n")
+	}
+	if input.Valkey != nil && input.Valkey.Sentinel != nil {
+		b.WriteString("from redis.sentinel import Sentinel as _Sentinel\n")
+	}
+	if input.EngineOptions != nil && input.EngineOptions.UseNullPool {
+		b.WriteString("from sqlalchemy.pool import NullPool\n")
+	}
+	b.WriteString("\n")
+}
+
 // renderValkey writes the Valkey cache/broker/results Python configuration.
 func renderValkey(b *strings.Builder, v *ValkeyInput, asyncQueries bool) {
 	b.WriteString("# Valkey cache config\n")
@@ -295,18 +316,22 @@ func renderValkey(b *strings.Builder, v *ValkeyInput, asyncQueries bool) {
 	// Connection helpers using operator-injected env vars.
 	fmt.Fprintf(b, "_vk_user = os.environ.get(\"%s\", \"\")\n", common.EnvValkeyUser)
 	fmt.Fprintf(b, "_vk_pass = os.environ.get(\"%s\", \"\")\n", common.EnvValkeyPass)
-	fmt.Fprintf(b, "_vk_host = os.environ[\"%s\"].strip()\n", common.EnvValkeyHost)
-	fmt.Fprintf(b, "_vk_port = int(os.environ[\"%s\"])\n", common.EnvValkeyPort)
+	if v.Sentinel == nil {
+		fmt.Fprintf(b, "_vk_host = os.environ[\"%s\"].strip()\n", common.EnvValkeyHost)
+		fmt.Fprintf(b, "_vk_port = int(os.environ[\"%s\"])\n", common.EnvValkeyPort)
 
-	scheme := "redis"
-	if v.SSL {
-		scheme = "rediss"
+		scheme := "redis"
+		if v.SSL {
+			scheme = "rediss"
+		}
+		fmt.Fprintf(b, "_vk_scheme = \"%s\"\n", scheme)
 	}
-	fmt.Fprintf(b, "_vk_scheme = \"%s\"\n", scheme)
 	b.WriteString("_vk_auth = \"\"\n")
 	b.WriteString("if _vk_user or _vk_pass:\n")
 	b.WriteString("    _vk_auth = f\"{quote(_vk_user, safe='')}:{quote(_vk_pass, safe='')}@\" if _vk_pass else f\"{quote(_vk_user, safe='')}@\"\n")
-	b.WriteString("_vk_base = f\"{_vk_scheme}://{_vk_auth}{_vk_host}:{_vk_port}\"\n")
+	if v.Sentinel == nil {
+		b.WriteString("_vk_base = f\"{_vk_scheme}://{_vk_auth}{_vk_host}:{_vk_port}\"\n")
+	}
 
 	// _superset_instance (rendered earlier) is prepended to every CACHE_KEY_PREFIX
 	// so multiple Superset deployments sharing a Valkey/Redis don't collide.
@@ -329,6 +354,9 @@ func renderValkey(b *strings.Builder, v *ValkeyInput, asyncQueries bool) {
 			fmt.Fprintf(b, "    \"ssl_ca_certs\": \"%s\",\n", pyQuote(v.SSLCACertFile))
 		}
 		b.WriteString("}\n")
+	}
+	if v.Sentinel != nil {
+		renderSentinelClients(b, v)
 	}
 
 	b.WriteString("\n")
@@ -353,9 +381,13 @@ func renderValkey(b *strings.Builder, v *ValkeyInput, asyncQueries bool) {
 		b.WriteString("    \"CACHE_TYPE\": \"RedisCache\",\n")
 		fmt.Fprintf(b, "    \"CACHE_DEFAULT_TIMEOUT\": %d,\n", s.input.DefaultTimeout)
 		fmt.Fprintf(b, "    \"CACHE_KEY_PREFIX\": f\"{_superset_instance}_\" + \"%s\",\n", pyQuote(s.input.KeyPrefix))
-		fmt.Fprintf(b, "    \"CACHE_REDIS_URL\": f\"{_vk_base}/%d\",\n", s.input.Database)
-		if v.SSL {
-			b.WriteString("    \"CACHE_OPTIONS\": _vk_ssl_opts,\n")
+		if v.Sentinel != nil {
+			fmt.Fprintf(b, "    \"CACHE_REDIS_HOST\": _vk_primary(%d),\n", s.input.Database)
+		} else {
+			fmt.Fprintf(b, "    \"CACHE_REDIS_URL\": f\"{_vk_base}/%d\",\n", s.input.Database)
+			if v.SSL {
+				b.WriteString("    \"CACHE_OPTIONS\": _vk_ssl_opts,\n")
+			}
 		}
 		b.WriteString("}\n")
 	}
@@ -365,7 +397,12 @@ func renderValkey(b *strings.Builder, v *ValkeyInput, asyncQueries bool) {
 	renderCeleryClass(b, v, asyncQueries)
 
 	// Results backend (CacheLib RedisCache).
-	if !v.ResultsBackend.Disabled {
+	if !v.ResultsBackend.Disabled && v.Sentinel != nil {
+		b.WriteString("\nRESULTS_BACKEND = _CachelibRedis(\n")
+		fmt.Fprintf(b, "    host=_vk_primary(%d),\n", v.ResultsBackend.Database)
+		fmt.Fprintf(b, "    key_prefix=f\"{_superset_instance}_\" + \"%s\",\n", pyQuote(v.ResultsBackend.KeyPrefix))
+		b.WriteString(")\n")
+	} else if !v.ResultsBackend.Disabled {
 		b.WriteString("\nRESULTS_BACKEND = _CachelibRedis(\n")
 		b.WriteString("    host=_vk_host,\n")
 		b.WriteString("    port=_vk_port,\n")
@@ -383,6 +420,42 @@ func renderValkey(b *strings.Builder, v *ValkeyInput, asyncQueries bool) {
 	b.WriteString("\n")
 }
 
+// renderSentinelClients writes the Sentinel connection helpers. The caches and
+// the results backend get a client bound to the resolved primary instead of
+// Flask-Caching's RedisSentinelCache, which reads from replicas: Superset reads
+// filter state, explore permalinks, and SQL Lab results right after writing
+// them. Celery takes the sentinels as ";"-separated sentinel:// URLs.
+func renderSentinelClients(b *strings.Builder, v *ValkeyInput) {
+	b.WriteString("_vk_sentinels = [\n")
+	for i := range v.Sentinel.Nodes {
+		fmt.Fprintf(b, "    (os.environ[\"%s\"].strip(), int(os.environ[\"%s\"])),\n",
+			common.EnvValkeySentinelHost(i), common.EnvValkeySentinelPort(i))
+	}
+	b.WriteString("]\n")
+	fmt.Fprintf(b, "_vk_sentinel_master = \"%s\"\n", pyQuote(v.Sentinel.MasterName))
+	fmt.Fprintf(b, "_vk_sentinel_pass = os.environ.get(\"%s\") or None\n", common.EnvValkeySentinelPass)
+	b.WriteString("_vk_sentinel = _Sentinel(_vk_sentinels, sentinel_kwargs={\"password\": _vk_sentinel_pass})\n")
+	b.WriteString("_vk_sentinel_transport = {\"master_name\": _vk_sentinel_master, \"sentinel_kwargs\": {\"password\": _vk_sentinel_pass}}\n")
+	b.WriteString("\n\n")
+	b.WriteString("def _vk_primary(db):\n")
+	b.WriteString("    return _vk_sentinel.master_for(\n")
+	b.WriteString("        _vk_sentinel_master,\n")
+	b.WriteString("        db=db,\n")
+	b.WriteString("        username=_vk_user or None,\n")
+	b.WriteString("        password=_vk_pass or None,\n")
+	if v.SSL {
+		b.WriteString("        ssl=True,\n")
+		b.WriteString("        **_vk_ssl_opts,\n")
+	}
+	b.WriteString("    )\n")
+	b.WriteString("\n\n")
+	b.WriteString("def _vk_sentinel_url(db):\n")
+	b.WriteString("    return \";\".join(\n")
+	b.WriteString("        f\"sentinel://{_vk_auth}{'[' + h + ']' if ':' in h else h}:{p}/{db}\"\n")
+	b.WriteString("        for h, p in _vk_sentinels\n")
+	b.WriteString("    )\n")
+}
+
 // renderCoordinationConfig writes DISTRIBUTED_COORDINATION_CONFIG. Superset's
 // coordination backend (distributed locks, Global Task Framework signals, and
 // the realtime channel) builds its Redis client from discrete CACHE_REDIS_* keys
@@ -394,11 +467,21 @@ func renderCoordinationConfig(b *strings.Builder, v *ValkeyInput) {
 		return
 	}
 	b.WriteString("DISTRIBUTED_COORDINATION_CONFIG = {\n")
-	b.WriteString("    \"CACHE_TYPE\": \"RedisCache\",\n")
+	if v.Sentinel != nil {
+		b.WriteString("    \"CACHE_TYPE\": \"RedisSentinelCache\",\n")
+	} else {
+		b.WriteString("    \"CACHE_TYPE\": \"RedisCache\",\n")
+	}
 	fmt.Fprintf(b, "    \"CACHE_DEFAULT_TIMEOUT\": %d,\n", c.DefaultTimeout)
 	fmt.Fprintf(b, "    \"CACHE_KEY_PREFIX\": f\"{_superset_instance}_\" + \"%s\",\n", pyQuote(c.KeyPrefix))
-	b.WriteString("    \"CACHE_REDIS_HOST\": _vk_host,\n")
-	b.WriteString("    \"CACHE_REDIS_PORT\": _vk_port,\n")
+	if v.Sentinel != nil {
+		b.WriteString("    \"CACHE_REDIS_SENTINELS\": _vk_sentinels,\n")
+		b.WriteString("    \"CACHE_REDIS_SENTINEL_MASTER\": _vk_sentinel_master,\n")
+		b.WriteString("    \"CACHE_REDIS_SENTINEL_PASSWORD\": _vk_sentinel_pass,\n")
+	} else {
+		b.WriteString("    \"CACHE_REDIS_HOST\": _vk_host,\n")
+		b.WriteString("    \"CACHE_REDIS_PORT\": _vk_port,\n")
+	}
 	fmt.Fprintf(b, "    \"CACHE_REDIS_DB\": %d,\n", c.Database)
 	b.WriteString("    \"CACHE_REDIS_USER\": _vk_user,\n")
 	b.WriteString("    \"CACHE_REDIS_PASSWORD\": _vk_pass or None,\n")

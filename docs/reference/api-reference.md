@@ -1280,13 +1280,54 @@ _Appears in:_
 | `caCertFile` _string_ | Path to the CA certificate file for server verification. |  | Optional: \{\} <br /> |
 
 
+#### ValkeySentinelNode
+
+
+
+ValkeySentinelNode is one Sentinel address.
+
+
+
+_Appears in:_
+- [ValkeySentinelSpec](#valkeysentinelspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `host` _string_ | Sentinel hostname. Mutually exclusive with hostFrom. |  | MaxLength: 253 <br />MinLength: 1 <br />Optional: \{\} <br /> |
+| `hostFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the sentinel hostname. Mutually exclusive with host. |  | Optional: \{\} <br /> |
+| `port` _integer_ | Sentinel port. Defaults to 26379 at runtime when neither port nor portFrom is set. |  | Optional: \{\} <br /> |
+| `portFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the sentinel port as a decimal string. Mutually exclusive with port. |  | Optional: \{\} <br /> |
+
+
+#### ValkeySentinelSpec
+
+
+
+ValkeySentinelSpec resolves the Valkey primary through Sentinel. The
+username, password, TLS, and database settings in spec.valkey apply to the
+resolved primary.
+
+
+
+_Appears in:_
+- [ValkeySpec](#valkeyspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `masterName` _string_ | Name of the primary the sentinels monitor (the name in their "sentinel monitor" directive). |  | MaxLength: 128 <br />MinLength: 1 <br />Pattern: `^[A-Za-z0-9._-]+$` <br /> |
+| `nodes` _[ValkeySentinelNode](#valkeysentinelnode) array_ | Sentinel nodes to ask for the current primary. List several so the lookup survives a sentinel outage. |  | MaxItems: 16 <br />MinItems: 1 <br /> |
+| `password` _string_ | Password for the sentinel nodes themselves (spec.valkey.password authenticates to the primary). Only allowed in Development mode — use passwordFrom in Staging or Production. |  | Optional: \{\} <br /> |
+| `passwordFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the sentinel password. Mutually exclusive with password. |  | Optional: \{\} <br /> |
+
+
 #### ValkeySpec
 
 
 
 ValkeySpec configures Valkey as the shared cache backend, Celery message
 broker, and SQL Lab results backend for Superset. When set, all sections
-are enabled with sensible defaults — only host or hostFrom is required.
+are enabled with sensible defaults — only host, hostFrom, or sentinel is
+required.
 
 
 
@@ -1295,15 +1336,16 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `host` _string_ | Valkey server hostname. Mutually exclusive with hostFrom. |  | MinLength: 1 <br />Optional: \{\} <br /> |
-| `hostFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the Valkey server hostname. Mutually exclusive with host. |  | Optional: \{\} <br /> |
+| `host` _string_ | Valkey server hostname. Mutually exclusive with hostFrom and sentinel. |  | MinLength: 1 <br />Optional: \{\} <br /> |
+| `hostFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the Valkey server hostname. Mutually exclusive with host and sentinel. |  | Optional: \{\} <br /> |
 | `port` _integer_ | Valkey server port. Defaults to 6379 at runtime when neither port nor portFrom is set. |  | Optional: \{\} <br /> |
 | `portFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the Valkey server port as a decimal string. Mutually exclusive with port. |  | Optional: \{\} <br /> |
 | `username` _string_ | Valkey username. Useful for Redis ACL or managed Redis-compatible services. |  | Optional: \{\} <br /> |
 | `usernameFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the Valkey username. Mutually exclusive with username. |  | Optional: \{\} <br /> |
 | `password` _string_ | Plain text password. Only allowed in Development mode — use passwordFrom in Staging or Production. |  | Optional: \{\} <br /> |
 | `passwordFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the Valkey password. Mutually exclusive with password. |  | Optional: \{\} <br /> |
-| `ssl` _[ValkeySSLSpec](#valkeysslspec)_ | SSL/TLS configuration. When set, enables SSL for the Valkey connection. |  | Optional: \{\} <br /> |
+| `sentinel` _[ValkeySentinelSpec](#valkeysentinelspec)_ | Sentinel connects to the primary that Valkey/Redis Sentinel resolves, and follows it across failovers, instead of a fixed host and port. Mutually exclusive with host, hostFrom, port, and portFrom. |  | Optional: \{\} <br /> |
+| `ssl` _[ValkeySSLSpec](#valkeysslspec)_ | SSL/TLS configuration. When set, enables SSL for the Valkey connection. With sentinel, it applies to the resolved primary; the sentinel nodes are contacted in plaintext. |  | Optional: \{\} <br /> |
 | `keyPrefix` _string_ | KeyPrefix namespaces this deployment's Valkey usage so multiple Superset instances can safely share one Valkey/Redis. It is prepended to every cache and results-backend key prefix, the Global Task Framework coordination channels, and the realtime Pub/Sub channel (REALTIME_CHANNEL_PREFIX). Defaults to "<namespace>:<name>" (the CR's Kubernetes identity, which is unique cluster-wide). Note that Redis Pub/Sub is not scoped by database number, so isolating the realtime channel requires this prefix (or a dedicated instance); Celery queues are namespaced only by database number, not by this prefix. |  | MaxLength: 200 <br />Pattern: `^[A-Za-z0-9._:-]+$` <br />Optional: \{\} <br /> |
 | `cache` _[ValkeyCacheSpec](#valkeycachespec)_ | General cache (CACHE_CONFIG). Default: db=1, prefix="superset_", timeout=300s. |  | Optional: \{\} <br /> |
 | `dataCache` _[ValkeyCacheSpec](#valkeycachespec)_ | Data/query results cache (DATA_CACHE_CONFIG). Default: db=2, prefix="superset_data_", timeout=86400s. |  | Optional: \{\} <br /> |

@@ -372,6 +372,58 @@ func TestRenderConfig_ValkeyWithMTLS(t *testing.T) {
 	assertContains(t, result, "**_vk_ssl_opts")
 }
 
+// With Sentinel, every consumer reaches the primary that Sentinel resolves:
+// the caches and the results backend through a primary-bound client, the
+// coordination backend through Superset's RedisSentinelCache backend, and Celery
+// through sentinel:// URLs. TLS applies to the primary.
+func TestRenderConfig_ValkeySentinel(t *testing.T) {
+	input := &ConfigInput{
+		Valkey: &ValkeyInput{
+			Sentinel:                &ValkeySentinelInput{MasterName: "mymaster", Nodes: 2},
+			SSL:                     true,
+			SSLCertRequired:         "required",
+			SSLCACertFile:           "/mnt/tls/ca.pem",
+			Cache:                   ValkeyCacheInput{Database: 1, KeyPrefix: "superset_", DefaultTimeout: 300},
+			DataCache:               ValkeyCacheInput{Database: 2, KeyPrefix: "superset_data_", DefaultTimeout: 86400},
+			DistributedCoordination: ValkeyCacheInput{Database: 7, KeyPrefix: "coordination_", DefaultTimeout: 300},
+			CeleryBroker:            ValkeyCeleryInput{Database: 0},
+			CeleryResultBackend:     ValkeyCeleryInput{Database: 3},
+			ResultsBackend:          ValkeyResultsInput{Database: 6, KeyPrefix: "superset_results_"},
+		},
+	}
+	result := RenderConfig(ComponentWebServer, input)
+
+	assertContains(t, result, "from redis.sentinel import Sentinel as _Sentinel")
+	assertContains(t, result, `    (os.environ["SUPERSET_OPERATOR__VALKEY_SENTINEL_0_HOST"].strip(), int(os.environ["SUPERSET_OPERATOR__VALKEY_SENTINEL_0_PORT"])),`)
+	assertContains(t, result, `    (os.environ["SUPERSET_OPERATOR__VALKEY_SENTINEL_1_HOST"].strip(), int(os.environ["SUPERSET_OPERATOR__VALKEY_SENTINEL_1_PORT"])),`)
+	assertContains(t, result, `_vk_sentinel_master = "mymaster"`)
+	assertContains(t, result, `_vk_sentinel_pass = os.environ.get("SUPERSET_OPERATOR__VALKEY_SENTINEL_PASS") or None`)
+	// Only the per-node env vars exist in this mode.
+	assertNotContains(t, result, "SUPERSET_OPERATOR__VALKEY_HOST")
+	assertNotContains(t, result, "SUPERSET_OPERATOR__VALKEY_PORT")
+
+	// Caches and the results backend use a client bound to the primary, with TLS.
+	assertContains(t, result, "        ssl=True,\n        **_vk_ssl_opts,\n    )")
+	assertContains(t, result, "\"CACHE_REDIS_HOST\": _vk_primary(1),")
+	assertContains(t, result, "\"CACHE_REDIS_HOST\": _vk_primary(2),")
+	assertNotContains(t, result, "CACHE_REDIS_URL")
+	assertContains(t, result, "RESULTS_BACKEND = _CachelibRedis(\n    host=_vk_primary(6),")
+
+	// Superset's coordination backend has its own Sentinel mode.
+	assertContains(t, result, "\"CACHE_TYPE\": \"RedisSentinelCache\",")
+	assertContains(t, result, "\"CACHE_REDIS_SENTINELS\": _vk_sentinels,")
+	assertContains(t, result, "\"CACHE_REDIS_SENTINEL_MASTER\": _vk_sentinel_master,")
+	assertContains(t, result, "\"CACHE_REDIS_SENTINEL_PASSWORD\": _vk_sentinel_pass,")
+	assertContains(t, result, "\"CACHE_REDIS_DB\": 7,")
+	assertContains(t, result, "\"CACHE_REDIS_SSL_CA_CERTS\": \"/mnt/tls/ca.pem\",")
+
+	// Celery reaches the primary through sentinel:// URLs and the master name.
+	assertContains(t, result, "    broker_url = _vk_sentinel_url(0)\n    broker_transport_options = _vk_sentinel_transport\n")
+	assertContains(t, result, "    result_backend = _vk_sentinel_url(3)\n    result_backend_transport_options = _vk_sentinel_transport\n")
+	assertContains(t, result, "broker_use_ssl = _vk_ssl_opts")
+	assertContains(t, result, "redis_backend_use_ssl = _vk_ssl_opts")
+}
+
 func TestRenderConfig_ValkeyDisabledSections(t *testing.T) {
 	input := &ConfigInput{
 		Valkey: &ValkeyInput{

@@ -32298,6 +32298,81 @@ spec:
                         pattern: ^[A-Za-z0-9._:-]*$
                         type: string
                     type: object
+                  sentinel:
+                    properties:
+                      masterName:
+                        maxLength: 128
+                        minLength: 1
+                        pattern: ^[A-Za-z0-9._-]+$
+                        type: string
+                      nodes:
+                        items:
+                          properties:
+                            host:
+                              maxLength: 253
+                              minLength: 1
+                              type: string
+                            hostFrom:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  default: ""
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                              x-kubernetes-map-type: atomic
+                            port:
+                              format: int32
+                              type: integer
+                            portFrom:
+                              properties:
+                                key:
+                                  type: string
+                                name:
+                                  default: ""
+                                  type: string
+                                optional:
+                                  type: boolean
+                              required:
+                              - key
+                              type: object
+                              x-kubernetes-map-type: atomic
+                          type: object
+                          x-kubernetes-validations:
+                          - message: exactly one of host or hostFrom must be set
+                            rule: has(self.host) != has(self.hostFrom)
+                          - message: port and portFrom are mutually exclusive
+                            rule: '!(has(self.port) && has(self.portFrom))'
+                        maxItems: 16
+                        minItems: 1
+                        type: array
+                        x-kubernetes-list-type: atomic
+                      password:
+                        type: string
+                      passwordFrom:
+                        properties:
+                          key:
+                            type: string
+                          name:
+                            default: ""
+                            type: string
+                          optional:
+                            type: boolean
+                        required:
+                        - key
+                        type: object
+                        x-kubernetes-map-type: atomic
+                    required:
+                    - masterName
+                    - nodes
+                    type: object
+                    x-kubernetes-validations:
+                    - message: password and passwordFrom are mutually exclusive
+                      rule: '!(has(self.password) && has(self.passwordFrom))'
                   ssl:
                     properties:
                       caCertFile:
@@ -32346,10 +32421,14 @@ spec:
                     x-kubernetes-map-type: atomic
                 type: object
                 x-kubernetes-validations:
-                - message: exactly one of host or hostFrom must be set
-                  rule: has(self.host) != has(self.hostFrom)
+                - message: exactly one of host, hostFrom, or sentinel must be set
+                  rule: '(has(self.host) ? 1 : 0) + (has(self.hostFrom) ? 1 : 0) +
+                    (has(self.sentinel) ? 1 : 0) == 1'
                 - message: port and portFrom are mutually exclusive
                   rule: '!(has(self.port) && has(self.portFrom))'
+                - message: port and portFrom do not apply with sentinel; set the port
+                    of each sentinel node instead
+                  rule: '!has(self.sentinel) || !(has(self.port) || has(self.portFrom))'
                 - message: username and usernameFrom are mutually exclusive
                   rule: '!(has(self.username) && has(self.usernameFrom))'
                 - message: password and passwordFrom are mutually exclusive
@@ -40599,6 +40678,10 @@ spec:
                 use valkey.passwordFrom in Staging or Production
               rule: (has(self.environment) && self.environment == 'Development') ||
                 !has(self.valkey) || !has(self.valkey.password)
+            - message: valkey.sentinel.password is only allowed when environment is
+                Development; use valkey.sentinel.passwordFrom in Staging or Production
+              rule: (has(self.environment) && self.environment == 'Development') ||
+                !has(self.valkey) || !has(self.valkey.sentinel) || !has(self.valkey.sentinel.password)
             - message: lifecycle.init.adminUser is only allowed when environment is
                 Development
               rule: (has(self.environment) && self.environment == 'Development') ||

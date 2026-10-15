@@ -25,9 +25,9 @@ This guide covers the full configuration reference for the Superset operator. Fo
 
 The `environment` field controls validation strictness (enforced by [CEL](https://kubernetes.io/docs/reference/using-api/cel/) rules in the CRD schema):
 
-- **`Production`** (default) — inline `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, and `realtime.webSocket.jwtSecret` are rejected by CRD validation. Use the corresponding `*From` fields (`secretKeyFrom`, `previousSecretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`, `valkey.passwordFrom`, `realtime.webSocket.jwtSecretFrom`) to reference Kubernetes Secrets.
+- **`Production`** (default) — inline `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, `valkey.sentinel.password`, and `realtime.webSocket.jwtSecret` are rejected by CRD validation. Use the corresponding `*From` fields (`secretKeyFrom`, `previousSecretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`, `valkey.passwordFrom`, `valkey.sentinel.passwordFrom`, `realtime.webSocket.jwtSecretFrom`) to reference Kubernetes Secrets.
 - **`Staging`** — same secret restrictions as Production, but allows `lifecycle.seed` for database seeding from an external source. `lifecycle.seed.source.password` must still be supplied via `passwordFrom`.
-- **`Development`** — allows plain-text `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, `realtime.webSocket.jwtSecret`, and `lifecycle.seed.source.password` directly in the CR for quick local development. Also permits `lifecycle.seed`, `lifecycle.init.adminUser`, and `lifecycle.init.loadExamples`.
+- **`Development`** — allows plain-text `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, `valkey.sentinel.password`, `realtime.webSocket.jwtSecret`, and `lifecycle.seed.source.password` directly in the CR for quick local development. Also permits `lifecycle.seed`, `lifecycle.init.adminUser`, and `lifecycle.init.loadExamples`.
 
 ### Dev Mode Example
 
@@ -194,7 +194,7 @@ Requirements and caveats:
 
 ## Valkey
 
-The `valkey` field configures Valkey (or Redis) as the cache backend, Celery message broker, and SQL Lab results backend. Setting `valkey.host` or `valkey.hostFrom` auto-generates all cache, Celery, and results backend configuration with sensible defaults:
+The `valkey` field configures Valkey (or Redis) as the cache backend, Celery message broker, and SQL Lab results backend. Setting `valkey.host`, `valkey.hostFrom`, or `valkey.sentinel` auto-generates all cache, Celery, and results backend configuration with sensible defaults:
 
 ```yaml
 # Minimal: one field configures everything
@@ -273,6 +273,29 @@ Each literal and its `From` counterpart are mutually exclusive. `portFrom` must 
 
 Changing a selector's Secret name or key updates the relevant workloads. Updating data behind the same selector does not trigger a rollout; change `spec.forceReload` so component pods pick up the new values. Lifecycle tasks are not rerun by `forceReload`; change the appropriate task's `trigger` when a rotated value must be consumed by a new task Job.
 
+### Sentinel
+
+To use a primary managed by Valkey or Redis Sentinel, set `sentinel` in place of `host` and `port`:
+
+```yaml
+spec:
+  valkey:
+    passwordFrom:             # authenticates to the primary
+      name: valkey-credentials
+      key: password
+    sentinel:
+      masterName: mymaster    # the name in the sentinels' "sentinel monitor" directive
+      nodes:
+        - host: valkey-sentinel-0.valkey-sentinel
+        - host: valkey-sentinel-1.valkey-sentinel
+        - host: valkey-sentinel-2.valkey-sentinel
+      passwordFrom:           # only if the sentinels require a password
+        name: valkey-credentials
+        key: sentinel-password
+```
+
+The caches, the SQL Lab results backend, the Celery broker and result backend, the coordination backend, and the websocket server all ask the sentinels for the current primary and follow it across failovers. They read and write through the primary, not replicas, so a value can be read as soon as it is written. Each node takes `host` or `hostFrom`, plus an optional `port` or `portFrom` (default `26379`). `username`, `password`, `ssl`, and the database numbers apply to the primary; the sentinel nodes are contacted in plaintext. Redis Cluster is not supported.
+
 ### SSL/TLS
 
 Enable SSL by setting the `ssl` field. For simple SSL (encrypted connection, no client certificates), set `ssl: {}`. For mTLS, provide certificate file paths:
@@ -326,6 +349,8 @@ The operator sets certain env vars automatically based on the CR spec. These are
 | `SUPERSET_OPERATOR__DB_USER`, `SUPERSET_OPERATOR__DB_PASS` | Operator-internal | Operator (from metastore structured fields or `passwordFrom`) | Database credentials |
 | `SUPERSET_OPERATOR__VALKEY_HOST`, `SUPERSET_OPERATOR__VALKEY_PORT` | Operator-internal | Operator (from `valkey`) | Valkey connection fields |
 | `SUPERSET_OPERATOR__VALKEY_PASS` | Operator-internal | Operator (from `valkey.password` or `valkey.passwordFrom`) | Valkey password |
+| `SUPERSET_OPERATOR__VALKEY_SENTINEL_<n>_HOST`, `SUPERSET_OPERATOR__VALKEY_SENTINEL_<n>_PORT` | Operator-internal | Operator (from `valkey.sentinel.nodes`) | Address of sentinel node `<n>` (zero-based), in place of the Valkey host and port |
+| `SUPERSET_OPERATOR__VALKEY_SENTINEL_PASS` | Operator-internal | Operator (from `valkey.sentinel.password` or `passwordFrom`) | Sentinel password |
 | `SUPERSET_OPERATOR__WS_JWT_SECRET` | Operator-internal | Operator (from `realtime.webSocket.jwtSecret` or `jwtSecretFrom`) | Websocket JWT secret, rendered as `WEBSOCKET_JWT_SECRET` |
 | `SUPERSET_OPERATOR__FORCE_RELOAD` | Operator-internal | Operator (from `spec.forceReload`) | Triggers rolling restart |
 | `SUPERSET_WEBSERVER_PORT` | Standard | Rendered in config | Web server port (8088) |
@@ -354,9 +379,11 @@ In both passthrough and structured modes, the operator renders `SQLALCHEMY_DATAB
 
 | Env Var | Set when |
 |---|---|
-| `SUPERSET_OPERATOR__VALKEY_HOST` | Always (from `valkey.host`) |
-| `SUPERSET_OPERATOR__VALKEY_PORT` | Always (from `valkey.port`, default 6379) |
+| `SUPERSET_OPERATOR__VALKEY_HOST` | Without `valkey.sentinel` (from `valkey.host` or `hostFrom`) |
+| `SUPERSET_OPERATOR__VALKEY_PORT` | Without `valkey.sentinel` (from `valkey.port` or `portFrom`, default 6379) |
+| `SUPERSET_OPERATOR__VALKEY_SENTINEL_<n>_HOST`, `SUPERSET_OPERATOR__VALKEY_SENTINEL_<n>_PORT` | With `valkey.sentinel`, one pair per node (port default 26379) |
 | `SUPERSET_OPERATOR__VALKEY_PASS` | `valkey.password` (dev, plain text) or `valkey.passwordFrom` (prod, `valueFrom`) |
+| `SUPERSET_OPERATOR__VALKEY_SENTINEL_PASS` | `valkey.sentinel.password` (dev, plain text) or `valkey.sentinel.passwordFrom` (prod, `valueFrom`) |
 
 ## Custom Python Config
 
@@ -733,7 +760,7 @@ spec:
   websocketServer: {}          # inherits spec.image
 ```
 
-The operator configures the server entirely through environment variables it injects from `spec.realtime.webSocket`, `spec.baseUrl`/`spec.networking`, and `spec.valkey.distributedCoordination`: the JWT secret and cookie name, the `ALLOWED_ORIGINS` allowlist, and the Redis connection (host, port, DB, credentials, and the `spec.valkey.ssl` settings: verification mode, CA bundle, and client certificate and key) pointing at the same coordination backend as the app. These variables (`PORT`, `JWT_SECRET`, `JWT_COOKIE_NAME`, `ALLOWED_ORIGINS`, `REALTIME_CHANNEL_PREFIX`, and `REDIS_*`) are operator-owned and take precedence over the same names in `podTemplate` container env. Because the server is Node.js, it receives no `superset_config.py`, and `sqlaEngineOptions` is not available on this component. Additional server settings (for example connection caps `MAX_TOTAL_CONNECTIONS` and `MAX_CONNECTIONS_PER_CHANNEL`) can be set through `podTemplate` container env.
+The operator configures the server entirely through environment variables it injects from `spec.realtime.webSocket`, `spec.baseUrl`/`spec.networking`, and `spec.valkey.distributedCoordination`: the JWT secret and cookie name, the `ALLOWED_ORIGINS` allowlist, and the Redis connection (host and port, or the Sentinel nodes, master name, and password; DB; credentials; and the `spec.valkey.ssl` settings: verification mode, CA bundle, and client certificate and key) pointing at the same coordination backend as the app. These variables (`PORT`, `JWT_SECRET`, `JWT_COOKIE_NAME`, `ALLOWED_ORIGINS`, `REALTIME_CHANNEL_PREFIX`, and `REDIS_*`) are operator-owned and take precedence over the same names in `podTemplate` container env. Because the server is Node.js, it receives no `superset_config.py`, and `sqlaEngineOptions` is not available on this component. Additional server settings (for example connection caps `MAX_TOTAL_CONNECTIONS` and `MAX_CONNECTIONS_PER_CHANNEL`) can be set through `podTemplate` container env.
 
 It creates a Service (default port 8080), probes `/ready` for readiness and `/health` for liveness, and supports the same scaling, deployment template, and pod template fields as other scalable components.
 

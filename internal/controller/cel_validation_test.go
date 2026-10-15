@@ -159,6 +159,16 @@ var _ = Describe("CEL Validation", Ordered, func() {
 					Password: new("plain-text-password"),
 				}
 			}, "valkey.password is only allowed"),
+		Entry("valkey.sentinel.password", "inline-sentinel-pw-prod",
+			func(s *supersetv1alpha1.Superset) {
+				s.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
+					Sentinel: &supersetv1alpha1.ValkeySentinelSpec{
+						MasterName: "mymaster",
+						Nodes:      []supersetv1alpha1.ValkeySentinelNode{{Host: "sentinel"}},
+						Password:   new("plain-text-password"),
+					},
+				}
+			}, "valkey.sentinel.password is only allowed"),
 	)
 
 	// --- Metastore field constraints ---
@@ -319,6 +329,70 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			Entry("host", "vk-host-hostfrom", &supersetv1alpha1.ValkeySpec{Host: "valkey", HostFrom: secretRef("vk", "endpoint")}),
 			Entry("port", "vk-port-portfrom", &supersetv1alpha1.ValkeySpec{Host: "valkey", Port: new(int32(6379)), PortFrom: secretRef("vk", "port")}),
 			Entry("username", "vk-user-userfrom", &supersetv1alpha1.ValkeySpec{Host: "valkey", Username: new("user"), UsernameFrom: secretRef("vk", "username")}),
+		)
+
+		It("accepts a Secret-backed Sentinel connection", func() {
+			cr := validProdSuperset("vk-sentinel-secret")
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
+				PasswordFrom: secretRef("vk", "password"),
+				Sentinel: &supersetv1alpha1.ValkeySentinelSpec{
+					MasterName: "mymaster",
+					Nodes: []supersetv1alpha1.ValkeySentinelNode{
+						{Host: "sentinel-0"},
+						{HostFrom: secretRef("vk", "sentinel-host"), PortFrom: secretRef("vk", "sentinel-port")},
+					},
+					PasswordFrom: secretRef("vk", "sentinel-password"),
+				},
+			}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+
+		DescribeTable("rejects an invalid Sentinel connection",
+			func(name string, mutate func(*supersetv1alpha1.ValkeySpec), want string) {
+				cr := validDevSuperset(name)
+				cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
+					Sentinel: &supersetv1alpha1.ValkeySentinelSpec{
+						MasterName: "mymaster",
+						Nodes:      []supersetv1alpha1.ValkeySentinelNode{{Host: "sentinel"}},
+					},
+				}
+				mutate(cr.Spec.Valkey)
+				err := k8sClient.Create(ctx, cr)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring(want))
+			},
+			Entry("with a host", "vk-sentinel-host",
+				func(v *supersetv1alpha1.ValkeySpec) { v.Host = "valkey" },
+				"exactly one of host, hostFrom, or sentinel"),
+			Entry("with a port", "vk-sentinel-port",
+				func(v *supersetv1alpha1.ValkeySpec) { v.Port = new(int32(6379)) },
+				"port and portFrom do not apply with sentinel"),
+			Entry("without nodes", "vk-sentinel-no-nodes",
+				func(v *supersetv1alpha1.ValkeySpec) { v.Sentinel.Nodes = nil },
+				"spec.valkey.sentinel.nodes"),
+			Entry("with a node missing its host", "vk-sentinel-node-no-host",
+				func(v *supersetv1alpha1.ValkeySpec) {
+					v.Sentinel.Nodes = []supersetv1alpha1.ValkeySentinelNode{{Port: new(int32(26379))}}
+				},
+				"exactly one of host or hostFrom"),
+			Entry("with a node host and hostFrom", "vk-sentinel-node-hostfrom",
+				func(v *supersetv1alpha1.ValkeySpec) { v.Sentinel.Nodes[0].HostFrom = secretRef("vk", "host") },
+				"exactly one of host or hostFrom"),
+			Entry("with a node port and portFrom", "vk-sentinel-node-portfrom",
+				func(v *supersetv1alpha1.ValkeySpec) {
+					v.Sentinel.Nodes[0].Port = new(int32(26379))
+					v.Sentinel.Nodes[0].PortFrom = secretRef("vk", "port")
+				},
+				"mutually exclusive"),
+			Entry("with password and passwordFrom", "vk-sentinel-pw-pwfrom",
+				func(v *supersetv1alpha1.ValkeySpec) {
+					v.Sentinel.Password = new("secret")
+					v.Sentinel.PasswordFrom = secretRef("vk", "sentinel-password")
+				},
+				"mutually exclusive"),
+			Entry("with a master name Sentinel does not allow", "vk-sentinel-master",
+				func(v *supersetv1alpha1.ValkeySpec) { v.Sentinel.MasterName = "my master" },
+				"spec.valkey.sentinel.masterName"),
 		)
 
 		It("rejects valkey password together with passwordFrom", func() {

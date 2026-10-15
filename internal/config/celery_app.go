@@ -43,11 +43,22 @@ func renderCeleryClass(b *strings.Builder, v *ValkeyInput, asyncQueries bool) {
 	b.WriteString("\n")
 	b.WriteString("\n")
 	b.WriteString("class CeleryConfig(_SupersetCeleryConfig):\n")
-	if brokerEnabled {
-		fmt.Fprintf(b, "    broker_url = f\"{_vk_base}/%d\"\n", v.CeleryBroker.Database)
-	}
-	if resultEnabled {
-		fmt.Fprintf(b, "    result_backend = f\"{_vk_base}/%d\"\n", v.CeleryResultBackend.Database)
+	if v.Sentinel != nil {
+		if brokerEnabled {
+			fmt.Fprintf(b, "    broker_url = _vk_sentinel_url(%d)\n", v.CeleryBroker.Database)
+			b.WriteString("    broker_transport_options = _vk_sentinel_transport\n")
+		}
+		if resultEnabled {
+			fmt.Fprintf(b, "    result_backend = _vk_sentinel_url(%d)\n", v.CeleryResultBackend.Database)
+			b.WriteString("    result_backend_transport_options = _vk_sentinel_transport\n")
+		}
+	} else {
+		if brokerEnabled {
+			fmt.Fprintf(b, "    broker_url = f\"{_vk_base}/%d\"\n", v.CeleryBroker.Database)
+		}
+		if resultEnabled {
+			fmt.Fprintf(b, "    result_backend = f\"{_vk_base}/%d\"\n", v.CeleryResultBackend.Database)
+		}
 	}
 	if v.SSL {
 		if brokerEnabled {

@@ -183,6 +183,10 @@ func buildValkeyInput(v *supersetv1alpha1.ValkeySpec) *supersetconfig.ValkeyInpu
 		ResultsBackend:          resolveValkeyResults(v.ResultsBackend, 6, "superset_results_"),
 	}
 
+	if sn := v.Sentinel; sn != nil {
+		vi.Sentinel = &supersetconfig.ValkeySentinelInput{MasterName: sn.MasterName, Nodes: len(sn.Nodes)}
+	}
+
 	if v.SSL != nil {
 		vi.SSL = true
 		// Resolved here, not left to each consumer, so the Python config and the
@@ -336,6 +340,7 @@ func collectSecretEnvVars(spec *supersetv1alpha1.SupersetSpec, instanceDefault s
 	if spec.Valkey != nil {
 		envs = append(envs, valkeyConnectionEnvVars(spec.Valkey, isDev, valkeyEnvNames{
 			host: naming.EnvValkeyHost, port: naming.EnvValkeyPort, user: naming.EnvValkeyUser, pass: naming.EnvValkeyPass,
+			sentinelPass: naming.EnvValkeySentinelPass,
 		})...)
 	}
 
@@ -351,15 +356,30 @@ func collectSecretEnvVars(spec *supersetv1alpha1.SupersetSpec, instanceDefault s
 }
 
 // valkeyEnvNames names the env vars a Valkey connection is projected into.
-type valkeyEnvNames struct{ host, port, user, pass string }
+type valkeyEnvNames struct{ host, port, user, pass, sentinelPass string }
 
 // valkeyConnectionEnvVars projects spec.valkey's connection into env vars, each
 // field from its literal or its Secret selector. The Python components and the
-// websocket server both use it, so they always honor the same fields.
+// websocket server both use it, so they always honor the same fields. With
+// sentinel, each node's address goes into the shared
+// EnvValkeySentinelHost(i)/EnvValkeySentinelPort(i) vars in place of host/port.
 func valkeyConnectionEnvVars(v *supersetv1alpha1.ValkeySpec, isDev bool, names valkeyEnvNames) []corev1.EnvVar {
-	envs := []corev1.EnvVar{
-		literalOrSecretEnv(names.host, &v.Host, v.HostFrom),
-		literalInt32OrSecretEnv(names.port, v.Port, v.PortFrom, 6379),
+	var envs []corev1.EnvVar
+	if sn := v.Sentinel; sn != nil {
+		for i, node := range sn.Nodes {
+			envs = append(envs,
+				literalOrSecretEnv(naming.EnvValkeySentinelHost(i), &node.Host, node.HostFrom),
+				literalInt32OrSecretEnv(naming.EnvValkeySentinelPort(i), node.Port, node.PortFrom, 26379),
+			)
+		}
+		if env, ok := devLiteralOrSecretEnv(names.sentinelPass, isDev, sn.Password, sn.PasswordFrom); ok {
+			envs = append(envs, env)
+		}
+	} else {
+		envs = append(envs,
+			literalOrSecretEnv(names.host, &v.Host, v.HostFrom),
+			literalInt32OrSecretEnv(names.port, v.Port, v.PortFrom, 6379),
+		)
 	}
 	if v.Username != nil || v.UsernameFrom != nil {
 		envs = append(envs, literalOrSecretEnv(names.user, v.Username, v.UsernameFrom))
@@ -419,6 +439,9 @@ const (
 	envWSRedisSSLCACerts          = "REDIS_SSL_CA_CERTS"
 	envWSRedisSSLCertfile         = "REDIS_SSL_CERTFILE"
 	envWSRedisSSLKeyfile          = "REDIS_SSL_KEYFILE"
+	envWSRedisSentinels           = "REDIS_SENTINELS"
+	envWSRedisSentinelMaster      = "REDIS_SENTINEL_MASTER"
+	envWSRedisSentinelPass        = "REDIS_SENTINEL_PASSWORD"
 	envWSRealtimeChannelPrefix    = "REALTIME_CHANNEL_PREFIX"
 	defaultWSCookie               = "superset-ws-token"
 	featureFlagGlobalAsyncQueries = "GLOBAL_ASYNC_QUERIES"
@@ -453,7 +476,21 @@ func collectWebsocketEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVa
 	if v := spec.Valkey; v != nil {
 		envs = append(envs, valkeyConnectionEnvVars(v, isDev, valkeyEnvNames{
 			host: envWSRedisHost, port: envWSRedisPort, user: envWSRedisUser, pass: envWSRedisPass,
+			sentinelPass: envWSRedisSentinelPass,
 		})...)
+		if sn := v.Sentinel; sn != nil {
+			// Built from the node vars above by Kubernetes $(VAR) expansion, so
+			// Secret-sourced addresses work too. The server strips the brackets,
+			// which keep IPv6 hosts parseable.
+			addrs := make([]string, len(sn.Nodes))
+			for i := range sn.Nodes {
+				addrs[i] = fmt.Sprintf("[$(%s)]:$(%s)", naming.EnvValkeySentinelHost(i), naming.EnvValkeySentinelPort(i))
+			}
+			envs = append(envs,
+				corev1.EnvVar{Name: envWSRedisSentinels, Value: strings.Join(addrs, ",")},
+				corev1.EnvVar{Name: envWSRedisSentinelMaster, Value: sn.MasterName},
+			)
+		}
 		// The same resolved input the Python components render
 		// DISTRIBUTED_COORDINATION_CONFIG from, so the DB and TLS settings
 		// (CACHE_REDIS_DB, CACHE_REDIS_SSL_*) match on both sides.
