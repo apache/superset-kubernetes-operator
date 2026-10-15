@@ -23,6 +23,14 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 
 ## Unreleased
 
+## 0.3.1
+
+### Fixed
+
+- Credential redaction in lifecycle task failure messages now masks the whole value when a quoted credential key is followed by empty quotes and more characters, such as `{"password": ""hunter2}`. Previously the characters after the empty quotes were left in the parent Superset status and Kubernetes Events ([#437](https://github.com/apache/superset-kubernetes-operator/pull/437), [@younsl](https://github.com/younsl)).
+- Setting `spec.valkey.ssl` without certificate files (for example `ssl: {}` for managed Valkey or Redis with in-transit encryption) no longer crash-loops the Celery worker. The operator now renders `ssl_cert_reqs` and the Celery `broker_use_ssl` and `redis_backend_use_ssl` options whenever SSL is enabled, and `ssl.certRequired` takes effect without certificate paths. Deployments that use SSL roll once on upgrade ([#440](https://github.com/apache/superset-kubernetes-operator/pull/440), [@younsl](https://github.com/younsl)).
+- Built with Go 1.27.2 and `golang.org/x/net` v0.60.0, which pick up upstream security fixes.
+
 ## 0.3.0
 
 ### Added
