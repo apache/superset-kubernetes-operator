@@ -27,7 +27,7 @@ The `environment` field controls validation strictness (enforced by [CEL](https:
 
 - **`Production`** (default) — inline `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, `valkey.sentinel.password`, and `realtime.webSocket.jwtSecret` are rejected by CRD validation. Use the corresponding `*From` fields (`secretKeyFrom`, `previousSecretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`, `valkey.passwordFrom`, `valkey.sentinel.passwordFrom`, `realtime.webSocket.jwtSecretFrom`) to reference Kubernetes Secrets.
 - **`Staging`** — same secret restrictions as Production, but allows `lifecycle.seed` for database seeding from an external source. `lifecycle.seed.source.password` must still be supplied via `passwordFrom`.
-- **`Development`** — allows plain-text `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, `valkey.sentinel.password`, `realtime.webSocket.jwtSecret`, and `lifecycle.seed.source.password` directly in the CR for quick local development. Also permits `lifecycle.seed`, `lifecycle.init.adminUser`, and `lifecycle.init.loadExamples`.
+- **`Development`** — allows plain-text `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, `valkey.sentinel.password`, `realtime.webSocket.jwtSecret`, and `lifecycle.seed.source.password` directly in the CR for quick local development. Also permits `lifecycle.seed`, `lifecycle.init.adminUser`, `lifecycle.init.loadExamples`, and `realtime.webSocket.allowedOrigins: ["*"]`.
 
 ### Dev Mode Example
 
@@ -203,7 +203,7 @@ spec:
     host: valkey.default.svc
 ```
 
-This generates a `superset_config.py` with `CACHE_CONFIG`, `DATA_CACHE_CONFIG`, `FILTER_STATE_CACHE_CONFIG`, `EXPLORE_FORM_DATA_CACHE_CONFIG`, `THUMBNAIL_CACHE_CONFIG`, `DISTRIBUTED_COORDINATION_CONFIG`, a connectivity-only `CeleryConfig`, and `RESULTS_BACKEND` — each cache section backed by a separate Valkey database for isolation (Celery broker and result backend share database 0 by default). Celery application behavior such as imports, task routes, and beat schedules remains explicit Python config.
+This generates a `superset_config.py` with `CACHE_CONFIG`, `DATA_CACHE_CONFIG`, `FILTER_STATE_CACHE_CONFIG`, `EXPLORE_FORM_DATA_CACHE_CONFIG`, `THUMBNAIL_CACHE_CONFIG`, `DISTRIBUTED_COORDINATION_CONFIG`, a `CeleryConfig` that points the broker and result backend at Valkey, and `RESULTS_BACKEND` — each cache section backed by a separate Valkey database for isolation (Celery broker and result backend share database 0 by default). The rest of the Celery configuration, such as task imports and the beat schedule, is inherited from Superset's defaults (see [What the operator renders](#what-the-operator-renders)).
 
 **Default database assignments:**
 
@@ -295,6 +295,8 @@ spec:
 ```
 
 The caches, the SQL Lab results backend, the Celery broker and result backend, the coordination backend, and the websocket server all ask the sentinels for the current primary and follow it across failovers. They read and write through the primary, not replicas, so a value can be read as soon as it is written. Each node takes `host` or `hostFrom`, plus an optional `port` or `portFrom` (default `26379`). `username`, `password`, `ssl`, and the database numbers apply to the primary; the sentinel nodes are contacted in plaintext. Redis Cluster is not supported.
+
+One upstream limitation applies: Superset's Sentinel coordination backend (Superset 7.0) ignores `distributedCoordination.database` and `username`. Coordination keys therefore land in database 0, which the key prefix keeps apart from other data. The backend also authenticates as the `default` user, so if the primary requires an ACL user, coordination, and with it Global Async Queries and the realtime transport, fails until Superset fixes this.
 
 ### SSL/TLS
 
@@ -528,6 +530,7 @@ When `spec.valkey` is set, the operator renders a `CeleryConfig` class that subc
 | `broker_url` | `spec.valkey` | f-string from operator-internal Valkey env vars |
 | `result_backend` | `spec.valkey` | same |
 | `broker_use_ssl` / `redis_backend_use_ssl` | `spec.valkey.ssl` | rendered when SSL is configured |
+| `broker_transport_options` / `result_backend_transport_options` | `spec.valkey.sentinel` | master name and sentinel password; extend rather than reassign them, or Celery loses the master name |
 
 Everything else is inherited from the Superset version you deploy: task imports, worker settings, task annotations, and the beat schedule (Alerts & Reports scheduling, log pruning, and version-history and soft-delete retention). New default tasks in a Superset upgrade therefore take effect without operator changes. When `spec.realtime.asyncQueries` is set, the operator also appends `superset.tasks.async_queries` to the inherited imports and adds a 60-second `reap_orphaned_tasks` entry to the inherited beat schedule (see [Realtime](#realtime-global-async-queries-websocket)).
 
@@ -726,6 +729,9 @@ Setting `realtime.webSocket` turns on the push transport (`WEBSOCKET_ENABLE`) an
 
 ```yaml
 spec:
+  baseUrl: https://superset.example.com   # or spec.networking; see url below
+  valkey:
+    host: valkey                # the coordination backend carries realtime events
   websocketServer: {}
   realtime:
     webSocket:
@@ -757,7 +763,7 @@ The websocket server (`spec.websocketServer`) is the Node.js workload behind the
 
 ```yaml
 spec:
-  websocketServer: {}          # inherits spec.image
+  websocketServer: {}          # inherits spec.image; requires spec.realtime.webSocket
 ```
 
 The operator configures the server entirely through environment variables it injects from `spec.realtime.webSocket`, `spec.baseUrl`/`spec.networking`, and `spec.valkey.distributedCoordination`: the JWT secret and cookie name, the `ALLOWED_ORIGINS` allowlist, and the Redis connection (host and port, or the Sentinel nodes, master name, and password; DB; credentials; and the `spec.valkey.ssl` settings: verification mode, CA bundle, and client certificate and key) pointing at the same coordination backend as the app. These variables (`PORT`, `JWT_SECRET`, `JWT_COOKIE_NAME`, `ALLOWED_ORIGINS`, `REALTIME_CHANNEL_PREFIX`, and `REDIS_*`) are operator-owned and take precedence over the same names in `podTemplate` container env. Because the server is Node.js, it receives no `superset_config.py`, and `sqlaEngineOptions` is not available on this component. Additional server settings (for example connection caps `MAX_TOTAL_CONNECTIONS` and `MAX_CONNECTIONS_PER_CHANNEL`) can be set through `podTemplate` container env.

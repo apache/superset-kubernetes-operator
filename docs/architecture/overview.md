@@ -178,9 +178,10 @@ The operator generates per-component `superset_config.py` files by **concatenati
 
 1. **Operator-generated configs** — `SECRET_KEY` rendered from the `SUPERSET_OPERATOR__SECRET_KEY` env var, `SQLALCHEMY_DATABASE_URI` rendered from operator-internal env vars (both passthrough and structured metastore modes), plus `SUPERSET_WEBSERVER_PORT` for the web server.
 2. **SQLAlchemy engine options** — `SQLALCHEMY_ENGINE_OPTIONS` dict, computed per component from the resolved `sqlaEngineOptions` preset and the component's worker/thread configuration (Gunicorn workers × threads for the web server, Celery concurrency for workers). Presets range from `conservative` (NullPool) through `balanced` (pool\_size=1, max\_overflow=-1) to `aggressive` (pool\_size=workers×threads). See [SQLAlchemy Engine Options](../user-guide/configuration.md#sqlalchemy-engine-options) for details.
-3. **Valkey cache config** — When `spec.valkey` is set, the operator renders `CACHE_CONFIG`, `DATA_CACHE_CONFIG`, `FILTER_STATE_CACHE_CONFIG`, `EXPLORE_FORM_DATA_CACHE_CONFIG`, `THUMBNAIL_CACHE_CONFIG`, `CeleryConfig`, and `RESULTS_BACKEND` backed by Valkey. Connection details are read from `SUPERSET_OPERATOR__VALKEY_*` env vars at Python runtime. With `spec.valkey.sentinel`, the caches and results backend use clients bound to the Sentinel-resolved primary (Flask-Caching's `RedisSentinelCache` would read from replicas), the coordination backend uses Superset's own Sentinel mode, and Celery uses `sentinel://` URLs. The rendered `CeleryConfig` contains only broker/backend connectivity and SSL settings; users define Celery app behavior in raw Python. SSL/mTLS cert paths are baked directly into the rendered config.
-4. **Base config (`spec.config`)** — Raw Python from the top-level `config` field, shared by all Python components. Appended after operator-generated configs.
-5. **Component config (`spec.<component>.config`)** — Raw Python from the per-component `config` field. Appended last, so it can override anything above.
+3. **Feature flags, realtime, and render URLs** — `FEATURE_FLAGS` from `spec.featureFlags` (plus `GLOBAL_ASYNC_QUERIES` when `spec.realtime.asyncQueries` is set), the `WEBSOCKET_*` transport settings when `spec.realtime.webSocket` is set, the realtime and Global Task Framework channel prefixes (`REALTIME_CHANNEL_PREFIX`, `TASKS_*_CHANNEL_PREFIX`) namespaced by the instance prefix whenever a coordination backend is configured, `WEBDRIVER_BASEURL` (the web-server Service), and `WEBDRIVER_BASEURL_USER_FRIENDLY` (from `spec.baseUrl`).
+4. **Valkey cache config** — When `spec.valkey` is set, the operator renders `CACHE_CONFIG`, `DATA_CACHE_CONFIG`, `FILTER_STATE_CACHE_CONFIG`, `EXPLORE_FORM_DATA_CACHE_CONFIG`, `THUMBNAIL_CACHE_CONFIG`, `DISTRIBUTED_COORDINATION_CONFIG`, `CeleryConfig`, and `RESULTS_BACKEND` backed by Valkey. Connection details are read from `SUPERSET_OPERATOR__VALKEY_*` env vars at Python runtime. With `spec.valkey.sentinel`, the caches and results backend use clients bound to the Sentinel-resolved primary (Flask-Caching's `RedisSentinelCache` would read from replicas), the coordination backend uses Superset's own Sentinel mode, and Celery uses `sentinel://` URLs. The rendered `CeleryConfig` subclasses Superset's default and sets only the broker and result backend connection (with SSL and Sentinel options); task imports and the beat schedule are inherited. SSL/mTLS cert paths are baked directly into the rendered config.
+5. **Base config (`spec.config`)** — Raw Python from the top-level `config` field, shared by all Python components. Appended after operator-generated configs.
+6. **Component config (`spec.<component>.config`)** — Raw Python from the per-component `config` field. Appended last, so it can override anything above.
 
 For example, given a structured metastore configuration:
 
@@ -221,6 +222,8 @@ Note: All operator-managed settings (`SECRET_KEY`, `SQLALCHEMY_DATABASE_URI`, we
 | Passthrough DB URI | if set | if set | if set | if set | if set |
 | Structured DB URI (f-string) | if set | if set | if set | if set | if set |
 | Web server port (8088) | yes | | | | |
+| Feature flags, realtime, render URLs | if set | if set | if set | if set | if set |
+| Valkey caches, coordination, CeleryConfig, results backend | if set | if set | if set | if set | if set |
 | Top-level config | yes | yes | yes | yes | yes |
 | Per-component config | yes | yes | yes | yes | yes |
 

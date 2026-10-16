@@ -198,7 +198,7 @@ The chart runs a single install-time hook Job (`init.*`) that performs `superset
 | Helm chart value | Operator equivalent | Notes |
 |---|---|---|
 | `service.type`, `service.port`, `service.nodePort.http`, `service.annotations` | `spec.webServer.service.type`, `port`, `nodePort`, `annotations` | `loadBalancerIP` is not modeled because the Kubernetes field is deprecated; pin a static address with a provider annotation under `service.annotations` instead (example below). |
-| `ingress.enabled`, `ingress.ingressClassName`, `ingress.annotations`, `ingress.hosts`, `ingress.tls`, `ingress.path`, `ingress.pathType` | `spec.networking.ingress` | A host with no explicit `paths` fans out into one rule per present component, mirroring Gateway API (see [Networking & Monitoring](networking-and-monitoring.md#gateway-api-recommended) for the routing table). Use `className` for `ingressClassName`, or keep legacy `kubernetes.io/ingress.class` under `annotations`. Helm's top-level `path`/`pathType` move to `hosts[].paths[]`; setting explicit paths routes them to the web server only. |
+| `ingress.enabled`, `ingress.ingressClassName`, `ingress.annotations`, `ingress.hosts`, `ingress.tls`, `ingress.path`, `ingress.pathType` | `spec.networking.ingress` | A host with no explicit `paths` fans out into one rule per present component, mirroring Gateway API (see [Networking & Monitoring](networking-and-monitoring.md#gateway-api-recommended) for the routing table). Use `className` for `ingressClassName`, or keep legacy `kubernetes.io/ingress.class` under `annotations`. Helm's top-level `path`/`pathType` move to `hosts[].paths[]`; explicit paths route to the web server, and the component routes are still added unless a listed path claims the same prefix. |
 | `ingress.extraHostsRaw` | `spec.networking.ingress.hosts` for normal web routes, or a custom Ingress | Use a separate Ingress for non-web backends or unusual raw rules. |
 | `supersetWebsockets.ingress.*` | `spec.networking.ingress` or `spec.networking.gateway` | Both reconcilers expose the websocket service automatically when `websocketServer` is present; set its path with `websocketServer.service.gatewayPath`. |
 | Flower or MCP external paths | `spec.networking.ingress` or `spec.networking.gateway` | Both reconcilers expose every present component on its own subpath; see the routing table in [Networking & Monitoring](networking-and-monitoring.md#gateway-api-recommended). |
@@ -432,6 +432,7 @@ The Helm chart's `supersetWebsockets.config` map (JWT secret, Redis connection) 
 
 ```yaml
 spec:
+  baseUrl: https://superset.example.com   # browser origin for the websocket URL and allowlist
   valkey:
     host: valkey                    # distributedCoordination enabled by default
   websocketServer: {}               # inherits spec.image
@@ -450,6 +451,8 @@ The Helm chart's `supersetWebsockets.ingress` injects a websocket rule alongside
 
 ```yaml
 spec:
+  valkey:
+    host: valkey
   webServer: {}
   websocketServer: {}
   realtime:
@@ -467,6 +470,8 @@ The equivalent with Gateway API, plus a customized websocket path via `service.g
 
 ```yaml
 spec:
+  valkey:
+    host: valkey
   websocketServer:
     service:
       gatewayPath: /ws
@@ -484,4 +489,4 @@ spec:
         - superset.example.com
 ```
 
-Adding explicit `hosts[].paths[]` to the Ingress turns off the per-component fan-out for that host and routes the listed paths to the web server only.
+Explicit `hosts[].paths[]` on an Ingress host route the listed paths to the web server in place of `/`. The component routes, including `/ws`, are still added for that host unless a listed path claims the same prefix.

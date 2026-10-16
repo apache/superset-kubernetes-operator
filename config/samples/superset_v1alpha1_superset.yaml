@@ -16,7 +16,9 @@
 # WARNING: This sample uses dev mode with inline secrets for local development only.
 # For production, see superset_v1alpha1_superset_prod.yaml.
 #
-# Expects the PostgreSQL and Valkey from the companion manifest:
+# Expects the PostgreSQL and Valkey from the companion manifest, which also
+# creates the dev Gateway and so needs Envoy Gateway installed first (see its
+# header):
 #   kubectl apply -f config/samples/dev-dependencies.yaml
 apiVersion: superset.apache.org/v1alpha1
 kind: Superset
