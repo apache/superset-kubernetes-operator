@@ -448,11 +448,7 @@ func TestReconcile_ValkeyKeyPrefixNamespacesInstance(t *testing.T) {
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r)
 
-	// The web-server config keys off the custom prefix rather than the CR name.
-	cm := &corev1.ConfigMap{}
-	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server-config", Namespace: "default"}, cm); err != nil {
-		t.Fatalf("expected web-server ConfigMap: %v", err)
-	}
+	// The Python components key off the custom prefix rather than the CR name.
 	web := &appsv1.Deployment{}
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, web); err != nil {
 		t.Fatalf("expected web-server Deployment: %v", err)

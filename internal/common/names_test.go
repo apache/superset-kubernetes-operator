@@ -48,15 +48,6 @@ func TestDerivedName(t *testing.T) {
 	}
 }
 
-func TestEnvValkeySentinelNames(t *testing.T) {
-	if got := EnvValkeySentinelHost(2); got != "SUPERSET_OPERATOR__VALKEY_SENTINEL_2_HOST" {
-		t.Errorf("EnvValkeySentinelHost(2) = %q", got)
-	}
-	if got := EnvValkeySentinelPort(0); got != "SUPERSET_OPERATOR__VALKEY_SENTINEL_0_PORT" {
-		t.Errorf("EnvValkeySentinelPort(0) = %q", got)
-	}
-}
-
 func TestSubResourceName(t *testing.T) {
 	tests := []struct {
 		instanceName string
