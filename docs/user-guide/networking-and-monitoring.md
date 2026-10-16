@@ -194,7 +194,7 @@ metrics:
       release: prometheus
     tlsConfig:                           # free-form ServiceMonitor tlsConfig
       insecureSkipVerify: false
-      serverName: <release>-superset-operator-metrics.<namespace>.svc
+      serverName: superset-operator-metrics.<namespace>.svc   # release name superset-operator
       ca:
         secret:
           name: metrics-server-cert

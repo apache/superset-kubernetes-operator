@@ -77,6 +77,8 @@ spec:
       disabled: true  # user manages migrations externally
 ```
 
+When disabled, the task's Job and ConfigMap are deleted, its projected status is cleared from the parent, and it does not participate in the pipeline. Downstream tasks still run but don't receive propagation from the disabled task.
+
 ### Scheduled Execution
 
 Tasks that support scheduling (currently seed) accept a `cronSchedule` field — a standard cron expression (5 to 7 fields; the sixth/seventh fields add optional seconds and year precision) that triggers periodic re-execution:
@@ -113,8 +115,6 @@ The seed task status includes `lastScheduledAt` (the tick that triggered the mos
 **Alternative — external CronJob:**
 
 For teams that prefer external scheduling, a Kubernetes CronJob can patch the `trigger` field on a cron schedule. This requires a CronJob resource, ServiceAccount, RoleBinding, and a kubectl image, but keeps the scheduling logic outside the operator.
-
-When disabled, the task's Job and ConfigMap are deleted, its projected status is cleared from the parent, and it does not participate in the pipeline. Downstream tasks still run but don't receive propagation from the disabled task.
 
 ## Upgrade Mode
 
@@ -536,8 +536,8 @@ The seed pod uses a database-tool image (not the Superset image):
 
 | Source type | Default image |
 |---|---|
-| `postgresql` | `postgres:17-alpine` |
-| `mysql` | `mysql:8.4` |
+| `PostgreSQL` | `postgres:17-alpine` |
+| `MySQL` | `mysql:8.4` |
 
 Override with `seed.image` if you need additional tools.
 
@@ -559,7 +559,7 @@ The lifecycle uses a **checksum chain** to determine which tasks execute and whi
                          ↓
 seed.checksum   = hash(parentUID, "Seed", command, trigger, scheduleTick, source, excludes, postSeedSQL, seedImage, targetImage)
                          ↓ (stored in parent status on completion)
-migrate.checksum = hash(seed.status.checksum, "Migrate", command, trigger, image)
+migrate.checksum = hash(seed.status.checksum, "Migrate", command, trigger, image, createDatabase)
                          ↓ (stored in parent status on completion)
 rotate.checksum  = hash(migrate.status.checksum, "Rotate", command, trigger, image, secretKey, secretKeyFrom, previousSecretKey, previousSecretKeyFrom)
                          ↓ (stored in parent status on completion)

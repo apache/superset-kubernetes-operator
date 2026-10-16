@@ -70,11 +70,11 @@ For each of the six deployment components, the parent controller:
     - Computes a config checksum from shared inputs and rendered config
     - Creates or updates the component ConfigMap, Deployment, Service, HPA, and PDB
 
-After components, the controller reconciles cluster-scoped resources: networking (Ingress or HTTPRoute), monitoring (ServiceMonitor), and network policies (one NetworkPolicy per enabled component).
+After components, the controller reconciles instance-level resources: networking (Ingress or HTTPRoute), monitoring (ServiceMonitor), and network policies (one NetworkPolicy per enabled component).
 
 ### Phase 5: Status Aggregation
 
-The controller reads each enabled component's Deployment status, checks the expected supporting resources, and aggregates the result into the parent status. Each component reports a phase, ready count, replica details, image, config checksum, and observed resource list.
+The controller reads each enabled component's Deployment status, checks the expected supporting resources, and aggregates the result into the parent status. Each component reports a phase, replica counts, image, config checksum, and observed resource list.
 
 During lifecycle and maintenance return, status still reflects observed component workloads. If the maintenance page is active, only the web-server component is treated as not ready because the web-server Service is still routed to maintenance; non-web components such as Celery workers report their actual Deployment readiness.
 
@@ -138,7 +138,7 @@ All deployment component reconcilers delegate to `buildDeploymentSpec()`, which 
 
 ```go
 type DeploymentConfig struct {
-    ContainerName  string                 // e.g., "superset-web-server"
+    ContainerName  string                 // always "superset"
     DefaultCommand []string               // e.g., ["/usr/bin/run-server.sh"]
     DefaultArgs    []string               // optional
     DefaultPorts   []corev1.ContainerPort // e.g., [{Name: "http", Port: 8088}]
@@ -262,8 +262,6 @@ status:
   components:
     webServer:
       phase: Ready
-      ready: "2/2"
-      ref: Deployment/example-web-server
       image: apache/superset:7.0.0
       replicas: 2
       readyReplicas: 2
@@ -279,15 +277,16 @@ status:
           status: Present
     celeryWorker:
       phase: Ready
-      ready: "4/4"
+      replicas: 4
+      readyReplicas: 4
     celeryBeat:
       phase: Ready
-      ready: "1/1"
+      replicas: 1
+      readyReplicas: 1
   lifecycle:
     phase: Complete
     migrate:
       state: Complete
-      ref: Job/example-migrate
       desiredChecksum: sha256:...
       completedChecksum: sha256:...
   conditions:
