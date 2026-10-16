@@ -55,6 +55,9 @@ jobs:
     needs: build
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    concurrency:
+      group: docs-deploy
+      cancel-in-progress: false
     permissions:
       contents: write
     env:
@@ -83,6 +86,8 @@ jobs:
         run: |
           set -euo pipefail
           rsync -a --delete --exclude='.git' site/ "$PUBLISH_DIR/"
+      - name: Preserve GitHub Pages static serving
+        run: touch "$PUBLISH_DIR/.nojekyll"
       - name: Commit and push docs
         run: |
           set -euo pipefail
@@ -100,9 +105,17 @@ jobs:
               echo "Unable to push gh-pages after ${attempt} attempts" >&2
               exit 1
             fi
-            echo "gh-pages changed while deploying; rebasing and retrying"
+            echo "gh-pages changed while deploying; resetting and retrying"
             git -C "$PUBLISH_DIR" fetch origin gh-pages
-            git -C "$PUBLISH_DIR" rebase origin/gh-pages
+            git -C "$PUBLISH_DIR" reset --hard origin/gh-pages
+            rsync -a --delete --exclude='.git' site/ "$PUBLISH_DIR/"
+            touch "$PUBLISH_DIR/.nojekyll"
+            git -C "$PUBLISH_DIR" add -A
+            if git -C "$PUBLISH_DIR" diff --cached --quiet; then
+              echo "Documentation is already up to date"
+              exit 0
+            fi
+            git -C "$PUBLISH_DIR" commit -m "docs: deploy ${GITHUB_SHA}"
           done
       - name: Clean up gh-pages worktree
         if: always()
