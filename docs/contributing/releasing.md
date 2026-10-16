@@ -31,7 +31,7 @@ Pin all `uses:` references by **full commit SHA**, not version tag. Add a versio
 - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 ```
 
-**Why**: Version tags are mutable — a compromised upstream can retag a malicious commit to an existing version. SHA pinning makes the reference immutable. Dependabot automatically proposes SHA updates when new versions are released, so maintenance overhead is minimal.
+**Why**: Version tags are mutable — a compromised upstream can retag a malicious commit to an existing version. SHA pinning makes the reference immutable. Renovate automatically proposes SHA updates when new versions are released, so maintenance overhead is minimal.
 
 ### Tool binary pinning
 
@@ -55,7 +55,7 @@ Only add broader permissions when needed (e.g., `packages: write` for image publ
 
 ### Renovate
 
-`renovate.json` is configured to propose weekly dependency updates for Go modules and GitHub Actions. A **7-day minimum release age** is enforced — Renovate will not propose a version until it has been published for at least 7 days. This reduces the risk of adopting a compromised release before the community detects it. Review and merge these PRs promptly to stay current on security patches.
+`renovate.json` is configured to propose dependency updates for Go modules and GitHub Actions. A **7-day minimum release age** is enforced — Renovate will not propose a version until it has been published for at least 7 days. This reduces the risk of adopting a compromised release before the community detects it. Review and merge these PRs promptly to stay current on security patches.
 
 ---
 

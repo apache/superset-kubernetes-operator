@@ -28,7 +28,7 @@ See [Architecture](../architecture/overview.md) for the structural overview (CRD
 
 - **Single public CRD**: `Superset` resolves shared spec (top-level + per-component) into parent-owned Kubernetes resources
 - **6 deployment components + lifecycle tasks**: web server, Celery worker, Celery beat, Flower, websocket, MCP, and task Jobs for seed/migrate/rotate/init
-- **3 pure Go packages**: `internal/resolution/` (spec flattening), `internal/config/` (Python rendering), `internal/common/` (shared types)
+- **4 pure Go packages**: `internal/resolution/` (spec flattening), `internal/config/` (Python rendering), `internal/common/` (shared types), `internal/schedule/` (cron tick computation)
 - **Parent resolves and executes**: All layering, lifecycle orchestration, resource reconciliation, and status projection live in the parent controller
 
 ### External connection values
@@ -120,11 +120,11 @@ We use a **pyramid testing strategy** where the vast majority of logic is covere
 make test-e2e
 ```
 
-The Kind node image is pinned in the Makefile (`KIND_NODE_IMAGE`) and matches the Kind binary version used in CI. Override `E2E_PROJECT_IMAGE` or `E2E_CURL_IMAGE` if your environment requires a mirror registry, or set `E2E_SKIP_BUILD_LOAD=1` to reuse an image you've already loaded into Kind during iteration.
+The Kind node image (`KIND_NODE_IMAGE`) is read from the first entry in `.github/supported-k8s.json` and matches the Kind binary version used in CI. Override `E2E_PROJECT_IMAGE` or `E2E_CURL_IMAGE` if your environment requires a mirror registry, or set `E2E_SKIP_BUILD_LOAD=1` to reuse an image you've already loaded into Kind during iteration.
 
 ### Writing a new unit test
 
-Use the standard pattern from `superset_controller_test.go`:
+Use the standard pattern from `reconcile_parent_resources_test.go`:
 
 ```go
 func TestReconcile_MyScenario(t *testing.T) {
@@ -150,7 +150,7 @@ func TestReconcile_MyScenario(t *testing.T) {
         Build()
 
     r := &SupersetReconciler{
-        Client: c, Scheme: scheme, Recorder: record.NewFakeRecorder(10),
+        Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10),
     }
 
     _, err := r.Reconcile(context.Background(), reconcile.Request{
@@ -240,7 +240,7 @@ To check locally (requires Java):
 make check-license
 ```
 
-The script downloads the Rat jar to `/tmp/lib/` on first run. Files that are generated, scaffolded by Operator SDK, or not user-authored are excluded via `.rat-excludes`.
+The script downloads the Rat jar to `${XDG_CACHE_HOME:-$HOME/.cache}/superset-kubernetes-operator/lib/` on first run. Files that are generated, scaffolded by Operator SDK, or not user-authored are excluded via `.rat-excludes`.
 
 When adding new source files (`.go`, `.yaml`, `.sh`, `Dockerfile`, etc.), include the appropriate license header. Go files get this automatically from `hack/boilerplate.go.txt` when using `make generate`. For other file types, use the `#`-comment form:
 
@@ -299,7 +299,7 @@ New Deployment/Pod/Container fields go into the template hierarchy:
 
 1. Determine the Kubernetes level: `DeploymentTemplate` (Deployment-level), `PodTemplate` (PodSpec-level), or `ContainerTemplate` (Container-level)
 2. Add the field to the appropriate template type in `api/v1alpha1/shared_types.go`
-3. Add the merge logic in `internal/resolution/merge.go` (`MergeDeploymentTemplate`, `MergePodTemplate`, or `MergeContainerTemplate`) using the field's natural semantics (scalar → `ResolveOverridableValue`, named slice → `Merge*ByName`, map → `MergeMaps`, unnamed slice → `append`). All merge functions follow the convention `Merge*(topLevel, component[, operatorInjected])`: the top-level value establishes ordering, the component value overrides by name in place, and where applicable (env vars, volume mounts, labels) operator-injected values are applied last so they cannot be overridden by user configuration. Any code consuming resolved ports, env vars, or other merged collections must respect this same ordering.
+3. Add the merge logic in `internal/resolution/merge.go` (`MergeDeploymentTemplate`, `MergePodTemplate`, or `MergeContainerTemplate`) using the field's natural semantics (scalar → `ResolveOverridableValue`, named slice → the matching helper such as `MergeEnvVars` or `MergeVolumes`, map → `MergeMaps`, unnamed slice → `append`). The collection merge helpers take their inputs in the order `(topLevel, component[, operatorInjected])`: the top-level value establishes ordering, the component value overrides by name in place, and where applicable (env vars, volume mounts, labels) operator-injected values are applied last so they cannot be overridden by user configuration. Any code consuming resolved ports, env vars, or other merged collections must respect this same ordering.
 4. Wire the field in `internal/controller/deployment_builder.go` (`buildDeploymentSpec`)
 5. Run `make manifests generate`
 6. Add assertions to existing comprehensive tests
@@ -308,9 +308,9 @@ New Deployment/Pod/Container fields go into the template hierarchy:
 ## How to Add a New Component
 
 1. Add the component spec to the parent `SupersetSpec` in `superset_types.go`.
-2. Add resource defaults in `internal/controller/component_resources.go` via `ComponentResourceDefs()` with component name, `DeploymentConfig` (container name, default command, ports), `hasConfig`, and `hasScaling`.
+2. Add resource defaults in `internal/controller/component_resources.go` via `ComponentResourceDefs()` with component name, `DeploymentConfig` (container name, default command, ports, probes), `defaultPort`, and `hasScaling`.
 3. Register the component in `internal/controller/component_descriptors.go`:
-    - Add a `componentDescriptor` entry with `extract`, optional `adjustSpec`,
+    - Add a `componentDescriptor` entry with `hasPythonConfig`, `extract`, optional `adjustSpec`,
     and `statusAccessor` functions.
     - Add the descriptor to the `componentDescriptors` slice.
 4. Add status fields if the component needs a dedicated slot under `ComponentStatusMap`.
@@ -328,6 +328,7 @@ internal/
 │                     # Per-component rendering, metastore URI,
 │                     # config appending
 ├── common/           # Shared types (ComponentType, environment constants)
+├── schedule/         # Pure Go — cron tick computation
 └── controller/       # controller-runtime — reconcilers
                       # Parent controller, component resources,
                       # task job lifecycle, status, scaling, networking
@@ -340,7 +341,7 @@ internal/
 | File | Purpose |
 |------|---------|
 | `api/v1alpha1/shared_types.go` | ImageSpec, MetastoreSpec, DeploymentTemplate, PodTemplate, ContainerTemplate, FlatComponentSpec |
-| `api/v1alpha1/superset_types.go` | Parent SupersetSpec, component specs, InitSpec, CEL validation rules, status |
+| `api/v1alpha1/superset_types.go` | Parent SupersetSpec, component specs, LifecycleSpec, CEL validation rules, status |
 | `internal/common/types.go` | Shared ComponentType, environment constants |
 | `internal/resolution/resolver.go` | ResolveComponentSpec — core flattening engine |
 | `internal/config/renderer.go` | RenderConfig — per-component Python generation |
