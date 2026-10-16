@@ -132,6 +132,8 @@ spec:
     # web server serves the key API, and the MCP server accepts the keys.
     FAB_API_KEY_ENABLED = True
     MCP_API_KEY_ENABLED = True
+    # Interactive REST API docs at /swagger/v1 (off by default in Superset 7.0).
+    FAB_API_SWAGGER_UI = True
 
   webServer:
     # Per-component template override (field-level merge): a graceful-shutdown
