@@ -47,7 +47,7 @@ The operator runs the same core application as the chart — web server, Celery 
 | Staging data seed | — | `seed` task — Development/Staging only, `cronSchedule` refresh, **not** a backup |
 | Upgrade gating, supervised approval, maintenance page | — | ✓ |
 | **Scaling & operations** | | |
-| Autoscaling | web server, worker | web, worker, **Flower, websocket** (`autoscaling/v2`: CPU/memory/custom/external) |
+| Autoscaling | web server, worker | web, worker, **Flower, websocket, MCP** (`autoscaling/v2`: CPU/memory/custom/external) |
 | Continuous reconciliation & drift correction | — | ✓ |
 | Typed metastore/Valkey/Gunicorn/Celery config + production secret validation | — | ✓ |
 | Prometheus `ServiceMonitor` | — | ✓ |
@@ -461,6 +461,7 @@ The Helm chart's `supersetWebsockets.ingress` injects a websocket rule alongside
 
 ```yaml
 spec:
+  webServer: {}
   websocketServer:
     image:
       repository: oneacrefund/superset-websocket
