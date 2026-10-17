@@ -48,7 +48,7 @@
     {
       "description": "The custom go.mod Go directive tracker uses the Docker datasource only for tag availability. Do not try to add Docker digests to go.mod.",
       "matchManagers": ["custom.regex"],
-      "matchFileNames": ["go.mod"],
+      "matchFileNames": ["go.mod", "AGENTS.md", "docs/contributing/development-setup.md"],
       "matchDepNames": ["golang"],
       "pinDigests": false
     },
@@ -120,6 +120,18 @@
       "description": "Track go.mod's Go directive from Docker Hub golang image tags.",
       "managerFilePatterns": ["/^go\\.mod$/"],
       "matchStrings": ["(?:^|\\n)go (?<currentValue>\\d+\\.\\d+\\.\\d+)\\n"],
+      "depNameTemplate": "golang",
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
+    },
+    {
+      "customType": "regex",
+      "description": "Keep the Go version stated in AGENTS.md and the development setup docs in step with go.mod.",
+      "managerFilePatterns": ["/^AGENTS\\.md$/", "/^docs\\/contributing\\/development-setup\\.md$/"],
+      "matchStrings": [
+        "Operator SDK and Go (?<currentValue>\\d+\\.\\d+\\.\\d+)\\.",
+        "\\| Go \\| (?<currentValue>\\d+\\.\\d+\\.\\d+) \\|"
+      ],
       "depNameTemplate": "golang",
       "datasourceTemplate": "docker",
       "versioningTemplate": "docker"

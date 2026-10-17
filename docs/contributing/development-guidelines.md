@@ -28,7 +28,7 @@ See [Architecture](../architecture/overview.md) for the structural overview (CRD
 
 - **Single public CRD**: `Superset` resolves shared spec (top-level + per-component) into parent-owned Kubernetes resources
 - **6 deployment components + lifecycle tasks**: web server, Celery worker, Celery beat, Flower, websocket, MCP, and task Jobs for seed/migrate/rotate/init
-- **4 pure Go packages**: `internal/resolution/` (spec flattening), `internal/config/` (Python rendering), `internal/common/` (shared types), `internal/schedule/` (cron tick computation)
+- **Pure Go packages** (no controller-runtime dependency): `internal/resolution/` (spec flattening), `internal/config/` (Python rendering), `internal/common/` (shared types), `internal/schedule/` (cron tick computation)
 - **Parent resolves and executes**: All layering, lifecycle orchestration, resource reconciliation, and status projection live in the parent controller
 
 ### External connection values
@@ -299,7 +299,7 @@ New Deployment/Pod/Container fields go into the template hierarchy:
 
 1. Determine the Kubernetes level: `DeploymentTemplate` (Deployment-level), `PodTemplate` (PodSpec-level), or `ContainerTemplate` (Container-level)
 2. Add the field to the appropriate template type in `api/v1alpha1/shared_types.go`
-3. Add the merge logic in `internal/resolution/merge.go` (`MergeDeploymentTemplate`, `MergePodTemplate`, or `MergeContainerTemplate`) using the field's natural semantics (scalar → `ResolveOverridableValue`, named slice → the matching helper such as `MergeEnvVars` or `MergeVolumes`, map → `MergeMaps`, unnamed slice → `append`). The collection merge helpers take their inputs in the order `(topLevel, component[, operatorInjected])`: the top-level value establishes ordering, the component value overrides by name in place, and where applicable (env vars, volume mounts, labels) operator-injected values are applied last so they cannot be overridden by user configuration. Any code consuming resolved ports, env vars, or other merged collections must respect this same ordering.
+3. Add the merge logic in `internal/resolution/merge.go` using the field's natural semantics: scalars are overridden by the component value, named collections merge by name, maps merge by key, and unnamed collections append. Values are applied in order: the top-level value establishes ordering, the component value overrides in place, and where applicable (env vars, volume mounts, labels) operator-injected values are applied last so they cannot be overridden by user configuration. Any code consuming resolved ports, env vars, or other merged collections must respect this same ordering.
 4. Wire the field in `internal/controller/deployment_builder.go` (`buildDeploymentSpec`)
 5. Run `make manifests generate`
 6. Add assertions to existing comprehensive tests
