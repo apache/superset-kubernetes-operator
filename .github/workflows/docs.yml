@@ -23,6 +23,8 @@ on:
       - "mkdocs.yml"
       - "docs-requirements.in"
       - "docs-requirements.txt"
+      - "Makefile"
+      - ".github/workflows/docs.yml"
   pull_request:
     branches: [main]
     paths:
@@ -30,6 +32,8 @@ on:
       - "mkdocs.yml"
       - "docs-requirements.in"
       - "docs-requirements.txt"
+      - "Makefile"
+      - ".github/workflows/docs.yml"
 
 permissions:
   contents: read
