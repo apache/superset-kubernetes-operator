@@ -46,7 +46,7 @@
       "enabled": false
     },
     {
-      "description": "The custom go.mod Go directive tracker uses the Docker datasource only for tag availability. Do not try to add Docker digests to go.mod.",
+      "description": "The Go version trackers for go.mod and the docs that mirror it use the Docker datasource only for tag availability. Do not try to add Docker digests to these files.",
       "matchManagers": ["custom.regex"],
       "matchFileNames": ["go.mod", "AGENTS.md", "docs/contributing/development-setup.md"],
       "matchDepNames": ["golang"],
