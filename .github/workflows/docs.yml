@@ -23,6 +23,8 @@ on:
       - "mkdocs.yml"
       - "docs-requirements.in"
       - "docs-requirements.txt"
+      - "Makefile"
+      - ".github/workflows/docs.yml"
   pull_request:
     branches: [main]
     paths:
@@ -30,6 +32,8 @@ on:
       - "mkdocs.yml"
       - "docs-requirements.in"
       - "docs-requirements.txt"
+      - "Makefile"
+      - ".github/workflows/docs.yml"
 
 permissions:
   contents: read
@@ -55,6 +59,9 @@ jobs:
     needs: build
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    concurrency:
+      group: docs-deploy
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
@@ -64,9 +71,56 @@ jobs:
           python-version: "3.14"
       - name: Install dependencies
         run: python -m pip install --require-hashes -r docs-requirements.txt
+      - name: Set publish dir
+        run: echo "PUBLISH_DIR=$RUNNER_TEMP/gh-pages" >> "$GITHUB_ENV"
+      - name: Prepare gh-pages worktree
+        run: |
+          set -euo pipefail
+          git fetch origin gh-pages
+          git worktree add --detach "$PUBLISH_DIR" origin/gh-pages
       - name: Configure git
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      - name: Deploy docs
-        run: NO_MKDOCS_2_WARNING=1 mkdocs gh-deploy --force --remote-branch gh-pages
+          git -C "$PUBLISH_DIR" config user.name "github-actions[bot]"
+          git -C "$PUBLISH_DIR" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Build docs
+        run: |
+          set -euo pipefail
+          make docs-build
+      - name: Copy generated site
+        run: |
+          set -euo pipefail
+          rsync -a --delete --exclude='.git' site/ "$PUBLISH_DIR/"
+      - name: Preserve GitHub Pages static serving
+        run: touch "$PUBLISH_DIR/.nojekyll"
+      - name: Commit and push docs
+        run: |
+          set -euo pipefail
+          git -C "$PUBLISH_DIR" add -A
+          if git -C "$PUBLISH_DIR" diff --cached --quiet; then
+            echo "No documentation changes to deploy"
+            exit 0
+          fi
+          git -C "$PUBLISH_DIR" commit -m "docs: deploy ${GITHUB_SHA}"
+          for attempt in 1 2 3 4 5; do
+            if git -C "$PUBLISH_DIR" push origin HEAD:gh-pages; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 5 ]; then
+              echo "Unable to push gh-pages after ${attempt} attempts" >&2
+              exit 1
+            fi
+            echo "gh-pages changed while deploying; resetting and retrying"
+            git -C "$PUBLISH_DIR" fetch origin gh-pages
+            git -C "$PUBLISH_DIR" reset --hard origin/gh-pages
+            rsync -a --delete --exclude='.git' site/ "$PUBLISH_DIR/"
+            touch "$PUBLISH_DIR/.nojekyll"
+            git -C "$PUBLISH_DIR" add -A
+            if git -C "$PUBLISH_DIR" diff --cached --quiet; then
+              echo "Documentation is already up to date"
+              exit 0
+            fi
+            git -C "$PUBLISH_DIR" commit -m "docs: deploy ${GITHUB_SHA}"
+          done
+      - name: Clean up gh-pages worktree
+        if: always()
+        run: git worktree remove --force "$PUBLISH_DIR" || true
