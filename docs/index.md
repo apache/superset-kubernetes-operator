@@ -31,7 +31,8 @@ The operator manages the full Superset lifecycle: database migrations, configura
 - **Sensible defaults** — defaults adjust based on the components and presets you configure
 - **Automatic config rendering** — structured fields for metastore, Valkey, Gunicorn, and Celery generate `superset_config.py` per component; config changes trigger rolling restarts
 - **Configurable** — defaults can be overridden at the preset, deployment-template, or container level, with a raw Python escape hatch in `spec.config`/`spec.<component>.config` for settings not surfaced as typed fields
-- **Component toggle** — enable CeleryWorker, CeleryBeat, CeleryFlower, McpServer, or WebsocketServer (experimental) by setting their spec; omit to disable
+- **Component toggle** — enable CeleryWorker, CeleryBeat, CeleryFlower, McpServer, or WebsocketServer by setting their spec; omit to disable
+- **Realtime and async queries** — run chart-data queries asynchronously and push completion and task updates to the browser over the bundled websocket server, with no separate image to build
 - **Maintenance-backed upgrades** — when database migrations need to run, the operator drains components, runs the lifecycle tasks, and restores traffic only after the new version is healthy; an optional maintenance page can serve users during the window when configured
 - **Lifecycle automation** — database seeding, schema migrations, secret key rotation, and application init run as sequenced tasks with automatic change detection and checksum-based re-execution
 - **Networking** — Gateway API (HTTPRoute) and Ingress support with per-component routing
@@ -58,7 +59,7 @@ metadata:
   name: my-superset
 spec:
   image:
-    tag: "6.1.0"
+    tag: "7.0.0"
   environment: Development
   secretKey: thisIsNotSecure_changeInProduction!
   metastore:
@@ -87,7 +88,7 @@ metadata:
   name: my-superset
 spec:
   image:
-    tag: "6.1.0"
+    tag: "7.0.0"
   secretKeyFrom:
     name: superset-secret
     key: secret-key
@@ -107,7 +108,7 @@ The operator resolves this into parent-owned resources. Lifecycle task Jobs run 
 ```text
 $ kubectl get supersets
 NAME           TAG      PHASE     LIFECYCLE   READY   AVAILABLE   AGE
-my-superset    6.1.0    Running   Complete    3/3     True        5m
+my-superset    7.0.0    Running   Complete    3/3     True        5m
 
 $ kubectl get superset my-superset -o jsonpath='{.status.lifecycle.migrate.state}'
 Complete

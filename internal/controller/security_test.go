@@ -21,6 +21,7 @@ package controller
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"regexp"
 	"slices"
@@ -47,108 +48,157 @@ import (
 // literals, and config_builder injects the real values as container env vars.
 //
 // Development mode is the strict case to test: inline secrets are permitted, so
-// the sentinel values are actually present in the spec and *could* leak if a
+// the marker values are actually present in the spec and *could* leak if a
 // future change rendered them into superset_config.py instead of referencing
-// the env var. websocketServer is deliberately excluded — its inline config is
-// written to a ConfigMap by design (the documented dev-only exception), so it
-// would invalidate this invariant. See TestReconcile_WebsocketInlineConfig*.
+// the env var. That includes the realtime websocket JWT secret, which reaches
+// both the app and the Node.js websocket server through env vars only. Valkey
+// connects either to a fixed host or through Sentinel, which are mutually
+// exclusive, so each mode runs separately; Sentinel adds its own password.
 func TestReconcile_SecretsNeverLeakIntoConfigMaps(t *testing.T) {
 	scheme := testScheme(t)
 
-	// Distinctive sentinels unlikely to collide with any non-secret config text.
+	// Distinctive markers unlikely to collide with any non-secret config text.
 	const (
-		sentinelSecretKey = "SENTINEL0SECRET0KEY"
-		sentinelPrevKey   = "SENTINEL0PREVIOUS0KEY"
-		sentinelDBPass    = "SENTINEL0DATABASE0PASSWORD"
-		sentinelValkey    = "SENTINEL0VALKEY0PASSWORD"
+		markerSecretKey    = "MARKER0SECRET0KEY"
+		markerPrevKey      = "MARKER0PREVIOUS0KEY"
+		markerDBPass       = "MARKER0DATABASE0PASSWORD"
+		markerValkey       = "MARKER0VALKEY0PASSWORD"
+		markerSentinelPass = "MARKER0VALKEY0SENTINEL0PASSWORD"
+		markerWSJWT        = "MARKER0WEBSOCKET0JWT0SECRET"
 	)
-	sentinels := []string{sentinelSecretKey, sentinelPrevKey, sentinelDBPass, sentinelValkey}
 
-	spec := minimalSupersetSpec()
-	spec.Environment = new("Development")
-	// Inline secrets (dev-mode) so the values are present in the spec.
-	spec.SecretKeyFrom = nil
-	spec.SecretKey = new(sentinelSecretKey)
-	spec.PreviousSecretKey = new(sentinelPrevKey)
-	spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-		Host:     new("postgres"),
-		Database: new("superset"),
-		Username: new("superset"),
-		Password: new(sentinelDBPass),
+	tests := []struct {
+		name   string
+		valkey *supersetv1alpha1.ValkeySpec
+		// Secret markers and the env vars that carry them, beyond the ones
+		// shared by both modes.
+		markers   []string
+		pyEnvVars []string
+		webEnv    map[string]string
+		wsEnv     map[string]string
+	}{
+		{
+			name:   "valkey host",
+			valkey: &supersetv1alpha1.ValkeySpec{Host: "valkey", Password: new(markerValkey)},
+		},
+		{
+			name: "valkey sentinel",
+			valkey: &supersetv1alpha1.ValkeySpec{
+				Password: new(markerValkey),
+				Sentinel: &supersetv1alpha1.ValkeySentinelSpec{
+					MasterName: "mymaster",
+					Nodes:      []supersetv1alpha1.ValkeySentinelNode{{Host: "sentinel-0"}},
+					Password:   new(markerSentinelPass),
+				},
+			},
+			markers:   []string{markerSentinelPass},
+			pyEnvVars: []string{common.EnvValkeySentinelPass},
+			webEnv:    map[string]string{common.EnvValkeySentinelPass: markerSentinelPass},
+			wsEnv:     map[string]string{"REDIS_SENTINEL_PASSWORD": markerSentinelPass},
+		},
 	}
-	spec.Valkey = &supersetv1alpha1.ValkeySpec{
-		Host:     "valkey",
-		Password: new(sentinelValkey),
-	}
-	// Exercise every Python config consumer (web-server is already set).
-	spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{}
-	spec.CeleryBeat = &supersetv1alpha1.CeleryBeatComponentSpec{}
-	spec.McpServer = &supersetv1alpha1.McpServerComponentSpec{}
 
-	superset := &supersetv1alpha1.Superset{
-		Name: "test", Namespace: "default", UID: "uid-1",
-		Spec: spec,
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			markers := append([]string{markerSecretKey, markerPrevKey, markerDBPass, markerValkey, markerWSJWT}, tt.markers...)
 
-	c := reconcileOnce(t, scheme, superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
-	doReconcile(t, r)
+			spec := minimalSupersetSpec()
+			spec.Environment = new("Development")
+			// Inline secrets (dev-mode) so the values are present in the spec.
+			spec.SecretKeyFrom = nil
+			spec.SecretKey = new(markerSecretKey)
+			spec.PreviousSecretKey = new(markerPrevKey)
+			spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+				Host:     new("postgres"),
+				Database: new("superset"),
+				Username: new("superset"),
+				Password: new(markerDBPass),
+			}
+			spec.Valkey = tt.valkey
+			// Exercise every Python config consumer (web-server is already set).
+			spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{}
+			spec.CeleryBeat = &supersetv1alpha1.CeleryBeatComponentSpec{}
+			spec.McpServer = &supersetv1alpha1.McpServerComponentSpec{}
+			spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+			spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{JWTSecret: new(markerWSJWT), URL: new("ws://superset.example.com/ws")},
+			}
 
-	ctx := context.Background()
+			superset := &supersetv1alpha1.Superset{
+				Name: "test", Namespace: "default", UID: "uid-1",
+				Spec: spec,
+			}
 
-	// 1. No sentinel secret value may appear in ANY owned ConfigMap.
-	cms := &corev1.ConfigMapList{}
-	if err := c.List(ctx, cms, client.InNamespace("default")); err != nil {
-		t.Fatalf("list ConfigMaps: %v", err)
-	}
-	if len(cms.Items) == 0 {
-		t.Fatal("expected at least one ConfigMap to be reconciled")
-	}
-	for _, cm := range cms.Items {
-		for key, val := range cm.Data {
-			for _, s := range sentinels {
-				if strings.Contains(val, s) {
-					t.Errorf("secret leak: ConfigMap %s data[%s] contains sentinel %q", cm.Name, key, s)
+			c := reconcileOnce(t, scheme, superset).Build()
+			r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+			doReconcile(t, r)
+
+			ctx := context.Background()
+
+			// 1. No secret marker may appear in ANY owned ConfigMap.
+			cms := &corev1.ConfigMapList{}
+			if err := c.List(ctx, cms, client.InNamespace("default")); err != nil {
+				t.Fatalf("list ConfigMaps: %v", err)
+			}
+			if len(cms.Items) == 0 {
+				t.Fatal("expected at least one ConfigMap to be reconciled")
+			}
+			for _, cm := range cms.Items {
+				for key, val := range cm.Data {
+					for _, m := range markers {
+						if strings.Contains(val, m) {
+							t.Errorf("secret leak: ConfigMap %s data[%s] contains marker %q", cm.Name, key, m)
+						}
+					}
 				}
 			}
-		}
-	}
 
-	// 2. Positive control: the rendered config references the secrets via env
-	//    vars. Without this, a regression that simply dropped the secrets would
-	//    pass assertion (1) vacuously.
-	webCM := &corev1.ConfigMap{}
-	if err := c.Get(ctx, types.NamespacedName{Name: "test-web-server-config", Namespace: "default"}, webCM); err != nil {
-		t.Fatalf("get web-server ConfigMap: %v", err)
-	}
-	pyConfig := webCM.Data["superset_config.py"]
-	for _, want := range []string{common.EnvSecretKey, common.EnvPreviousSecretKey, common.EnvDBPass, common.EnvValkeyPass} {
-		if !strings.Contains(pyConfig, want) {
-			t.Errorf("expected superset_config.py to reference env var %q (os.environ), got:\n%s", want, pyConfig)
-		}
-	}
+			// 2. Positive control: the rendered config references the secrets via
+			//    env vars. Without this, a regression that simply dropped the
+			//    secrets would pass assertion (1) vacuously.
+			webCM := &corev1.ConfigMap{}
+			if err := c.Get(ctx, types.NamespacedName{Name: "test-web-server-config", Namespace: "default"}, webCM); err != nil {
+				t.Fatalf("get web-server ConfigMap: %v", err)
+			}
+			pyConfig := webCM.Data["superset_config.py"]
+			pyEnvVars := append([]string{common.EnvSecretKey, common.EnvPreviousSecretKey, common.EnvDBPass, common.EnvValkeyPass, common.EnvWSJWTSecret}, tt.pyEnvVars...)
+			for _, want := range pyEnvVars {
+				if !strings.Contains(pyConfig, want) {
+					t.Errorf("expected superset_config.py to reference env var %q (os.environ), got:\n%s", want, pyConfig)
+				}
+			}
 
-	// 3. Cross-check: the secrets DO flow through the pod environment (inline
-	//    Values in dev mode), confirming the env-var transport is what carries
-	//    them — not the ConfigMap.
-	webDeploy := &appsv1.Deployment{}
-	if err := c.Get(ctx, types.NamespacedName{Name: "test-web-server", Namespace: "default"}, webDeploy); err != nil {
-		t.Fatalf("get web-server Deployment: %v", err)
+			// 3. Cross-check: the secrets DO flow through the pod environment
+			//    (inline Values in dev mode), confirming the env-var transport is
+			//    what carries them — not the ConfigMap.
+			webEnv := map[string]string{
+				common.EnvSecretKey:   markerSecretKey,
+				common.EnvDBPass:      markerDBPass,
+				common.EnvValkeyPass:  markerValkey,
+				common.EnvWSJWTSecret: markerWSJWT,
+			}
+			maps.Copy(webEnv, tt.webEnv)
+			assertDeploymentEnv(t, c, "test-web-server", webEnv)
+			wsEnv := map[string]string{"JWT_SECRET": markerWSJWT}
+			maps.Copy(wsEnv, tt.wsEnv)
+			assertDeploymentEnv(t, c, "test-websocket-server", wsEnv)
+		})
 	}
-	envValues := map[string]string{}
-	for _, container := range webDeploy.Spec.Template.Spec.Containers {
-		for _, e := range container.Env {
-			envValues[e.Name] = e.Value
+}
+
+// assertDeploymentEnv checks that the named Deployment's main container sets
+// each env var to the given inline value.
+func assertDeploymentEnv(t *testing.T, c client.Client, name string, want map[string]string) {
+	t.Helper()
+	deploy := &appsv1.Deployment{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: name, Namespace: "default"}, deploy); err != nil {
+		t.Fatalf("get Deployment %s: %v", name, err)
+	}
+	got := envSliceToMap(deploy.Spec.Template.Spec.Containers[0].Env)
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("Deployment %s: expected env %s Value %q, got %q", name, k, v, got[k])
 		}
-	}
-	if got := envValues[common.EnvSecretKey]; got != sentinelSecretKey {
-		t.Errorf("expected %s env Value %q, got %q", common.EnvSecretKey, sentinelSecretKey, got)
-	}
-	if got := envValues[common.EnvDBPass]; got != sentinelDBPass {
-		t.Errorf("expected %s env Value %q, got %q", common.EnvDBPass, sentinelDBPass, got)
-	}
-	if got := envValues[common.EnvValkeyPass]; got != sentinelValkey {
-		t.Errorf("expected %s env Value %q, got %q", common.EnvValkeyPass, sentinelValkey, got)
 	}
 }
 

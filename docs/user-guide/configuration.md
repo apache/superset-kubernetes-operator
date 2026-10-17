@@ -25,9 +25,9 @@ This guide covers the full configuration reference for the Superset operator. Fo
 
 The `environment` field controls validation strictness (enforced by [CEL](https://kubernetes.io/docs/reference/using-api/cel/) rules in the CRD schema):
 
-- **`Production`** (default) — inline `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, and `websocketServer.config` are rejected by CRD validation. Use the corresponding `*From` fields (`secretKeyFrom`, `previousSecretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`, `valkey.passwordFrom`, `websocketServer.configFrom`) to reference Kubernetes Secrets.
+- **`Production`** (default) — inline `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, `valkey.sentinel.password`, and `realtime.webSocket.jwtSecret` are rejected by CRD validation. Use the corresponding `*From` fields (`secretKeyFrom`, `previousSecretKeyFrom`, `metastore.uriFrom`, `metastore.passwordFrom`, `valkey.passwordFrom`, `valkey.sentinel.passwordFrom`, `realtime.webSocket.jwtSecretFrom`) to reference Kubernetes Secrets.
 - **`Staging`** — same secret restrictions as Production, but allows `lifecycle.seed` for database seeding from an external source. `lifecycle.seed.source.password` must still be supplied via `passwordFrom`.
-- **`Development`** — allows plain-text `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, `websocketServer.config`, and `lifecycle.seed.source.password` directly in the CR for quick local development. Also permits `lifecycle.seed`, `lifecycle.init.adminUser`, and `lifecycle.init.loadExamples`.
+- **`Development`** — allows plain-text `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, `valkey.sentinel.password`, `realtime.webSocket.jwtSecret`, and `lifecycle.seed.source.password` directly in the CR for quick local development. Also permits `lifecycle.seed`, `lifecycle.init.adminUser`, `lifecycle.init.loadExamples`, and `realtime.webSocket.allowedOrigins: ["*"]`.
 
 ### Dev Mode Example
 
@@ -53,7 +53,7 @@ Use `secretKeyFrom` and `metastore.uriFrom` to reference Kubernetes Secrets. The
 ```yaml
 spec:
   image:
-    tag: "6.1.0"
+    tag: "7.0.0"
   secretKeyFrom:
     name: superset-secret
     key: secret-key
@@ -77,7 +77,7 @@ spec:
 spec:
   image:
     repository: apachesuperset.docker.scarf.sh/apache/superset  # default
-    tag: "6.1.0"
+    tag: "7.0.0"
 ```
 
 **Pin an explicit release tag — avoid mutable tags such as `latest`.** Beyond the usual reasons (reproducible rollouts, no surprise upgrades), the operator keys the migrate task off the resolved `repository:tag` string: repointing a mutable tag at a new build leaves the string unchanged, so `superset db upgrade` does **not** run and the schema silently drifts from the running code. Distinct, immutable release tags keep upgrades — and their migrations — deterministic. See [Lifecycle › Changing the image tag](lifecycle.md#changing-the-image-tag).
@@ -194,7 +194,7 @@ Requirements and caveats:
 
 ## Valkey
 
-The `valkey` field configures Valkey (or Redis) as the cache backend, Celery message broker, and SQL Lab results backend. Setting `valkey.host` or `valkey.hostFrom` auto-generates all cache, Celery, and results backend configuration with sensible defaults:
+The `valkey` field configures Valkey (or Redis) as the cache backend, Celery message broker, and SQL Lab results backend. Setting `valkey.host`, `valkey.hostFrom`, or `valkey.sentinel` auto-generates all cache, Celery, and results backend configuration with sensible defaults:
 
 ```yaml
 # Minimal: one field configures everything
@@ -203,7 +203,7 @@ spec:
     host: valkey.default.svc
 ```
 
-This generates a `superset_config.py` with `CACHE_CONFIG`, `DATA_CACHE_CONFIG`, `FILTER_STATE_CACHE_CONFIG`, `EXPLORE_FORM_DATA_CACHE_CONFIG`, `THUMBNAIL_CACHE_CONFIG`, `DISTRIBUTED_COORDINATION_CONFIG`, a connectivity-only `CeleryConfig`, and `RESULTS_BACKEND` — each cache section backed by a separate Valkey database for isolation (Celery broker and result backend share database 0 by default). Celery application behavior such as imports, task routes, and beat schedules remains explicit Python config.
+This generates a `superset_config.py` with `CACHE_CONFIG`, `DATA_CACHE_CONFIG`, `FILTER_STATE_CACHE_CONFIG`, `EXPLORE_FORM_DATA_CACHE_CONFIG`, `THUMBNAIL_CACHE_CONFIG`, `DISTRIBUTED_COORDINATION_CONFIG`, a `CeleryConfig` that points the broker and result backend at Valkey, and `RESULTS_BACKEND` — each cache section backed by a separate Valkey database for isolation (Celery broker and result backend share database 0 by default). The rest of the Celery configuration, such as task imports and the beat schedule, is inherited from Superset's defaults (see [What the operator renders](#what-the-operator-renders)).
 
 **Default database assignments:**
 
@@ -221,7 +221,9 @@ This generates a `superset_config.py` with `CACHE_CONFIG`, `DATA_CACHE_CONFIG`, 
 
 `distributedCoordination` (`DISTRIBUTED_COORDINATION_CONFIG`) backs Superset's real-time pub/sub messaging, atomic distributed locks (Redis `SET NX EX`), and Global Task Framework signaling. It is recommended for production deployments and will eventually replace `GLOBAL_ASYNC_QUERIES_CACHE_BACKEND` as the standard signaling backend.
 
-**Instance-scoped key prefixes.** Every rendered `CACHE_KEY_PREFIX` (and the results backend's `key_prefix`) is automatically prefixed with the parent CR name at runtime — e.g. a `Superset` named `prod` produces `prod_superset_`, `prod_superset_data_`, `prod_coordination_`, etc. This prevents key collisions when multiple Superset deployments share a single Valkey instance. The prefix value you set on a section is appended after the instance name; setting `keyPrefix: "myapp_"` on `cache` yields `prod_myapp_`.
+**Instance-scoped key prefixes.** Every rendered `CACHE_KEY_PREFIX` (and the results backend's `key_prefix`) is automatically prefixed with an instance namespace at runtime — e.g. a `Superset` named `prod` in namespace `analytics` produces `analytics:prod_superset_`, `analytics:prod_superset_data_`, `analytics:prod_coordination_`, etc. This prevents key collisions when multiple Superset deployments share a single Valkey instance. The prefix value you set on a section is appended after the instance name; setting `keyPrefix: "myapp_"` on `cache` yields `analytics:prod_myapp_`.
+
+The instance namespace defaults to `<namespace>:<name>` (the CR's Kubernetes identity, unique cluster-wide) and is customizable via `spec.valkey.keyPrefix`. Besides cache/results keys, this prefix also namespaces the Global Task Framework coordination channels (`TASKS_ABORT_CHANNEL_PREFIX`/`TASKS_COMPLETION_CHANNEL_PREFIX`) and the realtime browser Pub/Sub channel (`REALTIME_CHANNEL_PREFIX`, read by both the Superset app and the websocket server). Because Redis Pub/Sub is **not** scoped by database number, isolating the realtime channel between deployments that share one Valkey/Redis requires this prefix (or a dedicated instance). Celery queues are **not** key-prefixed — on a shared instance give each deployment a distinct `celeryBroker.database`/`celeryResultBackend.database`.
 
 Each section can be individually tuned or disabled:
 
@@ -271,6 +273,31 @@ Each literal and its `From` counterpart are mutually exclusive. `portFrom` must 
 
 Changing a selector's Secret name or key updates the relevant workloads. Updating data behind the same selector does not trigger a rollout; change `spec.forceReload` so component pods pick up the new values. Lifecycle tasks are not rerun by `forceReload`; change the appropriate task's `trigger` when a rotated value must be consumed by a new task Job.
 
+### Sentinel
+
+To use a primary managed by Valkey or Redis Sentinel, set `sentinel` in place of `host` and `port`:
+
+```yaml
+spec:
+  valkey:
+    passwordFrom:             # authenticates to the primary
+      name: valkey-credentials
+      key: password
+    sentinel:
+      masterName: mymaster    # the name in the sentinels' "sentinel monitor" directive
+      nodes:
+        - host: valkey-sentinel-0.valkey-sentinel
+        - host: valkey-sentinel-1.valkey-sentinel
+        - host: valkey-sentinel-2.valkey-sentinel
+      passwordFrom:           # only if the sentinels require a password
+        name: valkey-credentials
+        key: sentinel-password
+```
+
+The caches, the SQL Lab results backend, the Celery broker and result backend, the coordination backend, and the websocket server all ask the sentinels for the current primary and follow it across failovers. They read and write through the primary, not replicas, so a value can be read as soon as it is written. Each node takes `host` or `hostFrom`, plus an optional `port` or `portFrom` (default `26379`). `username`, `password`, `ssl`, and the database numbers apply to the primary; the sentinel nodes are contacted in plaintext. Redis Cluster is not supported.
+
+One upstream limitation applies: Superset's Sentinel coordination backend (Superset 7.0) ignores `distributedCoordination.database` and `username`. Coordination keys therefore land in database 0, which the key prefix keeps apart from other data. The backend also authenticates as the `default` user, so if the primary requires an ACL user, coordination, and with it Global Async Queries and the realtime transport, fails until Superset fixes this.
+
 ### SSL/TLS
 
 Enable SSL by setting the `ssl` field. For simple SSL (encrypted connection, no client certificates), set `ssl: {}`. For mTLS, provide certificate file paths:
@@ -289,7 +316,7 @@ spec:
       caCertFile: /mnt/tls/ca.pem
 ```
 
-Mount the certificate files via the top-level `podTemplate` so they are available to all components:
+Mount the certificate files via the top-level `podTemplate` so they are available to all components, including the websocket server:
 
 ```yaml
 spec:
@@ -317,13 +344,16 @@ The operator sets certain env vars automatically based on the CR spec. These are
 
 | Env Var | Tier | Set by | Description |
 |---|---|---|---|
-| `SUPERSET_OPERATOR__INSTANCE_NAME` | Operator-internal | Operator (from parent CR `metadata.name`) | Parent CR name; available for use in raw `spec.config` (e.g. instance-scoped Celery queue names) |
+| `SUPERSET_OPERATOR__INSTANCE_NAME` | Operator-internal | Operator (from `spec.valkey.keyPrefix`, default `<namespace>:<name>`) | Instance namespace that prefixes Valkey keys and channels; available for use in raw `spec.config` (e.g. instance-scoped Celery queue names) |
 | `SUPERSET_OPERATOR__SECRET_KEY` | Operator-internal | Operator (from `secretKey` or `secretKeyFrom`) | Superset session signing key |
 | `SUPERSET_OPERATOR__DB_URI` | Operator-internal | Operator (from `metastore.uri` or `metastore.uriFrom`) | Full database connection URI |
 | `SUPERSET_OPERATOR__DB_HOST`, `SUPERSET_OPERATOR__DB_PORT`, `SUPERSET_OPERATOR__DB_NAME` | Operator-internal | Operator (structured metastore) | Database connection fields |
 | `SUPERSET_OPERATOR__DB_USER`, `SUPERSET_OPERATOR__DB_PASS` | Operator-internal | Operator (from metastore structured fields or `passwordFrom`) | Database credentials |
 | `SUPERSET_OPERATOR__VALKEY_HOST`, `SUPERSET_OPERATOR__VALKEY_PORT` | Operator-internal | Operator (from `valkey`) | Valkey connection fields |
 | `SUPERSET_OPERATOR__VALKEY_PASS` | Operator-internal | Operator (from `valkey.password` or `valkey.passwordFrom`) | Valkey password |
+| `SUPERSET_OPERATOR__VALKEY_SENTINEL_<n>_HOST`, `SUPERSET_OPERATOR__VALKEY_SENTINEL_<n>_PORT` | Operator-internal | Operator (from `valkey.sentinel.nodes`) | Address of sentinel node `<n>` (zero-based), in place of the Valkey host and port |
+| `SUPERSET_OPERATOR__VALKEY_SENTINEL_PASS` | Operator-internal | Operator (from `valkey.sentinel.password` or `passwordFrom`) | Sentinel password |
+| `SUPERSET_OPERATOR__WS_JWT_SECRET` | Operator-internal | Operator (from `realtime.webSocket.jwtSecret` or `jwtSecretFrom`) | Websocket JWT secret, rendered as `WEBSOCKET_JWT_SECRET` |
 | `SUPERSET_OPERATOR__FORCE_RELOAD` | Operator-internal | Operator (from `spec.forceReload`) | Triggers rolling restart |
 | `SUPERSET_WEBSERVER_PORT` | Standard | Rendered in config | Web server port (8088) |
 
@@ -351,9 +381,11 @@ In both passthrough and structured modes, the operator renders `SQLALCHEMY_DATAB
 
 | Env Var | Set when |
 |---|---|
-| `SUPERSET_OPERATOR__VALKEY_HOST` | Always (from `valkey.host`) |
-| `SUPERSET_OPERATOR__VALKEY_PORT` | Always (from `valkey.port`, default 6379) |
+| `SUPERSET_OPERATOR__VALKEY_HOST` | Without `valkey.sentinel` (from `valkey.host` or `hostFrom`) |
+| `SUPERSET_OPERATOR__VALKEY_PORT` | Without `valkey.sentinel` (from `valkey.port` or `portFrom`, default 6379) |
+| `SUPERSET_OPERATOR__VALKEY_SENTINEL_<n>_HOST`, `SUPERSET_OPERATOR__VALKEY_SENTINEL_<n>_PORT` | With `valkey.sentinel`, one pair per node (port default 26379) |
 | `SUPERSET_OPERATOR__VALKEY_PASS` | `valkey.password` (dev, plain text) or `valkey.passwordFrom` (prod, `valueFrom`) |
+| `SUPERSET_OPERATOR__VALKEY_SENTINEL_PASS` | `valkey.sentinel.password` (dev, plain text) or `valkey.sentinel.passwordFrom` (prod, `valueFrom`) |
 
 ## Custom Python Config
 
@@ -390,7 +422,7 @@ Build a Superset image that already contains the extension bundles, then point `
 spec:
   image:
     repository: example.com/superset-with-extensions
-    tag: "6.1.0-extensions-v1"
+    tag: "7.0.0-extensions-v1"
   config: |
     EXTENSIONS_PATH = "/app/extensions"
 ```
@@ -491,17 +523,18 @@ spec:
 
 ### What the operator renders
 
-When `spec.valkey` is set, the operator renders a `CeleryConfig` class assigned to `CELERY_CONFIG`. This class intentionally contains only managed connectivity:
+When `spec.valkey` is set, the operator renders a `CeleryConfig` class that subclasses Superset's default `CeleryConfig` (from the image's `superset.config`) and assigns it to `CELERY_CONFIG`. The class overrides only managed connectivity:
 
 | Field | Source | Notes |
 |---|---|---|
 | `broker_url` | `spec.valkey` | f-string from operator-internal Valkey env vars |
 | `result_backend` | `spec.valkey` | same |
 | `broker_use_ssl` / `redis_backend_use_ssl` | `spec.valkey.ssl` | rendered when SSL is configured |
+| `broker_transport_options` / `result_backend_transport_options` | `spec.valkey.sentinel` | master name and sentinel password; extend rather than reassign them, or Celery loses the master name |
 
-Application-level Celery behavior is not defaulted by the operator. Define imports, task routes, task annotations, acknowledgement behavior, beat schedules, scheduler expiration, and other Celery app settings explicitly in `spec.config`. This keeps the CRD focused on managed connectivity and avoids freezing Superset application defaults into the Kubernetes API.
+Everything else is inherited from the Superset version you deploy: task imports, worker settings, task annotations, and the beat schedule (Alerts & Reports scheduling, log pruning, and version-history and soft-delete retention). New default tasks in a Superset upgrade therefore take effect without operator changes. When `spec.realtime.asyncQueries` is set, the operator also appends `superset.tasks.async_queries` to the inherited imports and adds a 60-second `reap_orphaned_tasks` entry to the inherited beat schedule (see [Realtime](#realtime-global-async-queries-websocket)).
 
-Because assigning `CELERY_CONFIG` replaces Superset's own Celery config class, production deployments that enable Celery should include the Celery app settings they rely on. Put settings needed by multiple Python components in top-level `spec.config`; put Beat-only settings such as `beat_schedule` in `spec.celeryBeat.config` so schedule changes roll only the Celery Beat Deployment. The example below is a starting point; review the `superset_config.py` from the Superset version you deploy and tune it for your environment.
+Customize the class from Python config. Extend the inherited collections rather than reassigning them, unless you intend to drop Superset's defaults. Put settings needed by multiple Python components in top-level `spec.config`, and Beat-only settings such as `beat_schedule` in `spec.celeryBeat.config` so schedule changes roll only the Celery Beat Deployment:
 
 ```yaml
 spec:
@@ -512,49 +545,31 @@ spec:
     config: |
       from celery.schedules import crontab
 
-      CELERY_BEAT_SCHEDULER_EXPIRES = 7 * 24 * 60 * 60
-
       CeleryConfig.beat_schedule = {
-          "reports.scheduler": {
-              "task": "reports.scheduler",
-              "schedule": crontab(minute="*", hour="*"),
-              "options": {"expires": CELERY_BEAT_SCHEDULER_EXPIRES},
-          },
-          "reports.prune_log": {
-              "task": "reports.prune_log",
-              "schedule": crontab(minute=0, hour=0),
+          **CeleryConfig.beat_schedule,
+          "cache-warmup-hourly": {
+              "task": "cache-warmup",
+              "schedule": crontab(minute=1, hour="*"),
+              "kwargs": {"strategy_name": "top_n_dashboards", "top_n": 5, "since": "7 days ago"},
           },
       }
   config: |
-    CeleryConfig.imports = (
-        "superset.sql_lab",
-        "superset.tasks.scheduler",
-        "superset.tasks.thumbnails",
-        "superset.tasks.cache",
-        "superset.tasks.slack",
-    )
-    CeleryConfig.worker_prefetch_multiplier = 1
-    CeleryConfig.task_acks_late = False
-    CeleryConfig.task_annotations = {
-        "sql_lab.get_sql_results": {
-            "rate_limit": "100/s",
-        },
-    }
+    CeleryConfig.imports = (*CeleryConfig.imports, "my_company.superset_tasks")
 ```
 
 #### Without Valkey
 
-When `spec.valkey` is unset, the operator emits no `CeleryConfig` class. Provide both connectivity and app behavior manually via `spec.config`:
+When `spec.valkey` is unset, the operator emits no `CeleryConfig` class. Provide connectivity via `spec.config`, subclassing Superset's default to keep its imports and beat schedule:
 
 ```yaml
 spec:
   config: |
-    from celery.schedules import crontab
-    class CeleryConfig:
+    from superset.config import CeleryConfig as SupersetCeleryConfig
+
+    class CeleryConfig(SupersetCeleryConfig):
         broker_url = "redis://valkey:6379/0"
         result_backend = "redis://valkey:6379/1"
-        imports = ("superset.sql_lab",)
-        beat_schedule = {}
+
     CELERY_CONFIG = CeleryConfig
   celeryWorker: {}
   celeryBeat: {}
@@ -562,7 +577,7 @@ spec:
 
 ### Custom Queues And Routes
 
-The operator-rendered `CeleryConfig` is a regular Python class. Extend it from `spec.config` by mutating attributes, subclassing, or replacing `CELERY_CONFIG` outright. For instance-scoped queue naming (preventing cross-instance queue collisions on a shared broker), the operator exposes the parent CR name as `SUPERSET_OPERATOR__INSTANCE_NAME`:
+The operator-rendered `CeleryConfig` is a regular Python class. Extend it from `spec.config` by mutating attributes, subclassing, or replacing `CELERY_CONFIG` outright. For instance-scoped queue naming (preventing cross-instance queue collisions on a shared broker), the operator exposes the instance namespace (`spec.valkey.keyPrefix`, by default `<namespace>:<name>`) as `SUPERSET_OPERATOR__INSTANCE_NAME`:
 
 ```yaml
 spec:
@@ -589,7 +604,7 @@ spec:
     }
 ```
 
-Use `SUPERSET_OPERATOR__INSTANCE_NAME` whenever you need the parent CR name inside your Python config.
+Use `SUPERSET_OPERATOR__INSTANCE_NAME` whenever you need an instance-scoped value inside your Python config.
 
 ## Gunicorn Configuration
 
@@ -688,75 +703,72 @@ spec:
     poolPrePing: true            # explicit: overrides static default
 ```
 
+## Realtime (Global Async Queries + websocket)
+
+`spec.realtime` centralizes two related capabilities: **Global Async Queries (GAQ)**, which runs chart-data queries asynchronously, and the **realtime websocket transport**, which pushes task completion and list-view updates to the browser. Both build on the Global Task Framework and require a distributed coordination backend — set `spec.valkey.distributedCoordination` (enabled by default whenever `spec.valkey` is configured).
+
+### Global Async Queries
+
+Setting `realtime.asyncQueries` enables the `GLOBAL_ASYNC_QUERIES` feature flag (which auto-enables the Global Task Framework upstream). The operator also renders the `superset.tasks.async_queries` Celery import and a short `reap_orphaned_tasks` beat schedule (every 60s) so orphaned tasks are recovered — no manual Celery wiring needed. A Celery worker and beat are required, so configure `celeryWorker` and `celeryBeat`.
+
+```yaml
+spec:
+  valkey:
+    host: valkey
+  celeryWorker: {}
+  celeryBeat: {}
+  realtime:
+    asyncQueries: {}
+```
+
+With the websocket transport disabled, chart completion is delivered by the client's `status_changes` poll. GAQ tuning knobs — `GLOBAL_ASYNC_QUERIES_POLLING_DELAY`, `GLOBAL_ASYNC_QUERIES_MIN_CACHE_TTL`, `GLOBAL_ASYNC_QUERIES_QUERY_TIMEOUT`, `GLOBAL_ASYNC_QUERIES_DEFAULT`, `GTF_ORPHAN_TASK_TIMEOUT` — are set via `spec.config`.
+
+### Websocket transport
+
+Setting `realtime.webSocket` turns on the push transport (`WEBSOCKET_ENABLE`) and requires the websocket workload (`spec.websocketServer`, below). The operator shares one JWT secret between the Flask app (which mints the cookie) and the websocket server (which validates it):
+
+```yaml
+spec:
+  baseUrl: https://superset.example.com   # or spec.networking; see url below
+  valkey:
+    host: valkey                # the coordination backend carries realtime events
+  websocketServer: {}
+  realtime:
+    webSocket:
+      jwtSecretFrom:            # WEBSOCKET_JWT_SECRET, shared app <-> server
+        name: superset-realtime
+        key: jwt-secret
+      # url: "wss://superset.example.com/ws"   # optional; see below
+```
+
+- `jwtSecret` (plain text) is allowed only in Development; use `jwtSecretFrom` in Staging or Production.
+- `url` is the browser-visible endpoint. When unset, the operator derives it from `spec.baseUrl`, else from `spec.networking` and the websocket route (`/ws`) — `wss://` for Gateway hostnames and for Ingress hosts with TLS, `ws://` otherwise (set `spec.baseUrl` for a plain-HTTP Gateway). The browser must reach the socket on the same host as Superset so the JWT cookie is shared. Set `url` explicitly to override: either a full `ws://`/`wss://` URL, or an absolute path such as `/ws` that the browser resolves against the host it loaded Superset from. A path keeps the socket on the page's own host, so one deployment can serve several hostnames.
+- `allowedOrigins` restricts which browser origins may open a websocket connection (the server's `ALLOWED_ORIGINS`, mitigating Cross-Site WebSocket Hijacking). When unset, the operator defaults it to the single origin of the resolved websocket URL — all realtime traffic is expected from the same host as Superset. With a path `url`, the default comes from `spec.baseUrl` or `spec.networking` instead. Set it explicitly to permit additional origins. In `environment: Development`, the single entry `"*"` accepts any origin, which suits local samples reached by several names (`localhost`, a LAN hostname, or an IP); Staging and Production reject it.
+- `cookieName` and `jwtExpirationSeconds` override `WEBSOCKET_JWT_COOKIE_NAME` and `WEBSOCKET_JWT_EXPIRATION_SECONDS`.
+
+### Base URL
+
+`spec.baseUrl` is the external, browser-visible base URL of the deployment (e.g. `https://superset.example.com`). Setting it centralizes external-URL wiring: the operator derives the websocket `url` and its `allowedOrigins` from it, and renders `WEBDRIVER_BASEURL_USER_FRIENDLY` — the URL embedded in Alerts & Reports hyperlinks — so report links point at the real host instead of the in-cluster default.
+
+```yaml
+spec:
+  baseUrl: https://superset.example.com
+```
+
+The internal render target, `WEBDRIVER_BASEURL` (the in-cluster URL the headless browser navigates to for Alerts & Reports and thumbnails), is managed by the operator — it points at the web-server Service — so you don't need to set it. It is independent of `baseUrl`.
+
 ## Websocket Server
 
-!!! warning "Experimental"
-    The websocket server is **experimental and pending security hardening**. It is not yet well supported and may exhibit gaps, either in the operator (e.g. unvalidated path-based gateway/ingress routing) or upstream in the Node.js websocket image. It requires a custom Node.js image (below). Treat its spec and behavior as subject to change, and avoid enabling it in production until it is hardened. See the [security reference](../reference/security.md#what-is-generally-out-of-scope) for details.
-
-Enable Superset's async event streaming by setting `websocketServer`. This deploys a **Node.js** application (not Python) that pushes real-time updates to dashboards via WebSocket connections.
-
-!!! warning "Requires a dedicated image"
-    The websocket server is a separate Node.js application and **does not run from the default Superset image**. You must provide an image that contains `websocket_server.js` — the CRD enforces this with a CEL rule that rejects `websocketServer` set without an `image.repository` override. A community-maintained image is available at [`oneacrefund/superset-websocket`](https://hub.docker.com/r/oneacrefund/superset-websocket) (experimental, not officially supported by Apache Superset).
+The websocket server (`spec.websocketServer`) is the Node.js workload behind the realtime transport. It ships in the official Superset image and is launched via an alternate entrypoint, so it inherits `spec.image` like every other component — no custom image required. Enable it together with `spec.realtime.webSocket`, which supplies the transport configuration.
 
 ```yaml
 spec:
-  websocketServer:
-    image:
-      repository: oneacrefund/superset-websocket
-      tag: "latest"
+  websocketServer: {}          # inherits spec.image; requires spec.realtime.webSocket
 ```
 
-Because the websocket server is Node.js-based, it does **not** receive a `superset_config.py`, and `sqlaEngineOptions` is not available on this component. Configuration can be provided with environment variables, inline Development-only `config`, or a Secret-backed `configFrom`.
+The operator configures the server entirely through environment variables it injects from `spec.realtime.webSocket`, `spec.baseUrl`/`spec.networking`, and `spec.valkey.distributedCoordination`: the JWT secret and cookie name, the `ALLOWED_ORIGINS` allowlist, and the Redis connection (host and port, or the Sentinel nodes, master name, and password; DB; credentials; and the `spec.valkey.ssl` settings: verification mode, CA bundle, and client certificate and key) pointing at the same coordination backend as the app. These variables (`PORT`, `JWT_SECRET`, `JWT_COOKIE_NAME`, `ALLOWED_ORIGINS`, `REALTIME_CHANNEL_PREFIX`, and `REDIS_*`) are operator-owned and take precedence over the same names in `podTemplate` container env. Because the server is Node.js, it receives no `superset_config.py`, and `sqlaEngineOptions` is not available on this component. Additional server settings (for example connection caps `MAX_TOTAL_CONNECTIONS` and `MAX_CONNECTIONS_PER_CHANNEL`) can be set through `podTemplate` container env.
 
-```yaml
-spec:
-  websocketServer:
-    image:
-      repository: oneacrefund/superset-websocket
-      tag: "latest"
-    podTemplate:
-      container:
-        env:
-          - name: SUPERSET_WEBSERVER_URL
-            value: "http://my-superset-web-server:8088"
-```
-
-Inline `config` renders `config.json` and mounts it at `/home/superset-websocket/config.json`. It is allowed only in Development mode because websocket config commonly contains `jwtSecret` or Redis credentials:
-
-```yaml
-spec:
-  environment: Development
-  websocketServer:
-    image:
-      repository: oneacrefund/superset-websocket
-      tag: "latest"
-    config:
-      port: 8080
-      logLevel: debug
-      jwtSecret: CHANGE-ME
-      jwtCookieName: async-token
-      redis:
-        host: redis.default.svc
-        port: 6379
-        db: 0
-```
-
-In Staging and Production, store `config.json` in a Secret and reference it:
-
-```yaml
-spec:
-  websocketServer:
-    image:
-      repository: oneacrefund/superset-websocket
-      tag: "latest"
-    configFrom:
-      name: superset-websocket-config
-      key: config.json
-```
-
-The operator mounts the Secret key without reading or copying the Secret. If the Secret content changes, update `spec.forceReload` to roll websocket pods.
-
-The websocket server creates a Service (default port 8080) and supports the same scaling, deployment template, and pod template fields as other scalable components.
+It creates a Service (default port 8080), probes `/ready` for readiness and `/health` for liveness, and supports the same scaling, deployment template, and pod template fields as other scalable components.
 
 ## MCP Server
 
@@ -768,6 +780,19 @@ spec:
 ```
 
 The MCP server receives a `superset_config.py` with core config (`SECRET_KEY`, structured DB URI if applicable) and top-level/per-component `config` — but not web server port. It runs as a separate Deployment with its own Service (port 8088). The MCP server supports per-component `sqlaEngineOptions` with higher default pool sizes than other components (5 for balanced, 10 for performance, 20 for aggressive) to accommodate concurrent tool invocations.
+
+Superset rejects MCP tool calls that carry no user identity, so configure authentication through `config`. The simplest option is Superset API keys:
+
+```yaml
+spec:
+  featureFlags:
+    FAB_API_KEY_ENABLED: true # shows API key management under Settings → Info
+  config: |
+    FAB_API_KEY_ENABLED = True
+    MCP_API_KEY_ENABLED = True
+```
+
+Set these in the top-level `config`, not in `mcpServer.config`: the `init` task creates the API key permissions, the web server serves the key management API, and the MCP server accepts the keys. Users create `sst_`-prefixed keys under **Settings → Info → API Keys**, and MCP clients send them as `Authorization: Bearer sst_...`. Tools then run with the key owner's permissions. For JWTs from an identity provider, configure `MCP_AUTH_ENABLED` and its related settings as described in Superset's MCP documentation. Links in tool results use `spec.baseUrl`.
 
 ## Health Probes
 
@@ -901,7 +926,7 @@ podTemplate                         → PodSpec-level
 ```yaml
 spec:
   image:
-    tag: "6.1.0"
+    tag: "7.0.0"
   webServer:
     replicas: 2
 ```

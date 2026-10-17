@@ -27,7 +27,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	corev1 "k8s.io/api/core/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -160,6 +159,16 @@ var _ = Describe("CEL Validation", Ordered, func() {
 					Password: new("plain-text-password"),
 				}
 			}, "valkey.password is only allowed"),
+		Entry("valkey.sentinel.password", "inline-sentinel-pw-prod",
+			func(s *supersetv1alpha1.Superset) {
+				s.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
+					Sentinel: &supersetv1alpha1.ValkeySentinelSpec{
+						MasterName: "mymaster",
+						Nodes:      []supersetv1alpha1.ValkeySentinelNode{{Host: "sentinel"}},
+						Password:   new("plain-text-password"),
+					},
+				}
+			}, "valkey.sentinel.password is only allowed"),
 	)
 
 	// --- Metastore field constraints ---
@@ -320,6 +329,70 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			Entry("host", "vk-host-hostfrom", &supersetv1alpha1.ValkeySpec{Host: "valkey", HostFrom: secretRef("vk", "endpoint")}),
 			Entry("port", "vk-port-portfrom", &supersetv1alpha1.ValkeySpec{Host: "valkey", Port: new(int32(6379)), PortFrom: secretRef("vk", "port")}),
 			Entry("username", "vk-user-userfrom", &supersetv1alpha1.ValkeySpec{Host: "valkey", Username: new("user"), UsernameFrom: secretRef("vk", "username")}),
+		)
+
+		It("accepts a Secret-backed Sentinel connection", func() {
+			cr := validProdSuperset("vk-sentinel-secret")
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
+				PasswordFrom: secretRef("vk", "password"),
+				Sentinel: &supersetv1alpha1.ValkeySentinelSpec{
+					MasterName: "mymaster",
+					Nodes: []supersetv1alpha1.ValkeySentinelNode{
+						{Host: "sentinel-0"},
+						{HostFrom: secretRef("vk", "sentinel-host"), PortFrom: secretRef("vk", "sentinel-port")},
+					},
+					PasswordFrom: secretRef("vk", "sentinel-password"),
+				},
+			}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+
+		DescribeTable("rejects an invalid Sentinel connection",
+			func(name string, mutate func(*supersetv1alpha1.ValkeySpec), want string) {
+				cr := validDevSuperset(name)
+				cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
+					Sentinel: &supersetv1alpha1.ValkeySentinelSpec{
+						MasterName: "mymaster",
+						Nodes:      []supersetv1alpha1.ValkeySentinelNode{{Host: "sentinel"}},
+					},
+				}
+				mutate(cr.Spec.Valkey)
+				err := k8sClient.Create(ctx, cr)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring(want))
+			},
+			Entry("with a host", "vk-sentinel-host",
+				func(v *supersetv1alpha1.ValkeySpec) { v.Host = "valkey" },
+				"exactly one of host, hostFrom, or sentinel"),
+			Entry("with a port", "vk-sentinel-port",
+				func(v *supersetv1alpha1.ValkeySpec) { v.Port = new(int32(6379)) },
+				"port and portFrom do not apply with sentinel"),
+			Entry("without nodes", "vk-sentinel-no-nodes",
+				func(v *supersetv1alpha1.ValkeySpec) { v.Sentinel.Nodes = nil },
+				"spec.valkey.sentinel.nodes"),
+			Entry("with a node missing its host", "vk-sentinel-node-no-host",
+				func(v *supersetv1alpha1.ValkeySpec) {
+					v.Sentinel.Nodes = []supersetv1alpha1.ValkeySentinelNode{{Port: new(int32(26379))}}
+				},
+				"exactly one of host or hostFrom"),
+			Entry("with a node host and hostFrom", "vk-sentinel-node-hostfrom",
+				func(v *supersetv1alpha1.ValkeySpec) { v.Sentinel.Nodes[0].HostFrom = secretRef("vk", "host") },
+				"exactly one of host or hostFrom"),
+			Entry("with a node port and portFrom", "vk-sentinel-node-portfrom",
+				func(v *supersetv1alpha1.ValkeySpec) {
+					v.Sentinel.Nodes[0].Port = new(int32(26379))
+					v.Sentinel.Nodes[0].PortFrom = secretRef("vk", "port")
+				},
+				"mutually exclusive"),
+			Entry("with password and passwordFrom", "vk-sentinel-pw-pwfrom",
+				func(v *supersetv1alpha1.ValkeySpec) {
+					v.Sentinel.Password = new("secret")
+					v.Sentinel.PasswordFrom = secretRef("vk", "sentinel-password")
+				},
+				"mutually exclusive"),
+			Entry("with a master name Sentinel does not allow", "vk-sentinel-master",
+				func(v *supersetv1alpha1.ValkeySpec) { v.Sentinel.MasterName = "my master" },
+				"spec.valkey.sentinel.masterName"),
 		)
 
 		It("rejects valkey password together with passwordFrom", func() {
@@ -772,38 +845,309 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		})
 	})
 
-	// --- Websocket server (experimental; config carries a JWT secret) ---
+	// --- Realtime: Global Async Queries + websocket transport ---
 
-	Describe("Websocket", func() {
-		// A valid image override is set so the image-required rule does not fire,
-		// isolating the rule under test.
-		wsImage := func() supersetv1alpha1.ComponentSpec {
-			return supersetv1alpha1.ComponentSpec{
-				Image: &supersetv1alpha1.ImageOverrideSpec{Repository: new("example.com/superset-websocket")},
-			}
-		}
-
-		It("rejects inline websocketServer.config outside Development", func() {
-			cr := validProdSuperset("ws-config-prod")
-			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
-				ComponentSpec: wsImage(),
-				Config:        &apiextensionsv1.JSON{Raw: []byte(`{"port":8080,"jwtSecret":"plain"}`)},
+	Describe("Realtime", func() {
+		It("rejects realtime.asyncQueries without valkey", func() {
+			cr := validProdSuperset("rt-async-no-valkey")
+			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+				AsyncQueries: &supersetv1alpha1.AsyncQueriesSpec{},
 			}
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("websocketServer.config is only allowed"))
+			Expect(err.Error()).To(ContainSubstring("realtime.asyncQueries requires spec.valkey"))
 		})
 
-		It("rejects websocketServer.config together with configFrom", func() {
-			cr := validDevSuperset("ws-config-both")
-			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
-				ComponentSpec: wsImage(),
-				Config:        &apiextensionsv1.JSON{Raw: []byte(`{"port":8080}`)},
-				ConfigFrom:    secretRef("ws-config", "config.json"),
+		It("rejects realtime.webSocket without websocketServer", func() {
+			cr := validProdSuperset("rt-ws-no-workload")
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
+			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecretFrom: secretRef("ws", "jwt"),
+					URL:           new("wss://x/ws"),
+				},
 			}
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("mutually exclusive"))
+			Expect(err.Error()).To(ContainSubstring("realtime.webSocket requires spec.websocketServer"))
+		})
+
+		It("rejects websocketServer without realtime.webSocket", func() {
+			cr := validProdSuperset("ws-no-realtime")
+			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("spec.websocketServer requires spec.realtime.webSocket"))
+		})
+
+		It("rejects inline jwtSecret outside Development", func() {
+			cr := validProdSuperset("rt-jwt-prod")
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
+			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecret: new("plain-secret"),
+					URL:       new("wss://x/ws"),
+				},
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("jwtSecret is only allowed when environment is Development"))
+		})
+
+		It("rejects jwtSecret together with jwtSecretFrom", func() {
+			cr := validDevSuperset("rt-jwt-both")
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
+			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecret:     new("plain-secret"),
+					JWTSecretFrom: secretRef("ws", "jwt"),
+					URL:           new("wss://x/ws"),
+				},
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("exactly one of jwtSecret"))
+		})
+
+		It("rejects realtime.webSocket without a URL source", func() {
+			cr := validProdSuperset("rt-ws-no-url")
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
+			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{JWTSecretFrom: secretRef("ws", "jwt")},
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("realtime.webSocket requires a resolvable websocket host"))
+		})
+
+		It("accepts a full realtime config in Production", func() {
+			cr := validProdSuperset("rt-valid")
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
+			cr.Spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{}
+			cr.Spec.CeleryBeat = &supersetv1alpha1.CeleryBeatComponentSpec{}
+			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+				AsyncQueries: &supersetv1alpha1.AsyncQueriesSpec{},
+				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecretFrom: secretRef("ws", "jwt"),
+					URL:           new("wss://superset.example.com/ws"),
+				},
+			}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+
+		It("rejects realtime.asyncQueries without celeryWorker and celeryBeat", func() {
+			cr := validProdSuperset("rt-async-no-celery")
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
+			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+				AsyncQueries: &supersetv1alpha1.AsyncQueriesSpec{},
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("realtime.asyncQueries requires spec.celeryWorker and spec.celeryBeat"))
+		})
+
+		It("rejects realtime with distributedCoordination disabled", func() {
+			cr := validProdSuperset("rt-coord-disabled")
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
+				Host:                    "valkey",
+				DistributedCoordination: &supersetv1alpha1.ValkeyCacheSpec{Disabled: new(true)},
+			}
+			cr.Spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{}
+			cr.Spec.CeleryBeat = &supersetv1alpha1.CeleryBeatComponentSpec{}
+			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+				AsyncQueries: &supersetv1alpha1.AsyncQueriesSpec{},
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("distributedCoordination enabled"))
+		})
+
+		It("accepts realtime.webSocket when spec.baseUrl provides the URL", func() {
+			cr := validProdSuperset("rt-baseurl")
+			cr.Spec.BaseURL = new("https://superset.example.com")
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
+			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{JWTSecretFrom: secretRef("ws", "jwt")},
+			}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+
+		It("rejects a baseUrl without an http(s) scheme", func() {
+			cr := validProdSuperset("rt-baseurl-bad")
+			cr.Spec.BaseURL = new("superset.example.com")
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("baseUrl"))
+		})
+
+		It("rejects a baseUrl with an empty host", func() {
+			cr := validProdSuperset("rt-baseurl-nohost")
+			cr.Spec.BaseURL = new("https:///foo")
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("baseUrl"))
+		})
+
+		It("rejects a webSocket.url with an empty host", func() {
+			cr := validProdSuperset("rt-url-nohost")
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
+			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecretFrom: secretRef("ws", "jwt"),
+					URL:           new("wss:///ws"),
+				},
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("webSocket.url"))
+		})
+
+		It("rejects an allowedOrigins entry with a path", func() {
+			cr := validProdSuperset("rt-origin-path")
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
+			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecretFrom:  secretRef("ws", "jwt"),
+					URL:            new("wss://superset.example.com/ws"),
+					AllowedOrigins: []string{"https://example.com/path"},
+				},
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("allowedOrigins"))
+		})
+
+		// realtimeWS returns a CR with the websocket transport wired as ws, in
+		// Development (dev) or Production.
+		realtimeWS := func(name string, dev bool, ws *supersetv1alpha1.WebSocketTransportSpec) *supersetv1alpha1.Superset {
+			cr := validProdSuperset(name)
+			if dev {
+				cr = validDevSuperset(name)
+			}
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
+			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{WebSocket: ws}
+			return cr
+		}
+		jwtFrom := func() *corev1.SecretKeySelector { return secretRef("ws", "jwt") }
+
+		DescribeTable("rejects invalid realtime settings",
+			func(build func() *supersetv1alpha1.Superset, want string) {
+				err := k8sClient.Create(ctx, build())
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring(want))
+			},
+			Entry("wildcard origin outside Development", func() *supersetv1alpha1.Superset {
+				return realtimeWS("rt-any-origin-prod", false, &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecretFrom: jwtFrom(), URL: new("/ws"), AllowedOrigins: []string{"*"},
+				})
+			}, "only allowed when environment is Development"),
+			Entry("wildcard origin alongside other origins", func() *supersetv1alpha1.Superset {
+				return realtimeWS("rt-any-origin-mixed", true, &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecret: new("dev-secret"), URL: new("/ws"), AllowedOrigins: []string{"*", "https://example.com"},
+				})
+			}, "must be the only entry"),
+			Entry("empty allowedOrigins", func() *supersetv1alpha1.Superset {
+				return realtimeWS("rt-empty-origins", false, &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecretFrom: jwtFrom(), URL: new("/ws"), AllowedOrigins: []string{},
+				})
+			}, "allowedOrigins"),
+			Entry("path url without an origin source", func() *supersetv1alpha1.Superset {
+				return realtimeWS("rt-path-no-origin", false, &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecretFrom: jwtFrom(), URL: new("/ws"),
+				})
+			}, "resolvable websocket host"),
+			Entry("allowedOrigins without a url", func() *supersetv1alpha1.Superset {
+				return realtimeWS("rt-origins-no-url", false, &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecretFrom: jwtFrom(), AllowedOrigins: []string{"https://superset.example.com"},
+				})
+			}, "resolvable websocket host"),
+			Entry("only a wildcard gateway hostname", func() *supersetv1alpha1.Superset {
+				cr := realtimeWS("rt-wildcard-gateway", false, &supersetv1alpha1.WebSocketTransportSpec{JWTSecretFrom: jwtFrom()})
+				cr.Spec.Networking = &supersetv1alpha1.NetworkingSpec{Gateway: &supersetv1alpha1.GatewaySpec{
+					GatewayRef: gatewayv1.ParentReference{Name: "gw"},
+					Hostnames:  []gatewayv1.Hostname{"*.example.com"},
+				}}
+				return cr
+			}, "resolvable websocket host"),
+			Entry("protocol-relative url", func() *supersetv1alpha1.Superset {
+				return realtimeWS("rt-url-protocol-relative", true, &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecret: new("dev-secret"), URL: new("//evil.example.com/ws"), AllowedOrigins: []string{"*"},
+				})
+			}, "webSocket.url"),
+			Entry("cookieName that is not a cookie token", func() *supersetv1alpha1.Superset {
+				return realtimeWS("rt-bad-cookie", false, &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecretFrom: jwtFrom(), URL: new("wss://superset.example.com/ws"), CookieName: new("bad cookie"),
+				})
+			}, "cookieName"),
+			Entry("non-positive jwtExpirationSeconds", func() *supersetv1alpha1.Superset {
+				return realtimeWS("rt-bad-jwt-ttl", false, &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecretFrom: jwtFrom(), URL: new("wss://superset.example.com/ws"), JWTExpirationSeconds: new(int32(0)),
+				})
+			}, "jwtExpirationSeconds"),
+			Entry("webSocket with distributedCoordination disabled", func() *supersetv1alpha1.Superset {
+				cr := realtimeWS("rt-ws-coord-disabled", false, &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecretFrom: jwtFrom(), URL: new("wss://superset.example.com/ws"),
+				})
+				cr.Spec.Valkey.DistributedCoordination = &supersetv1alpha1.ValkeyCacheSpec{Disabled: new(true)}
+				return cr
+			}, "distributedCoordination enabled"),
+			Entry("asyncQueries without the managed Celery broker", func() *supersetv1alpha1.Superset {
+				cr := validProdSuperset("rt-async-no-broker")
+				cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
+					Host:         "valkey",
+					CeleryBroker: &supersetv1alpha1.ValkeyCelerySpec{Disabled: new(true)},
+				}
+				cr.Spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{}
+				cr.Spec.CeleryBeat = &supersetv1alpha1.CeleryBeatComponentSpec{}
+				cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{AsyncQueries: &supersetv1alpha1.AsyncQueriesSpec{}}
+				return cr
+			}, "managed Celery broker"),
+		)
+
+		DescribeTable("accepts same-origin websocket settings",
+			func(build func() *supersetv1alpha1.Superset) {
+				cr := build()
+				Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+				Expect(k8sClient.Delete(ctx, cr)).To(Succeed())
+			},
+			Entry("path url with the wildcard origin in Development", func() *supersetv1alpha1.Superset {
+				return realtimeWS("rt-path-any-dev", true, &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecret: new("dev-secret"), URL: new("/ws"), AllowedOrigins: []string{"*"},
+				})
+			}),
+			Entry("path url with a base URL in Production", func() *supersetv1alpha1.Superset {
+				cr := realtimeWS("rt-path-baseurl", false, &supersetv1alpha1.WebSocketTransportSpec{
+					JWTSecretFrom: jwtFrom(), URL: new("/ws"),
+				})
+				cr.Spec.BaseURL = new("https://superset.example.com")
+				return cr
+			}),
+		)
+
+		It("rejects webSocket relying on an ingress host that is empty", func() {
+			cr := validProdSuperset("rt-empty-ingress-host")
+			cr.Spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{}
+			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
+			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+			cr.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{JWTSecretFrom: secretRef("ws", "jwt")},
+			}
+			cr.Spec.Networking = &supersetv1alpha1.NetworkingSpec{
+				Ingress: &supersetv1alpha1.IngressSpec{
+					Hosts: []supersetv1alpha1.IngressHost{{Host: ""}},
+				},
+			}
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("resolvable websocket host"))
 		})
 	})
 
@@ -855,8 +1199,13 @@ var _ = Describe("CEL Validation", Ordered, func() {
 				}, "at most 49 characters when celeryFlower is enabled"),
 			Entry("websocketServer (46)", strings.Repeat("a", 47),
 				func(s *supersetv1alpha1.Superset) {
-					s.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
-						Image: &supersetv1alpha1.ImageOverrideSpec{Repository: new("example.com/ws")},
+					s.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey"}
+					s.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+					s.Spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+						WebSocket: &supersetv1alpha1.WebSocketTransportSpec{
+							JWTSecretFrom: secretRef("ws", "jwt"),
+							URL:           new("wss://x/ws"),
+						},
 					}
 				}, "at most 46 characters when websocketServer is enabled"),
 			Entry("mcpServer (52)", strings.Repeat("a", 53),

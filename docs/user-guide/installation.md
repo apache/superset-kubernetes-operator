@@ -25,6 +25,7 @@ This guide covers installing the operator and deploying a Superset instance in p
 
 - Kubernetes cluster (see [Supported versions](#supported-kubernetes-versions))
 - Helm 4 (for Helm-based installation) or `kubectl` + `kustomize`
+- Superset 7.0 or later (the operator relies on the realtime websocket server, the Global Task Framework, and configuration defaults that first shipped in 7.0)
 - PostgreSQL or MySQL database
 - (Optional) [Valkey](https://valkey.io/) (or Redis) — required when enabling caching, Celery task broker, or result backend
 - (Optional) [Gateway API CRDs](https://gateway-api.sigs.k8s.io/guides/#installing-gateway-api) for HTTPRoute support — not included in Kubernetes, must be installed separately
@@ -155,7 +156,7 @@ metadata:
   name: my-superset
 spec:
   image:
-    tag: "6.1.0"
+    tag: "7.0.0"
 
   secretKeyFrom:
     name: superset-secrets
@@ -217,7 +218,7 @@ metadata:
   name: my-superset
 spec:
   image:
-    tag: "6.1.0"
+    tag: "7.0.0"
 
   secretKeyFrom:
     name: superset-secrets

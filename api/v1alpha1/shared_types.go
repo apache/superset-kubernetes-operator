@@ -204,20 +204,22 @@ type MetastoreSpec struct {
 
 // ValkeySpec configures Valkey as the shared cache backend, Celery message
 // broker, and SQL Lab results backend for Superset. When set, all sections
-// are enabled with sensible defaults — only host or hostFrom is required.
-// +kubebuilder:validation:XValidation:rule="has(self.host) != has(self.hostFrom)",message="exactly one of host or hostFrom must be set"
+// are enabled with sensible defaults — only host, hostFrom, or sentinel is
+// required.
+// +kubebuilder:validation:XValidation:rule="(has(self.host) ? 1 : 0) + (has(self.hostFrom) ? 1 : 0) + (has(self.sentinel) ? 1 : 0) == 1",message="exactly one of host, hostFrom, or sentinel must be set"
 // +kubebuilder:validation:XValidation:rule="!(has(self.port) && has(self.portFrom))",message="port and portFrom are mutually exclusive"
+// +kubebuilder:validation:XValidation:rule="!has(self.sentinel) || !(has(self.port) || has(self.portFrom))",message="port and portFrom do not apply with sentinel; set the port of each sentinel node instead"
 // +kubebuilder:validation:XValidation:rule="!(has(self.username) && has(self.usernameFrom))",message="username and usernameFrom are mutually exclusive"
 // +kubebuilder:validation:XValidation:rule="!(has(self.password) && has(self.passwordFrom))",message="password and passwordFrom are mutually exclusive"
 type ValkeySpec struct {
 	// Valkey server hostname.
-	// Mutually exclusive with hostFrom.
+	// Mutually exclusive with hostFrom and sentinel.
 	// +optional
 	// +kubebuilder:validation:MinLength=1
 	Host string `json:"host,omitempty"`
 
 	// Reference to a Secret key containing the Valkey server hostname.
-	// Mutually exclusive with host.
+	// Mutually exclusive with host and sentinel.
 	// +optional
 	HostFrom *corev1.SecretKeySelector `json:"hostFrom,omitempty"`
 
@@ -249,9 +251,30 @@ type ValkeySpec struct {
 	// +optional
 	PasswordFrom *corev1.SecretKeySelector `json:"passwordFrom,omitempty"`
 
+	// Sentinel connects to the primary that Valkey/Redis Sentinel resolves, and
+	// follows it across failovers, instead of a fixed host and port.
+	// Mutually exclusive with host, hostFrom, port, and portFrom.
+	// +optional
+	Sentinel *ValkeySentinelSpec `json:"sentinel,omitempty"`
+
 	// SSL/TLS configuration. When set, enables SSL for the Valkey connection.
+	// With sentinel, it applies to the resolved primary; the sentinel nodes
+	// are contacted in plaintext.
 	// +optional
 	SSL *ValkeySSLSpec `json:"ssl,omitempty"`
+
+	// KeyPrefix namespaces this deployment's Valkey usage so multiple Superset
+	// instances can safely share one Valkey/Redis. It is prepended to every cache
+	// and results-backend key prefix, the Global Task Framework coordination
+	// channels, and the realtime Pub/Sub channel (REALTIME_CHANNEL_PREFIX). Defaults to "<namespace>:<name>" (the CR's
+	// Kubernetes identity, which is unique cluster-wide). Note that Redis Pub/Sub
+	// is not scoped by database number, so isolating the realtime channel requires
+	// this prefix (or a dedicated instance); Celery queues are namespaced only by
+	// database number, not by this prefix.
+	// +optional
+	// +kubebuilder:validation:Pattern=`^[A-Za-z0-9._:-]+$`
+	// +kubebuilder:validation:MaxLength=200
+	KeyPrefix *string `json:"keyPrefix,omitempty"`
 
 	// General cache (CACHE_CONFIG). Default: db=1, prefix="superset_", timeout=300s.
 	// +optional
@@ -291,6 +314,64 @@ type ValkeySpec struct {
 	// SQL Lab async results backend (RESULTS_BACKEND). Default: db=6, prefix="superset_results_".
 	// +optional
 	ResultsBackend *ValkeyResultsBackendSpec `json:"resultsBackend,omitempty"`
+}
+
+// ValkeySentinelSpec resolves the Valkey primary through Sentinel. The
+// username, password, TLS, and database settings in spec.valkey apply to the
+// resolved primary.
+// +kubebuilder:validation:XValidation:rule="!(has(self.password) && has(self.passwordFrom))",message="password and passwordFrom are mutually exclusive"
+type ValkeySentinelSpec struct {
+	// Name of the primary the sentinels monitor (the name in their
+	// "sentinel monitor" directive).
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=128
+	// +kubebuilder:validation:Pattern=`^[A-Za-z0-9._-]+$`
+	MasterName string `json:"masterName"`
+
+	// Sentinel nodes to ask for the current primary. List several so the
+	// lookup survives a sentinel outage.
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=16
+	// +listType=atomic
+	Nodes []ValkeySentinelNode `json:"nodes"`
+
+	// Password for the sentinel nodes themselves (spec.valkey.password
+	// authenticates to the primary). Only allowed in Development mode — use
+	// passwordFrom in Staging or Production.
+	// +optional
+	Password *string `json:"password,omitempty"`
+
+	// Reference to a Secret key containing the sentinel password.
+	// Mutually exclusive with password.
+	// +optional
+	PasswordFrom *corev1.SecretKeySelector `json:"passwordFrom,omitempty"`
+}
+
+// ValkeySentinelNode is one Sentinel address.
+// +kubebuilder:validation:XValidation:rule="has(self.host) != has(self.hostFrom)",message="exactly one of host or hostFrom must be set"
+// +kubebuilder:validation:XValidation:rule="!(has(self.port) && has(self.portFrom))",message="port and portFrom are mutually exclusive"
+type ValkeySentinelNode struct {
+	// Sentinel hostname.
+	// Mutually exclusive with hostFrom.
+	// +optional
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:MaxLength=253
+	Host string `json:"host,omitempty"`
+
+	// Reference to a Secret key containing the sentinel hostname.
+	// Mutually exclusive with host.
+	// +optional
+	HostFrom *corev1.SecretKeySelector `json:"hostFrom,omitempty"`
+
+	// Sentinel port. Defaults to 26379 at runtime when neither port nor
+	// portFrom is set.
+	// +optional
+	Port *int32 `json:"port,omitempty"`
+
+	// Reference to a Secret key containing the sentinel port as a decimal string.
+	// Mutually exclusive with port.
+	// +optional
+	PortFrom *corev1.SecretKeySelector `json:"portFrom,omitempty"`
 }
 
 // ValkeySSLSpec configures TLS for the Valkey connection.

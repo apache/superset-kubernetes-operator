@@ -134,7 +134,7 @@ func TestReconcile_MyScenario(t *testing.T) {
         Name:      "test",
         Namespace: "default",
         Spec: supersetv1alpha1.SupersetSpec{
-            Image:       supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "6.1.0"},
+            Image:       supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "7.0.0"},
             Environment: new(common.EnvironmentDev),
             SecretKey:   new("test-secret-key"),
             Lifecycle: &supersetv1alpha1.LifecycleSpec{
