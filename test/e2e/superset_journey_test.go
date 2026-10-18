@@ -242,6 +242,13 @@ spec:
 			expectJSONPathContains("ingress", crName, "{.spec.rules[0].http.paths[*].path}", path)
 		}
 
+		By("dropping the Ingress host")
+		patchSuperset(crName, "json", `[{"op":"remove","path":"/spec/networking/ingress/host"}]`)
+		expectJSONPath("ingress", crName, "{.spec.rules[0].host}", "", time.Minute)
+		for _, path := range []string{"/ws", "/mcp", "/flower"} {
+			expectJSONPathContains("ingress", crName, "{.spec.rules[0].http.paths[*].path}", path)
+		}
+
 		By("switching networking from Ingress to Gateway")
 		patchSuperset(crName, "json", `[
   {"op":"remove","path":"/spec/networking/ingress"},

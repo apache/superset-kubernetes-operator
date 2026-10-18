@@ -719,6 +719,53 @@ func TestReconcileIngress_HostFallback(t *testing.T) {
 	}
 }
 
+func TestReconcileIngress_HostlessFanout(t *testing.T) {
+	scheme := testScheme(t)
+
+	superset := &supersetv1alpha1.Superset{
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: supersetv1alpha1.SupersetSpec{
+			Image:     supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
+			McpServer: &supersetv1alpha1.McpServerComponentSpec{},
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
+			Networking: &supersetv1alpha1.NetworkingSpec{
+				Ingress: &supersetv1alpha1.IngressSpec{ClassName: new("alb")},
+			},
+		},
+	}
+
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+
+	if err := r.reconcileIngress(context.Background(), superset); err != nil {
+		t.Fatalf("reconcileIngress: %v", err)
+	}
+
+	ingress := &networkingv1.Ingress{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, ingress); err != nil {
+		t.Fatalf("expected Ingress: %v", err)
+	}
+
+	if len(ingress.Spec.Rules) != 1 {
+		t.Fatalf("expected 1 hostless rule, got %d", len(ingress.Spec.Rules))
+	}
+	if ingress.Spec.Rules[0].Host != "" {
+		t.Errorf("expected empty host, got %q", ingress.Spec.Rules[0].Host)
+	}
+	got := map[string]string{}
+	for _, p := range ingress.Spec.Rules[0].HTTP.Paths {
+		got[p.Path] = p.Backend.Service.Name
+	}
+	want := map[string]string{
+		"/mcp": "test-mcp-server",
+		"/":    "test-web-server",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("ingress paths = %+v, want %+v", got, want)
+	}
+}
+
 func TestReconcileIngress_WithTLS(t *testing.T) {
 	scheme := testScheme(t)
 
