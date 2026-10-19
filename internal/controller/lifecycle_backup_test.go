@@ -360,7 +360,7 @@ func TestBackupPipeline_NotStartedWhileGuardedTaskRuns(t *testing.T) {
 	assert.NotContains(t, h.ran, "test-backup")
 }
 
-func TestBackupPipeline_RunsBeforeDrainByDefault(t *testing.T) {
+func TestBackupPipeline_DrainsBeforeBackupByDefault(t *testing.T) {
 	ctx := context.Background()
 	webServer := func() *appsv1.Deployment {
 		return &appsv1.Deployment{Name: "test-web-server", Namespace: "default"}
@@ -395,10 +395,51 @@ func TestBackupPipeline_RunsBeforeDrainByDefault(t *testing.T) {
 		return nil
 	}
 
-	t.Run("default: backup runs while the current version still serves", func(t *testing.T) {
+	t.Run("default: drains before the backup, then migrates", func(t *testing.T) {
 		h := upgradeUntilBackupJob(t, nil)
-		assert.True(t, webServerExists(h), "components must not be drained before the backup completes")
+		assert.False(t, webServerExists(h), "components are drained before the backup starts")
 		assert.Equal(t, lifecyclePhaseBackingUp, h.s.Status.Lifecycle.Phase)
+
+		res := h.drive("c")
+		require.True(t, res.Complete)
+		assert.Equal(t, []string{"test-backup", "test-migrate", "test-init"}, h.ran)
+	})
+
+	t.Run("default: a failed backup blocks the upgrade and leaves components drained", func(t *testing.T) {
+		h := upgradeUntilBackupJob(t, nil)
+		installedMigrate := h.s.Status.Lifecycle.Migrate.CompletedChecksum
+		h.fail["test-backup"] = true
+		res := h.drive("c")
+		require.True(t, res.TerminalFailure)
+		assert.False(t, webServerExists(h), "components stay drained until the user retries, fixes, or disables the backup")
+		assert.Equal(t, installedMigrate, h.s.Status.Lifecycle.Migrate.DesiredChecksum, "migrate must not start")
+		assert.Equal(t, lifecyclePhaseBackingUp, h.s.Status.Lifecycle.Phase)
+	})
+
+	t.Run("default: a drained instance recovers when the failed backup is retried", func(t *testing.T) {
+		h := upgradeUntilBackupJob(t, nil)
+		h.fail["test-backup"] = true
+		require.True(t, h.drive("c").TerminalFailure)
+
+		h.fail["test-backup"] = false
+		h.s.Spec.Lifecycle.Backup.Trigger = new("retry-1")
+		require.True(t, h.drive("c").Complete)
+		assert.Equal(t, []string{"test-backup", "test-migrate", "test-init"}, h.ran)
+	})
+
+	t.Run("default: a drained instance upgrades without a snapshot when the backup is disabled", func(t *testing.T) {
+		h := upgradeUntilBackupJob(t, nil)
+		h.fail["test-backup"] = true
+		require.True(t, h.drive("c").TerminalFailure)
+
+		h.s.Spec.Lifecycle.Backup.Disabled = new(true)
+		require.True(t, h.drive("c").Complete)
+		assert.Equal(t, []string{"test-migrate", "test-init"}, h.ran)
+	})
+
+	t.Run("requiresDrain: false backs up while the current version still serves", func(t *testing.T) {
+		h := upgradeUntilBackupJob(t, new(false))
+		assert.True(t, webServerExists(h), "components must not be drained before the backup completes")
 		assert.False(t, h.s.Status.Lifecycle.MaintenanceActive)
 
 		res := h.drive("c")
@@ -407,20 +448,12 @@ func TestBackupPipeline_RunsBeforeDrainByDefault(t *testing.T) {
 		assert.False(t, webServerExists(h), "migrate still drains after the backup")
 	})
 
-	t.Run("default: a failed backup blocks the upgrade without draining", func(t *testing.T) {
-		h := upgradeUntilBackupJob(t, nil)
-		installedMigrate := h.s.Status.Lifecycle.Migrate.CompletedChecksum
+	t.Run("requiresDrain: false fails the backup without draining", func(t *testing.T) {
+		h := upgradeUntilBackupJob(t, new(false))
 		h.fail["test-backup"] = true
 		res := h.drive("c")
 		require.True(t, res.TerminalFailure)
 		assert.True(t, webServerExists(h), "the current version keeps serving when the backup fails")
-		assert.Equal(t, installedMigrate, h.s.Status.Lifecycle.Migrate.DesiredChecksum, "migrate must not start")
-		assert.Equal(t, lifecyclePhaseBackingUp, h.s.Status.Lifecycle.Phase)
-	})
-
-	t.Run("requiresDrain: true drains before the backup", func(t *testing.T) {
-		h := upgradeUntilBackupJob(t, new(true))
-		assert.False(t, webServerExists(h), "components are drained before the backup starts")
 	})
 }
 
@@ -616,10 +649,10 @@ func TestLifecycleNeedsDrainAccountsForBackup(t *testing.T) {
 	s.Status.Lifecycle = &supersetv1alpha1.LifecycleStatus{}
 
 	assert.Equal(t, []string{taskTypeBackup, taskTypeMigrate, taskTypeInit}, r.pendingLifecycleTasks(s, "c"))
-	assert.False(t, r.lifecycleNeedsDrain(s, "c"), "backup runs before drain by default")
+	assert.True(t, r.lifecycleNeedsDrain(s, "c"), "backup drains by default even when migrate does not")
 
-	s.Spec.Lifecycle.Backup.RequiresDrain = new(true)
-	assert.True(t, r.lifecycleNeedsDrain(s, "c"), "requiresDrain: true drains for the backup even when migrate does not")
+	s.Spec.Lifecycle.Backup.RequiresDrain = new(false)
+	assert.False(t, r.lifecycleNeedsDrain(s, "c"), "requiresDrain: false runs the backup before drain")
 }
 
 func TestPendingLifecycleTasksStopsAtFailedBackup(t *testing.T) {

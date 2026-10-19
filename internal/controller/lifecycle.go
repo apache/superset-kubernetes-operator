@@ -240,9 +240,8 @@ func (r *SupersetReconciler) reconcileLifecycle(
 		return lifecycleComplete(), nil
 	}
 
-	// Take the pre-upgrade backup before drain (the default), while the
-	// current version keeps serving: a slow backup adds no downtime and a
-	// failed one blocks the upgrade without taking the instance down.
+	// With backup.requiresDrain: false, take the pre-upgrade backup before
+	// drain while the current version keeps serving.
 	if result, handled, err := r.backupBeforeDrain(ctx, superset, parentLifecyclePhase, configChecksum, topLevel, saName); err != nil {
 		return lifecycleResult{}, err
 	} else if handled {
@@ -515,12 +514,13 @@ func (r *SupersetReconciler) runLifecyclePipeline(
 }
 
 // backupBeforeDrain runs the backup task ahead of maintenance and drain when
-// it does not require drain (the default) and a pending migrate or rotate
+// it is configured with requiresDrain: false and a pending migrate or rotate
 // task needs a snapshot. It returns handled=true while the backup is still
 // running or has failed, so the caller stops before touching any workload.
 // Once it completes, the pipeline finds the backup already done for this run
-// and proceeds straight to the guarded task. With requiresDrain: true the
-// backup instead runs inside the pipeline, after drain.
+// and proceeds straight to the guarded task. By default the backup instead
+// runs inside the pipeline, after drain, so the snapshot matches the database
+// that migrate sees; a failed backup leaves components drained.
 func (r *SupersetReconciler) backupBeforeDrain(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
@@ -845,10 +845,10 @@ func getUpgradeMode(superset *supersetv1alpha1.Superset) string {
 }
 
 // taskRequiresDrain returns whether a task requires components to be drained.
-// Defaults: seed=true (DROP DATABASE needs no connections), backup=false (the
-// dump is a consistent snapshot taken while the current version serves; see
-// backupBeforeDrain), migrate=true (schema changes risk deadlocks),
-// init=false (roles/permissions are safe).
+// Defaults: seed=true (DROP DATABASE needs no connections), backup=true (no
+// writes land between the dump and migrate; see backupBeforeDrain),
+// migrate=true (schema changes risk deadlocks), init=false (roles/permissions
+// are safe).
 func (r *SupersetReconciler) taskRequiresDrain(superset *supersetv1alpha1.Superset, taskType string) bool {
 	desc := lifecycleTaskDescriptorByType(taskType)
 	if desc == nil {

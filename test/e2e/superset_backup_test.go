@@ -387,6 +387,7 @@ spec:
     image:
       repository: %[6]s
       tag: "%[7]s"
+    maintenancePage: {}
 %[8]s    backup:
       maxRetries: 1
       podRetention:
@@ -431,7 +432,7 @@ spec:
 		expectJSONPath("job", backupJob, "{.spec.activeDeadlineSeconds}", "3600", time.Minute)
 	})
 
-	It("snapshots while the web server still serves, then drains and migrates", func() {
+	It("drains before the snapshot, then migrates", func() {
 		expectResourceExists("deployment", crName+"-web-server", 2*time.Minute)
 		firstBackup, err := jsonPath("superset", crName, "{.status.lifecycle.backup.completedChecksum}")
 		Expect(err).NotTo(HaveOccurred())
@@ -454,12 +455,12 @@ spec:
 		Expect(marker).To(Equal("v2"))
 		expectNewestBackupRecord(crName, location(files[1]), shas[1])
 
-		// Backup runs before drain by default: the verified backup completed
-		// before the operator started draining the web server for migrate.
 		backupDone := latestEventTime(crName, "BackupCompleted")
-		drainStart := latestEventTime(crName, "DrainingStarted")
-		Expect(drainStart.IsZero()).To(BeFalse(), "migrate drained the running web server")
-		Expect(backupDone).To(BeTemporally("<=", drainStart), "the backup must finish before drain starts")
+		drainDone := latestEventTime(crName, "DrainingCompleted")
+		Expect(drainDone.IsZero()).To(BeFalse(), "the running web server was drained")
+		Expect(drainDone).To(BeTemporally("<=", backupDone), "drain must finish before the backup completes")
+		expectResourceExists("deployment", crName+"-web-server", backupTimeout)
+		expectResourceGone("deployment", crName+"-maintenance-page")
 	})
 
 	It("does not back up on config-only changes", func() {
@@ -491,7 +492,7 @@ spec:
 		}, 20*time.Second, 2*time.Second).Should(Succeed())
 	})
 
-	It("blocks migrate on a failed backup, keeps serving, and reports why", func() {
+	It("blocks migrate on a failed backup, stays drained behind the maintenance page, and reports why", func() {
 		By("pinning a pg_dump client older than the server, the most common real-world backup failure")
 		pgRepo, _ := splitImageRef(postgresImage)
 		patchSuperset(crName, "merge", fmt.Sprintf(
@@ -509,7 +510,12 @@ spec:
 		Consistently(func(g Gomega) {
 			g.Expect(psql("SELECT v FROM marker")).To(Equal("v3"), "migrate must not run after a failed backup")
 			_, err := runKubectl("get", "deployment", crName+"-web-server", "-n", namespace)
-			g.Expect(err).NotTo(HaveOccurred(), "the current version keeps serving: no drain before a successful backup")
+			g.Expect(err).To(HaveOccurred(), "components stay drained until the backup is retried, fixed, or disabled")
+			_, err = runKubectl("get", "deployment", crName+"-maintenance-page", "-n", namespace)
+			g.Expect(err).NotTo(HaveOccurred(), "the maintenance page keeps serving")
+			g.Expect(jsonPath("superset", crName, "{.status.lifecycle.maintenanceActive}")).To(Equal("true"))
+			g.Expect(jsonPath("service", crName+"-web-server",
+				"{.spec.selector.app\\.kubernetes\\.io/component}")).To(Equal("maintenance-page"))
 		}, 15*time.Second, 3*time.Second).Should(Succeed())
 
 		By("removing the image override, which changes the backup pod spec and retries it")
@@ -519,6 +525,9 @@ spec:
 		}, backupTimeout, 2*time.Second).Should(Succeed())
 		expectJSONPath("superset", crName, "{.status.lifecycle.backup.state}", "Complete", time.Minute)
 		expectJSONPath("superset", crName, "{.status.lifecycle.phase}", "Complete", backupTimeout)
+		expectJSONPath("service", crName+"-web-server",
+			"{.spec.selector.app\\.kubernetes\\.io/component}", "web-server", backupTimeout)
+		expectResourceGone("deployment", crName+"-maintenance-page")
 
 		files, _, marker := dumps()
 		Expect(files).To(HaveLen(3))

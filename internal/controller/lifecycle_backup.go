@@ -142,9 +142,10 @@ echo "Backup written: $OUT ($SIZE bytes, sha256 $SUM, verified by $VERIFY)"`
 // pg_restore). pg_dump refuses to dump a server newer than its own major
 // version, so the preflight fails fast with the image tag to use instead.
 // --lock-wait-timeout makes the dump fail instead of queueing behind a
-// long-held lock (the dump runs before drain by default). Verification reads
-// the whole archive back with pg_restore, which decompresses and checks every
-// data block, not just the table of contents. -X skips psqlrc.
+// long-held lock (with requiresDrain: false the dump runs before drain).
+// Verification reads the whole archive back with pg_restore, which
+// decompresses and checks every data block, not just the table of contents.
+// -X skips psqlrc.
 const backupPostgresScript = backupScriptPrelude + `export PGPASSWORD="${SUPERSET_OPERATOR__DB_PASS:-}"
 if [ "${SUPERSET_OPERATOR__BACKUP_FIRST_RUN:-false}" = "true" ]; then
   ESC=$(printf '%s' "$DB" | sed "s/'/''/g")

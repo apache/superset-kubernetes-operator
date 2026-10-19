@@ -139,10 +139,10 @@ run writes a new timestamped dump plus a JSON manifest (image tags, Alembic
 revision, size, SHA-256); a dump is only committed after it has been read
 back in full and its checksum re-verified, and completed backups are never
 overwritten. Completed backups are only deleted when retention.keepLast is
-set. requiresDrain defaults to false: the dump is a consistent snapshot
-taken while the current version keeps serving; set it to true to drain
-first so the snapshot also contains the writes made right before the
-upgrade, at the cost of longer downtime. timeout defaults to 1h.
+set. requiresDrain defaults to true: components are drained before the
+dump, so no writes land between the snapshot and migrate. Set it to false
+to take the dump while the current version keeps serving, which shortens
+downtime but can miss writes made after the dump. timeout defaults to 1h.
 
 
 
@@ -153,7 +153,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, migrate, and rotate; false for backup and init. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, backup, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. Defaults to 5m (1h for backup). |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -184,7 +184,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, migrate, and rotate; false for backup and init. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, backup, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. Defaults to 5m (1h for backup). |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -644,7 +644,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, migrate, and rotate; false for backup and init. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, backup, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. Defaults to 5m (1h for backup). |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -676,7 +676,7 @@ _Appears in:_
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-lifecycle SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
 | `maintenancePage` _[MaintenancePageSpec](#maintenancepagespec)_ | MaintenancePage configures a lightweight maintenance page served during lifecycle drain and task execution. Presence enables the feature when a drain will actually run and an existing web-server workload is present. In managed mode (no image override), an nginx:alpine container serves a default or custom HTML page. In custom mode (image set), the user's image handles serving, and content fields are passed as env vars. |  | Optional: \{\} <br /> |
 | `seed` _[SeedTaskSpec](#seedtaskspec)_ | Seed configures database seeding from an external source before running migrations. The seed target is always spec.metastore. Only allowed in Development or Staging mode. |  | Optional: \{\} <br /> |
-| `backup` _[BackupTaskSpec](#backuptaskspec)_ | Backup snapshots the metastore before a data-mutating task (migrate or rotate) runs, so a failed or unwanted upgrade can be reverted by restoring the snapshot. Presence enables the task. It runs at most once per lifecycle run, before the first pending migrate or rotate task; config-only changes that re-run only init never trigger it. By default it runs before drain, while the current version keeps serving, so a failed backup blocks the upgrade without causing downtime. |  | Optional: \{\} <br /> |
+| `backup` _[BackupTaskSpec](#backuptaskspec)_ | Backup snapshots the metastore before a data-mutating task (migrate or rotate) runs, so a failed or unwanted upgrade can be reverted by restoring the snapshot. Presence enables the task. It runs at most once per lifecycle run, before the first pending migrate or rotate task; config-only changes that re-run only init never trigger it. By default it runs after drain, so the snapshot matches the database that migrate sees; a failed backup blocks the upgrade and leaves components drained. |  | Optional: \{\} <br /> |
 | `migrate` _[MigrateTaskSpec](#migratetaskspec)_ | Database migration task configuration. |  | Optional: \{\} <br /> |
 | `rotate` _[RotateTaskSpec](#rotatetaskspec)_ | Secret key rotation task configuration. Runs after migrate and before init. Presence enables the task; absence disables it. |  | Optional: \{\} <br /> |
 | `init` _[InitTaskSpec](#inittaskspec)_ | Application initialization task configuration. |  | Optional: \{\} <br /> |
@@ -809,7 +809,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, migrate, and rotate; false for backup and init. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, backup, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. Defaults to 5m (1h for backup). |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -970,7 +970,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, migrate, and rotate; false for backup and init. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, backup, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. Defaults to 5m (1h for backup). |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -1048,7 +1048,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, migrate, and rotate; false for backup and init. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, backup, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. Defaults to 5m (1h for backup). |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
@@ -1100,7 +1100,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `command` _string array_ | Command override for the task Job. |  | Optional: \{\} <br /> |
 | `trigger` _string_ | Trigger is an opaque string. Changing its value forces a re-run of this task and all downstream tasks. Use a timestamp, UUID, or CI build ID. |  | Optional: \{\} <br /> |
-| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, migrate, and rotate; false for backup and init. |  | Optional: \{\} <br /> |
+| `requiresDrain` _boolean_ | RequiresDrain controls whether components must be drained before this task runs. When true, the operator removes component workloads before executing the task Job, preventing database connection conflicts. Drain is skipped when the task is already complete for the current checksum, or when no configured component has desired replicas greater than zero. Defaults vary per task type: true for seed, backup, migrate, and rotate; false for init. |  | Optional: \{\} <br /> |
 | `timeout` _[Duration](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Duration)_ | Maximum timeout per attempt. Defaults to 5m (1h for backup). |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of retries before permanent failure. | 3 | Minimum: 1 <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Disabled skips this task entirely when true. |  | Optional: \{\} <br /> |
