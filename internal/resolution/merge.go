@@ -133,12 +133,6 @@ func MergeHostAliases(slices ...[]corev1.HostAlias) []corev1.HostAlias {
 	return mergeByKey(func(a corev1.HostAlias) string { return a.IP }, slices...)
 }
 
-// MergeContainerPorts merges multiple container port slices. Later entries with
-// the same Name replace earlier entries in place to preserve ordering.
-func MergeContainerPorts(slices ...[]corev1.ContainerPort) []corev1.ContainerPort {
-	return mergeByKey(func(p corev1.ContainerPort) string { return p.Name }, slices...)
-}
-
 // MergeEnvFromSources concatenates multiple EnvFromSource slices.
 // Unlike named resources (EnvVar, Volume, Container), EnvFromSource entries
 // are not deduplicated because there is no single natural key: an EnvFromSource
@@ -226,7 +220,6 @@ func MergeContainerTemplate(comp, tl *supersetv1alpha1.ContainerTemplate, op *Op
 		Env:             MergeEnvVars(t.Env, c.Env, op.Env),
 		EnvFrom:         MergeEnvFromSources(t.EnvFrom, c.EnvFrom),
 		VolumeMounts:    MergeVolumeMounts(t.VolumeMounts, c.VolumeMounts, op.VolumeMounts),
-		Ports:           MergeContainerPorts(t.Ports, c.Ports),
 	}
 
 	// Command/Args: component wins if set, no inheritance.

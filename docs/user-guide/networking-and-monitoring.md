@@ -33,6 +33,8 @@ spec:
         service.beta.kubernetes.io/aws-load-balancer-internal: "true"
 ```
 
+`port` changes only the Service port. The Service always targets the component's fixed container port.
+
 The operator does not expose Kubernetes `Service.spec.loadBalancerIP` because that field is deprecated. Prefer controller-specific annotations when your provider documents them.
 
 ## Gateway API (Recommended)

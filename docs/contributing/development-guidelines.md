@@ -299,7 +299,7 @@ New Deployment/Pod/Container fields go into the template hierarchy:
 
 1. Determine the Kubernetes level: `DeploymentTemplate` (Deployment-level), `PodTemplate` (PodSpec-level), or `ContainerTemplate` (Container-level)
 2. Add the field to the appropriate template type in `api/v1alpha1/shared_types.go`
-3. Add the merge logic in `internal/resolution/merge.go` using the field's natural semantics: scalars are overridden by the component value, named collections merge by name, maps merge by key, and unnamed collections append. Values are applied in order: the top-level value establishes ordering, the component value overrides in place, and where applicable (env vars, volume mounts, labels) operator-injected values are applied last so they cannot be overridden by user configuration. Any code consuming resolved ports, env vars, or other merged collections must respect this same ordering.
+3. Add the merge logic in `internal/resolution/merge.go` using the field's natural semantics: scalars are overridden by the component value, named collections merge by name, maps merge by key, and unnamed collections append. Values are applied in order: the top-level value establishes ordering, the component value overrides in place, and where applicable (env vars, volume mounts, labels) operator-injected values are applied last so they cannot be overridden by user configuration. Any code consuming resolved env vars, volume mounts, or other merged collections must respect this same ordering.
 4. Wire the field in `internal/controller/deployment_builder.go` (`buildDeploymentSpec`)
 5. Run `make manifests generate`
 6. Add assertions to existing comprehensive tests

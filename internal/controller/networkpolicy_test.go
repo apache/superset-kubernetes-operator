@@ -175,93 +175,6 @@ func TestReconcileComponentNetworkPolicy_WebServer(t *testing.T) {
 	}
 }
 
-func TestReconcileNetworkPolicies_CustomContainerPort(t *testing.T) {
-	scheme := testScheme(t)
-	superset := &supersetv1alpha1.Superset{
-		Name: "test", Namespace: "default", UID: "uid-1",
-		Spec: supersetv1alpha1.SupersetSpec{
-			Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
-			WebServer: &supersetv1alpha1.WebServerComponentSpec{
-				PodTemplate: &supersetv1alpha1.PodTemplate{
-					Container: &supersetv1alpha1.ContainerTemplate{
-						Ports: []corev1.ContainerPort{{Name: "http", ContainerPort: 9090}},
-					},
-				},
-			},
-			Lifecycle:     &supersetv1alpha1.LifecycleSpec{Disabled: new(true)},
-			NetworkPolicy: &supersetv1alpha1.NetworkPolicySpec{},
-		},
-	}
-
-	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
-
-	if err := r.reconcileNetworkPolicies(context.Background(), superset); err != nil {
-		t.Fatalf("reconcileNetworkPolicies: %v", err)
-	}
-
-	np := &networkingv1.NetworkPolicy{}
-	npName := common.DerivedName("test", common.SuffixWebServer) + common.SuffixNetworkPolicy
-	if err := c.Get(context.Background(), types.NamespacedName{Name: npName, Namespace: "default"}, np); err != nil {
-		t.Fatalf("expected NetworkPolicy: %v", err)
-	}
-
-	// External ingress rule should use the custom container port, not the default.
-	if len(np.Spec.Ingress) < 2 {
-		t.Fatalf("expected at least 2 ingress rules, got %d", len(np.Spec.Ingress))
-	}
-	if np.Spec.Ingress[1].Ports[0].Port.IntValue() != 9090 {
-		t.Errorf("expected custom port 9090, got %d", np.Spec.Ingress[1].Ports[0].Port.IntValue())
-	}
-}
-
-func TestNpContainerPort(t *testing.T) {
-	t.Run("default when no overrides", func(t *testing.T) {
-		got := npContainerPort(8088, nil, nil)
-		if got != 8088 {
-			t.Errorf("expected 8088, got %d", got)
-		}
-	})
-	t.Run("component override wins", func(t *testing.T) {
-		compPT := &supersetv1alpha1.PodTemplate{
-			Container: &supersetv1alpha1.ContainerTemplate{
-				Ports: []corev1.ContainerPort{{Name: "http", ContainerPort: 9090}},
-			},
-		}
-		got := npContainerPort(8088, nil, compPT)
-		if got != 9090 {
-			t.Errorf("expected 9090, got %d", got)
-		}
-	})
-	t.Run("top-level fallback", func(t *testing.T) {
-		topPT := &supersetv1alpha1.PodTemplate{
-			Container: &supersetv1alpha1.ContainerTemplate{
-				Ports: []corev1.ContainerPort{{Name: "http", ContainerPort: 7070}},
-			},
-		}
-		got := npContainerPort(8088, topPT, nil)
-		if got != 7070 {
-			t.Errorf("expected 7070, got %d", got)
-		}
-	})
-	t.Run("component replaces top-level by name", func(t *testing.T) {
-		topPT := &supersetv1alpha1.PodTemplate{
-			Container: &supersetv1alpha1.ContainerTemplate{
-				Ports: []corev1.ContainerPort{{Name: "http", ContainerPort: 8088}},
-			},
-		}
-		compPT := &supersetv1alpha1.PodTemplate{
-			Container: &supersetv1alpha1.ContainerTemplate{
-				Ports: []corev1.ContainerPort{{Name: "http", ContainerPort: 9090}},
-			},
-		}
-		got := npContainerPort(8088, topPT, compPT)
-		if got != 9090 {
-			t.Errorf("expected 9090 (component overrides top-level by name), got %d", got)
-		}
-	})
-}
-
 func TestReconcileComponentNetworkPolicy_InternalOnly(t *testing.T) {
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
@@ -438,7 +351,7 @@ func TestFlowerExternalPort_GatedByPublish(t *testing.T) {
 	prodNoOptIn := &supersetv1alpha1.Superset{
 		Spec: supersetv1alpha1.SupersetSpec{CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{}},
 	}
-	if got := flowerExternalPort(prodNoOptIn, nil); got != 0 {
+	if got := flowerExternalPort(prodNoOptIn); got != 0 {
 		t.Errorf("flowerExternalPort() = %d, want 0 in Production without opt-in", got)
 	}
 
@@ -447,7 +360,7 @@ func TestFlowerExternalPort_GatedByPublish(t *testing.T) {
 			Service: &supersetv1alpha1.ComponentServiceSpec{GatewayPath: new("/flower")},
 		}},
 	}
-	if got := flowerExternalPort(prodOptIn, nil); got != common.PortCeleryFlower {
+	if got := flowerExternalPort(prodOptIn); got != common.PortCeleryFlower {
 		t.Errorf("flowerExternalPort() = %d, want %d after opt-in", got, common.PortCeleryFlower)
 	}
 
@@ -457,7 +370,7 @@ func TestFlowerExternalPort_GatedByPublish(t *testing.T) {
 			CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{},
 		},
 	}
-	if got := flowerExternalPort(dev, nil); got != common.PortCeleryFlower {
+	if got := flowerExternalPort(dev); got != common.PortCeleryFlower {
 		t.Errorf("flowerExternalPort() = %d, want %d in Development", got, common.PortCeleryFlower)
 	}
 }

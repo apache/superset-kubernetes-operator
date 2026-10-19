@@ -75,8 +75,7 @@ func reconcileComponentResources(
 
 	// Service (if defaultPort > 0).
 	if cfg.defaultPort > 0 {
-		containerPort := resolveContainerPort(spec, cfg.defaultPort)
-		if err := reconcileComponentService(ctx, c, scheme, owner, service, cfg.componentName, containerPort, cfg.defaultPort, resourceBaseName); err != nil {
+		if err := reconcileComponentService(ctx, c, scheme, owner, service, cfg.componentName, cfg.defaultPort, resourceBaseName); err != nil {
 			recorder.Eventf(owner, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "Failed to reconcile Service: %v", err)
 			return fmt.Errorf("reconciling Service: %w", err)
 		}
@@ -164,7 +163,6 @@ func reconcileComponentService(
 	svcSpec *supersetv1alpha1.ComponentServiceSpec,
 	componentName string,
 	containerPort int32,
-	defaultPort int32,
 	resourceBaseName string,
 ) error {
 	svc := &corev1.Service{
@@ -178,7 +176,7 @@ func reconcileComponentService(
 		if err := controllerutil.SetControllerReference(owner, svc, scheme); err != nil {
 			return err
 		}
-		desiredSpec := buildServiceSpec(svcSpec, labels, containerPort, defaultPort)
+		desiredSpec := buildServiceSpec(svcSpec, labels, containerPort)
 		preserveServiceAllocatedFields(&desiredSpec, svc.Spec)
 		svc.Spec = desiredSpec
 		var userLabels map[string]string

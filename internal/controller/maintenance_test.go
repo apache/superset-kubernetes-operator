@@ -90,22 +90,12 @@ func TestRenderMaintenanceHTML(t *testing.T) {
 }
 
 // TestMaintenanceNginxConf covers the nginx config renderers: the per-server conf
-// (renderNginxConf) honoring custom/default ports, and the main conf
+// (renderNginxConf) listening on the web-server port, and the main conf
 // (renderMaintenanceNginxMainConf) routing pid/temp paths off root-owned dirs so
 // the pod runs non-root.
 func TestMaintenanceNginxConf(t *testing.T) {
-	t.Run("server conf custom port", func(t *testing.T) {
-		conf := renderNginxConf(9090)
-		if !strings.Contains(conf, "listen 9090") {
-			t.Error("expected nginx to listen on custom port 9090")
-		}
-		if strings.Contains(conf, "listen 8088") {
-			t.Error("should not contain default port when custom port is provided")
-		}
-	})
-
 	t.Run("server conf default port", func(t *testing.T) {
-		conf := renderNginxConf(common.PortWebServer)
+		conf := renderNginxConf()
 		if !strings.Contains(conf, "listen 8088") {
 			t.Error("expected nginx to listen on default port 8088")
 		}
@@ -301,70 +291,6 @@ func maintenanceMountsConf(flat supersetv1alpha1.FlatComponentSpec, path string)
 	return false
 }
 
-// TestResolveWebServerPort covers resolveWebServerPort: the default port, a
-// per-component container-port override, inheritance of a top-level container port,
-// and the default when no webServer is configured.
-func TestResolveWebServerPort(t *testing.T) {
-	t.Run("default", func(t *testing.T) {
-		s := &supersetv1alpha1.Superset{
-			Spec: supersetv1alpha1.SupersetSpec{
-				WebServer: &supersetv1alpha1.WebServerComponentSpec{},
-			},
-		}
-		port := resolveWebServerPort(s)
-		if port != common.PortWebServer {
-			t.Errorf("expected default port %d, got %d", common.PortWebServer, port)
-		}
-	})
-
-	t.Run("component override", func(t *testing.T) {
-		s := &supersetv1alpha1.Superset{
-			Spec: supersetv1alpha1.SupersetSpec{
-				WebServer: &supersetv1alpha1.WebServerComponentSpec{
-					PodTemplate: &supersetv1alpha1.PodTemplate{
-						Container: &supersetv1alpha1.ContainerTemplate{
-							Ports: []corev1.ContainerPort{
-								{Name: "http", ContainerPort: 9090},
-							},
-						},
-					},
-				},
-			},
-		}
-		port := resolveWebServerPort(s)
-		if port != 9090 {
-			t.Errorf("expected custom port 9090, got %d", port)
-		}
-	})
-
-	t.Run("top-level override", func(t *testing.T) {
-		s := &supersetv1alpha1.Superset{
-			Spec: supersetv1alpha1.SupersetSpec{
-				PodTemplate: &supersetv1alpha1.PodTemplate{
-					Container: &supersetv1alpha1.ContainerTemplate{
-						Ports: []corev1.ContainerPort{
-							{Name: "http", ContainerPort: 7070},
-						},
-					},
-				},
-				WebServer: &supersetv1alpha1.WebServerComponentSpec{},
-			},
-		}
-		port := resolveWebServerPort(s)
-		if port != 7070 {
-			t.Errorf("expected top-level port 7070 inherited, got %d", port)
-		}
-	})
-
-	t.Run("no web server", func(t *testing.T) {
-		s := &supersetv1alpha1.Superset{}
-		port := resolveWebServerPort(s)
-		if port != common.PortWebServer {
-			t.Errorf("expected default port %d for nil WebServer, got %d", common.PortWebServer, port)
-		}
-	})
-}
-
 func TestReconcileWebServerService_SelectorBasedOnMaintenanceActive(t *testing.T) {
 	superset := &supersetv1alpha1.Superset{
 		Name: "my-superset", Namespace: "default",
@@ -407,21 +333,6 @@ func TestReconcileWebServerService_SelectorBasedOnMaintenanceActive(t *testing.T
 		if selector[k] != v {
 			t.Errorf("expected selector[%s]=%s, got %s", k, v, selector[k])
 		}
-	}
-}
-
-func TestMaintenanceDeployConfig_UsesCustomPort(t *testing.T) {
-	port := int32(9090)
-	cfg := maintenanceDeployConfig
-	cfg.DefaultPorts = []corev1.ContainerPort{
-		{Name: common.PortNameHTTP, ContainerPort: port, Protocol: corev1.ProtocolTCP},
-	}
-
-	if len(cfg.DefaultPorts) != 1 {
-		t.Fatal("expected exactly 1 default port")
-	}
-	if cfg.DefaultPorts[0].ContainerPort != port {
-		t.Errorf("expected container port %d, got %d", port, cfg.DefaultPorts[0].ContainerPort)
 	}
 }
 

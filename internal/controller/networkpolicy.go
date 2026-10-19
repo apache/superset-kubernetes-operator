@@ -31,7 +31,6 @@ import (
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
-	"github.com/apache/superset-kubernetes-operator/internal/resolution"
 )
 
 // +kubebuilder:rbac:groups=networking.k8s.io,resources=networkpolicies,verbs=get;list;watch;create;update;patch;delete
@@ -39,7 +38,6 @@ import (
 // reconcileNetworkPolicies reconciles NetworkPolicy resources for all components.
 func (r *SupersetReconciler) reconcileNetworkPolicies(ctx context.Context, superset *supersetv1alpha1.Superset) error {
 	enabled := superset.Spec.NetworkPolicy != nil
-	topPT := superset.Spec.PodTemplate
 
 	// Define all components that need NetworkPolicies (no Init).
 	components := []struct {
@@ -52,7 +50,7 @@ func (r *SupersetReconciler) reconcileNetworkPolicies(ctx context.Context, super
 		{webServerDescriptor.resourceBaseName(&superset.Spec, superset.Name),
 			webServerDescriptor.instanceName(&superset.Spec, superset.Name),
 			string(common.ComponentWebServer), superset.Spec.WebServer != nil,
-			npContainerPort(common.PortWebServer, topPT, scalablePT(superset.Spec.WebServer))},
+			common.PortWebServer},
 		{celeryWorkerDescriptor.resourceBaseName(&superset.Spec, superset.Name),
 			celeryWorkerDescriptor.instanceName(&superset.Spec, superset.Name),
 			string(common.ComponentCeleryWorker), superset.Spec.CeleryWorker != nil, 0},
@@ -62,15 +60,15 @@ func (r *SupersetReconciler) reconcileNetworkPolicies(ctx context.Context, super
 		{celeryFlowerDescriptor.resourceBaseName(&superset.Spec, superset.Name),
 			celeryFlowerDescriptor.instanceName(&superset.Spec, superset.Name),
 			string(common.ComponentCeleryFlower), superset.Spec.CeleryFlower != nil,
-			flowerExternalPort(superset, topPT)},
+			flowerExternalPort(superset)},
 		{websocketServerDescriptor.resourceBaseName(&superset.Spec, superset.Name),
 			websocketServerDescriptor.instanceName(&superset.Spec, superset.Name),
 			string(common.ComponentWebsocketServer), superset.Spec.WebsocketServer != nil,
-			npContainerPort(common.PortWebsocket, topPT, scalablePT(superset.Spec.WebsocketServer))},
+			common.PortWebsocket},
 		{mcpServerDescriptor.resourceBaseName(&superset.Spec, superset.Name),
 			mcpServerDescriptor.instanceName(&superset.Spec, superset.Name),
 			string(common.ComponentMcpServer), superset.Spec.McpServer != nil,
-			npContainerPort(common.PortMcpServer, topPT, scalablePT(superset.Spec.McpServer))},
+			common.PortMcpServer},
 	}
 
 	for _, comp := range components {
@@ -184,51 +182,9 @@ func (r *SupersetReconciler) reconcileComponentNetworkPolicy(
 // ingress rule (which admits any in-cluster pod, not just ingress controllers) is
 // only installed when Flower is actually published — matching flowerRoutePublished.
 // Unpublished Flower stays reachable from same-instance pods via the baseline rule.
-func flowerExternalPort(superset *supersetv1alpha1.Superset, topPT *supersetv1alpha1.PodTemplate) int32 {
+func flowerExternalPort(superset *supersetv1alpha1.Superset) int32 {
 	if !flowerRoutePublished(superset) {
 		return 0
 	}
-	return npContainerPort(common.PortCeleryFlower, topPT, scalablePT(superset.Spec.CeleryFlower))
-}
-
-// npContainerPort resolves the container port for NetworkPolicy rules using the
-// same merge semantics as the resolution engine: top-level ports first,
-// component ports override by name, then take the first result.
-func npContainerPort(defaultPort int32, topPT, compPT *supersetv1alpha1.PodTemplate) int32 {
-	var topPorts, compPorts []corev1.ContainerPort
-	if topPT != nil && topPT.Container != nil {
-		topPorts = topPT.Container.Ports
-	}
-	if compPT != nil && compPT.Container != nil {
-		compPorts = compPT.Container.Ports
-	}
-	merged := resolution.MergeContainerPorts(topPorts, compPorts)
-	if len(merged) > 0 {
-		return merged[0].ContainerPort
-	}
-	return defaultPort
-}
-
-// scalablePT extracts the PodTemplate from a scalable component spec, returning
-// nil if the component is nil or has no PodTemplate.
-func scalablePT(comp any) *supersetv1alpha1.PodTemplate {
-	switch s := comp.(type) {
-	case *supersetv1alpha1.WebServerComponentSpec:
-		if s != nil {
-			return s.PodTemplate
-		}
-	case *supersetv1alpha1.CeleryFlowerComponentSpec:
-		if s != nil {
-			return s.PodTemplate
-		}
-	case *supersetv1alpha1.WebsocketServerComponentSpec:
-		if s != nil {
-			return s.PodTemplate
-		}
-	case *supersetv1alpha1.McpServerComponentSpec:
-		if s != nil {
-			return s.PodTemplate
-		}
-	}
-	return nil
+	return common.PortCeleryFlower
 }

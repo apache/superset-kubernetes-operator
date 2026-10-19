@@ -117,7 +117,6 @@ func (r *SupersetReconciler) reconcileWebServerService(ctx context.Context, supe
 	}
 
 	svcSpec := superset.Spec.WebServer.Service
-	containerPort := resolveWebServerPort(superset)
 	webServerLabels := componentLabels(string(common.ComponentWebServer), superset.Name)
 
 	_, err := createOrUpdateWithRetry(ctx, r.Client, svc, func() error {
@@ -125,7 +124,7 @@ func (r *SupersetReconciler) reconcileWebServerService(ctx context.Context, supe
 		if err := controllerutil.SetControllerReference(superset, svc, r.Scheme); err != nil {
 			return err
 		}
-		desiredSpec := buildServiceSpec(svcSpec, selector, containerPort, common.PortWebServer)
+		desiredSpec := buildServiceSpec(svcSpec, selector, common.PortWebServer)
 		preserveServiceAllocatedFields(&desiredSpec, svc.Spec)
 		svc.Spec = desiredSpec
 		var userLabels map[string]string
@@ -157,27 +156,6 @@ func stripLegacySupersetOwnerRefs(refs []metav1.OwnerReference) []metav1.OwnerRe
 		kept = append(kept, ref)
 	}
 	return kept
-}
-
-// resolveWebServerPort returns the resolved web-server container port, taking
-// into account top-level and per-component pod template port overrides. Mirrors
-// the port resolution used by the generic component Service reconciler so the
-// parent-owned web-server Service, the rendered SUPERSET_WEBSERVER_PORT, and
-// the rendered Deployment container port all agree.
-func resolveWebServerPort(superset *supersetv1alpha1.Superset) int32 {
-	if superset == nil || superset.Spec.WebServer == nil {
-		return common.PortWebServer
-	}
-	topLevel := convertTopLevelSpec(&superset.Spec)
-	accessor := webServerDescriptor.extract(&superset.Spec)
-	flat := resolution.ResolveComponentSpec(
-		common.ComponentWebServer, topLevel, convertComponent(accessor),
-		nil, &resolution.OperatorInjected{},
-	)
-	if flat != nil && flat.PodTemplate != nil && flat.PodTemplate.Container != nil && len(flat.PodTemplate.Container.Ports) > 0 {
-		return flat.PodTemplate.Container.Ports[0].ContainerPort
-	}
-	return common.PortWebServer
 }
 
 func (r *SupersetReconciler) reconcileHTTPRoute(ctx context.Context, superset *supersetv1alpha1.Superset) error {

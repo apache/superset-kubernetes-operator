@@ -81,13 +81,13 @@ var renderConfigComponents = []ComponentType{
 // arbitrary user-controlled string fields. It asserts that rendering never
 // panics and is deterministic (identical input yields byte-identical output).
 func FuzzRenderConfig(f *testing.F) {
-	f.Add("FEATURE_FLAGS = {}", "WEBSERVER_THREADS = 16", "PostgreSQL", "psycopg2", "ALERT_REPORTS", true, "superset_", uint8(2), true, int32(8088))
-	f.Add("", "", "MySQL", "", "", false, "", uint8(0), false, int32(0))
-	f.Add(`x = "quoted \n value"`, "", "MySQL", "mysqldb", "DASHBOARD_RBAC", false, `pre"fix`, uint8(1), true, int32(-1))
+	f.Add("FEATURE_FLAGS = {}", "WEBSERVER_THREADS = 16", "PostgreSQL", "psycopg2", "ALERT_REPORTS", true, "superset_", uint8(2), true)
+	f.Add("", "", "MySQL", "", "", false, "", uint8(0), false)
+	f.Add(`x = "quoted \n value"`, "", "MySQL", "mysqldb", "DASHBOARD_RBAC", false, `pre"fix`, uint8(1), true)
 
 	f.Fuzz(func(t *testing.T,
 		config, componentConfig, dbType, dbDriver, flagKey string,
-		flagVal bool, keyPrefix string, modeSel uint8, withValkey bool, port int32,
+		flagVal bool, keyPrefix string, modeSel uint8, withValkey bool,
 	) {
 		input := &ConfigInput{
 			MetastoreMode:   MetastoreMode(int(modeSel) % 3),
@@ -95,7 +95,6 @@ func FuzzRenderConfig(f *testing.F) {
 			DBDriver:        dbDriver,
 			Config:          config,
 			ComponentConfig: componentConfig,
-			WebServerPort:   port,
 		}
 		if flagKey != "" {
 			input.FeatureFlags = map[string]bool{flagKey: flagVal}

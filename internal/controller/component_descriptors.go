@@ -173,9 +173,6 @@ func (r *SupersetReconciler) reconcileComponent(
 		if accessor.config != nil {
 			compConfigInput.ComponentConfig = *accessor.config
 		}
-		if desc.componentType == naming.ComponentWebServer {
-			compConfigInput.WebServerPort = resolveWebServerPort(superset)
-		}
 
 		// Compute SQLALCHEMY_ENGINE_OPTIONS per component.
 		effectiveSQLASpec := superset.Spec.SQLAlchemyEngineOptions

@@ -629,9 +629,6 @@ type ContainerTemplate struct {
 	// Volume mounts for the main container.
 	// +optional
 	VolumeMounts []corev1.VolumeMount `json:"volumeMounts,omitempty"`
-	// Container ports. Replaces operator defaults when set.
-	// +optional
-	Ports []corev1.ContainerPort `json:"ports,omitempty"`
 	// Container-level security context.
 	// +optional
 	SecurityContext *corev1.SecurityContext `json:"securityContext,omitempty"`

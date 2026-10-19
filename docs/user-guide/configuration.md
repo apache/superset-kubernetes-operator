@@ -1035,7 +1035,6 @@ Per-component `deploymentTemplate` and `podTemplate` are each **field-level merg
 | `env` | Environment variables (merged by name) |
 | `envFrom` | ConfigMap/Secret env sources (appended) |
 | `volumeMounts` | Volume mounts (merged by name) |
-| `ports` | Container ports (replaces operator defaults when set; the first resolved port is used as the Service `targetPort`, the ingress port for the operator-managed NetworkPolicy, and as the target port for any default probes the user did not override) |
 | `securityContext` | Container-level security context |
 | `command` | Container entrypoint (no inheritance) |
 | `args` | Container arguments (no inheritance) |
@@ -1043,6 +1042,8 @@ Per-component `deploymentTemplate` and `podTemplate` are each **field-level merg
 | `readinessProbe` | Readiness probe |
 | `startupProbe` | Startup probe |
 | `lifecycle` | preStop/postStart lifecycle hooks |
+
+Container ports are not configurable. Each component listens on a fixed port set by the operator, and its Service, default probes, and NetworkPolicy target that port. To change the port clients connect to, set `service.port` (see [Services](networking-and-monitoring.md#services)).
 
 **Pod-level resources** (Kubernetes 1.34+): When `podTemplate.resources` is set, it defines the total resource budget for the entire pod, enabling resource sharing among containers (main + sidecars). Container-level `podTemplate.container.resources` remains available for per-container limits.
 

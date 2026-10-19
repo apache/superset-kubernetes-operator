@@ -332,7 +332,6 @@ _Appears in:_
 | `env` _[EnvVar](https://pkg.go.dev/k8s.io/api/core/v1#EnvVar) array_ | Environment variables. |  | Optional: \{\} <br /> |
 | `envFrom` _[EnvFromSource](https://pkg.go.dev/k8s.io/api/core/v1#EnvFromSource) array_ | Environment variable sources (ConfigMaps, Secrets). |  | Optional: \{\} <br /> |
 | `volumeMounts` _[VolumeMount](https://pkg.go.dev/k8s.io/api/core/v1#VolumeMount) array_ | Volume mounts for the main container. |  | Optional: \{\} <br /> |
-| `ports` _[ContainerPort](https://pkg.go.dev/k8s.io/api/core/v1#ContainerPort) array_ | Container ports. Replaces operator defaults when set. |  | Optional: \{\} <br /> |
 | `securityContext` _[SecurityContext](https://pkg.go.dev/k8s.io/api/core/v1#SecurityContext)_ | Container-level security context. |  | Optional: \{\} <br /> |
 | `command` _string array_ | Container entrypoint override. |  | Optional: \{\} <br /> |
 | `args` _string array_ | Container arguments override. |  | Optional: \{\} <br /> |

@@ -313,55 +313,6 @@ func TestMergeEnvFromSources(t *testing.T) {
 	}
 }
 
-func TestMergeContainerPorts(t *testing.T) {
-	tests := []struct {
-		name   string
-		slices [][]corev1.ContainerPort
-		expect []corev1.ContainerPort
-	}{
-		{
-			"nil inputs",
-			nil,
-			nil,
-		},
-		{
-			"no conflict",
-			[][]corev1.ContainerPort{
-				{{Name: "http", ContainerPort: 8088}},
-				{{Name: "debug", ContainerPort: 5005}},
-			},
-			[]corev1.ContainerPort{
-				{Name: "http", ContainerPort: 8088},
-				{Name: "debug", ContainerPort: 5005},
-			},
-		},
-		{
-			"name conflict replaces in place",
-			[][]corev1.ContainerPort{
-				{{Name: "http", ContainerPort: 8088}},
-				{{Name: "http", ContainerPort: 9090}},
-			},
-			[]corev1.ContainerPort{
-				{Name: "http", ContainerPort: 9090},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := MergeContainerPorts(tt.slices...)
-			if len(result) != len(tt.expect) {
-				t.Fatalf("expected %d ports, got %d", len(tt.expect), len(result))
-			}
-			for i, e := range tt.expect {
-				if result[i].Name != e.Name || result[i].ContainerPort != e.ContainerPort {
-					t.Errorf("index %d: expected {%s %d}, got {%s %d}", i, e.Name, e.ContainerPort, result[i].Name, result[i].ContainerPort)
-				}
-			}
-		})
-	}
-}
-
 func TestResolveScalar(t *testing.T) {
 	v1 := int32(5)
 	v2 := int32(10)

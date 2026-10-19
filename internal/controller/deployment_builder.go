@@ -53,7 +53,7 @@ type DeploymentConfig struct {
 	// DefaultArgs is used when the spec Args is empty.
 	DefaultArgs []string
 
-	// DefaultPorts are the container ports when none are specified on the spec.
+	// DefaultPorts are the container ports.
 	DefaultPorts []corev1.ContainerPort
 
 	// ForceReplicas, when non-nil, overrides the spec replicas (used for singletons like beat).
@@ -103,20 +103,10 @@ func buildDeploymentSpec(
 
 	image := fmt.Sprintf("%s:%s", spec.Image.Repository, spec.Image.Tag)
 
-	// Use spec ports if provided, otherwise fall back to component defaults.
-	ports := cfg.DefaultPorts
-	portsOverridden := len(ct.Ports) > 0
-	if portsOverridden {
-		ports = ct.Ports
-	}
-
 	// Resolve probes: user-provided takes precedence over component defaults.
-	// When the user overrides container ports, retarget any default probes to
-	// the first resolved port; otherwise the Service targetPort tracks the new
-	// port while probes remain on the hard-coded default port.
-	livenessProbe := resolveProbe(ct.LivenessProbe, cfg.DefaultLivenessProbe, portsOverridden, ports)
-	readinessProbe := resolveProbe(ct.ReadinessProbe, cfg.DefaultReadinessProbe, portsOverridden, ports)
-	startupProbe := resolveProbe(ct.StartupProbe, cfg.DefaultStartupProbe, portsOverridden, ports)
+	livenessProbe := resolveProbe(ct.LivenessProbe, cfg.DefaultLivenessProbe)
+	readinessProbe := resolveProbe(ct.ReadinessProbe, cfg.DefaultReadinessProbe)
+	startupProbe := resolveProbe(ct.StartupProbe, cfg.DefaultStartupProbe)
 
 	// Build the main container from ContainerTemplate.
 	mainContainer := corev1.Container{
@@ -127,7 +117,7 @@ func buildDeploymentSpec(
 		Env:             ct.Env,
 		EnvFrom:         ct.EnvFrom,
 		VolumeMounts:    ct.VolumeMounts,
-		Ports:           ports,
+		Ports:           cfg.DefaultPorts,
 		LivenessProbe:   livenessProbe,
 		ReadinessProbe:  readinessProbe,
 		StartupProbe:    startupProbe,
@@ -228,54 +218,27 @@ func safeContainerTemplatePtr(c *supersetv1alpha1.ContainerTemplate) *supersetv1
 	return &supersetv1alpha1.ContainerTemplate{}
 }
 
-// resolveContainerPort returns the first container port from the spec (if the
-// user overrode container ports), otherwise the component default.
-func resolveContainerPort(spec *supersetv1alpha1.FlatComponentSpec, defaultPort int32) int32 {
-	if spec != nil && spec.PodTemplate != nil && spec.PodTemplate.Container != nil && len(spec.PodTemplate.Container.Ports) > 0 {
-		return spec.PodTemplate.Container.Ports[0].ContainerPort
-	}
-	return defaultPort
-}
-
 // resolveProbe returns the user probe, or the component default when the user
 // set none. An empty user probe ({}) disables the probe, since a CR cannot use
 // null to remove a default.
-func resolveProbe(user, def *corev1.Probe, portsOverridden bool, ports []corev1.ContainerPort) *corev1.Probe {
+func resolveProbe(user, def *corev1.Probe) *corev1.Probe {
 	if user != nil {
 		if *user == (corev1.Probe{}) {
 			return nil
 		}
 		return user
 	}
-	if portsOverridden && def != nil {
-		return retargetProbe(def, ports[0].ContainerPort)
-	}
 	return def
 }
 
-// retargetProbe returns a copy of probe with HTTPGet/TCPSocket port replaced.
-// Used to keep default probes aligned with user-overridden container ports so
-// the Service targetPort and the probe target stay in sync.
-func retargetProbe(probe *corev1.Probe, port int32) *corev1.Probe {
-	out := probe.DeepCopy()
-	switch {
-	case out.HTTPGet != nil:
-		out.HTTPGet.Port = intstr.FromInt32(port)
-	case out.TCPSocket != nil:
-		out.TCPSocket.Port = intstr.FromInt32(port)
-	}
-	return out
-}
-
 // buildServiceSpec constructs a ServiceSpec from the component's ComponentServiceSpec,
-// selector labels, container port, and a default service port.
+// selector labels, and the component container port, which is also the default service port.
 func buildServiceSpec(
 	svcSpec *supersetv1alpha1.ComponentServiceSpec,
 	labels map[string]string,
 	containerPort int32,
-	defaultPort int32,
 ) corev1.ServiceSpec {
-	port := defaultPort
+	port := containerPort
 	svcType := corev1.ServiceTypeClusterIP
 	var nodePort int32
 

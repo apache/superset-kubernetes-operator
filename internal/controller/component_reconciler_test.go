@@ -193,7 +193,7 @@ func TestReconcileComponentService_PreservesClusterIPAcrossUpdate(t *testing.T) 
 	componentName := string(common.ComponentCeleryFlower)
 
 	// First reconcile creates the Service.
-	require.NoError(t, reconcileComponentService(ctx, c, scheme, owner, nil, componentName, common.PortCeleryFlower, common.PortCeleryFlower, resourceBaseName))
+	require.NoError(t, reconcileComponentService(ctx, c, scheme, owner, nil, componentName, common.PortCeleryFlower, resourceBaseName))
 
 	// Simulate the API server allocating a ClusterIP.
 	svc := &corev1.Service{}
@@ -203,7 +203,7 @@ func TestReconcileComponentService_PreservesClusterIPAcrossUpdate(t *testing.T) 
 	require.NoError(t, c.Update(ctx, svc))
 
 	// Second reconcile must preserve the allocated ClusterIP.
-	require.NoError(t, reconcileComponentService(ctx, c, scheme, owner, nil, componentName, common.PortCeleryFlower, common.PortCeleryFlower, resourceBaseName))
+	require.NoError(t, reconcileComponentService(ctx, c, scheme, owner, nil, componentName, common.PortCeleryFlower, resourceBaseName))
 
 	require.NoError(t, c.Get(ctx, client.ObjectKey{Name: resourceBaseName, Namespace: "default"}, svc))
 	assert.Equal(t, "10.20.30.40", svc.Spec.ClusterIP)

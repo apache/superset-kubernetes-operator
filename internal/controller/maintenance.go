@@ -58,6 +58,9 @@ const (
 var maintenanceDeployConfig = DeploymentConfig{
 	ContainerName:  maintenanceContainerName,
 	DefaultCommand: nil,
+	DefaultPorts: []corev1.ContainerPort{
+		{Name: naming.PortNameHTTP, ContainerPort: naming.PortWebServer, Protocol: corev1.ProtocolTCP},
+	},
 }
 
 func isMaintenancePageEnabled(superset *supersetv1alpha1.Superset) bool {
@@ -136,17 +139,16 @@ func (r *SupersetReconciler) reconcileMaintenancePageUp(
 ) (bool, error) {
 	log := logf.FromContext(ctx)
 	spec := superset.Spec.Lifecycle.MaintenancePage
-	port := resolveWebServerPort(superset)
 
 	// Step 1: Reconcile ConfigMap (managed mode only).
 	if !isCustomMode(spec) {
-		if err := r.reconcileMaintenanceConfigMap(ctx, superset, spec, port); err != nil {
+		if err := r.reconcileMaintenanceConfigMap(ctx, superset, spec); err != nil {
 			return false, fmt.Errorf("reconciling maintenance ConfigMap: %w", err)
 		}
 	}
 
 	// Step 2: CreateOrUpdate maintenance Deployment (parent-owned).
-	if err := r.reconcileMaintenanceDeployment(ctx, superset, spec, port); err != nil {
+	if err := r.reconcileMaintenanceDeployment(ctx, superset, spec); err != nil {
 		return false, fmt.Errorf("reconciling maintenance Deployment: %w", err)
 	}
 
@@ -265,7 +267,6 @@ func (r *SupersetReconciler) reconcileMaintenanceDeployment(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
 	spec *supersetv1alpha1.MaintenancePageSpec,
-	port int32,
 ) error {
 	deployName := maintenanceDeploymentName(superset.Name)
 
@@ -276,11 +277,6 @@ func (r *SupersetReconciler) reconcileMaintenanceDeployment(
 		naming.AnnotationConfigChecksum: checksum,
 	}
 
-	cfg := maintenanceDeployConfig
-	cfg.DefaultPorts = []corev1.ContainerPort{
-		{Name: naming.PortNameHTTP, ContainerPort: port, Protocol: corev1.ProtocolTCP},
-	}
-
 	deploy := &appsv1.Deployment{
 		Name:      deployName,
 		Namespace: superset.Namespace,
@@ -289,7 +285,7 @@ func (r *SupersetReconciler) reconcileMaintenanceDeployment(
 		if err := controllerutil.SetControllerReference(superset, deploy, r.Scheme); err != nil {
 			return err
 		}
-		deploy.Spec = buildDeploymentSpec(&flat, cfg, podAnnotations, selectorLabels)
+		deploy.Spec = buildDeploymentSpec(&flat, maintenanceDeployConfig, podAnnotations, selectorLabels)
 		deploy.Labels = mergeLabels(nil, componentLabels(string(naming.ComponentMaintenancePage), superset.Name))
 		return nil
 	})
@@ -302,7 +298,6 @@ func (r *SupersetReconciler) reconcileMaintenanceConfigMap(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
 	spec *supersetv1alpha1.MaintenancePageSpec,
-	port int32,
 ) error {
 	cmName := maintenanceConfigMapName(superset.Name)
 
@@ -316,7 +311,7 @@ func (r *SupersetReconciler) reconcileMaintenanceConfigMap(
 		}
 		cm.Data = map[string]string{
 			"nginx.conf":   renderMaintenanceNginxMainConf(),
-			"default.conf": renderNginxConf(port),
+			"default.conf": renderNginxConf(),
 			"index.html":   renderMaintenanceHTML(spec),
 		}
 		return nil
@@ -489,9 +484,9 @@ http {
 }`
 }
 
-func renderNginxConf(port int32) string {
+func renderNginxConf() string {
 	return `server {
-    listen ` + fmt.Sprintf("%d", port) + `;
+    listen ` + fmt.Sprintf("%d", naming.PortWebServer) + `;
     server_name _;
 
     location = / {

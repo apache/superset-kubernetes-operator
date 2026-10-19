@@ -280,79 +280,7 @@ func TestBuildDeploymentSpec(t *testing.T) {
 		}
 	})
 
-	t.Run("retargets default probes to overridden port", func(t *testing.T) {
-		spec := &supersetv1alpha1.FlatComponentSpec{
-			Image: supersetv1alpha1.ImageSpec{
-				Repository: "apache/superset",
-				Tag:        "latest",
-				PullPolicy: corev1.PullIfNotPresent,
-			},
-			PodTemplate: &supersetv1alpha1.PodTemplate{
-				Container: &supersetv1alpha1.ContainerTemplate{
-					Ports: []corev1.ContainerPort{
-						{Name: common.PortNameHTTP, ContainerPort: 9999, Protocol: corev1.ProtocolTCP},
-					},
-				},
-			},
-		}
-		labels := map[string]string{"app": "test"}
-		cfg := DeploymentConfig{
-			ContainerName:  common.Container,
-			DefaultCommand: []string{"/usr/bin/run-server.sh"},
-			DefaultPorts: []corev1.ContainerPort{
-				{Name: common.PortNameHTTP, ContainerPort: common.PortWebServer, Protocol: corev1.ProtocolTCP},
-			},
-			DefaultLivenessProbe:  httpProbe("/health", common.PortWebServer, 15),
-			DefaultReadinessProbe: httpProbe("/health", common.PortWebServer, 5),
-			DefaultStartupProbe:   tcpProbe(common.PortWebServer, 15),
-		}
-
-		result := buildDeploymentSpec(spec, cfg, nil, labels)
-		container := result.Template.Spec.Containers[0]
-
-		if got := container.LivenessProbe.HTTPGet.Port; got != intstr.FromInt32(9999) {
-			t.Errorf("liveness probe port: got %v, want 9999", got)
-		}
-		if got := container.ReadinessProbe.HTTPGet.Port; got != intstr.FromInt32(9999) {
-			t.Errorf("readiness probe port: got %v, want 9999", got)
-		}
-		if got := container.StartupProbe.TCPSocket.Port; got != intstr.FromInt32(9999) {
-			t.Errorf("startup probe port: got %v, want 9999", got)
-		}
-
-		// Defaults should not be mutated by retargeting.
-		if cfg.DefaultLivenessProbe.HTTPGet.Port != intstr.FromInt32(common.PortWebServer) {
-			t.Errorf("default liveness probe was mutated: got %v", cfg.DefaultLivenessProbe.HTTPGet.Port)
-		}
-	})
-
-	t.Run("keeps default probes when ports not overridden", func(t *testing.T) {
-		spec := &supersetv1alpha1.FlatComponentSpec{
-			Image: supersetv1alpha1.ImageSpec{
-				Repository: "apache/superset",
-				Tag:        "latest",
-				PullPolicy: corev1.PullIfNotPresent,
-			},
-		}
-		labels := map[string]string{"app": "test"}
-		cfg := DeploymentConfig{
-			ContainerName:  common.Container,
-			DefaultCommand: []string{"/usr/bin/run-server.sh"},
-			DefaultPorts: []corev1.ContainerPort{
-				{Name: common.PortNameHTTP, ContainerPort: common.PortWebServer, Protocol: corev1.ProtocolTCP},
-			},
-			DefaultLivenessProbe: httpProbe("/health", common.PortWebServer, 15),
-		}
-
-		result := buildDeploymentSpec(spec, cfg, nil, labels)
-		container := result.Template.Spec.Containers[0]
-
-		if got := container.LivenessProbe.HTTPGet.Port; got != intstr.FromInt32(common.PortWebServer) {
-			t.Errorf("liveness probe port: got %v, want %d", got, common.PortWebServer)
-		}
-	})
-
-	t.Run("user probe wins over retargeting", func(t *testing.T) {
+	t.Run("user probe wins over default", func(t *testing.T) {
 		userProbe := httpProbe("/custom", 7777, 1)
 		spec := &supersetv1alpha1.FlatComponentSpec{
 			Image: supersetv1alpha1.ImageSpec{
@@ -362,9 +290,6 @@ func TestBuildDeploymentSpec(t *testing.T) {
 			},
 			PodTemplate: &supersetv1alpha1.PodTemplate{
 				Container: &supersetv1alpha1.ContainerTemplate{
-					Ports: []corev1.ContainerPort{
-						{Name: common.PortNameHTTP, ContainerPort: 9999, Protocol: corev1.ProtocolTCP},
-					},
 					LivenessProbe: userProbe,
 				},
 			},
@@ -436,42 +361,13 @@ func TestBuildDeploymentSpec(t *testing.T) {
 	})
 }
 
-func TestResolveContainerPort(t *testing.T) {
-	t.Run("nil spec", func(t *testing.T) {
-		got := resolveContainerPort(nil, 8088)
-		if got != 8088 {
-			t.Errorf("expected 8088, got %d", got)
-		}
-	})
-	t.Run("no container ports", func(t *testing.T) {
-		spec := &supersetv1alpha1.FlatComponentSpec{}
-		got := resolveContainerPort(spec, 8088)
-		if got != 8088 {
-			t.Errorf("expected 8088, got %d", got)
-		}
-	})
-	t.Run("custom container port", func(t *testing.T) {
-		spec := &supersetv1alpha1.FlatComponentSpec{
-			PodTemplate: &supersetv1alpha1.PodTemplate{
-				Container: &supersetv1alpha1.ContainerTemplate{
-					Ports: []corev1.ContainerPort{{ContainerPort: 9090}},
-				},
-			},
-		}
-		got := resolveContainerPort(spec, 8088)
-		if got != 9090 {
-			t.Errorf("expected 9090, got %d", got)
-		}
-	})
-}
-
 // TestBuildServiceSpec covers how buildServiceSpec maps a ComponentServiceSpec to a
 // Service spec: ClusterIP defaults, custom type/port/nodePort, and that the target
 // port follows the container port rather than the service port.
 func TestBuildServiceSpec(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
 		labels := map[string]string{"app": "test"}
-		result := buildServiceSpec(nil, labels, 8088, 8088)
+		result := buildServiceSpec(nil, labels, 8088)
 
 		if result.Type != corev1.ServiceTypeClusterIP {
 			t.Errorf("expected ClusterIP, got %s", result.Type)
@@ -493,7 +389,7 @@ func TestBuildServiceSpec(t *testing.T) {
 			Port:     &port,
 			NodePort: &nodePort,
 		}
-		result := buildServiceSpec(svcSpec, labels, 8088, 8088)
+		result := buildServiceSpec(svcSpec, labels, 8088)
 
 		if result.Type != corev1.ServiceTypeNodePort {
 			t.Errorf("expected NodePort, got %s", result.Type)
@@ -509,21 +405,6 @@ func TestBuildServiceSpec(t *testing.T) {
 		}
 	})
 
-	t.Run("custom container port", func(t *testing.T) {
-		labels := map[string]string{"app": "test"}
-		port := int32(443)
-		svcSpec := &supersetv1alpha1.ComponentServiceSpec{
-			Port: &port,
-		}
-		result := buildServiceSpec(svcSpec, labels, 9090, 8088)
-
-		if result.Ports[0].Port != 443 {
-			t.Errorf("expected service port 443, got %d", result.Ports[0].Port)
-		}
-		if result.Ports[0].TargetPort != intstr.FromInt32(9090) {
-			t.Errorf("expected targetPort 9090 (custom container port), got %v", result.Ports[0].TargetPort)
-		}
-	})
 }
 
 // assertHardenedDefaults checks the operator's UID-independent container
