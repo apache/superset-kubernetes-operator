@@ -88,6 +88,8 @@ spec:
       host: superset.example.com   # no explicit paths -> all components routed by path
 ```
 
+Without `host` or `hosts`, the operator emits a single rule with no host. It matches every hostname and carries the same per-component fan-out.
+
 A host **with** explicit `paths` is treated as a user-controlled override and those paths route to the web server only — use this when you want full control of the path rules for a host:
 
 ```yaml

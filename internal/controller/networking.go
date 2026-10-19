@@ -382,6 +382,10 @@ func (r *SupersetReconciler) reconcileIngress(ctx context.Context, superset *sup
 				{Host: ing.Host},
 			}
 		}
+		// The apiserver rejects an Ingress with neither rules nor a default backend.
+		if len(hosts) == 0 {
+			hosts = []supersetv1alpha1.IngressHost{{}}
+		}
 
 		// Build rules from hosts. A host without explicit Paths gets the full
 		// per-component fan-out (web "/" plus /flower, /mcp, /ws for present
