@@ -336,7 +336,7 @@ type BaseTaskSpec struct {
 	// executing the task Job, preventing database connection conflicts. Drain is
 	// skipped when the task is already complete for the current checksum, or when
 	// no configured component has desired replicas greater than zero.
-	// Defaults vary per task type: true for seed, migrate, and rotate; false for backup and init.
+	// Defaults vary per task type: true for seed, backup, migrate, and rotate; false for init.
 	// +optional
 	RequiresDrain *bool `json:"requiresDrain,omitempty"`
 
@@ -447,8 +447,8 @@ type LifecycleSpec struct {
 	// restoring the snapshot. Presence enables the task. It runs at most once
 	// per lifecycle run, before the first pending migrate or rotate task;
 	// config-only changes that re-run only init never trigger it. By default
-	// it runs before drain, while the current version keeps serving, so a
-	// failed backup blocks the upgrade without causing downtime.
+	// it runs after drain, so the snapshot matches the database that migrate
+	// sees; a failed backup blocks the upgrade and leaves components drained.
 	// +optional
 	Backup *BackupTaskSpec `json:"backup,omitempty"`
 
@@ -487,10 +487,10 @@ type RotateTaskSpec struct {
 // revision, size, SHA-256); a dump is only committed after it has been read
 // back in full and its checksum re-verified, and completed backups are never
 // overwritten. Completed backups are only deleted when retention.keepLast is
-// set. requiresDrain defaults to false: the dump is a consistent snapshot
-// taken while the current version keeps serving; set it to true to drain
-// first so the snapshot also contains the writes made right before the
-// upgrade, at the cost of longer downtime. timeout defaults to 1h.
+// set. requiresDrain defaults to true: components are drained before the
+// dump, so no writes land between the snapshot and migrate. Set it to false
+// to take the dump while the current version keeps serving, which shortens
+// downtime but can miss writes made after the dump. timeout defaults to 1h.
 // +kubebuilder:validation:XValidation:rule="(has(self.disabled) && self.disabled) || (has(self.command) && size(self.command) > 0) || has(self.destination)",message="lifecycle.backup requires destination (or a custom command that ships the dump elsewhere); without it the dump would be written to the ephemeral container filesystem and lost"
 // +kubebuilder:validation:XValidation:rule="!has(self.retention) || has(self.destination)",message="lifecycle.backup.retention requires destination; retention prunes dumps on the backup volume"
 type BackupTaskSpec struct {

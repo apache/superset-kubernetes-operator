@@ -162,7 +162,7 @@ Each task declares whether it requires components to be drained (scaled to zero)
 | Task | Default `requiresDrain` | Rationale |
 |------|------------------------|-----------|
 | Seed | `true` | DROP DATABASE fails with active connections |
-| Backup | `false` | Runs before drain: the dump is a consistent snapshot taken while the current version keeps serving, so a slow or failed backup causes no downtime |
+| Backup | `true` | No writes land between the dump and migrate, so the snapshot matches the database that migrate sees |
 | Migrate | `true` | Schema changes risk deadlocks and version/schema inconsistencies |
 | Rotate | `true` | After re-encryption, stored secrets use the new key — components with the old key would fail to decrypt |
 | Init | `false` | Role/permission operations are safe with components running |
@@ -254,13 +254,9 @@ flowchart TD
     A[Reconcile] --> B{Lifecycle disabled?}
     B -->|Yes| Z[Components reconcile normally]
     B -->|No| C{upgradeMode}
-    C -->|Automatic| BK
+    C -->|Automatic| E
     C -->|Supervised| D[Await approval]
-    D --> BK{Backup enabled and migrate or rotate pending?}
-    BK -->|Yes, not yet taken this run| BK1[Execute backup job while components serve]
-    BK -->|No| E
-    BK1 -->|verified| E{Any task requires drain?}
-    BK1 -->|failed| BKF[Stop: upgrade blocked, current version keeps serving]
+    D --> E{Any task requires drain?}
     E -->|Yes| MP{Maintenance page configured?}
     E -->|No| G
     MP -->|Yes| MP1[Deploy maintenance page, switch Service selector]
@@ -270,7 +266,11 @@ flowchart TD
     G -->|checksum match| H[Skip]
     G -->|checksum mismatch| G1[Execute seed job]
     G1 --> H
-    H --> I[Migrate task]
+    H --> BK{Backup enabled and migrate or rotate pending?}
+    BK -->|Yes, not yet taken this run| BK1[Execute backup job]
+    BK -->|No| I
+    BK1 -->|verified| I[Migrate task]
+    BK1 -->|failed| BKF[Stop: upgrade blocked, components stay drained]
     I -->|checksum match| J[Skip]
     I -->|checksum mismatch| I1[Execute migrate job]
     I1 --> J
@@ -287,7 +287,7 @@ flowchart TD
     N --> Z
 ```
 
-Disabled tasks are removed from the pipeline entirely (not shown as "skip"). With `backup.requiresDrain: true`, the backup runs after drain instead, immediately before migrate or rotate.
+Disabled tasks are removed from the pipeline entirely (not shown as "skip"). The backup runs immediately before the first pending migrate or rotate. With `backup.requiresDrain: false`, it runs before maintenance and drain instead, while components still serve.
 
 ## Custom Commands
 
@@ -458,7 +458,7 @@ spec:
 ### When It Runs
 
 - At most once per lifecycle run, before the first pending migrate or rotate task. That covers image upgrades, `migrate.trigger`, and secret key rotation.
-- Before drain, while the current version keeps serving. A slow backup adds no downtime, and a failed backup blocks the upgrade without taking the instance down. Set `backup.requiresDrain: true` to drain first instead, so the snapshot also contains the writes made in the minutes before the upgrade, at the cost of downtime for the duration of the dump.
+- After drain, so no writes land between the dump and migrate and the snapshot matches the database that migrate sees. The dump adds to the downtime of the upgrade; with `maintenancePage` set, users see the maintenance page while it runs. Set `backup.requiresDrain: false` to take the dump while the current version keeps serving instead, which shortens downtime but can miss writes made after the dump.
 - In `Supervised` mode, only after the upgrade is approved.
 - Not for config-only changes that re-run only init, and not when only the backup spec itself changes.
 - A retried migrate (for example after bumping `migrate.trigger`) reuses the snapshot taken before the first attempt, so a partially migrated database never replaces the clean restore point.
@@ -505,7 +505,7 @@ By default the operator never deletes completed backups. With `retention.keepLas
 - **Security context**: the Job runs as the image's non-root user (UID 70 for PostgreSQL, 999 for MySQL) unless you pin a UID, and defaults the pod `fsGroup` to that UID (with `fsGroupChangePolicy: OnRootMismatch`) when you have not set one, so the volume is writable. Some volume types (for example NFS) ignore `fsGroup`.
 - **OpenShift**: the default UID (70/999) and `fsGroup` are outside the UID range that the `restricted-v2` SCC assigns to a namespace, so the Job is rejected. Pin in-range values with `backup.podTemplate.podSecurityContext.runAsUser` and `fsGroup` (see the namespace's `openshift.io/sa.scc.uid-range` annotation). The same applies to the `createDatabase` init container.
 - **Volume access mode**: a `ReadWriteOnce` claim can only be mounted on one node at a time. If another pod on a different node holds it (a retention CronJob, a restore pod, or another instance's backup sharing the claim), the backup pod stays `Pending` until its timeout, fails, and blocks the upgrade. Use a separate claim per instance, schedule housekeeping outside upgrade windows, or use a `ReadWriteMany` volume when the claim is shared.
-- **Load**: the dump runs against the live database before drain. `pg_dump` and `mysqldump --single-transaction` do not block writers, but they add read load for the duration of the dump.
+- **Load**: with `requiresDrain: false`, the dump runs against the live database. `pg_dump` and `mysqldump --single-transaction` do not block writers, but they add read load for the duration of the dump.
 - **Timeout**: defaults to `1h` per attempt.
 - **Pod template**: `backup.podTemplate` is merged over the top-level `spec.podTemplate`; like seed, `spec.lifecycle.podTemplate` does not apply.
 - **Seed**: backup and seed are mutually exclusive (a seeded database is reproducible from its source, and a seed schedule would otherwise take a snapshot on every tick).
@@ -532,10 +532,10 @@ A custom command owns the guarantees the default command provides (verification,
 
 ### When the Backup Fails
 
-The upgrade stops before touching the database. Components are not drained and keep serving on the current version; with `requiresDrain: true` they stay drained, because bringing them up on the new image against the old schema is unsafe. `status.lifecycle.backup.message` shows the failing step and the tail of the tool's error output (credentials are redacted), for example `backup failed at connect: ... password authentication failed`. Then:
+The upgrade stops before touching the database. Components stay drained, and the maintenance page keeps serving if configured, because bringing them up on the new image against the old schema is unsafe. With `requiresDrain: false` the backup fails before drain, so components keep serving on the current version. `status.lifecycle.backup.message` shows the failing step and the tail of the tool's error output (credentials are redacted), for example `backup failed at connect: ... password authentication failed`. Then:
 
 - Fix the cause. Any change to the backup pod configuration (image, resources, security context, command) retries it, even after retries are exhausted. If the fix was outside the Superset spec (for example freeing space on the volume), bump `backup.trigger` to retry.
-- Or revert `spec.image.tag`: migrate no longer needs to run, so nothing changes and no backup is needed.
+- Or revert `spec.image.tag`: migrate no longer needs to run, so components come back on the current version without a backup.
 - Or set `backup.disabled: true` to proceed without a snapshot.
 
 ### Restoring

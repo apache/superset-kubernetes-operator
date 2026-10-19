@@ -148,7 +148,7 @@ var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 		TaskType:        taskTypeBackup,
 		Suffix:          suffixBackup,
 		Phase:           lifecyclePhaseBackingUp,
-		DrainsByDefault: false,
+		DrainsByDefault: true,
 		OutOfCascade:    true,
 		DefaultTimeout:  defaultBackupTimeout,
 		BuildCommand: func(_ *SupersetReconciler, s *supersetv1alpha1.Superset) []string {
