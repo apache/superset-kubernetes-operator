@@ -28,7 +28,7 @@ This guide walks through setting up a local development environment with Kind, P
 | Docker daemon | 20+ | [Docker Desktop](https://docs.docker.com/get-docker/), [Colima](https://github.com/abiosoft/colima) (`brew install colima`), or [Podman](https://podman.io) |
 | kubectl | 1.27+ | [kubernetes.io](https://kubernetes.io/docs/tasks/tools/) |
 | Kind | 0.30+ | `brew install kind` or `go install sigs.k8s.io/kind@latest` |
-| Go | 1.27.2 | `brew install go` or [go.dev](https://go.dev/dl/) |
+| Go | 1.27.3 | `brew install go` or [go.dev](https://go.dev/dl/) |
 | Helm | 4+ | `brew install helm` or [helm.sh](https://helm.sh/docs/intro/install/) — used by `make lint` (Helm chart lint) and the chart tests |
 
 ### macOS notes

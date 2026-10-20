@@ -21,7 +21,7 @@ under the License.
 
 ## Project Overview
 
-Kubernetes operator for Apache Superset, built with the Go-based Operator SDK and Go 1.27.2.
+Kubernetes operator for Apache Superset, built with the Go-based Operator SDK and Go 1.27.3.
 
 - Module: `github.com/apache/superset-kubernetes-operator`
 - API group: `superset.apache.org/v1alpha1`
