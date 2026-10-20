@@ -40,7 +40,7 @@ dist/
 # Apache Rat
 rat-results.txt
 
-# mkdocs
+# zensical
 site/
 
 # Python virtualenv

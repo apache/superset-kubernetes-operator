@@ -20,7 +20,7 @@ on:
     branches: [main]
     paths:
       - "docs/**"
-      - "mkdocs.yml"
+      - "zensical.toml"
       - "docs-requirements.in"
       - "docs-requirements.txt"
       - "Makefile"
@@ -29,7 +29,7 @@ on:
     branches: [main]
     paths:
       - "docs/**"
-      - "mkdocs.yml"
+      - "zensical.toml"
       - "docs-requirements.in"
       - "docs-requirements.txt"
       - "Makefile"
