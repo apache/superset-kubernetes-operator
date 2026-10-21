@@ -3218,10 +3218,6 @@ for up-to-date guidance on deploying extensions.</p>
 <td>Volume mounts (merged by name)</td>
 </tr>
 <tr>
-<td><code>ports</code></td>
-<td>Container ports (replaces operator defaults when set; the first resolved port is used as the Service <code>targetPort</code>, the ingress port for the operator-managed NetworkPolicy, and as the target port for any default probes the user did not override)</td>
-</tr>
-<tr>
 <td><code>securityContext</code></td>
 <td>Container-level security context</td>
 </tr>
@@ -3251,6 +3247,7 @@ for up-to-date guidance on deploying extensions.</p>
 </tr>
 </tbody>
 </table>
+<p>Container ports are not configurable. Each component listens on a fixed port set by the operator, and its Service, default probes, and NetworkPolicy target that port. To change the port clients connect to, set <code>service.port</code> (see <a href="../networking-and-monitoring/#services">Services</a>).</p>
 <p><strong>Pod-level resources</strong> (Kubernetes 1.34+): When <code>podTemplate.resources</code> is set, it defines the total resource budget for the entire pod, enabling resource sharing among containers (main + sidecars). Container-level <code>podTemplate.container.resources</code> remains available for per-container limits.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a><span class="nt">spec</span><span class="p">:</span>
 <a id="__codelineno-45-2" name="__codelineno-45-2" href="#__codelineno-45-2"></a><span class="w">  </span><span class="nt">podTemplate</span><span class="p">:</span>

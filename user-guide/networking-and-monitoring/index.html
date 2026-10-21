@@ -1264,6 +1264,7 @@ under the License.
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">      </span><span class="nt">annotations</span><span class="p">:</span>
 <a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">        </span><span class="nt">service.beta.kubernetes.io/aws-load-balancer-internal</span><span class="p">:</span><span class="w"> </span><span class="s">"true"</span>
 </code></pre></div>
+<p><code>port</code> changes only the Service port. The Service always targets the component's fixed container port.</p>
 <p>The operator does not expose Kubernetes <code>Service.spec.loadBalancerIP</code> because that field is deprecated. Prefer controller-specific annotations when your provider documents them.</p>
 <h2 id="gateway-api-recommended">Gateway API (Recommended)<a class="headerlink" href="#gateway-api-recommended" title="Permanent link">&para;</a></h2>
 <p>Requires <a href="https://gateway-api.sigs.k8s.io/">Gateway API CRDs</a> installed on the cluster. Gateway API is not included in Kubernetes and must be <a href="https://gateway-api.sigs.k8s.io/guides/#installing-gateway-api">installed separately</a>. If the CRDs are absent, the operator logs a message and skips HTTPRoute management.</p>

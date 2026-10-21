@@ -2123,7 +2123,7 @@ under the License.
 <ol>
 <li>Determine the Kubernetes level: <code>DeploymentTemplate</code> (Deployment-level), <code>PodTemplate</code> (PodSpec-level), or <code>ContainerTemplate</code> (Container-level)</li>
 <li>Add the field to the appropriate template type in <code>api/v1alpha1/shared_types.go</code></li>
-<li>Add the merge logic in <code>internal/resolution/merge.go</code> using the field's natural semantics: scalars are overridden by the component value, named collections merge by name, maps merge by key, and unnamed collections append. Values are applied in order: the top-level value establishes ordering, the component value overrides in place, and where applicable (env vars, volume mounts, labels) operator-injected values are applied last so they cannot be overridden by user configuration. Any code consuming resolved ports, env vars, or other merged collections must respect this same ordering.</li>
+<li>Add the merge logic in <code>internal/resolution/merge.go</code> using the field's natural semantics: scalars are overridden by the component value, named collections merge by name, maps merge by key, and unnamed collections append. Values are applied in order: the top-level value establishes ordering, the component value overrides in place, and where applicable (env vars, volume mounts, labels) operator-injected values are applied last so they cannot be overridden by user configuration. Any code consuming resolved env vars, volume mounts, or other merged collections must respect this same ordering.</li>
 <li>Wire the field in <code>internal/controller/deployment_builder.go</code> (<code>buildDeploymentSpec</code>)</li>
 <li>Run <code>make manifests generate</code></li>
 <li>Add assertions to existing comprehensive tests</li>
