@@ -579,7 +579,7 @@ var _ = Describe("Superset lifecycle backup (MySQL)", Ordered, func() {
 
 	mysqlExec := func(sql string) string {
 		out, err := runKubectl("exec", "-n", namespace, "deploy/"+dbName, "--",
-			"mysql", "-usuperset", "-psuperset-e2e", "-N", "-B", "superset", "-e", sql)
+			"mysql", "-h", "127.0.0.1", "-usuperset", "-psuperset-e2e", "-N", "-B", "superset", "-e", sql)
 		ExpectWithOffset(1, err).NotTo(HaveOccurred())
 		lines := strings.Split(strings.TrimSpace(out), "\n")
 		return strings.TrimSpace(lines[len(lines)-1])
@@ -1077,7 +1077,7 @@ spec:
 		expectJSONPath("job", crName+"-migrate",
 			"{.spec.template.spec.initContainers[?(@.name=='create-database')].image}", "mysql:8.4", time.Minute)
 		out, err := runKubectl("exec", "-n", namespace, "deploy/"+dbName, "--",
-			"mysql", "-uroot", "-proot-e2e", "-N", "-B", "-e", "SHOW DATABASES LIKE 'superset'")
+			"mysql", "-h", "127.0.0.1", "-uroot", "-proot-e2e", "-N", "-B", "-e", "SHOW DATABASES LIKE 'superset'")
 		Expect(err).NotTo(HaveOccurred())
 		Expect(out).To(ContainSubstring("superset"), "createDatabase ran after the skipped backup")
 	})
