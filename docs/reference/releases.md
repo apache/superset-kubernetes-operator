@@ -36,10 +36,13 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 - **Breaking:** `podTemplate.container.ports` is removed. Each component now always listens on its operator default port, and its Service `targetPort`, default probes, and NetworkPolicy always target that port. Overriding the first port used to move the Service, probes, and NetworkPolicy without changing the port the server listened on, so the pods restarted in a loop. A port set on the top-level `podTemplate.container` was also merged into every HTTP component. Remove `ports` from your Superset resources before upgrading: the API server drops the field from stored resources, and `kubectl apply` with strict field validation rejects it. Instances that set `ports` go back to the default port and roll once on upgrade. To change the port clients connect to, use `service.port` ([#462](https://github.com/apache/superset-kubernetes-operator/pull/462), [@younsl](https://github.com/younsl)).
 - **Celery worker liveness probe.** The Celery worker now gets a default liveness probe that runs `celery inspect ping` against the pod's own worker node, so a worker that stays Running but no longer answers over the broker is restarted. Timings match the upstream Superset Helm chart (120s initial delay, 60s period and timeout, 3 failures). Existing worker Deployments roll once on upgrade, and setting `livenessProbe` on the worker replaces the default ([#427](https://github.com/apache/superset-kubernetes-operator/pull/427), [@younsl](https://github.com/younsl)).
 
+## 0.3.1 - 2026-10-21
+
 ### Fixed
 
 - Credential redaction in lifecycle task failure messages now masks the whole value when a quoted credential key is followed by empty quotes and more characters, such as `{"password": ""hunter2}`. Previously the characters after the empty quotes were left in the parent Superset status and Kubernetes Events ([#437](https://github.com/apache/superset-kubernetes-operator/pull/437), [@younsl](https://github.com/younsl)).
 - Setting `spec.valkey.ssl` without certificate files (for example `ssl: {}` for managed Valkey or Redis with in-transit encryption) no longer crash-loops the Celery worker. The operator now renders `ssl_cert_reqs` and the Celery `broker_use_ssl` and `redis_backend_use_ssl` options whenever SSL is enabled, and `ssl.certRequired` takes effect without certificate paths. Deployments that use SSL roll once on upgrade ([#440](https://github.com/apache/superset-kubernetes-operator/pull/440), [@younsl](https://github.com/younsl)).
+- Built with Go 1.27.2 and `golang.org/x/net` v0.60.0, which pick up upstream security fixes.
 
 ## 0.3.0 - 2026-09-30
 
