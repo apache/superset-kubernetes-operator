@@ -828,11 +828,8 @@ spec:
       fsGroup: 1000
     container:
       securityContext:
-        readOnlyRootFilesystem: false
         allowPrivilegeEscalation: false
 ```
-
-Keep `readOnlyRootFilesystem` unset or `false` for Superset components. Superset writes to `/tmp` and `/app` at runtime, and Celery beat keeps its pid and schedule files in `/tmp`.
 
 Or override per component (replaces the top-level value):
 
@@ -843,6 +840,22 @@ spec:
       podSecurityContext:
         runAsUser: 1000
         runAsNonRoot: true
+```
+
+If you enable `readOnlyRootFilesystem`, mount an `emptyDir` at `/tmp`. The web server and Celery beat write temporary files there, and fail to start without it:
+
+```yaml
+spec:
+  podTemplate:
+    volumes:
+      - name: tmp
+        emptyDir: {}
+    container:
+      securityContext:
+        readOnlyRootFilesystem: true
+      volumeMounts:
+        - name: tmp
+          mountPath: /tmp
 ```
 
 ## Autoscaling (HPA)
