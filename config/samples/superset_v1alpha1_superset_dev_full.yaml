@@ -116,7 +116,7 @@ spec:
   #       readOnlyRootFilesystem: false # Superset needs /tmp and /app writes
 
   # Shared Python config (applies to all Python components). WebDriver/screenshot
-  # settings power thumbnails and alerts & reports; CeleryConfig.imports/prefetch
+  # settings power thumbnails and alerts & reports; CeleryConfig.imports/acks
   # are shared Celery app behavior layered onto the operator-rendered CeleryConfig.
   config: |
     # --- Reports & thumbnails: WebDriver / screenshot settings ---
@@ -135,7 +135,6 @@ spec:
         "superset.tasks.thumbnails",
         "superset.tasks.cache",
     )
-    CeleryConfig.worker_prefetch_multiplier = 1
     CeleryConfig.task_acks_late = False
 
   webServer:
@@ -156,6 +155,7 @@ spec:
     replicas: 2
     celery:
       preset: balanced
+      prefetchMultiplier: 1
 
   # Singleton scheduler. Beat-only settings live here so schedule edits roll just
   # the Beat Deployment. beat_schedule mutates the operator-rendered CeleryConfig.

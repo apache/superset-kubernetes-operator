@@ -16,6 +16,9 @@
 # Production-mode sample. Secrets are referenced via *From fields.
 # See docs/user-guide/installation.md for full setup instructions.
 #
+# The lean image (e.g. 6.1.0) has no database drivers. Point spec.image at a
+# build that adds psycopg2 before running migrations against PostgreSQL.
+#
 # Prerequisites:
 #   kubectl create secret generic superset-secret \
 #     --from-literal=secret-key="$(openssl rand -base64 42)"
@@ -70,6 +73,9 @@ spec:
   podTemplate:
     podSecurityContext:
       runAsNonRoot: true
+      # Numeric UID required: the image declares a named user (`USER superset`).
+      runAsUser: 1000
+      runAsGroup: 1000
       seccompProfile:
         type: RuntimeDefault
     container:

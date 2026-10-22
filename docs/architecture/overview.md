@@ -213,7 +213,7 @@ ROW_LIMIT = 10000
 CELERY_ANNOTATIONS = {"tasks.add": {"rate_limit": "10/s"}}
 ```
 
-Note: All operator-managed settings (`SECRET_KEY`, `SQLALCHEMY_DATABASE_URI`, web server port) are rendered into the config file from operator-internal `SUPERSET_OPERATOR__*` env vars. Both passthrough and structured metastore modes render `SQLALCHEMY_DATABASE_URI` from `SUPERSET_OPERATOR__DB_URI` (passthrough) or `SUPERSET_OPERATOR__DB_*` (structured).
+Note: `SECRET_KEY` and `SQLALCHEMY_DATABASE_URI` are rendered into the config file from operator-internal `SUPERSET_OPERATOR__*` env vars. The web server port is written as a fixed `SUPERSET_WEBSERVER_PORT = 8088` assignment. Both passthrough and structured metastore modes render `SQLALCHEMY_DATABASE_URI` from `SUPERSET_OPERATOR__DB_URI` (passthrough) or `SUPERSET_OPERATOR__DB_*` (structured).
 
 | Config section | WebServer | CeleryWorker | CeleryBeat | CeleryFlower | McpServer |
 |---|---|---|---|---|---|

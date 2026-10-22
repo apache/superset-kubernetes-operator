@@ -34,6 +34,8 @@ The `environment` field controls validation strictness (enforced by [CEL](https:
 ```yaml
 spec:
   environment: Development
+  image:
+    tag: "6.1.0-dev"
   secretKey: thisIsNotSecure_changeInProduction!
   metastore:
     uri: postgresql+psycopg2://superset:superset@postgres:5432/superset
@@ -319,13 +321,20 @@ The operator sets certain env vars automatically based on the CR spec. These are
 |---|---|---|---|
 | `SUPERSET_OPERATOR__INSTANCE_NAME` | Operator-internal | Operator (from parent CR `metadata.name`) | Parent CR name; available for use in raw `spec.config` (e.g. instance-scoped Celery queue names) |
 | `SUPERSET_OPERATOR__SECRET_KEY` | Operator-internal | Operator (from `secretKey` or `secretKeyFrom`) | Superset session signing key |
+| `SUPERSET_OPERATOR__PREVIOUS_SECRET_KEY` | Operator-internal | Operator (from `previousSecretKey` or `previousSecretKeyFrom`) | Previous signing key used during secret key rotation |
 | `SUPERSET_OPERATOR__DB_URI` | Operator-internal | Operator (from `metastore.uri` or `metastore.uriFrom`) | Full database connection URI |
 | `SUPERSET_OPERATOR__DB_HOST`, `SUPERSET_OPERATOR__DB_PORT`, `SUPERSET_OPERATOR__DB_NAME` | Operator-internal | Operator (structured metastore) | Database connection fields |
 | `SUPERSET_OPERATOR__DB_USER`, `SUPERSET_OPERATOR__DB_PASS` | Operator-internal | Operator (from metastore structured fields or `passwordFrom`) | Database credentials |
 | `SUPERSET_OPERATOR__VALKEY_HOST`, `SUPERSET_OPERATOR__VALKEY_PORT` | Operator-internal | Operator (from `valkey`) | Valkey connection fields |
+| `SUPERSET_OPERATOR__VALKEY_USER` | Operator-internal | Operator (from `valkey.username` or `valkey.usernameFrom`) | Valkey ACL username |
 | `SUPERSET_OPERATOR__VALKEY_PASS` | Operator-internal | Operator (from `valkey.password` or `valkey.passwordFrom`) | Valkey password |
+| `SUPERSET_OPERATOR__FLOWER_URL_PREFIX` | Operator-internal | Operator (from `celeryFlower.service.gatewayPath`, default `/flower`) | Flower URL prefix |
 | `SUPERSET_OPERATOR__FORCE_RELOAD` | Operator-internal | Operator (from `spec.forceReload`) | Triggers rolling restart |
-| `SUPERSET_WEBSERVER_PORT` | Standard | Rendered in config | Web server port (8088) |
+| `SERVER_WORKER_AMOUNT`, `SERVER_THREADS_AMOUNT`, `SERVER_WORKER_CLASS`, `GUNICORN_TIMEOUT`, `GUNICORN_KEEPALIVE`, `WORKER_MAX_REQUESTS`, `WORKER_MAX_REQUESTS_JITTER`, `SERVER_LIMIT_REQUEST_LINE`, `SERVER_LIMIT_REQUEST_FIELD_SIZE`, `GUNICORN_LOGLEVEL` | Standard | Operator (from `webServer.gunicorn`, web server only, skipped when `preset: disabled`) | Gunicorn settings read by `run-server.sh` |
+
+Operator-set env vars are merged after `podTemplate.container.env`, so a user-defined env var with the same name is overridden and the operator logs `operator env var overrides user-specified value`. Use the matching CRD field instead, for example `webServer.gunicorn.workers` rather than `SERVER_WORKER_AMOUNT`.
+
+The web server port is not an env var. The operator writes `SUPERSET_WEBSERVER_PORT = 8088` directly into the web server's `superset_config.py`.
 
 The operator does **not** set `PYTHONPATH` — it relies on the upstream Superset image's default (which already includes `/app/pythonpath`, where the operator mounts the rendered `superset_config.py`). Custom images must preserve this entry on `PYTHONPATH` for the rendered config to be picked up.
 
@@ -341,8 +350,8 @@ The operator does **not** set `PYTHONPATH` — it relies on the upstream Superse
 | `SUPERSET_OPERATOR__DB_URI`  | Set (plain text) | Set (`valueFrom`) | — |
 | `SUPERSET_OPERATOR__DB_HOST` | — | — | Set |
 | `SUPERSET_OPERATOR__DB_PORT` | — | — | Set |
-| `SUPERSET_OPERATOR__DB_NAME` | — | — | Set (if `database` provided) |
-| `SUPERSET_OPERATOR__DB_USER` | — | — | Set (if `username` provided) |
+| `SUPERSET_OPERATOR__DB_NAME` | — | — | Set (from `database` or `databaseFrom`) |
+| `SUPERSET_OPERATOR__DB_USER` | — | — | Set (from `username` or `usernameFrom`) |
 | `SUPERSET_OPERATOR__DB_PASS` | — | — | Set (plain text or `valueFrom`) |
 
 In both passthrough and structured modes, the operator renders `SQLALCHEMY_DATABASE_URI` in `superset_config.py` from the operator-internal env vars. Passthrough mode reads from `SUPERSET_OPERATOR__DB_URI`, while structured mode assembles an f-string URI from the `SUPERSET_OPERATOR__DB_*` env vars.
@@ -351,8 +360,9 @@ In both passthrough and structured modes, the operator renders `SQLALCHEMY_DATAB
 
 | Env Var | Set when |
 |---|---|
-| `SUPERSET_OPERATOR__VALKEY_HOST` | Always (from `valkey.host`) |
-| `SUPERSET_OPERATOR__VALKEY_PORT` | Always (from `valkey.port`, default 6379) |
+| `SUPERSET_OPERATOR__VALKEY_HOST` | Always (from `valkey.host` or `valkey.hostFrom`) |
+| `SUPERSET_OPERATOR__VALKEY_PORT` | Always (from `valkey.port` or `valkey.portFrom`, default 6379) |
+| `SUPERSET_OPERATOR__VALKEY_USER` | `valkey.username` or `valkey.usernameFrom` is set |
 | `SUPERSET_OPERATOR__VALKEY_PASS` | `valkey.password` (dev, plain text) or `valkey.passwordFrom` (prod, `valueFrom`) |
 
 ## Custom Python Config
@@ -507,7 +517,9 @@ Because assigning `CELERY_CONFIG` replaces Superset's own Celery config class, p
 spec:
   valkey:
     host: valkey.default.svc
-  celeryWorker: {}
+  celeryWorker:
+    celery:
+      prefetchMultiplier: 1
   celeryBeat:
     config: |
       from celery.schedules import crontab
@@ -533,7 +545,6 @@ spec:
         "superset.tasks.cache",
         "superset.tasks.slack",
     )
-    CeleryConfig.worker_prefetch_multiplier = 1
     CeleryConfig.task_acks_late = False
     CeleryConfig.task_annotations = {
         "sql_lab.get_sql_results": {
@@ -541,6 +552,8 @@ spec:
         },
     }
 ```
+
+Set worker command-line options such as prefetch multiplier, concurrency, and pool through `spec.celeryWorker.celery` (see [Celery Worker Configuration](#celery-worker-configuration)), not through `CeleryConfig.worker_*` settings. The operator passes them as `celery worker` flags, and those flags take precedence over the matching `CeleryConfig` values.
 
 #### Without Valkey
 
@@ -815,9 +828,11 @@ spec:
       fsGroup: 1000
     container:
       securityContext:
-        readOnlyRootFilesystem: true
+        readOnlyRootFilesystem: false
         allowPrivilegeEscalation: false
 ```
+
+Keep `readOnlyRootFilesystem` unset or `false` for Superset components. Superset writes to `/tmp` and `/app` at runtime, and Celery beat keeps its pid and schedule files in `/tmp`.
 
 Or override per component (replaces the top-level value):
 

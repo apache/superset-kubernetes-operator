@@ -41,7 +41,7 @@ Replace `<version>` with a published chart version (e.g., `0.1.0`); see [Downloa
 
 ## 2. Deploy Superset
 
-Create a minimal Superset instance in dev mode (inline credentials for simplicity):
+Create a minimal Superset instance in dev mode (inline credentials for simplicity). The example uses the `-dev` image variant because it ships the `psycopg2` PostgreSQL driver. The lean image (e.g. `6.1.0`) has no database drivers, so migrations would fail:
 
 ```bash
 kubectl apply -f - <<'EOF'
@@ -52,7 +52,7 @@ metadata:
 spec:
   environment: Development
   image:
-    tag: "6.1.0"
+    tag: "6.1.0-dev"
   secretKey: thisIsNotSecure_changeInProduction!
   metastore:
     uri: postgresql+psycopg2://superset:superset@postgres:5432/superset

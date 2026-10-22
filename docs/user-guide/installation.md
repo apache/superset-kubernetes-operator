@@ -176,6 +176,8 @@ EOF
 
 The operator will create parent-owned lifecycle task Jobs to perform database migration and initialization, then create the web server Deployment, Service, and ConfigMap. Check task status with `kubectl describe superset my-superset`.
 
+The official lean Superset image (e.g. `6.1.0`) has no database drivers. Set `image` to a build that includes the driver for your connection URI, such as `psycopg2` for `postgresql+psycopg2`. See [Metastore](configuration.md#metastore) for driver details.
+
 ## 4. Watch it come up
 
 ```bash

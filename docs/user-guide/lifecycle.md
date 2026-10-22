@@ -396,6 +396,8 @@ kind: Superset
 metadata:
   name: my-superset
 spec:
+  image:
+    tag: "6.1.0"
   secretKeyFrom:
     name: superset-secret-v2
     key: secret-key
