@@ -800,6 +800,23 @@
   
 </li>
         
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#031-2026-10-21" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        0.3.1 - 2026-10-21
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.3.1 - 2026-10-21">
+      <ul class="md-nav__list">
+        
           <li class="md-nav__item">
   <a href="#fixed" class="md-nav__link">
     <span class="md-ellipsis">
@@ -1254,6 +1271,23 @@
   
 </li>
         
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#031-2026-10-21" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        0.3.1 - 2026-10-21
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.3.1 - 2026-10-21">
+      <ul class="md-nav__list">
+        
           <li class="md-nav__item">
   <a href="#fixed" class="md-nav__link">
     <span class="md-ellipsis">
@@ -1503,10 +1537,12 @@ under the License.
 <li><strong>Breaking:</strong> <code>podTemplate.container.ports</code> is removed. Each component now always listens on its operator default port, and its Service <code>targetPort</code>, default probes, and NetworkPolicy always target that port. Overriding the first port used to move the Service, probes, and NetworkPolicy without changing the port the server listened on, so the pods restarted in a loop. A port set on the top-level <code>podTemplate.container</code> was also merged into every HTTP component. Remove <code>ports</code> from your Superset resources before upgrading: the API server drops the field from stored resources, and <code>kubectl apply</code> with strict field validation rejects it. Instances that set <code>ports</code> go back to the default port and roll once on upgrade. To change the port clients connect to, use <code>service.port</code> (<a href="https://github.com/apache/superset-kubernetes-operator/pull/462">#462</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
 <li><strong>Celery worker liveness probe.</strong> The Celery worker now gets a default liveness probe that runs <code>celery inspect ping</code> against the pod's own worker node, so a worker that stays Running but no longer answers over the broker is restarted. Timings match the upstream Superset Helm chart (120s initial delay, 60s period and timeout, 3 failures). Existing worker Deployments roll once on upgrade, and setting <code>livenessProbe</code> on the worker replaces the default (<a href="https://github.com/apache/superset-kubernetes-operator/pull/427">#427</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
 </ul>
+<h2 id="031-2026-10-21">0.3.1 - 2026-10-21<a class="headerlink" href="#031-2026-10-21" title="Permanent link">&para;</a></h2>
 <h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Credential redaction in lifecycle task failure messages now masks the whole value when a quoted credential key is followed by empty quotes and more characters, such as <code>{"password": ""hunter2}</code>. Previously the characters after the empty quotes were left in the parent Superset status and Kubernetes Events (<a href="https://github.com/apache/superset-kubernetes-operator/pull/437">#437</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
 <li>Setting <code>spec.valkey.ssl</code> without certificate files (for example <code>ssl: {}</code> for managed Valkey or Redis with in-transit encryption) no longer crash-loops the Celery worker. The operator now renders <code>ssl_cert_reqs</code> and the Celery <code>broker_use_ssl</code> and <code>redis_backend_use_ssl</code> options whenever SSL is enabled, and <code>ssl.certRequired</code> takes effect without certificate paths. Deployments that use SSL roll once on upgrade (<a href="https://github.com/apache/superset-kubernetes-operator/pull/440">#440</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
+<li>Built with Go 1.27.2 and <code>golang.org/x/net</code> v0.60.0, which pick up upstream security fixes.</li>
 </ul>
 <h2 id="030-2026-09-30">0.3.0 - 2026-09-30<a class="headerlink" href="#030-2026-09-30" title="Permanent link">&para;</a></h2>
 <h3 id="added_1">Added<a class="headerlink" href="#added_1" title="Permanent link">&para;</a></h3>
