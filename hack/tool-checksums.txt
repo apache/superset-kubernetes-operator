@@ -40,10 +40,10 @@ ab90aeb7b066f92a33415b638a50fe5344bbb75a0d32ad30cc248d88f81032ab  v2.14.0/golang
 ee7ec5f3453d15ddf106fae5a4d6c71737712348a979d1fe9cd52ec7ea299bae  v2.14.0/golangci-lint-2.14.0-linux-arm64.tar.gz
 a5667c1c3536be1740133213e1e822bfb8f0d98ea12903174d6d5f635e4ed68d  v2.14.0/golangci-lint-2.14.0-darwin-amd64.tar.gz
 5ef5f36a7147e91dc58ef9ef4d11bb7bad5ead0c76eb6c01327a73c641d1dcc3  v2.14.0/golangci-lint-2.14.0-darwin-arm64.tar.gz
-a7d671f0e0da07a67b3a1618a6cab50353dffea5625cd2d8a8b3e18bacb497e6  v0.22.0/controller-gen-linux-amd64
-c5151f30c3a51ddc8d722c18c263b495dae994ca246e9fa8994b1d4c95f3253a  v0.22.0/controller-gen-linux-arm64
-fa4c4d01cacdc6e2209b71beac16d87d2b3c641866a5ddeb6d8e7dd6ba381f0f  v0.22.0/controller-gen-darwin-amd64
-5e0d7c16ed9cc0ae887c02ebf5244a2739495c93eeaa7b20ccdd3abb20a53846  v0.22.0/controller-gen-darwin-arm64
+849fc06f331c18ea4dcffd3f9c7e0d8d4a51013b57bbe60bc726fc125f9784a3  v0.23.0/controller-gen-linux-amd64
+9610184a2bc4b7f6f680e0d558f7976848f745ba3eeb3feb2340fbe15e96ce02  v0.23.0/controller-gen-linux-arm64
+f7e377ab51caa7eb6afba9095f268d22f7c9ffc9eb438969839c7186ec2a17e1  v0.23.0/controller-gen-darwin-amd64
+4ac93bd254c07adabf6f6f88524da690f07b6004305a00ff37571ea6224ee944  v0.23.0/controller-gen-darwin-arm64
 887a3bb0d63ccc4ca47a522d0c8ffac56d9d5246f6a2bd886b4ed23eb2e2672f  v1.42.3/operator-sdk_linux_amd64
 6db93cd821b429f0bb514cea4bbb5553827d273fc8aa211f13e14798599d31cd  v1.42.3/operator-sdk_linux_arm64
 7cb0f24bb63b6383a117291ee4c808953c5dd789d5877da98051aa68b41f40ac  v1.42.3/operator-sdk_darwin_amd64
