@@ -189,6 +189,8 @@ kubectl get jobs -l superset.apache.org/init-task -w
 kubectl get pods -w
 ```
 
+`sup` is the short name for the `Superset` resource, so `kubectl get sup` works the same as `kubectl get superset`.
+
 ## 5. Access Superset
 
 Port-forward to the web server service:

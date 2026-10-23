@@ -11,6 +11,8 @@ spec:
     kind: Superset
     listKind: SupersetList
     plural: supersets
+    shortNames:
+    - sup
     singular: superset
   scope: Namespaced
   versions:
