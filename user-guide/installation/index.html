@@ -1496,6 +1496,7 @@ which are enabled by default as beta from 1.25 and graduated to GA in 1.29. On c
 <a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="c1"># Watch all pods</span>
 <a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>kubectl<span class="w"> </span>get<span class="w"> </span>pods<span class="w"> </span>-w
 </code></pre></div>
+<p><code>sup</code> is the short name for the <code>Superset</code> resource, so <code>kubectl get sup</code> works the same as <code>kubectl get superset</code>. Short names are not unique across CRDs: if another CRD in the cluster also registers <code>sup</code>, kubectl resolves it to only one of them. In that case, use <code>superset</code> or the fully qualified <code>supersets.superset.apache.org</code> instead.</p>
 <h2 id="5-access-superset">5. Access Superset<a class="headerlink" href="#5-access-superset" title="Permanent link">&para;</a></h2>
 <p>Port-forward to the web server service:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>kubectl<span class="w"> </span>port-forward<span class="w"> </span>svc/my-superset-web-server<span class="w"> </span><span class="m">8088</span>:8088
