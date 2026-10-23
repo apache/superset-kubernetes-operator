@@ -1485,6 +1485,7 @@ which are enabled by default as beta from 1.25 and graduated to GA in 1.29. On c
 <a id="__codelineno-6-24" name="__codelineno-6-24" href="#__codelineno-6-24"></a><span class="s">EOF</span>
 </code></pre></div>
 <p>The operator will create parent-owned lifecycle task Jobs to perform database migration and initialization, then create the web server Deployment, Service, and ConfigMap. Check task status with <code>kubectl describe superset my-superset</code>.</p>
+<p>The official lean Superset image (e.g. <code>6.1.0</code>) has no database drivers. Set <code>image</code> to a build that includes the driver for your connection URI, such as <code>psycopg2</code> for <code>postgresql+psycopg2</code>. See <a href="../configuration/#metastore">Metastore</a> for driver details.</p>
 <h2 id="4-watch-it-come-up">4. Watch it come up<a class="headerlink" href="#4-watch-it-come-up" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Watch the parent CR status</span>
 <a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a>kubectl<span class="w"> </span>get<span class="w"> </span>superset<span class="w"> </span>my-superset<span class="w"> </span>-w

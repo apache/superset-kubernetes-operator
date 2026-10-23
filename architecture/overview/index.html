@@ -1567,7 +1567,7 @@ under the License.
 <a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="c1"># Component config</span>
 <a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="n">CELERY_ANNOTATIONS</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"tasks.add"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"rate_limit"</span><span class="p">:</span> <span class="s2">"10/s"</span><span class="p">}}</span>
 </code></pre></div>
-<p>Note: All operator-managed settings (<code>SECRET_KEY</code>, <code>SQLALCHEMY_DATABASE_URI</code>, web server port) are rendered into the config file from operator-internal <code>SUPERSET_OPERATOR__*</code> env vars. Both passthrough and structured metastore modes render <code>SQLALCHEMY_DATABASE_URI</code> from <code>SUPERSET_OPERATOR__DB_URI</code> (passthrough) or <code>SUPERSET_OPERATOR__DB_*</code> (structured).</p>
+<p>Note: <code>SECRET_KEY</code> and <code>SQLALCHEMY_DATABASE_URI</code> are rendered into the config file from operator-internal <code>SUPERSET_OPERATOR__*</code> env vars. The web server port is written as a fixed <code>SUPERSET_WEBSERVER_PORT = 8088</code> assignment. Both passthrough and structured metastore modes render <code>SQLALCHEMY_DATABASE_URI</code> from <code>SUPERSET_OPERATOR__DB_URI</code> (passthrough) or <code>SUPERSET_OPERATOR__DB_*</code> (structured).</p>
 <table>
 <thead>
 <tr>
