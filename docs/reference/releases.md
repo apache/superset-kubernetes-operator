@@ -29,6 +29,7 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 - **Helm `priorityClassName`.** The Helm chart now exposes a [`priorityClassName`](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/) value that sets the PriorityClass of the operator manager pods. Unset by default, which keeps the cluster default priority ([#420](https://github.com/apache/superset-kubernetes-operator/pull/420), [@younsl](https://github.com/younsl)).
 - **Removing default probes.** Setting `livenessProbe`, `readinessProbe`, or `startupProbe` to `{}` now removes the operator's default probe. It works on every component and follows the usual top-level and per-component override rules ([#427](https://github.com/apache/superset-kubernetes-operator/pull/427), [@younsl](https://github.com/younsl)).
 - **Helm `extraEnv`.** The Helm chart now exposes an `extraEnv` value that appends environment variables to the operator manager container, for example a `GOMEMLIMIT` derived from the memory limit. `WATCH_NAMESPACE` is rejected because the `watch` block owns it ([#426](https://github.com/apache/superset-kubernetes-operator/pull/426), [@younsl](https://github.com/younsl)).
+- **`sup` short name.** The `Superset` resource now has the short name `sup`, so `kubectl get sup` works the same as `kubectl get superset` ([#480](https://github.com/apache/superset-kubernetes-operator/pull/480), [@younsl](https://github.com/younsl)).
 
 ### Changed
 

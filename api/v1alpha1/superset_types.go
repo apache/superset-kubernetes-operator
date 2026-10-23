@@ -980,6 +980,7 @@ type ComponentResourceStatus struct {
 }
 
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:shortName=sup
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Tag",type=string,JSONPath=`.status.tag`
 // +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`

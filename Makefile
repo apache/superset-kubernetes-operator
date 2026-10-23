@@ -390,7 +390,7 @@ HELM_DOCS ?= $(LOCALBIN)/helm-docs
 # renovate: datasource=go depName=sigs.k8s.io/kustomize/kustomize/v5
 KUSTOMIZE_VERSION ?= v5.8.3
 # renovate: datasource=go depName=sigs.k8s.io/controller-tools
-CONTROLLER_TOOLS_VERSION ?= v0.22.0
+CONTROLLER_TOOLS_VERSION ?= v0.23.0
 # ENVTEST_VERSION pins setup-envtest to the exact tagged controller-runtime
 # version resolved from go.mod (e.g. v0.24.1), rather than a mutable
 # release-X.Y branch ref. This keeps the fetch immutable and sumdb-verified,
