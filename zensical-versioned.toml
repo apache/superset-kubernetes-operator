@@ -1,0 +1,98 @@
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[project]
+site_name = "Apache Superset Kubernetes Operator"
+site_url = "https://apache.github.io/superset-kubernetes-operator/"
+site_description = "Kubernetes operator for deploying and managing Apache Superset"
+repo_url = "https://github.com/apache/superset-kubernetes-operator"
+repo_name = "apache/superset-kubernetes-operator"
+
+nav = [
+  { Home = "/" },
+  { "Getting Started" = "getting-started.md" },
+  { "User Guide" = [
+    { Installation = "user-guide/installation.md" },
+    { Configuration = "user-guide/configuration.md" },
+    { Lifecycle = "user-guide/lifecycle.md" },
+    { "Networking & Monitoring" = "user-guide/networking-and-monitoring.md" },
+    { "Migration from Helm Chart" = "user-guide/migration.md" },
+  ] },
+  { Architecture = [
+    { Overview = "architecture/overview.md" },
+    { Internals = "architecture/internals.md" },
+  ] },
+  { Reference = [
+    { "API Reference" = "reference/api-reference.md" },
+    { Downloads = "/reference/downloads/" },
+    { Releases = "/reference/releases/" },
+    { Security = "/reference/security/" },
+  ] },
+  { Contributing = [
+    { "Development Setup" = "/contributing/development-setup/" },
+    { "Development Guidelines" = "/contributing/development-guidelines/" },
+    { Releasing = "/contributing/releasing/" },
+  ] },
+]
+
+# Keep strict link checking scoped to this page set. Versioned documentation
+# stays local while project-level pages are linked from the shared site root.
+exclude_docs = """
+index.md
+reference/downloads.md
+reference/releases.md
+reference/security.md
+contributing/**
+"""
+
+extra_css = ["stylesheets/extra.css"]
+extra_javascript = [
+  "https://unpkg.com/mermaid@11/dist/mermaid.min.js",
+]
+
+[project.theme]
+features = [
+  "content.code.copy",
+  "navigation.sections",
+  "navigation.expand",
+  "navigation.top",
+  "search.highlight",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "teal"
+toggle.icon = "material/brightness-7"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "teal"
+toggle.icon = "material/brightness-4"
+toggle.name = "Switch to light mode"
+
+[project.markdown_extensions]
+admonition = {}
+pymdownx.details = {}
+pymdownx.superfences.custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
+pymdownx.tabbed.alternate_style = true
+pymdownx.highlight.anchor_linenums = true
+pymdownx.inlinehilite = {}
+tables = {}
+toc.permalink = true

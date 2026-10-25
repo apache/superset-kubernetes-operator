@@ -22,20 +22,20 @@ repo_name = "apache/superset-kubernetes-operator"
 
 nav = [
   { Home = "index.md" },
-  { "Getting Started" = "getting-started.md" },
+  { "Getting Started" = "/latest/getting-started/" },
   { "User Guide" = [
-    { Installation = "user-guide/installation.md" },
-    { Configuration = "user-guide/configuration.md" },
-    { Lifecycle = "user-guide/lifecycle.md" },
-    { "Networking & Monitoring" = "user-guide/networking-and-monitoring.md" },
-    { "Migration from Helm Chart" = "user-guide/migration.md" },
+    { Installation = "/latest/user-guide/installation/" },
+    { Configuration = "/latest/user-guide/configuration/" },
+    { Lifecycle = "/latest/user-guide/lifecycle/" },
+    { "Networking & Monitoring" = "/latest/user-guide/networking-and-monitoring/" },
+    { "Migration from Helm Chart" = "/latest/user-guide/migration/" },
   ] },
   { Architecture = [
-    { Overview = "architecture/overview.md" },
-    { Internals = "architecture/internals.md" },
+    { Overview = "/latest/architecture/overview/" },
+    { Internals = "/latest/architecture/internals/" },
   ] },
   { Reference = [
-    { "API Reference" = "reference/api-reference.md" },
+    { "API Reference" = "/latest/reference/api-reference/" },
     { Downloads = "reference/downloads.md" },
     { Releases = "reference/releases.md" },
     { Security = "reference/security.md" },
@@ -47,8 +47,19 @@ nav = [
   ] },
 ]
 
+# The root site owns only project-level documentation. Version-sensitive
+# documentation is built with zensical-versioned.toml into /main/ or /<minor>/.
+exclude_docs = """
+getting-started.md
+user-guide/**
+architecture/**
+reference/api-reference.md
+"""
+
 extra_css = ["stylesheets/extra.css"]
-extra_javascript = ["https://unpkg.com/mermaid@11/dist/mermaid.min.js"]
+extra_javascript = [
+  "https://unpkg.com/mermaid@11/dist/mermaid.min.js",
+]
 
 [project.theme]
 features = [
