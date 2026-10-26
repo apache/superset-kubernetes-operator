@@ -37,7 +37,7 @@ helm install superset-operator \
   --create-namespace
 ```
 
-Replace `<version>` with a published chart version (e.g., `0.1.0`); see [Downloads](reference/downloads.md) for published tags.
+Replace `<version>` with a published chart version (e.g., `0.1.0`); see [Downloads](/reference/downloads/) for published tags.
 
 ## 2. Deploy Superset
 

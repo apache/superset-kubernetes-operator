@@ -19,7 +19,7 @@ under the License.
 
 # Installation
 
-This guide covers installing the operator and deploying a Superset instance in production. For a quick local trial, see [Getting Started](../getting-started.md). For development setup, see [Development Setup](../contributing/development-setup.md).
+This guide covers installing the operator and deploying a Superset instance in production. For a quick local trial, see [Getting Started](../getting-started.md). For development setup, see [Development Setup](/contributing/development-setup/).
 
 ## Prerequisites
 
@@ -64,7 +64,7 @@ helm install superset-operator \
   --set image.pullPolicy=Always
 ```
 
-See `charts/superset-operator/values.yaml` for all available Helm values and [Downloads](../reference/downloads.md) for published images and tag conventions.
+See `charts/superset-operator/values.yaml` for all available Helm values and [Downloads](/reference/downloads/) for published images and tag conventions.
 
 ### Extra manifests
 
@@ -99,7 +99,7 @@ Kustomize users can opt in via the bundled `watch-namespace` component — uncom
 - Changing `watch.namespaces` requires a `helm upgrade` — the manager cache is built at startup, so the pod must restart to pick up a new list.
 - Superset CRs created in namespaces outside `watch.namespaces` are not reconciled (no log, no status).
 
-See [Install Scope](../reference/security.md#install-scope) in the security reference for the trust-model context.
+See [Install Scope](/reference/security/#install-scope) in the security reference for the trust-model context.
 
 ### High availability
 
@@ -252,7 +252,7 @@ The operator will create the CeleryWorker and CeleryBeat Deployments and their C
 
 ## Debugging the operator
 
-If a Superset isn't reconciling as expected, raise the operator's log verbosity. The chart exposes a `logLevel` value mapped to the manager's `--zap-log-level` flag: `debug` (or `1`) adds V(1) per-reconcile progress logs, and `2` adds V(2) trace-level internals. See the [logging policy](../contributing/development-guidelines.md#logging) for what each level emits.
+If a Superset isn't reconciling as expected, raise the operator's log verbosity. The chart exposes a `logLevel` value mapped to the manager's `--zap-log-level` flag: `debug` (or `1`) adds V(1) per-reconcile progress logs, and `2` adds V(2) trace-level internals. See the [logging policy](/contributing/development-guidelines/#logging) for what each level emits.
 
 Set it at install/upgrade time:
 
