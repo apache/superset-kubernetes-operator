@@ -1,0 +1,30 @@
+.docs-version-switcher {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  height: 2.4rem;
+  position: relative;
+  z-index: 3;
+}
+
+.docs-version-switcher .md-version__current {
+  top: 0;
+}
+
+.docs-version-switcher .md-version__list {
+  top: 100%;
+}
+
+.docs-version-banner {
+  padding: 0.6rem 1rem;
+  font-size: 0.7rem;
+  text-align: center;
+  color: var(--md-default-fg-color);
+  background: var(--md-code-bg-color);
+  border-bottom: 2px solid var(--md-accent-fg-color);
+}
+
+.docs-version-banner a {
+  font-weight: 700;
+  text-decoration: underline;
+}
