@@ -57,8 +57,9 @@ reference/security.md
 contributing/**
 """
 
-extra_css = ["stylesheets/extra.css"]
+extra_css = ["stylesheets/extra.css", "stylesheets/version-banner.css"]
 extra_javascript = [
+  "javascripts/version-switcher.js",
   "https://unpkg.com/mermaid@11/dist/mermaid.min.js",
 ]
 
