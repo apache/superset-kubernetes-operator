@@ -129,6 +129,10 @@ docs-serve: ## Serve documentation locally with live reload.
 docs-build: ## Build documentation site.
 	$(ZENSICAL) build --strict
 
+.PHONY: docs-build-slice
+docs-build-slice: ## Build one versioned documentation slice.
+	$(ZENSICAL) build --clean --strict --config-file zensical-versioned.toml
+
 .PHONY: docs-api
 docs-api: crd-ref-docs ## Generate API reference documentation from Go types.
 	$(CRD_REF_DOCS) --source-path=api/v1alpha1 --config=hack/api-ref-config.yaml --renderer=markdown --max-depth=15 --output-path=docs/reference/api-reference.md
