@@ -76,7 +76,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set variables
-        run: scripts/run-docs-ci.sh env >> "$GITHUB_ENV"
+        run: bash scripts/run-docs-ci.sh env >> "$GITHUB_ENV"
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.15"
@@ -85,12 +85,12 @@ jobs:
       - name: Test documentation versioning and links
         run: python scripts/test_docs_versions.py
       - name: Prepare documentation source and links
-        run: scripts/run-docs-ci.sh prepare
+        run: bash scripts/run-docs-ci.sh prepare
       - name: Build complete documentation tree
         if: github.event_name != 'workflow_dispatch'
         run: zensical build --clean --strict
       - name: Build docs
-        run: scripts/run-docs-ci.sh publish "$RUNNER_TEMP/docs-build"
+        run: bash scripts/run-docs-ci.sh publish "$RUNNER_TEMP/docs-build"
 
   deploy:
     name: Deploy docs
@@ -105,7 +105,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set variables
-        run: scripts/run-docs-ci.sh env >> "$GITHUB_ENV"
+        run: bash scripts/run-docs-ci.sh env >> "$GITHUB_ENV"
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.15"
@@ -121,9 +121,9 @@ jobs:
           git -C "$dir" config user.name "github-actions[bot]"
           git -C "$dir" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - name: Prepare documentation source and links
-        run: scripts/run-docs-ci.sh prepare
+        run: bash scripts/run-docs-ci.sh prepare
       - name: Build docs
-        run: scripts/run-docs-ci.sh publish "$PUBLISH_DIR"
+        run: bash scripts/run-docs-ci.sh publish "$PUBLISH_DIR"
       - name: Commit and push docs
         run: |
           set -euo pipefail
@@ -153,7 +153,7 @@ jobs:
             echo "gh-pages changed while deploying; resetting and retrying"
             git -C "$PUBLISH_DIR" fetch origin gh-pages
             git -C "$PUBLISH_DIR" reset --hard origin/gh-pages
-            scripts/run-docs-ci.sh publish "$PUBLISH_DIR"
+            bash scripts/run-docs-ci.sh publish "$PUBLISH_DIR"
           done
       - name: Clean up gh-pages worktree
         if: always()

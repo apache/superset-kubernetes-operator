@@ -79,19 +79,19 @@ publish() {
   mkdir -p "$dir"
   if is_release; then
     release_vars
-    scripts/publish-docs.sh \
+    bash scripts/publish-docs.sh \
       --config zensical-versioned.toml \
       --target "$MINOR" \
       --publish-dir "$dir" \
       --release "$VERSION" \
       --site-url "$base_url"
   else
-    scripts/publish-docs.sh \
+    bash scripts/publish-docs.sh \
       --config zensical-unversioned.toml \
       --target root \
       --publish-dir "$dir" \
       --site-url "$base_url"
-    scripts/publish-docs.sh \
+    bash scripts/publish-docs.sh \
       --config zensical-versioned.toml \
       --target main \
       --publish-dir "$dir" \
