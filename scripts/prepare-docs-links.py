@@ -1,14 +1,22 @@
 #!/usr/bin/env python3
 """Rewrite relative documentation links for the assembled multi-version site.
 
+Link rules (docs are written with plain relative .md links; this runs in CI only):
+  * any page -> shared page          absolute root URL (shared pages live at the site root)
+  * shared page -> versioned page    /<prefix>/... (only with --versioned-prefix, e.g. latest)
+  * versioned page -> versioned page left relative, so every version stays self-contained
+
 Handled: inline markdown links, with or without a title.
-Not handled: reference-style definitions and raw HTML <a href>. A leftover
-broken link should surface as a warning in the strict build.
+Not handled: reference-style definitions, raw HTML <a href>, and links inside
+code fences (they are rewritten like any other text). A leftover broken link
+should surface as a warning in the strict build.
+
+This rewrites files in place. Run it on a CI checkout or a throwaway copy of
+docs/, never on a working tree you want to keep.
 
 SHARED_PAGES must stay in sync with the pages excluded from the versioned
-build (``exclude_docs`` in zensical-versioned.toml) and built by zensical.toml.
-When ``--versioned-prefix`` is given, links to other versioned pages are also
-rewritten under that URL prefix (for example, ``latest``).
+build (``exclude_docs`` in zensical-versioned.toml) and built by
+``zensical-unversioned.toml``.
 """
 
 from __future__ import annotations
@@ -35,7 +43,7 @@ MARKDOWN_LINK = re.compile(r"\]\((?P<target>[^)\s]+)(?P<title>\s+(?:\"[^\"]*\"|'
 def versioned_page_urls(docs_dir: Path, prefix: str) -> dict[str, str]:
     pages = {}
     for path in docs_dir.rglob("*.md"):
-        relative = PurePosixPath(path.relative_to(docs_dir).as_posix()).as_posix()
+        relative = path.relative_to(docs_dir).as_posix()
         if relative in SHARED_PAGES:
             continue
         if relative.endswith("/index.md"):
@@ -53,6 +61,9 @@ def rewrite_file(
     versioned_pages: dict[str, str] | None = None,
 ) -> bool:
     relative = PurePosixPath(path.relative_to(docs_dir).as_posix())
+    # Only shared pages point at versioned pages by URL; a versioned page's links to
+    # other versioned pages must stay relative or they would jump to another version.
+    link_to_versioned = versioned_pages if relative.as_posix() in SHARED_PAGES else None
     original = path.read_text()
 
     def replace(match: re.Match[str]) -> str:
@@ -61,8 +72,8 @@ def rewrite_file(
             return match.group(0)
         resolved = posixpath.normpath(posixpath.join(str(relative.parent), link_path))
         page = SHARED_PAGES.get(resolved)
-        if page is None and versioned_pages is not None:
-            page = versioned_pages.get(resolved)
+        if page is None and link_to_versioned is not None:
+            page = link_to_versioned.get(resolved)
         if page is None:
             return match.group(0)
         target = f"{base_url}{page}" + (f"#{fragment}" if separator else "")
@@ -85,7 +96,7 @@ def main() -> int:
     )
     parser.add_argument(
         "--versioned-prefix",
-        help="rewrite relative links to versioned pages under this URL prefix (for example, latest)",
+        help="rewrite links from shared pages to versioned pages under this URL prefix (for example, latest)",
     )
     args = parser.parse_args()
     base_url = args.site_url.rstrip("/")
@@ -96,6 +107,7 @@ def main() -> int:
     count = sum(
         rewrite_file(path, args.docs_dir, base_url, versioned_pages)
         for path in args.docs_dir.rglob("*.md")
+        if not path.is_symlink()  # backfills extract old tags; never write through a link
     )
     print(f"==> Rewrote links in {count} documentation files")
     return 0
