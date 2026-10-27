@@ -2,7 +2,7 @@
 # CI glue for .github/workflows/docs.yml.
 #
 #   run-docs-ci.sh env            print DOC_REF and DRY_RUN for >> "$GITHUB_ENV"
-#   run-docs-ci.sh prepare        for backfills, swap in docs/ from the requested tag
+#   run-docs-ci.sh prepare        prepare current docs links or load backfill docs
 #   run-docs-ci.sh publish DIR    build the right slice(s) of the site into DIR
 #
 # `prepare` and `publish` read GITHUB_EVENT_NAME, GITHUB_REF_TYPE and DOC_REF
@@ -38,21 +38,22 @@ emit_env() {
 }
 
 prepare() {
-  is_release || return 0
-  release_vars
-  # A tag push builds the docs it already contains; only backfills need the old docs/.
-  [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]] || return 0
-
-  git fetch --no-tags origin "$DOC_REF"
-  local assets
-  assets="$(mktemp -d)"
-  cp docs/javascripts/version-switcher.js docs/stylesheets/version-banner.css "$assets/"
-  rm -rf docs
-  git archive FETCH_HEAD docs | tar -x
-  mkdir -p docs/javascripts docs/stylesheets
-  cp "$assets/version-switcher.js" docs/javascripts/
-  cp "$assets/version-banner.css" docs/stylesheets/
-  python3 scripts/prepare-historical-docs.py --docs-dir docs
+  if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+    release_vars
+    git fetch --no-tags origin "$DOC_REF"
+    local assets
+    assets="$(mktemp -d)"
+    cp docs/javascripts/version-switcher.js docs/stylesheets/version-banner.css "$assets/"
+    rm -rf docs
+    git archive FETCH_HEAD docs | tar -x
+    mkdir -p docs/javascripts docs/stylesheets
+    cp "$assets/version-switcher.js" docs/javascripts/
+    cp "$assets/version-banner.css" docs/stylesheets/
+    # Historical backfills keep version-to-version links relative to their own version.
+    python3 scripts/prepare-docs-links.py --docs-dir docs
+  else
+    python3 scripts/prepare-docs-links.py --docs-dir docs --versioned-prefix latest
+  fi
 }
 
 publish() {
@@ -62,7 +63,7 @@ publish() {
     release_vars
     scripts/publish-docs.sh --config zensical-versioned.toml --target "$MINOR" --publish-dir "$dir" --release "$VERSION"
   else
-    scripts/publish-docs.sh --config zensical.toml --target root --publish-dir "$dir"
+    scripts/publish-docs.sh --config zensical-unversioned.toml --target root --publish-dir "$dir"
     scripts/publish-docs.sh --config zensical-versioned.toml --target main --publish-dir "$dir"
   fi
 }

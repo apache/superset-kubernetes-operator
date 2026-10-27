@@ -131,7 +131,16 @@ docs-build: ## Build documentation site.
 
 .PHONY: docs-build-slice
 docs-build-slice: ## Build one versioned documentation slice.
-	$(ZENSICAL) build --clean --strict --config-file zensical-versioned.toml
+	@set -euo pipefail; \
+	tmp="$$(mktemp -d)"; \
+	trap 'rm -rf "$$tmp"' EXIT; \
+	cp -a docs "$$tmp/docs"; \
+	cp zensical-versioned.toml "$$tmp/"; \
+	python3 scripts/prepare-docs-links.py --docs-dir "$$tmp/docs"; \
+	zensical_bin="$$(command -v $(ZENSICAL))"; \
+	case "$$zensical_bin" in /*) ;; *) zensical_bin="$(CURDIR)/$$zensical_bin" ;; esac; \
+	cd "$$tmp"; \
+	"$$zensical_bin" build --clean --strict --config-file zensical-versioned.toml
 
 .PHONY: docs-api
 docs-api: crd-ref-docs ## Generate API reference documentation from Go types.

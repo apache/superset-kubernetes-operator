@@ -23,11 +23,12 @@ on:
     paths:
       - "docs/**"
       - "zensical.toml"
+      - "zensical-unversioned.toml"
       - "zensical-versioned.toml"
       - "scripts/publish-docs.sh"
       - "scripts/run-docs-ci.sh"
       - "scripts/docs_versions.py"
-      - "scripts/prepare-historical-docs.py"
+      - "scripts/prepare-docs-links.py"
       - "scripts/test_docs_versions.py"
       - "docs/stylesheets/version-banner.css"
       - "docs-requirements.in"
@@ -50,11 +51,12 @@ on:
     paths:
       - "docs/**"
       - "zensical.toml"
+      - "zensical-unversioned.toml"
       - "zensical-versioned.toml"
       - "scripts/publish-docs.sh"
       - "scripts/run-docs-ci.sh"
       - "scripts/docs_versions.py"
-      - "scripts/prepare-historical-docs.py"
+      - "scripts/prepare-docs-links.py"
       - "scripts/test_docs_versions.py"
       - "docs/stylesheets/version-banner.css"
       - "docs-requirements.in"
@@ -80,10 +82,13 @@ jobs:
           python-version: "3.15"
       - name: Install dependencies
         run: python -m pip install --require-hashes -r docs-requirements.txt
-      - name: Test version bookkeeping
+      - name: Test documentation versioning and links
         run: python scripts/test_docs_versions.py
-      - name: Prepare documentation source
+      - name: Prepare documentation source and links
         run: scripts/run-docs-ci.sh prepare
+      - name: Build complete documentation tree
+        if: github.event_name != 'workflow_dispatch'
+        run: zensical build --clean --strict
       - name: Build docs
         run: scripts/run-docs-ci.sh publish "$RUNNER_TEMP/docs-build"
 
@@ -115,7 +120,7 @@ jobs:
           git worktree add --detach "$dir" origin/gh-pages
           git -C "$dir" config user.name "github-actions[bot]"
           git -C "$dir" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      - name: Prepare documentation source
+      - name: Prepare documentation source and links
         run: scripts/run-docs-ci.sh prepare
       - name: Build docs
         run: scripts/run-docs-ci.sh publish "$PUBLISH_DIR"
