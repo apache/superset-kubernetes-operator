@@ -6,7 +6,7 @@ Site layout (under the publish directory)::
     /                 unversioned pages (built from ``main``), including Home
     /main/            unreleased versioned docs
     /0.3/, /0.4/ ...  one directory per *minor* release (patch releases overwrite their minor)
-    /latest/          redirect pages pointing into the newest final minor (omitted before first release)
+    /latest/          redirect pages pointing into the newest final minor, or ``main`` before first release
     /versions.json    manifest read by docs/javascripts/version-switcher.js
 
 Versioned builds have no Home page, so each version root (``/0.3/``) is a
@@ -18,8 +18,9 @@ redirect to ``LANDING_PAGE``.
      {"version": "0.3", "title": "0.3", "aliases": []},
      {"version": "main", "title": "main (unreleased)", "aliases": []}]
 
-Before the first final release, the manifest contains only ``main`` with no
-aliases, and there is no ``latest/`` directory.
+Before the first final release, ``main`` has the ``latest`` alias and the
+``latest/`` directory redirects to ``main/``. A final release moves the alias
+to the newest minor and replaces those redirects.
 
 The schema is intentionally a small, stable manifest. Nothing here depends on
 an external versioning tool. Do not add fields the JS does not understand
@@ -113,7 +114,7 @@ def check_not_downgrade(entries: list[dict], target: str, release: str | None, f
 
 
 def build_manifest(entries: list[dict], target: str, release: str | None = None) -> list[dict]:
-    """Return the new manifest: minors newest-first (newest gets ``latest``), then ``main``."""
+    """Return the new manifest: minors newest-first, then ``main`` as latest only before release."""
     by_version = {e["version"]: dict(e) for e in entries}
     by_version[MAIN] = {**by_version.get(MAIN, {}), "version": MAIN, "title": MAIN_TITLE, "aliases": []}
 
@@ -127,6 +128,7 @@ def build_manifest(entries: list[dict], target: str, release: str | None = None)
     minors = sorted((v for v in by_version if MINOR_RE.fullmatch(v)), key=version_key, reverse=True)
     for index, version in enumerate(minors):
         by_version[version]["aliases"] = [LATEST] if index == 0 else []
+    by_version[MAIN]["aliases"] = [] if minors else [LATEST]
     return [by_version[v] for v in minors] + [by_version[MAIN]]
 
 
@@ -141,6 +143,14 @@ def latest_minor(entries: list[dict]) -> str | None:
             for e in entries
             if MINOR_RE.fullmatch(e["version"]) and LATEST in e.get("aliases", [])
         ),
+        None,
+    )
+
+
+def latest_version(entries: list[dict]) -> str | None:
+    """Return the latest alias target, including ``main`` before the first release."""
+    return next(
+        (e["version"] for e in entries if LATEST in e.get("aliases", [])),
         None,
     )
 
@@ -230,7 +240,7 @@ def cmd_finalize(args: argparse.Namespace) -> None:
         write_version_landing(publish_dir, args.target, args.site_url)
         entries = build_manifest(load_manifest(publish_dir), args.target, args.release)
         write_manifest(publish_dir, entries)
-        latest = latest_minor(entries)
+        latest = latest_version(entries)
         if latest and (publish_dir / latest).is_dir():
             pages = write_latest_redirects(publish_dir, latest, args.site_url)
             print(f"==> latest -> {latest} ({pages} redirect pages)")

@@ -57,7 +57,7 @@
 
   // ------------------------------------------------------------- versions --
 
-  const isLatest = (entry) => entry.version !== "main" && entry.aliases.includes(LATEST);
+  const isLatest = (entry) => entry.aliases.includes(LATEST);
   const segmentFor = (entry) => (isLatest(entry) ? LATEST : entry.version);
 
   function findEntry(versions, segment) {
