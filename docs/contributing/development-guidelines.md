@@ -24,7 +24,7 @@ This guide covers the patterns, conventions, and testing philosophy that govern 
 
 ## Architecture
 
-See [Architecture](/latest/architecture/overview/) for the structural overview (CRD hierarchy, configuration model, config rendering) and [Internals](/latest/architecture/internals/) for runtime behavior (reconciliation lifecycle, parent-owned resource reconciliation, status reporting). Key points:
+See [Architecture](../architecture/overview.md) for the structural overview (CRD hierarchy, configuration model, config rendering) and [Internals](../architecture/internals.md) for runtime behavior (reconciliation lifecycle, parent-owned resource reconciliation, status reporting). Key points:
 
 - **Single public CRD**: `Superset` resolves shared spec (top-level + per-component) into parent-owned Kubernetes resources
 - **6 deployment components + lifecycle tasks**: web server, Celery worker, Celery beat, Flower, websocket, MCP, and task Jobs for seed/migrate/rotate/init
@@ -284,7 +284,7 @@ When adding new source files (`.go`, `.yaml`, `.sh`, `Dockerfile`, etc.), includ
 - **Don't fetch resources by name for cleanup** — use `deleteByLabels` with parent/component labels to discover and clean up. Name-based `CreateOrUpdate` and status reads are fine — those address resources whose names the operator controls.
 - **Don't hardcode commands/ports** — use `DeploymentConfig` defaults
 - **Don't duplicate controller logic** — use `component_reconciler.go` helpers
-- **Don't copy derived facts between docs** — values defined in code or in one canonical doc (e.g. the per-component routing paths in [`networking-and-monitoring.md`](/latest/user-guide/networking-and-monitoring/)) should be stated once and cross-linked from elsewhere, not re-listed on other pages where they silently go stale. Same spirit as the Automation Principle: one source of truth.
+- **Don't copy derived facts between docs** — values defined in code or in one canonical doc (e.g. the per-component routing paths in [`networking-and-monitoring.md`](../user-guide/networking-and-monitoring.md)) should be stated once and cross-linked from elsewhere, not re-listed on other pages where they silently go stale. Same spirit as the Automation Principle: one source of truth.
 - **Don't echo upstream defaults in Helm values or docs** — when a Helm value passes through to a Kubernetes field, leave it unset (`~`) so the platform default applies, and don't restate the current default value in comments, `values.yaml`, or release notes. Defaults can change upstream, and repeating them creates a second source of truth that silently goes stale.
 - **Don't add fields without doc comments** — they become CRD descriptions
 - **Don't use `bool` with `omitempty`** — use `*bool` to distinguish false from unset

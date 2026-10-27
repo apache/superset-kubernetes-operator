@@ -127,7 +127,6 @@ kind delete cluster --name superset
 | `make docs-lock` | Regenerate hash-pinned Python dependencies for documentation. |
 | `make docs-serve` | Serve documentation locally with live reload. |
 | `make docs-build` | Build documentation site. |
-| `make docs-build-slice` | Build one versioned documentation slice. |
 | `make docs-api` | Generate API reference documentation from Go types. |
 | `make supported-versions` | Regenerate the supported-Kubernetes-versions table in README.md and docs. |
 | `make make-commands` | Regenerate the make-commands tables in the contributing docs. |
@@ -229,28 +228,10 @@ The docs are built with [Zensical](https://zensical.org/). To set up and preview
 virtualenv venv
 source venv/bin/activate
 python -m pip install --require-hashes -r docs-requirements.txt
-./scripts/serve-docs-preview.sh
+make docs-serve
 ```
 
-This builds and serves the assembled multi-version site at `http://localhost:8765`. The preview starts from a fresh temporary directory. Before the first final release, `versions.json` lists only `main`, with no `latest` alias or `/latest/` redirects; root links to versioned pages go to `/main/`. After adding release branches to the preview, `/latest/` points to the newest one. Do not seed an initial-state test by copying `gh-pages`, since it already contains previously published release directories.
-
-To preview the current documentation alongside historical local branches without checking them out:
-
-```sh
-./scripts/serve-docs-branches.sh 0.1 0.2 0.3
-```
-
-This builds the current worktree as `/main/`, then assembles each requested branch as its version directory. Open `/main/` or one of the historical versions and use the version selector to switch between them. `/latest/` points to the highest requested release version. The branches must exist locally; the preview only reads their committed contents and does not change your active worktree.
-
-To simulate the initial deployment followed by workflow-dispatch backfills from local final-release tags, pass each target minor, final release, and source tag:
-
-```sh
-./scripts/serve-docs-branches.sh 0.1:0.1.1:v0.1.1 0.2:0.2.0:v0.2.0
-```
-
-The script starts with an empty temporary site, builds the root and current `/main/` docs, then processes each release in order into the same publish tree and serves the final result. Each source tag must exist locally. For separate inspection of the initial deployment, first run `./scripts/serve-docs-preview.sh`; stop it with Ctrl+C, then run the branch script. The branch script rebuilds a fresh combined site rather than modifying the preview's temporary tree.
-
-This preview starts from an empty temporary publish directory, so it verifies rendering and version navigation, not preservation of an existing `gh-pages` tree. `python scripts/test_docs_versions.py` also exercises a backfill into a pre-populated site and checks that only the target version directory is replaced. To test the GitHub Actions backfill against the real `gh-pages` tree without publishing, run the Docs workflow manually with `dry_run` enabled (the default); it reports the staged diff and skips the commit and push.
+This starts a live-reloading server at `http://localhost:8000`. Edit Markdown files in `docs/` and changes appear instantly.
 
 The documentation dependency lock is generated from `docs-requirements.in`. After changing documentation dependencies, run `make docs-lock` and commit the updated `docs-requirements.txt`.
 
@@ -271,7 +252,7 @@ Use Mermaid for flow diagrams. Keep them compact with the following conventions:
 
 ### API Reference
 
-The [API reference](/latest/reference/api-reference/) is generated from Go type definitions using [`crd-ref-docs`](https://github.com/elastic/crd-ref-docs). After modifying types in `api/v1alpha1/`, run `make codegen` to regenerate all generated artifacts (CRDs, DeepCopy, Helm CRDs, API docs). CI verifies nothing is stale.
+The [API reference](../reference/api-reference.md) is generated from Go type definitions using [`crd-ref-docs`](https://github.com/elastic/crd-ref-docs). After modifying types in `api/v1alpha1/`, run `make codegen` to regenerate all generated artifacts (CRDs, DeepCopy, Helm CRDs, API docs). CI verifies nothing is stale.
 
 The API reference only documents operator-defined types. Built-in Kubernetes types (e.g., `Affinity`, `Container`, `Volume`) are linked out to [pkg.go.dev](https://pkg.go.dev) rather than rendered inline. When adding new fields that reference a K8s type, add a corresponding `knownTypes` entry in `hack/api-ref-config.yaml` so it renders as a link.
 

@@ -19,8 +19,6 @@ under the License.
 
 # Security
 
-> This page reflects the current `main` branch and broadly applies to released versions. Release-specific security changes are recorded in the corresponding sections of the [release history](releases.md).
-
 This document covers the security posture of the Superset Kubernetes Operator. It includes the **threat model** (trust boundaries, security assumptions, in-scope / out-of-scope concerns), secret handling, RBAC justification, security-relevant design decisions, and the vulnerability reporting process.
 
 ## Trust Boundaries

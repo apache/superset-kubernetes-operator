@@ -36,7 +36,7 @@ The operator manages the full Superset lifecycle: database migrations, configura
 - **Lifecycle automation** — database seeding, schema migrations, secret key rotation, and application init run as sequenced tasks with automatic change detection and checksum-based re-execution
 - **Networking** — Gateway API (HTTPRoute) and Ingress support with per-component routing
 - **Scaling and resilience** — HPA with custom metrics, PodDisruptionBudgets, NetworkPolicies, Prometheus ServiceMonitor
-- **Flexible install scope** — cluster-scoped (default) or namespace-scoped; the namespace-scoped Helm install renders no manager `ClusterRole`. CRD installation and, unless metrics are disabled, secure metrics auth still require cluster-scoped RBAC — see [installation](/latest/user-guide/installation/#namespace-scoped-install) for the exact constraints
+- **Flexible install scope** — cluster-scoped (default) or namespace-scoped; the namespace-scoped Helm install renders no manager `ClusterRole`. CRD installation and, unless metrics are disabled, secure metrics auth still require cluster-scoped RBAC — see [installation](user-guide/installation.md#namespace-scoped-install) for the exact constraints
 
 ## Supported Kubernetes versions
 
@@ -123,30 +123,30 @@ my-superset-mcp-server-5c6d7e8f9-x9y1z        1/1     Running   4m
 
 **Deploying Superset?**
 
-- [Getting Started](/latest/getting-started/) — quickstart with dev mode
-- [Installation](/latest/user-guide/installation/) — production deployment with secrets
+- [Getting Started](getting-started.md) — quickstart with dev mode
+- [Installation](user-guide/installation.md) — production deployment with secrets
 
 **Configuring an existing deployment?**
 
-- [Configuration](/latest/user-guide/configuration/) — full configuration reference
-- [Lifecycle](/latest/user-guide/lifecycle/) — database migrations and upgrade management
-- [Networking & Monitoring](/latest/user-guide/networking-and-monitoring/) — external access and observability
+- [Configuration](user-guide/configuration.md) — full configuration reference
+- [Lifecycle](user-guide/lifecycle.md) — database migrations and upgrade management
+- [Networking & Monitoring](user-guide/networking-and-monitoring.md) — external access and observability
 
 **Understanding how the operator works?**
 
-- [Architecture](/latest/architecture/overview/) — CRD hierarchy, config rendering pipeline
-- [Internals](/latest/architecture/internals/) — reconciliation phases, resource ownership, status
+- [Architecture](architecture/overview.md) — CRD hierarchy, config rendering pipeline
+- [Internals](architecture/internals.md) — reconciliation phases, resource ownership, status
 
 **Contributing code?**
 
-- [Development Setup](/contributing/development-setup/) — local environment with Kind
-- [Development Guidelines](/contributing/development-guidelines/) — testing, patterns, PR conventions
+- [Development Setup](contributing/development-setup.md) — local environment with Kind
+- [Development Guidelines](contributing/development-guidelines.md) — testing, patterns, PR conventions
 
 **Reference:**
 
-- [API Reference](/latest/reference/api-reference/) — auto-generated CRD type documentation
-- [Security](/reference/security/) — trust boundaries, threat model, vulnerability reporting
-- [Downloads](/reference/downloads/) — images, Helm chart, verification
+- [API Reference](reference/api-reference.md) — auto-generated CRD type documentation
+- [Security](reference/security.md) — trust boundaries, threat model, vulnerability reporting
+- [Downloads](reference/downloads.md) — images, Helm chart, verification
 - [Adopters](https://github.com/apache/superset-kubernetes-operator/blob/main/ADOPTERS.md) — organizations using the operator
 
 ## License
