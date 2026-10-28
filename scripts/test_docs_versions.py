@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Unit tests for documentation versioning and link preparation."""
 
-import json
+import fnmatch
 import importlib.util
+import json
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -129,6 +131,24 @@ class DocsVersionsTest(unittest.TestCase):
 
 
 class DocumentationLinkPreparationTest(unittest.TestCase):
+    def test_shared_page_classification_matches_zensical_configs(self):
+        repo_root = Path(__file__).resolve().parent.parent
+        with (repo_root / "zensical-versioned.toml").open("rb") as config_file:
+            versioned_excludes = tomllib.load(config_file)["project"]["exclude_docs"].splitlines()
+        with (repo_root / "zensical-unversioned.toml").open("rb") as config_file:
+            unversioned_excludes = tomllib.load(config_file)["project"]["exclude_docs"].splitlines()
+
+        for page in phd.SHARED_PAGES:
+            with self.subTest(page=page):
+                self.assertTrue(
+                    any(fnmatch.fnmatchcase(page, pattern) for pattern in versioned_excludes),
+                    f"{page} must be excluded from the versioned build",
+                )
+                self.assertFalse(
+                    any(fnmatch.fnmatchcase(page, pattern) for pattern in unversioned_excludes),
+                    f"{page} must be included in the unversioned build",
+                )
+
     def test_rewrite_file_maps_shared_links_to_site_root(self):
         with tempfile.TemporaryDirectory() as directory:
             docs_dir = Path(directory)
