@@ -99,7 +99,10 @@ def load_manifest(publish_dir: Path) -> list[dict]:
         raise DocsVersionError(f"{path} is not valid JSON: {exc}") from exc
     if not isinstance(data, list):
         raise DocsVersionError(f"{path} must contain a JSON array")
-    return [e for e in data if isinstance(e, dict) and isinstance(e.get("version"), str)]
+    for index, entry in enumerate(data):
+        if not isinstance(entry, dict) or not isinstance(entry.get("version"), str):
+            raise DocsVersionError(f"{path} entry {index} must be an object with a string 'version'")
+    return data
 
 
 def check_not_downgrade(entries: list[dict], target: str, release: str | None, force: bool = False) -> None:
