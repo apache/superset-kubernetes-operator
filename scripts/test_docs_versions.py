@@ -26,11 +26,10 @@ class DocsVersionsTest(unittest.TestCase):
         for minor in ("0.9", "0.10", "0.2"):
             entries = dv.build_manifest(entries, minor)
         self.assertEqual([entry["version"] for entry in entries], ["0.10", "0.9", "0.2", "main"])
-        self.assertEqual(dv.latest_minor(entries), "0.10")
+        self.assertEqual(dv.latest_version(entries), "0.10")
 
     def test_main_is_latest_before_first_final_release(self):
         entries = dv.build_manifest([], dv.MAIN)
-        self.assertIsNone(dv.latest_minor(entries))
         self.assertEqual(entries, [{"version": "main", "title": dv.MAIN_TITLE, "aliases": ["latest"]}])
         self.assertEqual(dv.latest_version(entries), "main")
         entries = dv.build_manifest(entries, "0.3", "0.3.0")

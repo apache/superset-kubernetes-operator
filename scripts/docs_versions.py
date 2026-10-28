@@ -139,17 +139,6 @@ def write_manifest(publish_dir: Path, entries: list[dict]) -> None:
     (publish_dir / MANIFEST).write_text(json.dumps(entries, indent=2) + "\n")
 
 
-def latest_minor(entries: list[dict]) -> str | None:
-    return next(
-        (
-            e["version"]
-            for e in entries
-            if MINOR_RE.fullmatch(e["version"]) and LATEST in e.get("aliases", [])
-        ),
-        None,
-    )
-
-
 def latest_version(entries: list[dict]) -> str | None:
     """Return the latest alias target, including ``main`` before the first release."""
     return next(
