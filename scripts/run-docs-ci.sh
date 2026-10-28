@@ -43,7 +43,7 @@ emit_env() {
   printf 'DOC_REF=%s\nDRY_RUN=%s\n' "$DOC_REF" "$dry_run"
 }
 
-prepare() {
+prepare() (
   [[ "${GITHUB_ACTIONS:-}" == "true" ]] || {
     echo "error: prepare is CI-only; use a temporary docs copy for local previews" >&2
     exit 2
@@ -54,8 +54,8 @@ prepare() {
   if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
     release_vars
     git fetch --no-tags origin "$DOC_REF"
-    local assets
     assets="$(mktemp -d)"
+    trap 'rm -rf "$assets"' EXIT
     cp docs/javascripts/version-switcher.js docs/stylesheets/version-banner.css "$assets/"
     rm -rf docs
     git archive FETCH_HEAD docs | tar -x
@@ -70,7 +70,7 @@ prepare() {
       --site-url "$base_url" \
       --versioned-prefix latest
   fi
-}
+)
 
 publish() {
   local dir="$1"
