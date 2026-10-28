@@ -46,6 +46,11 @@ on:
         required: true
         default: true
         type: boolean
+      force:
+        description: "Allow replacing a minor's docs with an older patch release"
+        required: true
+        default: false
+        type: boolean
   pull_request:
     branches: [main]
     paths:

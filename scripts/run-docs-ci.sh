@@ -35,12 +35,21 @@ site_url() {
 # user-supplied text never becomes shell source. GITHUB_ENV is line-based, so a
 # release ref is validated BEFORE it is printed: a crafted value cannot add variables.
 emit_env() {
-  local ref dry_run
+  local ref dry_run force
   ref="$(jq -r '.inputs.ref // empty' "$GITHUB_EVENT_PATH")"
   dry_run="$(jq -r '.inputs.dry_run // false' "$GITHUB_EVENT_PATH")"
+  force="$(jq -r '.inputs.force // false' "$GITHUB_EVENT_PATH")"
+  [[ "$dry_run" == true || "$dry_run" == false ]] || {
+    echo "invalid dry_run input: expected true or false" >&2
+    exit 1
+  }
+  [[ "$force" == true || "$force" == false ]] || {
+    echo "invalid force input: expected true or false" >&2
+    exit 1
+  }
   DOC_REF="${ref:-$GITHUB_REF_NAME}"
   if is_release; then release_vars; fi
-  printf 'DOC_REF=%s\nDRY_RUN=%s\n' "$DOC_REF" "$dry_run"
+  printf 'DOC_REF=%s\nDRY_RUN=%s\nDOCS_FORCE=%s\n' "$DOC_REF" "$dry_run" "$force"
 }
 
 prepare() (
@@ -79,12 +88,17 @@ publish() {
   mkdir -p "$dir"
   if is_release; then
     release_vars
+    local force_args=()
+    if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "${DOCS_FORCE:-false}" == true ]]; then
+      force_args+=(--force)
+    fi
     bash scripts/publish-docs.sh \
       --config zensical-versioned.toml \
       --target "$MINOR" \
       --publish-dir "$dir" \
       --release "$VERSION" \
-      --site-url "$base_url"
+      --site-url "$base_url" \
+      "${force_args[@]+"${force_args[@]}"}"
   else
     bash scripts/publish-docs.sh \
       --config zensical-unversioned.toml \
