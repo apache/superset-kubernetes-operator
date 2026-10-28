@@ -252,7 +252,9 @@ fuzz: ## Run all fuzz targets for a bounded duration (FUZZTIME per target, defau
 	go test ./internal/config/     -run '^$$' -fuzz '^FuzzPyQuote$$'            -fuzztime $$FUZZTIME; \
 	go test ./internal/config/     -run '^$$' -fuzz '^FuzzRenderConfig$$'       -fuzztime $$FUZZTIME; \
 	go test ./internal/resolution/ -run '^$$' -fuzz '^FuzzMergeMaps$$'          -fuzztime $$FUZZTIME; \
-	go test ./internal/controller/ -run '^$$' -fuzz '^FuzzRedactCredentials$$' -fuzztime $$FUZZTIME
+	go test ./internal/controller/ -run '^$$' -fuzz '^FuzzRedactCredentials$$' -fuzztime $$FUZZTIME; \
+	go test ./internal/controller/ -run '^$$' -fuzz '^FuzzSanitizeBackupLabel$$' -fuzztime $$FUZZTIME; \
+	go test ./internal/controller/ -run '^$$' -fuzz '^FuzzParseBackupResult$$' -fuzztime $$FUZZTIME
 
 # E2E tests live under test/e2e/ and assume Kind is pre-installed; the manager
 # image is built and side-loaded into the cluster. CertManager is installed by
@@ -276,9 +278,13 @@ setup-test-e2e: ## Set up a Kind cluster for e2e tests if it does not exist
 			$(KIND) create cluster --name $(KIND_CLUSTER) --image $(KIND_NODE_IMAGE) ;; \
 	esac
 
+# go test aborts a package after 10 minutes by default, which the full e2e
+# suite (including the backup specs against real databases) exceeds.
+E2E_TIMEOUT ?= 45m
+
 .PHONY: test-e2e
 test-e2e: setup-test-e2e manifests generate fmt vet ## Run the e2e tests. Expected an isolated environment using Kind.
-	KIND_CLUSTER=$(KIND_CLUSTER) go test ./test/e2e/ -v -ginkgo.v
+	KIND_CLUSTER=$(KIND_CLUSTER) go test ./test/e2e/ -v -ginkgo.v -timeout $(E2E_TIMEOUT)
 	$(MAKE) cleanup-test-e2e
 
 .PHONY: cleanup-test-e2e
