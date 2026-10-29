@@ -278,10 +278,10 @@
     const segment = detectVersionSegment(root);
     const latest = versions.find(isLatest);
     const preferred = getPreferredVersion(root, versions);
+    rewriteSiteRootLinks(root);
     if (!segment) {
       rewriteRootVersionLinks(root, preferred?.version || latest?.version || "main");
     }
-    rewriteSiteRootLinks(root);
     const ctx = {
       versions,
       root,
