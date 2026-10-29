@@ -84,6 +84,11 @@
     }
   }
 
+  /** Update a link's path without letting the browser turn href into a full URL. */
+  function setLinkPath(link, pathname) {
+    link.setAttribute("href", `${pathname}${link.search}${link.hash}`);
+  }
+
   function rewriteRootVersionLinks(root, version) {
     document.querySelectorAll("a[href]").forEach((link) => {
       if (
@@ -96,7 +101,7 @@
       const path = link.pathname.slice(root.length);
       const firstSegment = pathParts(path)[0];
       if (firstSegment && VERSION_SEGMENT.test(firstSegment)) {
-        link.pathname = `${root}${version}/${path.slice(firstSegment.length + 1)}`;
+        setLinkPath(link, `${root}${version}/${path.slice(firstSegment.length + 1)}`);
       }
     });
   }
@@ -113,7 +118,7 @@
       }
       const path = link.pathname;
       if (!path.startsWith("/") || path.startsWith(root)) return;
-      link.pathname = `${root}${path.slice(1)}`;
+      setLinkPath(link, `${root}${path.slice(1)}`);
     });
   }
 
@@ -139,9 +144,6 @@
       })
       .catch((error) => {
         console.warn("version-switcher: could not load versions.json", error);
-        // A plain `zensical serve` build has no assembled-site manifest. Keep
-        // the selector visible in that mode; the assembled preview supplies
-        // the complete manifest and real version paths.
         return fallback;
       });
   }
@@ -183,9 +185,7 @@
   function makeVersionLink(root, entryOrSegment, currentSegment) {
     const segment = typeof entryOrSegment === "string" ? entryOrSegment : segmentFor(entryOrSegment);
     const link = document.createElement("a");
-    // Shared project pages live only at the site root. There is no
-    // /main/reference/... or /latest/reference/... page to preserve here, so
-    // switch to the selected version's landing page instead.
+    // Shared project pages live only at the site root, so switch to the selected version's landing page instead.
     link.href = currentSegment
       ? buildVersionPath(root, segment, currentSegment)
       : `${root}${segment}/`;
