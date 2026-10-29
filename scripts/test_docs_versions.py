@@ -81,11 +81,10 @@ class DocsVersionsTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.make_site(root)
-            self.assertEqual(dv.write_latest_redirects(root, "0.3", "https://example.org/docs"), 3)
+            self.assertEqual(dv.write_latest_redirects(root, "0.3"), 3)
             index = (root / "latest/index.html").read_text()
             self.assertIn('"../0.3/getting-started/"', index)
             self.assertIn("location.search + location.hash", index)
-            self.assertIn('href="https://example.org/docs/0.3/getting-started/"', index)
             self.assertIn('"../../0.3/guide/"', (root / "latest/guide/index.html").read_text())
             self.assertIn('"../../0.3/guide/page.html"', (root / "latest/guide/page.html").read_text())
 
@@ -100,13 +99,13 @@ class DocsVersionsTest(unittest.TestCase):
             self.assertFalse((root / "latest/guide/page.html").exists())
             self.assertIn('"../0.4/getting-started/"', (root / "latest/index.html").read_text())
 
-    def test_version_landing_does_not_duplicate_home(self):
+    def test_version_landing_redirects_to_getting_started(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             self.make_site(root)
             dv.write_version_landing(root, "0.3")
-            self.assertIn('"getting-started/"', (root / "0.3/index.html").read_text())
-            self.assertFalse((root / "0.3/index.md").exists())
+            landing = (root / "0.3/index.html").read_text()
+            self.assertIn('new URL("getting-started/", location.href)', landing)
 
     def test_load_manifest_reads_version_entries(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -148,7 +147,7 @@ class DocumentationLinkPreparationTest(unittest.TestCase):
                     f"{page} must be included in the unversioned build",
                 )
 
-    def test_rewrite_file_maps_shared_links_to_site_root(self):
+    def test_shared_links_are_rewritten_under_project_path(self):
         with tempfile.TemporaryDirectory() as directory:
             docs_dir = Path(directory)
             (docs_dir / "reference").mkdir()
@@ -157,35 +156,45 @@ class DocumentationLinkPreparationTest(unittest.TestCase):
             (docs_dir / "reference/security.md").write_text("Shared security page")
 
             self.assertTrue(phd.rewrite_file(index, docs_dir))
-            self.assertEqual(index.read_text(), "[Shared](/reference/security/#scope)")
+            self.assertEqual(
+                index.read_text(),
+                "[Shared](/superset-kubernetes-operator/reference/security/#scope)",
+            )
 
-    def test_rewrite_file_maps_shared_links_to_versioned_prefix(self):
+    def test_shared_links_to_versioned_pages_use_project_and_version_paths(self):
         with tempfile.TemporaryDirectory() as directory:
             docs_dir = Path(directory)
             (docs_dir / "reference").mkdir()
             (docs_dir / "user-guide").mkdir()
-            (docs_dir / "index.md").write_text("[Versioned](user-guide/configuration.md#cache)")
+            index = docs_dir / "index.md"
+            index.write_text(
+                "[Guide home](user-guide/index.md) "
+                "[Configuration](user-guide/configuration.md#cache)"
+            )
             (docs_dir / "reference/security.md").write_text("Shared security page")
+            (docs_dir / "user-guide/index.md").write_text("Guide home")
             (docs_dir / "user-guide/configuration.md").write_text("Versioned page")
 
-            index = docs_dir / "index.md"
-            pages = {"user-guide/configuration.md": "/latest/user-guide/configuration/"}
+            pages = phd.versioned_page_urls(docs_dir, "latest")
             self.assertTrue(phd.rewrite_file(index, docs_dir, versioned_pages=pages))
-            self.assertEqual(index.read_text(), "[Versioned](/latest/user-guide/configuration/#cache)")
+            self.assertEqual(
+                index.read_text(),
+                "[Guide home](/superset-kubernetes-operator/latest/user-guide/) "
+                "[Configuration](/superset-kubernetes-operator/latest/user-guide/configuration/#cache)",
+            )
 
-    def test_versioned_index_page_maps_to_directory_url(self):
+    def test_versioned_page_keeps_links_to_other_versioned_pages_relative(self):
         with tempfile.TemporaryDirectory() as directory:
             docs_dir = Path(directory)
+            (docs_dir / "user-guide").mkdir()
             page = docs_dir / "user-guide/index.md"
-            page.parent.mkdir()
-            page.write_text("[Home](../getting-started.md)")
-            (docs_dir / "getting-started.md").write_text("Getting started")
+            page.write_text("[Configuration](configuration.md)")
+            (docs_dir / "user-guide/configuration.md").write_text("Configuration")
 
-            versioned_pages = phd.versioned_page_urls(docs_dir, "latest")
-            phd.rewrite_file(page, docs_dir, versioned_pages=versioned_pages)
+            pages = phd.versioned_page_urls(docs_dir, "latest")
+            phd.rewrite_file(page, docs_dir, versioned_pages=pages)
 
-            self.assertEqual(page.read_text(), "[Home](../getting-started.md)")
-            self.assertEqual(versioned_pages["user-guide/index.md"], "/latest/user-guide/")
+            self.assertEqual(page.read_text(), "[Configuration](configuration.md)")
 
 
 if __name__ == "__main__":

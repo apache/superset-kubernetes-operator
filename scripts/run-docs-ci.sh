@@ -25,12 +25,6 @@ release_vars() {
   MINOR="${VERSION%.*}"
 }
 
-site_url() {
-  python3 -c \
-    'import sys, tomllib; print(tomllib.load(open(sys.argv[1], "rb"))["project"]["site_url"].rstrip("/"))' \
-    zensical.toml
-}
-
 # Workflow inputs come from the event payload instead of a ${{ }} expression, so
 # user-supplied text never becomes shell source. GITHUB_ENV is line-based, so a
 # release ref is validated BEFORE it is printed: a crafted value cannot add variables.
@@ -57,9 +51,6 @@ prepare() (
     echo "error: prepare is CI-only; use a temporary docs copy for local previews" >&2
     exit 2
   }
-  local base_url
-  base_url="$(site_url)"
-
   if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
     release_vars
     git fetch --no-tags origin "$DOC_REF"
@@ -72,19 +63,16 @@ prepare() (
     cp "$assets/version-switcher.js" docs/javascripts/
     cp "$assets/version-banner.css" docs/stylesheets/
     # Historical backfills keep version-to-version links relative to their own version.
-    python3 scripts/prepare-docs-links.py --docs-dir docs --site-url "$base_url"
+    python3 scripts/prepare-docs-links.py --docs-dir docs
   else
     python3 scripts/prepare-docs-links.py \
       --docs-dir docs \
-      --site-url "$base_url" \
       --versioned-prefix latest
   fi
 )
 
 publish() {
   local dir="$1"
-  local base_url
-  base_url="$(site_url)"
   mkdir -p "$dir"
   if is_release; then
     release_vars
@@ -97,19 +85,16 @@ publish() {
       --target "$MINOR" \
       --publish-dir "$dir" \
       --release "$VERSION" \
-      --site-url "$base_url" \
       "${force_args[@]+"${force_args[@]}"}"
   else
     bash scripts/publish-docs.sh \
       --config zensical-unversioned.toml \
       --target root \
-      --publish-dir "$dir" \
-      --site-url "$base_url"
+      --publish-dir "$dir"
     bash scripts/publish-docs.sh \
       --config zensical-versioned.toml \
       --target main \
-      --publish-dir "$dir" \
-      --site-url "$base_url"
+      --publish-dir "$dir"
   fi
 }
 

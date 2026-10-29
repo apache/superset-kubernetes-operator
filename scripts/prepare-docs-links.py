@@ -2,8 +2,8 @@
 """Rewrite relative documentation links for the assembled multi-version site.
 
 Link rules (docs are written with plain relative .md links; this runs in CI only):
-  * any page -> shared page          absolute root URL (shared pages live at the site root)
-  * shared page -> versioned page    /<prefix>/... (only with --versioned-prefix, e.g. latest)
+  * any page -> shared page          /superset-kubernetes-operator/... (shared pages live at the site root)
+  * shared page -> versioned page    /superset-kubernetes-operator/<prefix>/...
   * versioned page -> versioned page left relative, so every version stays self-contained
 
 Handled: inline markdown links, with or without a title.
@@ -25,6 +25,9 @@ import argparse
 import posixpath
 import re
 from pathlib import Path, PurePosixPath
+
+# GitHub Pages serves this project under its repository name.
+SITE_PATH_PREFIX = "/superset-kubernetes-operator"
 
 # Source path (relative to docs/) -> URL path at the site root.
 SHARED_PAGES = {
@@ -57,7 +60,6 @@ def versioned_page_urls(docs_dir: Path, prefix: str) -> dict[str, str]:
 def rewrite_file(
     path: Path,
     docs_dir: Path,
-    base_url: str = "",
     versioned_pages: dict[str, str] | None = None,
 ) -> bool:
     relative = PurePosixPath(path.relative_to(docs_dir).as_posix())
@@ -76,7 +78,7 @@ def rewrite_file(
             page = link_to_versioned.get(resolved)
         if page is None:
             return match.group(0)
-        target = f"{base_url}{page}" + (f"#{fragment}" if separator else "")
+        target = f"{SITE_PATH_PREFIX}{page}" + (f"#{fragment}" if separator else "")
         return f"]({target}{match.group('title') or ''})"
 
     rewritten = MARKDOWN_LINK.sub(replace, original)
@@ -90,22 +92,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--docs-dir", type=Path, required=True)
     parser.add_argument(
-        "--site-url",
-        default="",
-        help="absolute site URL to prefix links with; omit only if the site is served from a domain root",
-    )
-    parser.add_argument(
         "--versioned-prefix",
         help="rewrite links from shared pages to versioned pages under this URL prefix (for example, latest)",
     )
     args = parser.parse_args()
-    base_url = args.site_url.rstrip("/")
     prefix = args.versioned_prefix.strip("/") if args.versioned_prefix else None
     if args.versioned_prefix is not None and not prefix:
         parser.error("--versioned-prefix must contain a path segment")
     versioned_pages = versioned_page_urls(args.docs_dir, prefix) if prefix else None
     count = sum(
-        rewrite_file(path, args.docs_dir, base_url, versioned_pages)
+        rewrite_file(path, args.docs_dir, versioned_pages)
         for path in args.docs_dir.rglob("*.md")
         if not path.is_symlink()  # backfills extract old tags; never write through a link
     )

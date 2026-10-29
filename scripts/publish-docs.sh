@@ -26,7 +26,6 @@ Usage: publish-docs.sh --config FILE --target TARGET --publish-dir DIR [options]
   --release X.Y.Z      final release being published (versioned targets only)
   --site-dir DIR       build output dir; must match site_dir in the config
                        (default: $ROOT_DIR/site, or $SITE_DIR)
-  --site-url URL       absolute site URL, used for canonical links
   --force              allow overwriting a minor with an older patch
 EOF
 }
@@ -34,14 +33,14 @@ EOF
 die() { echo "error: $*" >&2; exit 2; }
 log() { echo "==> $*"; }
 
-CONFIG="" TARGET="" PUBLISH_DIR="" RELEASE="" SITE_URL="" FORCE=""
+CONFIG="" TARGET="" PUBLISH_DIR="" RELEASE="" FORCE=""
 SITE_DIR="${SITE_DIR:-$ROOT_DIR/site}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --help|-h) usage; exit 0 ;;
     --force) FORCE=1; shift ;;
-    --config|--target|--publish-dir|--release|--site-dir|--site-url)
+    --config|--target|--publish-dir|--release|--site-dir)
       [[ $# -ge 2 ]] || { usage; die "$1 requires a value"; }
       case "$1" in
         --config) CONFIG="$2" ;;
@@ -49,7 +48,6 @@ while [[ $# -gt 0 ]]; do
         --publish-dir) PUBLISH_DIR="$2" ;;
         --release) RELEASE="$2" ;;
         --site-dir) SITE_DIR="$2" ;;
-        --site-url) SITE_URL="$2" ;;
       esac
       shift 2 ;;
     *) usage; die "unknown argument: $1" ;;
@@ -84,7 +82,6 @@ common=(--publish-dir "$PUBLISH_DIR" --target "$TARGET")
 check_args=("${common[@]}")
 [[ -z "$FORCE" ]] || check_args+=(--force)
 finalize_args=("${common[@]}")
-[[ -z "$SITE_URL" ]] || finalize_args+=(--site-url "$SITE_URL")
 
 # Fail fast, before the (slow) build, on bad targets, RC versions, or downgrades.
 python3 "$VERSIONS_PY" check "${check_args[@]}"
