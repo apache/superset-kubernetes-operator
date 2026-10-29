@@ -1,22 +1,30 @@
 #!/usr/bin/env python3
 """Rewrite relative documentation links for the assembled multi-version site.
 
-Link rules (docs are written with plain relative .md links; this runs in CI only):
-  * any page -> shared page          /superset-kubernetes-operator/... (shared pages live at the site root)
-  * shared page -> versioned page    /superset-kubernetes-operator/<prefix>/...
-  * versioned page -> versioned page left relative, so every version stays self-contained
+Docs are written with plain relative .md links; this makes them work across sections:
+  * any page -> shared page        absolute URL under SITE_PATH_PREFIX
+  * shared page -> versioned page  absolute URL under /<prefix>/ (for example latest)
+  * versioned -> versioned         left relative, so each version stays self-contained
 
-Handled: inline markdown links, with or without a title.
-Not handled: reference-style definitions, raw HTML <a href>, and links inside
-code fences (they are rewritten like any other text). A leftover broken link
-should surface as a warning in the strict build.
+Only inline markdown links are handled (not reference-style, raw HTML, or code
+fences). Files are rewritten in place: run it in CI or on a throwaway copy of docs/.
 
-This rewrites files in place. Run it on a CI checkout or a throwaway copy of
-docs/, never on a working tree you want to keep.
+Usage::
 
-SHARED_PAGES must stay in sync with the pages excluded from the versioned
-build (``exclude_docs`` in zensical-versioned.toml) and built by
-``zensical-unversioned.toml``.
+    prepare-docs-links.py --docs-dir DIR [--versioned-prefix PREFIX]
+
+    --docs-dir          the docs/ tree to rewrite
+    --versioned-prefix  also rewrite shared -> versioned links under /PREFIX/ (use
+                        ``latest`` for normal builds; omit for historical backfills,
+                        where shared pages are not built)
+
+Locally, always work on a copy::
+
+    cp -r docs /tmp/docs-links
+    python3 scripts/prepare-docs-links.py --docs-dir /tmp/docs-links --versioned-prefix latest
+
+SHARED_PAGES must match ``exclude_docs`` in zensical-versioned.toml and the
+pages built by zensical-unversioned.toml.
 """
 
 from __future__ import annotations
@@ -63,7 +71,7 @@ def rewrite_file(
     versioned_pages: dict[str, str] | None = None,
 ) -> bool:
     relative = PurePosixPath(path.relative_to(docs_dir).as_posix())
-    # Only shared pages point at versioned pages by URL; a versioned page's links to
+    # Only shared pages point at versioned pages by URL. A versioned page's links to
     # other versioned pages must stay relative or they would jump to another version.
     link_to_versioned = versioned_pages if relative.as_posix() in SHARED_PAGES else None
     original = path.read_text()

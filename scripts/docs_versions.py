@@ -1,38 +1,38 @@
 #!/usr/bin/env python3
 """Version bookkeeping for the multi-version documentation site.
 
-Site layout (under the publish directory)::
+Layout under the publish directory::
 
-    /                 unversioned pages (built from ``main``), including Home
+    /                 shared pages (built from ``main``), including Home
     /main/            unreleased versioned docs
-    /0.3/, /0.4/ ...  one directory per *minor* release (patch releases overwrite their minor)
-    /latest/          redirect pages pointing into the newest final minor, or ``main`` before first release
+    /0.3/, /0.4/ ...  one directory per minor release; patches overwrite their minor
+    /latest/          redirect pages into the newest minor (into ``main`` before the first release)
     /versions.json    manifest read by docs/javascripts/version-switcher.js
 
-Versioned builds have no Home page, so each version root (``/0.3/``) is a
-redirect to ``LANDING_PAGE``.
+Versioned builds have no Home page, so each version root redirects to ``LANDING_PAGE``.
 
-``versions.json`` schema (a flat list, newest minor first, ``main`` last)::
+versions.json is newest minor first, ``main`` last. Before the first release,
+``main`` carries the ``latest`` alias::
 
     [{"version": "0.4", "title": "0.4", "aliases": ["latest"], "release": "0.4.1"},
      {"version": "0.3", "title": "0.3", "aliases": []},
      {"version": "main", "title": "main (unreleased)", "aliases": []}]
 
-Before the first final release, ``main`` has the ``latest`` alias and the
-``latest/`` directory redirects to ``main/``. A final release moves the alias
-to the newest minor and replaces those redirects.
+The version grammar is duplicated in version-switcher.js; this file is the source of truth.
 
-The schema is intentionally a small, stable manifest. Nothing here depends on
-an external versioning tool. Do not add fields the JS does not understand
-without updating it.
+Usage (normally run by publish-docs.sh, not by hand)::
 
-The version grammar (``MINOR_RE``, ``main``, ``latest``) is duplicated in
-version-switcher.js; this file is the source of truth.
+    docs_versions.py check    --publish-dir DIR --target TARGET [--release X.Y.Z] [--force]
+    docs_versions.py finalize --publish-dir DIR --target TARGET [--release X.Y.Z]
 
-Commands (called by publish-docs.sh)::
+    check     validate target/release and refuse patch downgrades; run before building
+    finalize  update versions.json, write the version landing page, regenerate latest/
+              redirects; run after the site is synced into DIR
 
-    check     validate target/release and refuse patch downgrades (run before building)
-    finalize  update versions.json, write the version landing page, regenerate latest/ redirects
+TARGET is ``root``, ``main`` or a minor such as ``0.3``; ``--release`` is only valid
+for a minor and must be a final X.Y.Z of that minor. Example::
+
+    python3 scripts/docs_versions.py finalize --publish-dir /tmp/site --target 0.3 --release 0.3.1
 """
 
 from __future__ import annotations
@@ -51,19 +51,15 @@ MAIN = "main"
 LATEST = "latest"
 MAIN_TITLE = "main (unreleased)"
 MANIFEST = "versions.json"
-LANDING_PAGE = "getting-started"  # where each version root (and latest/) redirects to
+LANDING_PAGE = "getting-started"
 
 MINOR_RE = re.compile(r"^\d+\.\d+$")
-FINAL_RELEASE_RE = re.compile(r"^\d+\.\d+\.\d+$")  # no pre-release suffixes: RCs are never published
+FINAL_RELEASE_RE = re.compile(r"^\d+\.\d+\.\d+$")  # no pre-release suffix: RCs are never published
 
 
 class DocsVersionError(Exception):
     """A user-facing error (bad arguments, refused downgrade, corrupt manifest)."""
 
-
-# --------------------------------------------------------------------------- #
-# Version helpers
-# --------------------------------------------------------------------------- #
 
 def version_key(version: str) -> tuple[int, ...]:
     """Numeric sort key, so 0.10 sorts after 0.9."""
@@ -85,10 +81,6 @@ def validate_args(target: str, release: str | None = None) -> None:
         raise DocsVersionError(f"--release {release} does not belong to target {target}")
 
 
-# --------------------------------------------------------------------------- #
-# Manifest
-# --------------------------------------------------------------------------- #
-
 def load_manifest(publish_dir: Path) -> list[dict]:
     path = publish_dir / MANIFEST
     try:
@@ -106,7 +98,7 @@ def load_manifest(publish_dir: Path) -> list[dict]:
 
 
 def check_not_downgrade(entries: list[dict], target: str, release: str | None, force: bool = False) -> None:
-    """``0.3.1`` overwrites ``0.3``; publishing ``0.3.0`` afterwards would silently roll it back."""
+    """``0.3.1`` overwrites ``0.3``, so publishing ``0.3.0`` afterwards would silently roll it back."""
     if release is None or force:
         return
     existing = next((e.get("release") for e in entries if e["version"] == target), None)
@@ -117,7 +109,7 @@ def check_not_downgrade(entries: list[dict], target: str, release: str | None, f
 
 
 def build_manifest(entries: list[dict], target: str, release: str | None = None) -> list[dict]:
-    """Return the new manifest: minors newest-first, then ``main`` as latest only before release."""
+    """Minors newest-first; the newest gets ``latest``, or ``main`` when there are none."""
     by_version = {e["version"]: dict(e) for e in entries}
     by_version[MAIN] = {**by_version.get(MAIN, {}), "version": MAIN, "title": MAIN_TITLE, "aliases": []}
 
@@ -140,22 +132,17 @@ def write_manifest(publish_dir: Path, entries: list[dict]) -> None:
 
 
 def latest_version(entries: list[dict]) -> str | None:
-    """Return the latest alias target, including ``main`` before the first release."""
+    """The version carrying the ``latest`` alias (``main`` before the first release)."""
     return next(
         (e["version"] for e in entries if LATEST in e.get("aliases", [])),
         None,
     )
 
 
-# --------------------------------------------------------------------------- #
-# Redirect pages
-# --------------------------------------------------------------------------- #
-
 def redirect_page(relative_url: str, label: str) -> str:
-    """A redirect that keeps ``?query`` and ``#hash`` (a bare meta refresh drops them).
+    """A redirect that keeps ``?query`` and ``#hash``, which a bare meta refresh drops.
 
-    ``label`` names the destination, e.g. "the latest documentation". The meta
-    refresh lives in <noscript> so it cannot race the script.
+    The meta refresh sits in <noscript> so it cannot race the script.
     """
     rel_attr = html.escape(relative_url, quote=True)
     label_html = html.escape(label)
@@ -171,7 +158,7 @@ def redirect_page(relative_url: str, label: str) -> str:
 
 
 def write_version_landing(publish_dir: Path, version: str) -> None:
-    """Create the version root page, which redirects to LANDING_PAGE (versioned docs have no Home)."""
+    """Versioned builds have no Home page, so the version root redirects to LANDING_PAGE."""
     version_root = publish_dir / version
     version_root.mkdir(parents=True, exist_ok=True)
     (version_root / "index.html").write_text(
@@ -180,7 +167,7 @@ def write_version_landing(publish_dir: Path, version: str) -> None:
 
 
 def write_latest_redirects(publish_dir: Path, latest: str) -> int:
-    """Mirror ``<latest>/`` as redirect pages under ``latest/``. Returns the page count."""
+    """Mirror ``<latest>/`` as redirect pages under ``latest/``; returns the page count."""
     alias_root = publish_dir / LATEST
     source_root = publish_dir / latest
     shutil.rmtree(alias_root, ignore_errors=True)
@@ -207,10 +194,6 @@ def write_latest_redirects(publish_dir: Path, latest: str) -> int:
         count += 1
     return count
 
-
-# --------------------------------------------------------------------------- #
-# Commands
-# --------------------------------------------------------------------------- #
 
 def cmd_check(args: argparse.Namespace) -> None:
     validate_args(args.target, args.release)
