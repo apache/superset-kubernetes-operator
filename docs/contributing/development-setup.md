@@ -127,6 +127,7 @@ kind delete cluster --name superset
 | `make docs-lock` | Regenerate hash-pinned Python dependencies for documentation. |
 | `make docs-serve` | Serve documentation locally with live reload. |
 | `make docs-build` | Build documentation site. |
+| `make docs-build-slice` | Build one versioned documentation slice. |
 | `make docs-api` | Generate API reference documentation from Go types. |
 | `make supported-versions` | Regenerate the supported-Kubernetes-versions table in README.md and docs. |
 | `make make-commands` | Regenerate the make-commands tables in the contributing docs. |
@@ -240,6 +241,8 @@ To verify the docs build cleanly (same check that runs in CI):
 ```sh
 make docs-build
 ```
+
+Docs CI uses two Zensical configs: `zensical-unversioned.toml` builds shared project pages at the site root, while `zensical-versioned.toml` builds version-sensitive docs under `/main/` or a release path. Add new pages to the appropriate navigation. CI rewrites links to shared and versioned pages as root-relative URLs under `/superset-kubernetes-operator/`, the repository's GitHub Pages project path.
 
 ### Diagrams
 
