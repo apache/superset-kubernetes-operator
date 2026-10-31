@@ -241,6 +241,8 @@ To verify the docs build cleanly (same check that runs in CI):
 make docs-build
 ```
 
+Docs CI uses two Zensical configs: `zensical-unversioned.toml` builds shared project pages at the site root, while `zensical-versioned.toml` builds version-sensitive docs under `/main/` or a release path. Add new pages to the appropriate navigation. CI rewrites links to shared and versioned pages as root-relative URLs under `/superset-kubernetes-operator/`, the repository's GitHub Pages project path.
+
 ### Diagrams
 
 Use Mermaid for flow diagrams. Keep them compact with the following conventions:
