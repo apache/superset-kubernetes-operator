@@ -337,7 +337,7 @@ func TestCollectSecretEnvVars_Metastore(t *testing.T) {
 
 func TestBuildOperatorInjected(t *testing.T) {
 	configEnvVars := []corev1.EnvVar{{Name: "SUPERSET_OPERATOR__SECRET_KEY", Value: "test"}}
-	injected := buildOperatorInjected("import os\n", "", "my-web-server", "v2", configEnvVars)
+	injected := buildOperatorInjected("import os\n", "", "my-web-server", "v2", "", configEnvVars)
 
 	if len(injected.Volumes) != 1 || injected.Volumes[0].Name != configVolumeName {
 		t.Errorf("expected 1 config volume, got %d", len(injected.Volumes))
@@ -355,7 +355,7 @@ func TestBuildOperatorInjected(t *testing.T) {
 	}
 
 	// Empty config: no volumes, no mounts.
-	empty := buildOperatorInjected("", "", "component", "", nil)
+	empty := buildOperatorInjected("", "", "component", "", "", nil)
 	if len(empty.Volumes) != 0 {
 		t.Errorf("expected 0 volumes for empty config, got %d", len(empty.Volumes))
 	}
@@ -363,7 +363,7 @@ func TestBuildOperatorInjected(t *testing.T) {
 		t.Errorf("expected 0 volume mounts for empty config, got %d", len(empty.VolumeMounts))
 	}
 
-	bootstrapOnly := buildOperatorInjected("", "echo bootstrap", "component", "", nil)
+	bootstrapOnly := buildOperatorInjected("", "echo bootstrap", "component", "", "", nil)
 	if len(bootstrapOnly.Volumes) != 1 {
 		t.Errorf("expected bootstrap-only config volume, got %d", len(bootstrapOnly.Volumes))
 	}

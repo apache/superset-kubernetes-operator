@@ -152,6 +152,12 @@ func RenderConfig(componentType ComponentType, input *ConfigInput) string {
 	// SECRET_KEY from operator-internal env var.
 	fmt.Fprintf(&b, "SECRET_KEY = os.environ['%s']\n", common.EnvSecretKey)
 
+	// LOG_LEVEL is read from an env var so the rendered file is identical at
+	// every level. So a level change rolls only the affected pods and never
+	// changes lifecycle task checksums.
+	// spec.config can still override it.
+	fmt.Fprintf(&b, "LOG_LEVEL = os.environ.get('%s', 'INFO')\n", common.EnvLogLevel)
+
 	// PREVIOUS_SECRET_KEY for key rotation (optional, read with get()).
 	if input.HasPreviousSecretKey {
 		fmt.Fprintf(&b, "PREVIOUS_SECRET_KEY = os.environ.get('%s')\n", common.EnvPreviousSecretKey)
