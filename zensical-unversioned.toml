@@ -1,0 +1,98 @@
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+[project]
+site_name = "Apache Superset Kubernetes Operator"
+site_url = "https://apache.github.io/superset-kubernetes-operator/"
+site_description = "Kubernetes operator for deploying and managing Apache Superset"
+repo_url = "https://github.com/apache/superset-kubernetes-operator"
+repo_name = "apache/superset-kubernetes-operator"
+
+nav = [
+  { Home = "index.md" },
+  { "Getting Started" = "/latest/getting-started/" },
+  { "User Guide" = [
+    { Installation = "/latest/user-guide/installation/" },
+    { Configuration = "/latest/user-guide/configuration/" },
+    { Lifecycle = "/latest/user-guide/lifecycle/" },
+    { "Networking & Monitoring" = "/latest/user-guide/networking-and-monitoring/" },
+    { "Migration from Helm Chart" = "/latest/user-guide/migration/" },
+  ] },
+  { Architecture = [
+    { Overview = "/latest/architecture/overview/" },
+    { Internals = "/latest/architecture/internals/" },
+  ] },
+  { Reference = [
+    { "API Reference" = "/latest/reference/api-reference/" },
+    { Downloads = "reference/downloads.md" },
+    { Releases = "reference/releases.md" },
+    { Security = "reference/security.md" },
+  ] },
+  { Contributing = [
+    { "Development Setup" = "contributing/development-setup.md" },
+    { "Development Guidelines" = "contributing/development-guidelines.md" },
+    { Releasing = "contributing/releasing.md" },
+  ] },
+]
+
+# The root site owns only project-level documentation. Version-sensitive
+# documentation is built with zensical-versioned.toml into /main/ or /<minor>/.
+exclude_docs = """
+getting-started.md
+user-guide/**
+architecture/**
+reference/api-reference.md
+"""
+
+extra_css = ["stylesheets/extra.css", "stylesheets/version-banner.css"]
+extra_javascript = [
+  "javascripts/version-switcher.js",
+  "https://unpkg.com/mermaid@11/dist/mermaid.min.js",
+]
+
+[project.theme]
+features = [
+  "content.code.copy",
+  "navigation.sections",
+  "navigation.expand",
+  "navigation.top",
+  "search.highlight",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "teal"
+toggle.icon = "material/brightness-7"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "teal"
+toggle.icon = "material/brightness-4"
+toggle.name = "Switch to light mode"
+
+[project.markdown_extensions]
+admonition = {}
+pymdownx.details = {}
+pymdownx.superfences.custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" },
+]
+pymdownx.tabbed.alternate_style = true
+pymdownx.highlight.anchor_linenums = true
+pymdownx.inlinehilite = {}
+tables = {}
+toc.permalink = true

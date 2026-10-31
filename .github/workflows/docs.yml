@@ -18,18 +18,52 @@ name: Docs
 on:
   push:
     branches: [main]
+    # Final release tags only; RC tags (v0.3.0-rc1) do not match and never run.
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
     paths:
       - "docs/**"
       - "zensical.toml"
+      - "zensical-unversioned.toml"
+      - "zensical-versioned.toml"
+      - "scripts/publish-docs.sh"
+      - "scripts/run-docs-ci.sh"
+      - "scripts/docs_versions.py"
+      - "scripts/prepare-docs-links.py"
+      - "scripts/test_docs_versions.py"
+      - "docs/stylesheets/version-banner.css"
       - "docs-requirements.in"
       - "docs-requirements.txt"
       - "Makefile"
       - ".github/workflows/docs.yml"
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Final release tag to backfill (for example v0.3.1)"
+        required: true
+        type: string
+      dry_run:
+        description: "Build against gh-pages and show the diff without committing or pushing"
+        required: true
+        default: true
+        type: boolean
+      force:
+        description: "Allow replacing a minor's docs with an older patch release"
+        required: true
+        default: false
+        type: boolean
   pull_request:
     branches: [main]
     paths:
       - "docs/**"
       - "zensical.toml"
+      - "zensical-unversioned.toml"
+      - "zensical-versioned.toml"
+      - "scripts/publish-docs.sh"
+      - "scripts/run-docs-ci.sh"
+      - "scripts/docs_versions.py"
+      - "scripts/prepare-docs-links.py"
+      - "scripts/test_docs_versions.py"
+      - "docs/stylesheets/version-banner.css"
       - "docs-requirements.in"
       - "docs-requirements.txt"
       - "Makefile"
@@ -46,18 +80,27 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      - name: Set docs ref, dry-run, and force
+        run: bash scripts/run-docs-ci.sh env >> "$GITHUB_ENV"
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.15"
       - name: Install dependencies
         run: python -m pip install --require-hashes -r docs-requirements.txt
+      - name: Test documentation versioning and links
+        run: python scripts/test_docs_versions.py
+      - name: Prepare documentation source and links
+        run: bash scripts/run-docs-ci.sh prepare
+      - name: Build complete documentation tree
+        if: github.event_name != 'workflow_dispatch'
+        run: zensical build --clean --strict
       - name: Build docs
-        run: make docs-build
+        run: bash scripts/run-docs-ci.sh publish "$RUNNER_TEMP/docs-build"
 
   deploy:
     name: Deploy docs
     needs: build
-    if: github.event_name == 'push'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     concurrency:
       group: docs-deploy
@@ -66,7 +109,9 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+      - name: Set docs ref, dry-run, and force env variables
+        run: bash scripts/run-docs-ci.sh env >> "$GITHUB_ENV"
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.15"
       - name: Install dependencies
@@ -82,26 +127,29 @@ jobs:
         run: |
           git -C "$PUBLISH_DIR" config user.name "github-actions[bot]"
           git -C "$PUBLISH_DIR" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Prepare documentation source and links
+        run: bash scripts/run-docs-ci.sh prepare
       - name: Build docs
-        run: |
-          set -euo pipefail
-          make docs-build
-      - name: Copy generated site
-        run: |
-          set -euo pipefail
-          rsync -a --delete --exclude='.git' site/ "$PUBLISH_DIR/"
-      - name: Preserve GitHub Pages static serving
-        run: touch "$PUBLISH_DIR/.nojekyll"
+        run: bash scripts/run-docs-ci.sh publish "$PUBLISH_DIR"
       - name: Commit and push docs
         run: |
           set -euo pipefail
           git -C "$PUBLISH_DIR" add -A
-          if git -C "$PUBLISH_DIR" diff --cached --quiet; then
-            echo "No documentation changes to deploy"
+          if [[ "$DRY_RUN" == "true" ]]; then
+            echo "Dry run: assembled the backfill against the existing gh-pages tree; no commit or push will be made."
+            git -C "$PUBLISH_DIR" diff --cached --stat
+            git -C "$PUBLISH_DIR" diff --cached --name-status
+            git -C "$PUBLISH_DIR" diff --cached -- versions.json
             exit 0
           fi
-          git -C "$PUBLISH_DIR" commit -m "docs: deploy ${GITHUB_SHA}"
+
           for attempt in 1 2 3 4 5; do
+            git -C "$PUBLISH_DIR" add -A
+            if git -C "$PUBLISH_DIR" diff --cached --quiet; then
+              echo "No documentation changes to deploy"
+              exit 0
+            fi
+            git -C "$PUBLISH_DIR" commit -q -m "docs: deploy ${GITHUB_SHA}"
             if git -C "$PUBLISH_DIR" push origin HEAD:gh-pages; then
               exit 0
             fi
@@ -112,14 +160,7 @@ jobs:
             echo "gh-pages changed while deploying; resetting and retrying"
             git -C "$PUBLISH_DIR" fetch origin gh-pages
             git -C "$PUBLISH_DIR" reset --hard origin/gh-pages
-            rsync -a --delete --exclude='.git' site/ "$PUBLISH_DIR/"
-            touch "$PUBLISH_DIR/.nojekyll"
-            git -C "$PUBLISH_DIR" add -A
-            if git -C "$PUBLISH_DIR" diff --cached --quiet; then
-              echo "Documentation is already up to date"
-              exit 0
-            fi
-            git -C "$PUBLISH_DIR" commit -m "docs: deploy ${GITHUB_SHA}"
+            bash scripts/run-docs-ci.sh publish "$PUBLISH_DIR"
           done
       - name: Clean up gh-pages worktree
         if: always()
