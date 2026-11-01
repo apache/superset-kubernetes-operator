@@ -105,7 +105,7 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     concurrency:
-      group: docs-deploy
+      group: docs-deploy-${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.ref) || github.ref }}
       cancel-in-progress: false
     permissions:
       contents: write
