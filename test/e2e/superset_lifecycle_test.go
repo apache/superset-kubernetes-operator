@@ -54,7 +54,7 @@ spec:
       timeout: 30s
     init:
       disabled: true
-`, crName, namespace, lifecycleImageYAML("    "), restrictedLifecyclePodTemplateYAML("    "))
+`, crName, namespace, lifecycleImageYAML("    "), restrictedLifecyclePodTemplateYAML())
 
 		By("applying a Superset CR with a failing migration")
 		applyYAML(crName, cr)
@@ -152,7 +152,7 @@ spec:
       timeout: 30s
     init:
       disabled: true
-`, crName, namespace, lifecycleImageYAML("    "), restrictedLifecyclePodTemplateYAML("    "))
+`, crName, namespace, lifecycleImageYAML("    "), restrictedLifecyclePodTemplateYAML())
 
 		By("applying a Superset CR with secret-key rotation enabled")
 		applyYAML(crName, cr)
