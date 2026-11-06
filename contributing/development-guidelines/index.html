@@ -2136,8 +2136,7 @@ under the License.
 <li>Add the component spec to the parent <code>SupersetSpec</code> in <code>superset_types.go</code>.</li>
 <li>Add resource defaults in <code>internal/controller/component_resources.go</code> via <code>ComponentResourceDefs()</code> with component name, <code>DeploymentConfig</code> (container name, default command, ports, probes), <code>defaultPort</code>, and <code>hasScaling</code>.</li>
 <li>Register the component in <code>internal/controller/component_descriptors.go</code>:<ul>
-<li>Add a <code>componentDescriptor</code> entry with <code>hasPythonConfig</code>, <code>extract</code>, optional <code>adjustSpec</code>,
-and <code>statusAccessor</code> functions.</li>
+<li>Add a <code>componentDescriptor</code> entry with <code>hasPythonConfig</code>, <code>extract</code>, optional <code>adjustSpec</code>, and <code>statusAccessor</code> functions.</li>
 <li>Add the descriptor to the <code>componentDescriptors</code> slice.</li>
 </ul>
 </li>
