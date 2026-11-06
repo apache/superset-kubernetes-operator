@@ -36,6 +36,11 @@ const (
 	ConditionTypeLifecycleComplete = "LifecycleComplete" // on Superset (aggregate lifecycle gate)
 )
 
+// LogLevel is a component log level. The operator maps it onto each
+// component's own logging mechanism.
+// +kubebuilder:validation:Enum=debug;info;warning;error;critical
+type LogLevel string
+
 // --- Image types ---
 
 // ImageSpec defines the container image configuration.
@@ -421,11 +426,6 @@ type GunicornSpec struct {
 	// +optional
 	// +kubebuilder:validation:Minimum=0
 	LimitRequestFieldSize *int32 `json:"limitRequestFieldSize,omitempty"`
-
-	// Gunicorn log level.
-	// +optional
-	// +kubebuilder:validation:Enum=debug;info;warning;error;critical
-	LogLevel *string `json:"logLevel,omitempty"`
 }
 
 // CeleryWorkerProcessSpec configures Celery worker execution parameters.
@@ -685,6 +685,11 @@ type ComponentSpec struct {
 	// Image tag and/or repository overrides; inherits from spec.image if unset.
 	// +optional
 	Image *ImageOverrideSpec `json:"image,omitempty"`
+
+	// Log level for this component. Overrides spec.logLevel; defaults to info
+	// when neither is set.
+	// +optional
+	LogLevel *LogLevel `json:"logLevel,omitempty"`
 }
 
 // --- Component service and scaling types ---

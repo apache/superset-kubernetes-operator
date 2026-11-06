@@ -391,6 +391,14 @@ spec:
                       tag:
                         type: string
                     type: object
+                  logLevel:
+                    enum:
+                    - debug
+                    - info
+                    - warning
+                    - error
+                    - critical
+                    type: string
                   podTemplate:
                     properties:
                       affinity:
@@ -4415,6 +4423,14 @@ spec:
                       tag:
                         type: string
                     type: object
+                  logLevel:
+                    enum:
+                    - debug
+                    - info
+                    - warning
+                    - error
+                    - critical
+                    type: string
                   podDisruptionBudget:
                     properties:
                       maxUnavailable:
@@ -8518,6 +8534,14 @@ spec:
                       tag:
                         type: string
                     type: object
+                  logLevel:
+                    enum:
+                    - debug
+                    - info
+                    - warning
+                    - error
+                    - critical
+                    type: string
                   podDisruptionBudget:
                     properties:
                       maxUnavailable:
@@ -12357,6 +12381,14 @@ spec:
                       trigger:
                         type: string
                     type: object
+                  logLevel:
+                    enum:
+                    - debug
+                    - info
+                    - warning
+                    - error
+                    - critical
+                    type: string
                   maintenancePage:
                     properties:
                       body:
@@ -23650,6 +23682,14 @@ spec:
                     and init.loadExamples
                   rule: '!has(self.init) || !has(self.init.command) || size(self.init.command)
                     == 0 || (!has(self.init.adminUser) && !has(self.init.loadExamples))'
+              logLevel:
+                enum:
+                - debug
+                - info
+                - warning
+                - error
+                - critical
+                type: string
               mcpServer:
                 properties:
                   autoscaling:
@@ -23992,6 +24032,14 @@ spec:
                       tag:
                         type: string
                     type: object
+                  logLevel:
+                    enum:
+                    - debug
+                    - info
+                    - warning
+                    - error
+                    - critical
+                    type: string
                   podDisruptionBudget:
                     properties:
                       maxUnavailable:
@@ -32477,14 +32525,6 @@ spec:
                         format: int32
                         minimum: 0
                         type: integer
-                      logLevel:
-                        enum:
-                        - debug
-                        - info
-                        - warning
-                        - error
-                        - critical
-                        type: string
                       maxRequests:
                         format: int32
                         minimum: 0
@@ -32538,6 +32578,14 @@ spec:
                       tag:
                         type: string
                     type: object
+                  logLevel:
+                    enum:
+                    - debug
+                    - info
+                    - warning
+                    - error
+                    - critical
+                    type: string
                   podDisruptionBudget:
                     properties:
                       maxUnavailable:
@@ -36626,6 +36674,14 @@ spec:
                       tag:
                         type: string
                     type: object
+                  logLevel:
+                    enum:
+                    - debug
+                    - info
+                    - warning
+                    - error
+                    - critical
+                    type: string
                   podDisruptionBudget:
                     properties:
                       maxUnavailable:

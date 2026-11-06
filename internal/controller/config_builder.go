@@ -371,7 +371,7 @@ func defaultDBPort(driver *string) int32 {
 
 // --- Operator-injected volumes/env/mounts ---
 
-func buildOperatorInjected(renderedConfig, bootstrapScript, resourceBaseName, forceReload string, configEnvVars []corev1.EnvVar) *resolution.OperatorInjected {
+func buildOperatorInjected(renderedConfig, bootstrapScript, resourceBaseName, forceReload, logLevel string, configEnvVars []corev1.EnvVar) *resolution.OperatorInjected {
 	injected := &resolution.OperatorInjected{}
 
 	if renderedConfig != "" || bootstrapScript != "" {
@@ -397,6 +397,16 @@ func buildOperatorInjected(renderedConfig, bootstrapScript, resourceBaseName, fo
 		injected.Env = append(injected.Env, corev1.EnvVar{
 			Name:  naming.EnvForceReload,
 			Value: forceReload,
+		})
+	}
+
+	// Log level read by the rendered LOG_LEVEL line. Kept out of
+	// collectSecretEnvVars so it never changes the init task's EnvHash: a level
+	// change rolls component pods but does not re-run lifecycle tasks.
+	if logLevel != "" {
+		injected.Env = append(injected.Env, corev1.EnvVar{
+			Name:  naming.EnvLogLevel,
+			Value: supersetconfig.PythonLogLevel(logLevel),
 		})
 	}
 

@@ -125,6 +125,11 @@ type SupersetSpec struct {
 	// +optional
 	SQLAlchemyEngineOptions *SQLAlchemyEngineOptionsSpec `json:"sqlaEngineOptions,omitempty"`
 
+	// Log level inherited by all components and lifecycle tasks. Per component
+	// and lifecycle logLevel override it. Defaults to info when unset.
+	// +optional
+	LogLevel *LogLevel `json:"logLevel,omitempty"`
+
 	// Web server (gunicorn) component. Presence enables it; absence disables.
 	// +optional
 	WebServer *WebServerComponentSpec `json:"webServer,omitempty"`
@@ -424,6 +429,11 @@ type LifecycleSpec struct {
 	// Per-lifecycle SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely).
 	// +optional
 	SQLAlchemyEngineOptions *SQLAlchemyEngineOptionsSpec `json:"sqlaEngineOptions,omitempty"`
+
+	// Log level for all lifecycle tasks. Overrides spec.logLevel. A changed
+	// level applies on each task's next run; it does not re-run tasks.
+	// +optional
+	LogLevel *LogLevel `json:"logLevel,omitempty"`
 
 	// MaintenancePage configures a lightweight maintenance page served during
 	// lifecycle drain and task execution. Presence enables the feature when a

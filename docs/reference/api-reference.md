@@ -101,6 +101,7 @@ _Appears in:_
 | `deploymentTemplate` _[DeploymentTemplate](#deploymenttemplate)_ | Deployment-level overrides (strategy, revision history). Replica count is fixed at 1 by the controller and cannot be overridden. |  | Optional: \{\} <br /> |
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for Celery beat pods. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
+| `logLevel` _[LogLevel](#loglevel)_ | Log level for this component. Overrides spec.logLevel; defaults to info when neither is set. |  | Enum: [debug info warning error critical] <br />Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
 | `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
@@ -125,6 +126,7 @@ _Appears in:_
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling. |  | Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
+| `logLevel` _[LogLevel](#loglevel)_ | Log level for this component. Overrides spec.logLevel; defaults to info when neither is set. |  | Enum: [debug info warning error critical] <br />Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
 | `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration (type, port, annotations). |  | Optional: \{\} <br /> |
@@ -149,6 +151,7 @@ _Appears in:_
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling. |  | Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
+| `logLevel` _[LogLevel](#loglevel)_ | Log level for this component. Overrides spec.logLevel; defaults to info when neither is set. |  | Enum: [debug info warning error critical] <br />Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
 | `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
 | `celery` _[CeleryWorkerProcessSpec](#celeryworkerprocessspec)_ | Celery worker execution configuration. Controls concurrency, pool type, and related parameters. |  | Optional: \{\} <br /> |
@@ -268,6 +271,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
+| `logLevel` _[LogLevel](#loglevel)_ | Log level for this component. Overrides spec.logLevel; defaults to info when neither is set. |  | Enum: [debug info warning error critical] <br />Optional: \{\} <br /> |
 
 
 #### ComponentStatusMap
@@ -416,7 +420,6 @@ _Appears in:_
 | `maxRequestsJitter` _integer_ | Random jitter added to maxRequests to prevent thundering herd on worker recycling. |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `limitRequestLine` _integer_ | Maximum size of HTTP request line in bytes (0 = unlimited). |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `limitRequestFieldSize` _integer_ | Maximum size of HTTP request header field in bytes (0 = unlimited). |  | Minimum: 0 <br />Optional: \{\} <br /> |
-| `logLevel` _string_ | Gunicorn log level. |  | Enum: [debug info warning error critical] <br />Optional: \{\} <br /> |
 
 
 #### ImageOverrideSpec
@@ -565,6 +568,7 @@ _Appears in:_
 | `config` _string_ | Per-lifecycle raw Python appended after top-level config. |  | Optional: \{\} <br /> |
 | `bootstrapScript` _string_ | Bootstrap script for lifecycle migrate, rotate, and init task Jobs. Overrides spec.bootstrapScript. Set to an empty string to disable inherited bootstrap for lifecycle tasks. |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-lifecycle SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
+| `logLevel` _[LogLevel](#loglevel)_ | Log level for all lifecycle tasks. Overrides spec.logLevel. A changed level applies on each task's next run; it does not re-run tasks. |  | Enum: [debug info warning error critical] <br />Optional: \{\} <br /> |
 | `maintenancePage` _[MaintenancePageSpec](#maintenancepagespec)_ | MaintenancePage configures a lightweight maintenance page served during lifecycle drain and task execution. Presence enables the feature when a drain will actually run and an existing web-server workload is present. In managed mode (no image override), an nginx:alpine container serves a default or custom HTML page. In custom mode (image set), the user's image handles serving, and content fields are passed as env vars. |  | Optional: \{\} <br /> |
 | `seed` _[SeedTaskSpec](#seedtaskspec)_ | Seed configures database seeding from an external source before running migrations. The seed target is always spec.metastore. Only allowed in Development or Staging mode. |  | Optional: \{\} <br /> |
 | `migrate` _[MigrateTaskSpec](#migratetaskspec)_ | Database migration task configuration. |  | Optional: \{\} <br /> |
@@ -593,6 +597,29 @@ _Appears in:_
 | `rotate` _[TaskRefStatus](#taskrefstatus)_ | Rotate task status summary. |  | Optional: \{\} <br /> |
 | `init` _[TaskRefStatus](#taskrefstatus)_ | Init task status summary. |  | Optional: \{\} <br /> |
 | `upgrade` _[UpgradeContext](#upgradecontext)_ | Upgrade context (populated during active upgrade). |  | Optional: \{\} <br /> |
+
+
+#### LogLevel
+
+_Underlying type:_ _string_
+
+LogLevel is a component log level. The operator maps it onto each
+component's own logging mechanism.
+
+_Validation:_
+- Enum: [debug info warning error critical]
+
+_Appears in:_
+- [CeleryBeatComponentSpec](#celerybeatcomponentspec)
+- [CeleryFlowerComponentSpec](#celeryflowercomponentspec)
+- [CeleryWorkerComponentSpec](#celeryworkercomponentspec)
+- [ComponentSpec](#componentspec)
+- [LifecycleSpec](#lifecyclespec)
+- [McpServerComponentSpec](#mcpservercomponentspec)
+- [SupersetSpec](#supersetspec)
+- [WebServerComponentSpec](#webservercomponentspec)
+- [WebsocketServerComponentSpec](#websocketservercomponentspec)
+
 
 
 #### MaintenancePageSpec
@@ -642,6 +669,7 @@ _Appears in:_
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling. |  | Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
+| `logLevel` _[LogLevel](#loglevel)_ | Log level for this component. Overrides spec.logLevel; defaults to info when neither is set. |  | Enum: [debug info warning error critical] <br />Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
 | `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration (type, port, annotations). |  | Optional: \{\} <br /> |
@@ -1084,6 +1112,7 @@ _Appears in:_
 | `bootstrapScript` _string_ | Shell script mounted as superset_bootstrap.sh and sourced before the default command for Python components and lifecycle tasks. This is trusted executable input; prefer custom images for production dependency installs. Per-component bootstrapScript overrides this value. Set an override to an empty string to disable inherited bootstrap for that component. |  | Optional: \{\} <br /> |
 | `featureFlags` _object (keys:string, values:boolean)_ | Feature flags toggled in superset_config.py via FEATURE_FLAGS = \{...\}. Keys conventionally use UPPER_SNAKE_CASE (e.g. ALERT_REPORTS); values are booleans. |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | SQLAlchemy engine options for connection pooling. Inherited by all Python components; per-component sqlaEngineOptions overrides this entirely. When unset, the operator computes balanced defaults per component. |  | Optional: \{\} <br /> |
+| `logLevel` _[LogLevel](#loglevel)_ | Log level inherited by all components and lifecycle tasks. Per component and lifecycle logLevel override it. Defaults to info when unset. |  | Enum: [debug info warning error critical] <br />Optional: \{\} <br /> |
 | `webServer` _[WebServerComponentSpec](#webservercomponentspec)_ | Web server (gunicorn) component. Presence enables it; absence disables. |  | Optional: \{\} <br /> |
 | `celeryWorker` _[CeleryWorkerComponentSpec](#celeryworkercomponentspec)_ | Celery async task worker component. Uses spec.valkey as broker/backend when set; otherwise the broker must be configured manually via spec.config. |  | Optional: \{\} <br /> |
 | `celeryBeat` _[CeleryBeatComponentSpec](#celerybeatcomponentspec)_ | Celery periodic task scheduler (singleton, always 1 replica). Uses spec.valkey as broker/backend when set; otherwise the broker must be configured manually via spec.config. |  | Optional: \{\} <br /> |
@@ -1297,6 +1326,7 @@ _Appears in:_
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling. |  | Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
+| `logLevel` _[LogLevel](#loglevel)_ | Log level for this component. Overrides spec.logLevel; defaults to info when neither is set. |  | Enum: [debug info warning error critical] <br />Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
 | `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration (type, port, annotations). |  | Optional: \{\} <br /> |
@@ -1329,6 +1359,7 @@ _Appears in:_
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling. |  | Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
+| `logLevel` _[LogLevel](#loglevel)_ | Log level for this component. Overrides spec.logLevel; defaults to info when neither is set. |  | Enum: [debug info warning error critical] <br />Optional: \{\} <br /> |
 | `config` _[JSON](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#json-v1-apiextensions-k8s-io)_ | Inline config.json content for the websocket server. Only allowed in Development mode because this config commonly contains jwtSecret or Redis credentials. In Production, use configFrom to mount an existing Secret key. |  | Type: object <br />Optional: \{\} <br /> |
 | `configFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing websocket server config.json. The operator mounts the selected key at /home/superset-websocket/config.json without reading or copying the Secret. |  | Optional: \{\} <br /> |
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration (type, port, annotations). |  | Optional: \{\} <br /> |
