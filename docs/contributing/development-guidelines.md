@@ -310,8 +310,7 @@ New Deployment/Pod/Container fields go into the template hierarchy:
 1. Add the component spec to the parent `SupersetSpec` in `superset_types.go`.
 2. Add resource defaults in `internal/controller/component_resources.go` via `ComponentResourceDefs()` with component name, `DeploymentConfig` (container name, default command, ports, probes), `defaultPort`, and `hasScaling`.
 3. Register the component in `internal/controller/component_descriptors.go`:
-    - Add a `componentDescriptor` entry with `hasPythonConfig`, `extract`, optional `adjustSpec`,
-    and `statusAccessor` functions.
+    - Add a `componentDescriptor` entry with `hasPythonConfig`, `extract`, optional `adjustSpec`, and `statusAccessor` functions.
     - Add the descriptor to the `componentDescriptors` slice.
 4. Add status fields if the component needs a dedicated slot under `ComponentStatusMap`.
 5. Run `make codegen`.
