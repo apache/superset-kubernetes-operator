@@ -28,7 +28,7 @@ import (
 )
 
 // lifecycleLogLevel resolves the level shared by all lifecycle tasks.
-func lifecycleLogLevel(spec *supersetv1alpha1.SupersetSpec) string {
+func lifecycleLogLevel(spec *supersetv1alpha1.SupersetSpec) supersetv1alpha1.LogLevel {
 	var lifecycle *supersetv1alpha1.LogLevel
 	if spec.Lifecycle != nil {
 		lifecycle = spec.Lifecycle.LogLevel
@@ -38,12 +38,12 @@ func lifecycleLogLevel(spec *supersetv1alpha1.SupersetSpec) string {
 
 // appendLogLevelEnv injects the env vars that carry a component's resolved
 // level to loggers that don't read Superset's LOG_LEVEL.
-func appendLogLevelEnv(componentType naming.ComponentType, level string, isExplicit bool, injected *resolution.OperatorInjected) {
+func appendLogLevelEnv(componentType naming.ComponentType, level supersetv1alpha1.LogLevel, isExplicit bool, injected *resolution.OperatorInjected) {
 	switch componentType {
 
 	// Separate from the Gunicorn tuning presets, so injected even with preset disabled.
 	case naming.ComponentWebServer:
-		injected.Env = append(injected.Env, corev1.EnvVar{Name: supersetconfig.EnvGunicornLogLevel, Value: level})
+		injected.Env = append(injected.Env, corev1.EnvVar{Name: supersetconfig.EnvGunicornLogLevel, Value: string(level)})
 
 	// Websocket server applies env vars over its own config file, so
 	// the operator must only inject its level when the user sets one explicitly
@@ -57,7 +57,7 @@ func appendLogLevelEnv(componentType naming.ComponentType, level string, isExpli
 // withCeleryDefaultLogLevel adds --loglevel to the fixed default commands of
 // the Celery worker (used with preset disabled) and Celery Beat. A user-set
 // command replaces the default entirely and must pass --loglevel itself.
-func withCeleryDefaultLogLevel(componentType naming.ComponentType, command []string, level string) []string {
+func withCeleryDefaultLogLevel(componentType naming.ComponentType, command []string, level supersetv1alpha1.LogLevel) []string {
 	if componentType != naming.ComponentCeleryWorker && componentType != naming.ComponentCeleryBeat {
 		return command
 	}

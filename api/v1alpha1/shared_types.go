@@ -41,6 +41,14 @@ const (
 // +kubebuilder:validation:Enum=debug;info;warning;error;critical
 type LogLevel string
 
+const (
+	LogLevelDebug    LogLevel = "debug"
+	LogLevelInfo     LogLevel = "info"
+	LogLevelWarning  LogLevel = "warning"
+	LogLevelError    LogLevel = "error"
+	LogLevelCritical LogLevel = "critical"
+)
+
 // --- Image types ---
 
 // ImageSpec defines the container image configuration.
