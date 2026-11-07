@@ -23,29 +23,29 @@ repo_name = "apache/superset-kubernetes-operator"
 extra = { scope = "/superset-kubernetes-operator/" }
 
 nav = [
-  { Home = "index.md" },
-  { "Getting Started" = "/latest/getting-started/" },
+  { Home = "/superset-kubernetes-operator/" },
+  { "Getting Started" = "/superset-kubernetes-operator/latest/getting-started/" },
   { "User Guide" = [
-    { Installation = "/latest/user-guide/installation/" },
-    { Configuration = "/latest/user-guide/configuration/" },
-    { Lifecycle = "/latest/user-guide/lifecycle/" },
-    { "Networking & Monitoring" = "/latest/user-guide/networking-and-monitoring/" },
-    { "Migration from Helm Chart" = "/latest/user-guide/migration/" },
+    { Installation = "/superset-kubernetes-operator/latest/user-guide/installation/" },
+    { Configuration = "/superset-kubernetes-operator/latest/user-guide/configuration/" },
+    { Lifecycle = "/superset-kubernetes-operator/latest/user-guide/lifecycle/" },
+    { "Networking & Monitoring" = "/superset-kubernetes-operator/latest/user-guide/networking-and-monitoring/" },
+    { "Migration from Helm Chart" = "/superset-kubernetes-operator/latest/user-guide/migration/" },
   ] },
   { Architecture = [
-    { Overview = "/latest/architecture/overview/" },
-    { Internals = "/latest/architecture/internals/" },
+    { Overview = "/superset-kubernetes-operator/latest/architecture/overview/" },
+    { Internals = "/superset-kubernetes-operator/latest/architecture/internals/" },
   ] },
   { Reference = [
-    { "API Reference" = "/latest/reference/api-reference/" },
-    { Downloads = "reference/downloads.md" },
-    { Releases = "reference/releases.md" },
-    { Security = "reference/security.md" },
+    { "API Reference" = "/superset-kubernetes-operator/latest/reference/api-reference/" },
+    { Downloads = "/superset-kubernetes-operator/reference/downloads/" },
+    { Releases = "/superset-kubernetes-operator/reference/releases/" },
+    { Security = "/superset-kubernetes-operator/reference/security/" },
   ] },
   { Contributing = [
-    { "Development Setup" = "contributing/development-setup.md" },
-    { "Development Guidelines" = "contributing/development-guidelines.md" },
-    { Releasing = "contributing/releasing.md" },
+    { "Development Setup" = "/superset-kubernetes-operator/contributing/development-setup/" },
+    { "Development Guidelines" = "/superset-kubernetes-operator/contributing/development-guidelines/" },
+    { Releasing = "/superset-kubernetes-operator/contributing/releasing/" },
   ] },
 ]
 

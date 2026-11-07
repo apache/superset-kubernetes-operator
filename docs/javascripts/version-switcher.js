@@ -123,23 +123,6 @@
     });
   }
 
-  // Root-absolute links need the subpath prefix when the site is not served from "/".
-  function rewriteSiteRootLinks(root) {
-    if (root === "/") return;
-    document.querySelectorAll("a[href]").forEach((link) => {
-      if (
-        link.origin !== window.location.origin ||
-        link.hasAttribute("data-version-link") ||
-        link.closest(`.${SWITCHER_CLASS}`)
-      ) {
-        return;
-      }
-      const path = link.pathname;
-      if (!path.startsWith("/") || path.startsWith(root)) return;
-      setLinkPath(link, `${root}${path.slice(1)}`);
-    });
-  }
-
   function normalizeVersions(raw) {
     if (!Array.isArray(raw)) return [];
     return raw
@@ -301,7 +284,6 @@
     const segment = detectVersionSegment(root);
     const latest = versions.find(isLatest);
     const preferred = getPreferredVersion(root, versions);
-    rewriteSiteRootLinks(root);
     if (!segment) {
       rewriteRootVersionLinks(root, preferred?.version || latest?.version || "main");
     }

@@ -101,8 +101,17 @@ finalize_args=("${common[@]}")
 # Fail fast, before the (slow) build, on bad targets, RC versions, or downgrades.
 python3 "$VERSIONS_PY" check "${check_args[@]}"
 
+BUILD_CONFIG="$CONFIG"
+if [[ "$TARGET" != root ]]; then
+  # Canonical URLs and sitemap entries must include the output version directory.
+  BUILD_CONFIG="$(mktemp "$(dirname "$CONFIG")/.zensical-versioned.XXXXXX.toml")"
+  trap 'rm -f "$BUILD_CONFIG"' EXIT
+  sed "s|^site_url = \"https://apache.github.io/superset-kubernetes-operator/\"|site_url = \"https://apache.github.io/superset-kubernetes-operator/$TARGET/\"|" \
+    "$CONFIG" > "$BUILD_CONFIG"
+fi
+
 log "Building '$TARGET' with $(basename "$CONFIG")"
-"$ZENSICAL" build --clean --strict --config-file "$CONFIG"
+"$ZENSICAL" build --clean --strict --config-file "$BUILD_CONFIG"
 [[ -d "$SITE_DIR" ]] || die "build output not found: $SITE_DIR (does site_dir in the config match --site-dir?)"
 
 if [[ "$TARGET" == root ]]; then
