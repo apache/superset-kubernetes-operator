@@ -38,10 +38,19 @@ func lifecycleLogLevel(spec *supersetv1alpha1.SupersetSpec) string {
 
 // appendLogLevelEnv injects the env vars that carry a component's resolved
 // level to loggers that don't read Superset's LOG_LEVEL.
-func appendLogLevelEnv(componentType naming.ComponentType, level string, injected *resolution.OperatorInjected) {
-	if componentType == naming.ComponentWebServer {
-		// Separate from the Gunicorn tuning presets, so injected even with preset disabled.
+func appendLogLevelEnv(componentType naming.ComponentType, level string, isExplicit bool, injected *resolution.OperatorInjected) {
+	switch componentType {
+
+	// Separate from the Gunicorn tuning presets, so injected even with preset disabled.
+	case naming.ComponentWebServer:
 		injected.Env = append(injected.Env, corev1.EnvVar{Name: supersetconfig.EnvGunicornLogLevel, Value: level})
+
+	// Websocket server applies env vars over its own config file, so
+	// the operator must only inject its level when the user sets one explicitly
+	case naming.ComponentWebsocketServer:
+		if isExplicit {
+			injected.Env = append(injected.Env, corev1.EnvVar{Name: naming.EnvWebsocketLogLevel, Value: supersetconfig.WinstonLogLevel(level)})
+		}
 	}
 }
 

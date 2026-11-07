@@ -41,6 +41,12 @@ func ResolveLogLevel(component, topLevel *v1alpha1.LogLevel) string {
 	return DefaultLogLevel
 }
 
+// IsLogLevelExplicit returns true if log level was set explicitly in
+// either the component or top-level spec.
+func IsLogLevelExplicit(component, topLevel *v1alpha1.LogLevel) bool {
+	return component != nil || topLevel != nil
+}
+
 // PythonLogLevel returns the level name Python's logging module expects.
 func PythonLogLevel(level string) string {
 	return strings.ToUpper(level)
@@ -49,4 +55,17 @@ func PythonLogLevel(level string) string {
 // CeleryLogLevelFlag returns the Celery worker/beat --loglevel argument.
 func CeleryLogLevelFlag(level string) string {
 	return fmt.Sprintf("--loglevel=%s", level)
+}
+
+// WinstonLogLevel returns the level name Winston's logging module expects.
+// "warning" returns "warn", "critical" returns "error", all other levels returned unchanged.
+func WinstonLogLevel(level string) string {
+	switch level {
+	case "warning":
+		return "warn"
+	case "critical":
+		return "error"
+	default:
+		return level
+	}
 }
