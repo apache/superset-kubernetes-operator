@@ -23,7 +23,7 @@ repo_name = "apache/superset-kubernetes-operator"
 extra = { scope = "/superset-kubernetes-operator/" }
 
 nav = [
-  { Home = "/" },
+  { Home = "/superset-kubernetes-operator/" },
   { "Getting Started" = "getting-started.md" },
   { "User Guide" = [
     { Installation = "user-guide/installation.md" },
@@ -38,14 +38,14 @@ nav = [
   ] },
   { Reference = [
     { "API Reference" = "reference/api-reference.md" },
-    { Downloads = "/reference/downloads/" },
-    { Releases = "/reference/releases/" },
-    { Security = "/reference/security/" },
+    { Downloads = "/superset-kubernetes-operator/reference/downloads/" },
+    { Releases = "/superset-kubernetes-operator/reference/releases/" },
+    { Security = "/superset-kubernetes-operator/reference/security/" },
   ] },
   { Contributing = [
-    { "Development Setup" = "/contributing/development-setup/" },
-    { "Development Guidelines" = "/contributing/development-guidelines/" },
-    { Releasing = "/contributing/releasing/" },
+    { "Development Setup" = "/superset-kubernetes-operator/contributing/development-setup/" },
+    { "Development Guidelines" = "/superset-kubernetes-operator/contributing/development-guidelines/" },
+    { Releasing = "/superset-kubernetes-operator/contributing/releasing/" },
   ] },
 ]
 
