@@ -27,45 +27,26 @@ import (
 )
 
 // DefaultLogLevel applies when neither the component nor spec.logLevel sets a level.
-const DefaultLogLevel = v1alpha1.LogLevelInfo
+const DefaultLogLevel = "info"
 
 // ResolveLogLevel returns the effective lowercase level: the component value,
 // then the top-level value, then DefaultLogLevel.
-func ResolveLogLevel(component, topLevel *v1alpha1.LogLevel) v1alpha1.LogLevel {
+func ResolveLogLevel(component, topLevel *v1alpha1.LogLevel) string {
 	if component != nil {
-		return v1alpha1.LogLevel(*component)
+		return string(*component)
 	}
 	if topLevel != nil {
-		return v1alpha1.LogLevel(*topLevel)
+		return string(*topLevel)
 	}
 	return DefaultLogLevel
 }
 
-// IsLogLevelExplicit returns true if log level was set explicitly in
-// either the component or top-level spec.
-func IsLogLevelExplicit(component, topLevel *v1alpha1.LogLevel) bool {
-	return component != nil || topLevel != nil
-}
-
 // PythonLogLevel returns the level name Python's logging module expects.
-func PythonLogLevel(level v1alpha1.LogLevel) string {
-	return strings.ToUpper(string(level))
+func PythonLogLevel(level string) string {
+	return strings.ToUpper(level)
 }
 
 // CeleryLogLevelFlag returns the Celery worker/beat --loglevel argument.
-func CeleryLogLevelFlag(level v1alpha1.LogLevel) string {
+func CeleryLogLevelFlag(level string) string {
 	return fmt.Sprintf("--loglevel=%s", level)
-}
-
-// WinstonLogLevel returns the level name Winston's logging module expects.
-// "warning" returns "warn", "critical" returns "error", all other levels returned unchanged.
-func WinstonLogLevel(level v1alpha1.LogLevel) string {
-	switch level {
-	case v1alpha1.LogLevelWarning:
-		return "warn"
-	case v1alpha1.LogLevelCritical:
-		return "error"
-	default:
-		return string(level)
-	}
 }
