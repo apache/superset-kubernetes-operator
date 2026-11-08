@@ -237,6 +237,64 @@ func TestReconcile_WebsocketConfigFromMountsSecret(t *testing.T) {
 	}
 }
 
+func TestReconcile_WebsocketLogLevelEnv(t *testing.T) {
+	tests := []struct {
+		name      string
+		topLevel  *supersetv1alpha1.LogLevel
+		component *supersetv1alpha1.LogLevel
+		want      string // empty means LOG_LEVEL must not be injected
+	}{
+		{name: "unset injects nothing"},
+		{name: "top-level warning maps to warn", topLevel: new(supersetv1alpha1.LogLevelWarning), want: "warn"},
+		{name: "top-level critical maps to error", topLevel: new(supersetv1alpha1.LogLevelCritical), want: "error"},
+		{name: "top-level debug passes through", topLevel: new(supersetv1alpha1.LogLevelDebug), want: "debug"},
+		{name: "explicit info is injected", topLevel: new(supersetv1alpha1.LogLevelInfo), want: "info"},
+		{name: "component only", component: new(supersetv1alpha1.LogLevelError), want: "error"},
+		{
+			name:      "component overrides top-level",
+			topLevel:  new(supersetv1alpha1.LogLevelDebug),
+			component: new(supersetv1alpha1.LogLevelCritical),
+			want:      "error",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deploy := reconcileWebsocketDeployment(t, tt.topLevel, tt.component)
+
+			// Find the LOG_LEVEL env var in the container
+			var got *corev1.EnvVar
+			env := deploy.Spec.Template.Spec.Containers[0].Env
+			for i := range env {
+				if env[i].Name == common.EnvWebsocketLogLevel {
+					got = &env[i]
+					break
+				}
+			}
+
+			if tt.want == "" && got != nil {
+				t.Fatalf("expected no %s env var, got %+v", common.EnvWebsocketLogLevel, got)
+			}
+			if tt.want != "" && (got == nil || got.Value != tt.want) {
+				t.Fatalf("expected %s=%s, got %+v", common.EnvWebsocketLogLevel, tt.want, got)
+			}
+		})
+	}
+}
+
+func TestReconcile_WebsocketLogLevelDoesNotChangeConfigChecksum(t *testing.T) {
+	before := reconcileWebsocketDeployment(t, nil, nil)
+	after := reconcileWebsocketDeployment(t, new(supersetv1alpha1.LogLevelDebug), nil)
+
+	want := before.Spec.Template.Annotations[common.AnnotationConfigChecksum]
+	if want == "" {
+		t.Fatal("expected websocket config checksum annotation")
+	}
+	got := after.Spec.Template.Annotations[common.AnnotationConfigChecksum]
+	if got != want {
+		t.Fatalf("log level changed the workload checksum: before %q, after %q", want, got)
+	}
+}
+
 func TestReconcile_BootstrapScriptAppliesToPythonComponentsOnly(t *testing.T) {
 	scheme := testScheme(t)
 
@@ -465,4 +523,31 @@ func findVolumeMount(mounts []corev1.VolumeMount, name string) *corev1.VolumeMou
 		}
 	}
 	return nil
+}
+
+func reconcileWebsocketDeployment(t *testing.T, topLevel, componentLevel *supersetv1alpha1.LogLevel) *appsv1.Deployment {
+	t.Helper()
+	scheme := testScheme(t)
+
+	spec := minimalSupersetSpec()
+	spec.LogLevel = topLevel
+	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
+		Image:      &supersetv1alpha1.ImageOverrideSpec{Repository: new("example.com/superset-websocket")},
+		LogLevel:   componentLevel,
+		ConfigFrom: &corev1.SecretKeySelector{Name: "ws-config", Key: "config.json"},
+	}
+	superset := &supersetv1alpha1.Superset{
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: spec,
+	}
+
+	c := reconcileOnce(t, scheme, superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r)
+
+	deploy := &appsv1.Deployment{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server", Namespace: "default"}, deploy); err != nil {
+		t.Fatalf("expected websocket Deployment: %v", err)
+	}
+	return deploy
 }
