@@ -42,11 +42,16 @@ const (
 type LogLevel string
 
 const (
-	LogLevelDebug    LogLevel = "debug"
-	LogLevelInfo     LogLevel = "info"
-	LogLevelWarning  LogLevel = "warning"
-	LogLevelError    LogLevel = "error"
+	// Output critical errors only. Maps to winston "error".
 	LogLevelCritical LogLevel = "critical"
+	// Output errors and above.
+	LogLevelError LogLevel = "error"
+	// Output warnings and above. Maps to winston "warn".
+	LogLevelWarning LogLevel = "warning"
+	// Output informational logs and above (default).
+	LogLevelInfo LogLevel = "info"
+	// Enables debug logs and above.
+	LogLevelDebug LogLevel = "debug"
 )
 
 // --- Image types ---
