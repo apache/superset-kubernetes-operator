@@ -163,6 +163,7 @@ func (r *SupersetReconciler) reconcileComponent(
 
 	comp := convertComponent(accessor)
 	logLevel := supersetconfig.ResolveLogLevel(accessor.logLevel, superset.Spec.LogLevel)
+	isLogLevelExplicit := supersetconfig.IsLogLevelExplicit(accessor.logLevel, superset.Spec.LogLevel)
 
 	var renderedConfig string
 	var workloadChecksum string
@@ -274,7 +275,7 @@ func (r *SupersetReconciler) reconcileComponent(
 		})
 	}
 
-	appendLogLevelEnv(desc.componentType, logLevel, operatorInjected)
+	appendLogLevelEnv(desc.componentType, logLevel, isLogLevelExplicit, operatorInjected)
 
 	warnEnvVarOverrides(ctx, topLevel, comp, operatorInjected)
 

@@ -620,6 +620,13 @@ _Appears in:_
 - [WebServerComponentSpec](#webservercomponentspec)
 - [WebsocketServerComponentSpec](#websocketservercomponentspec)
 
+| Field | Description |
+| --- | --- |
+| `critical` | Output critical errors only. Maps to winston "error". |
+| `error` | Output errors and above. |
+| `warning` | Output warnings and above. Maps to winston "warn". |
+| `info` | Output informational logs and above (default). |
+| `debug` | Enables debug logs and above. |
 
 
 #### MaintenancePageSpec
