@@ -33,10 +33,10 @@ const DefaultLogLevel = v1alpha1.LogLevelInfo
 // then the top-level value, then DefaultLogLevel.
 func ResolveLogLevel(component, topLevel *v1alpha1.LogLevel) v1alpha1.LogLevel {
 	if component != nil {
-		return v1alpha1.LogLevel(*component)
+		return *component
 	}
 	if topLevel != nil {
-		return v1alpha1.LogLevel(*topLevel)
+		return *topLevel
 	}
 	return DefaultLogLevel
 }
