@@ -243,11 +243,12 @@ func splitImageRef(ref string) (string, string) {
 
 // convertSeedComponent builds a minimal ComponentInput for the seed task Job.
 func convertSeedComponent(seed *supersetv1alpha1.SeedTaskSpec, command []string) *resolution.ComponentInput {
-	var pt *supersetv1alpha1.PodTemplate
-	if seed.PodTemplate != nil {
-		pt = seed.PodTemplate
-	}
+	return convertToolTaskComponent(seed.PodTemplate, command)
+}
 
+// convertToolTaskComponent builds a minimal ComponentInput for a database-tool
+// task Job (seed, backup) from the task's own pod template and command.
+func convertToolTaskComponent(pt *supersetv1alpha1.PodTemplate, command []string) *resolution.ComponentInput {
 	var ct *supersetv1alpha1.ContainerTemplate
 	if pt != nil && pt.Container != nil {
 		copied := *pt.Container
