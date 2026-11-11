@@ -429,7 +429,7 @@ func TestReconcile_LifecycleCreatesParentOwnedTaskJobAndStatus(t *testing.T) {
 	if updated.Status.Lifecycle == nil || updated.Status.Lifecycle.Migrate == nil {
 		t.Fatal("expected migrate status on parent lifecycle status")
 	}
-	if updated.Status.Lifecycle.Migrate.State != supersetv1alpha1.TaskStateRunning {
+	if updated.Status.Lifecycle.Migrate.State != "Running" {
 		t.Fatalf("expected migrate state Running, got %q", updated.Status.Lifecycle.Migrate.State)
 	}
 	if updated.Status.Lifecycle.Migrate.DesiredChecksum == "" {

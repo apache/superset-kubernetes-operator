@@ -643,12 +643,12 @@ func TestMigrateInputs_LiteralTargetPreservesChecksumShape(t *testing.T) {
 	}{
 		Image: "superset:1.0", CreateDatabase: true,
 		Target: struct {
-			Type     supersetv1alpha1.DatabaseType
+			Type     string
 			Host     string
 			Port     int32
 			Database string
 			Username string
-		}{supersetv1alpha1.DatabaseTypePostgreSQL, "pg", 5432, "superset", "superset"},
+		}{"PostgreSQL", "pg", 5432, "superset", "superset"},
 		InitContainerScript: createDatabasePostgresScript,
 	}
 

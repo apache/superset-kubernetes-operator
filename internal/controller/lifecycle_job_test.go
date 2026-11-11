@@ -69,7 +69,7 @@ func TestReconcileLifecycleTaskJob_CheckpointsCompletionBeforeRetention(t *testi
 	if result.Complete {
 		t.Fatalf("expected checkpoint result before advancing pipeline, got %#v", result)
 	}
-	if taskRef.State != supersetv1alpha1.TaskStateComplete || taskRef.CompletedChecksum != taskChecksum {
+	if taskRef.State != "Complete" || taskRef.CompletedChecksum != taskChecksum {
 		t.Fatalf("expected completed status with checksum, got state=%q checksum=%q", taskRef.State, taskRef.CompletedChecksum)
 	}
 	if err := c.Get(ctx, types.NamespacedName{Name: job.Name, Namespace: job.Namespace}, &batchv1.Job{}); err != nil {
@@ -267,7 +267,7 @@ func TestReconcileLifecycleTaskJob_ForeignOwnedJobIsNotDeleted(t *testing.T) {
 	if err := c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, &batchv1.Job{}); err != nil {
 		t.Fatalf("foreign Job must not be deleted: %v", err)
 	}
-	if taskRef.State == supersetv1alpha1.TaskStateComplete {
+	if taskRef.State == "Complete" {
 		t.Fatalf("foreign Job status must not be attributed to this task; got state=%q", taskRef.State)
 	}
 	if !hasLifecycleConditionReason(superset, reasonTaskNameCollision) {
@@ -475,7 +475,7 @@ func TestResetTaskStatusForRun(t *testing.T) {
 
 	resetTaskStatusForRun(taskRef, "new-checksum", 5)
 
-	assert.Equal(t, supersetv1alpha1.TaskStatePending, taskRef.State)
+	assert.EqualValues(t, "Pending", taskRef.State)
 	assert.Nil(t, taskRef.StartedAt)
 	assert.Nil(t, taskRef.CompletedAt)
 	assert.Zero(t, taskRef.Attempts)

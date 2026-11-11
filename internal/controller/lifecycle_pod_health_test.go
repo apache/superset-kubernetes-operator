@@ -173,7 +173,7 @@ func TestHandleStuckTaskPod_SelfHealsWhenSpecChanged(t *testing.T) {
 	if res.RequeueAfter <= 0 {
 		t.Errorf("expected a requeue, got %#v", res)
 	}
-	if taskRef.State != supersetv1alpha1.TaskStatePending {
+	if taskRef.State != "Pending" {
 		t.Errorf("expected taskRef reset to Pending for recreation, got %q", taskRef.State)
 	}
 	if err := c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, &batchv1.Job{}); !apierrors.IsNotFound(err) {

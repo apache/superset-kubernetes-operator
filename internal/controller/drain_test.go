@@ -69,7 +69,7 @@ func TestDrainIfNeededEmitsStartedWhenPodsRemain(t *testing.T) {
 	if result.Complete || result.RequeueAfter == 0 {
 		t.Fatalf("expected drain wait result, got %#v", result)
 	}
-	if superset.Status.Lifecycle.Phase != supersetv1alpha1.LifecyclePhaseDraining || superset.Status.Phase != supersetv1alpha1.SupersetPhaseUpgrading {
+	if superset.Status.Lifecycle.Phase != "Draining" || superset.Status.Phase != "Upgrading" {
 		t.Fatalf("expected draining phases, got lifecycle=%q phase=%q", superset.Status.Lifecycle.Phase, superset.Status.Phase)
 	}
 	assertNextEventContains(t, recorder, "Normal DrainingStarted Draining component workloads before lifecycle tasks")

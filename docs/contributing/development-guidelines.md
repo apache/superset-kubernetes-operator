@@ -71,7 +71,7 @@ const (
 )
 ```
 
-Use these constants everywhere, including controllers, config rendering, and tests, and keep the typed value through helper signatures. Convert with `string(...)` only where the value leaves Go, such as an env var or a command argument. Don't redeclare enum values as untyped string constants in internal packages. Document each constant: the API reference renders the comments as the table of allowed values.
+Use these constants in controllers and config rendering, and keep the typed value through helper signatures. Convert with `string(...)` only where the value leaves Go, such as an env var or a command argument. Don't redeclare enum values as untyped string constants in internal packages. Document each constant: the API reference renders the comments as the table of allowed values. Tests may build inputs from the constants but assert expected values as literals; see [Testing Philosophy](#guiding-principle-assert-on-observable-outputs).
 
 Don't use an enum for values the operator passes through to software it doesn't control, such as the Gunicorn worker class and log level, the Celery pool and optimization, or the Valkey client's `ssl_cert_reqs`. Upstream can add values at any time, and an enum would reject them until the operator is released again. Keep these fields plain `*string`, name a few common values and the default in the doc comment, and keep the operator's default as an unexported constant in the package that applies it.
 
@@ -91,6 +91,7 @@ Across all tiers:
 
 - **Avoid testing private functions in isolation** unless they contain genuinely complex logic (merge semantics, backoff math). If a behavior is only meaningful through reconciliation, test it through reconciliation.
 - **Refactor freely without rewriting tests.** If renaming an internal helper or restructuring a package breaks tests, those tests were coupled to implementation, not behavior, and should be rewritten to assert on observable outputs or removed entirely.
+- **Assert expected values as literals, not production constants.** A user sees `Running`, `GUNICORN_LOGLEVEL`, or `prefork`, not the Go constant behind it. Write the expected value out (`assert.EqualValues(t, "Running", superset.Status.Phase)`) so an accidental change to a constant, enum value, env var name, or label key fails a test instead of silently moving the expectation with it. Building test inputs from constants is fine.
 - **Don't test non-actions.** A test should pin a behavior the code actively produces, not assert the absence of behavior the code never had (or no longer has). When you delete a feature, delete its tests — don't invert them into "X no longer happens" assertions. The positive tests for the surviving behavior already cover it: e.g. after removing downgrade blocking, a "downgrade proceeds" test is redundant because the general "an image change proceeds and re-runs migrate" test already exercises that path. (Mirrors the documentation rule: don't describe what the default already precludes.)
 
 ### Security and the threat model

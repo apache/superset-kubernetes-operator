@@ -120,7 +120,7 @@ func TestCheckUpgradeGates_SupervisedApprovalRequiresRecordedToken(t *testing.T)
 	if !gated {
 		t.Fatal("expected first reconcile to publish the approval token before accepting it")
 	}
-	if superset.Status.Phase != supersetv1alpha1.SupersetPhaseAwaitingApproval {
+	if superset.Status.Phase != "AwaitingApproval" {
 		t.Fatalf("expected parent phase AwaitingApproval, got %q", superset.Status.Phase)
 	}
 	if got := superset.Status.Lifecycle.Upgrade.ApprovalToken; got != token {
@@ -329,10 +329,10 @@ func TestReconcileLifecycle_BlocksOnInvalidSeedSchedule(t *testing.T) {
 	if !hasConditionReason(superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete, "InvalidCronSchedule") {
 		t.Fatalf("expected LifecycleComplete=False reason InvalidCronSchedule, got %#v", superset.Status.Conditions)
 	}
-	if superset.Status.Lifecycle.Phase != supersetv1alpha1.LifecyclePhaseBlocked {
+	if superset.Status.Lifecycle.Phase != "Blocked" {
 		t.Fatalf("expected lifecycle phase Blocked, got %q", superset.Status.Lifecycle.Phase)
 	}
-	if superset.Status.Phase != supersetv1alpha1.SupersetPhaseBlocked {
+	if superset.Status.Phase != "Blocked" {
 		t.Fatalf("expected parent phase Blocked, got %q", superset.Status.Phase)
 	}
 	jobs := &batchv1.JobList{}
