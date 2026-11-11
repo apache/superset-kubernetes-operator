@@ -202,7 +202,7 @@ func TestLifecyclePipeline_LogLevelAppliesOnTriggeredRerun(t *testing.T) {
 
 	markJobSucceeded(t, c, job)
 	reconcileLifecycleWithoutFailure(t, r, ctx, superset)
-	require.Equal(t, taskStateComplete, superset.Status.Lifecycle.Migrate.State)
+	require.Equal(t, supersetv1alpha1.TaskStateComplete, superset.Status.Lifecycle.Migrate.State)
 
 	require.NoError(t, c.Get(ctx, types.NamespacedName{Name: "test", Namespace: "default"}, superset))
 	superset.Spec.Lifecycle.Migrate.Trigger = &updatedTrigger

@@ -35,6 +35,7 @@ import (
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
+	supersetconfig "github.com/apache/superset-kubernetes-operator/internal/config"
 )
 
 func TestReconcile_CreatesParentOwnedComponentResources(t *testing.T) {
@@ -324,7 +325,7 @@ func TestReconcile_LogLevelWiringAndRestartScope(t *testing.T) {
 func TestReconcile_LogLevelWithDisabledCeleryPreset(t *testing.T) {
 	scheme := testScheme(t)
 	level := supersetv1alpha1.LogLevelError
-	disabled := "disabled"
+	disabled := supersetv1alpha1.Preset("disabled")
 
 	spec := minimalSupersetSpec()
 	spec.LogLevel = &level

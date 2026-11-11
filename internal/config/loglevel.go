@@ -27,7 +27,10 @@ import (
 )
 
 // DefaultLogLevel applies when neither the component nor spec.logLevel sets a level.
-const DefaultLogLevel = v1alpha1.LogLevelInfo
+const (
+	DefaultLogLevel      = v1alpha1.LogLevelInfo
+	EnvWebsocketLogLevel = "LOG_LEVEL"
+)
 
 // ResolveLogLevel returns the effective lowercase level: the component value,
 // then the top-level value, then DefaultLogLevel.
