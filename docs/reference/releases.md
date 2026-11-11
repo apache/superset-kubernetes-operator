@@ -37,6 +37,10 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 - **Breaking:** `podTemplate.container.ports` is removed. Each component now always listens on its operator default port, and its Service `targetPort`, default probes, and NetworkPolicy always target that port. Overriding the first port used to move the Service, probes, and NetworkPolicy without changing the port the server listened on, so the pods restarted in a loop. A port set on the top-level `podTemplate.container` was also merged into every HTTP component. Remove `ports` from your Superset resources before upgrading: the API server drops the field from stored resources, and `kubectl apply` with strict field validation rejects it. Instances that set `ports` go back to the default port and roll once on upgrade. To change the port clients connect to, use `service.port` ([#462](https://github.com/apache/superset-kubernetes-operator/pull/462), [@younsl](https://github.com/younsl)).
 - **Celery worker liveness probe.** The Celery worker now gets a default liveness probe that runs `celery inspect ping` against the pod's own worker node, so a worker that stays Running but no longer answers over the broker is restarted. Timings match the upstream Superset Helm chart (120s initial delay, 60s period and timeout, 3 failures). Existing worker Deployments roll once on upgrade, and setting `livenessProbe` on the worker replaces the default ([#427](https://github.com/apache/superset-kubernetes-operator/pull/427), [@younsl](https://github.com/younsl)).
 
+### Fixed
+
+- **User-managed HPAs and PDBs are no longer deleted.** The operator used to delete an unowned HPA or PDB named after a component Deployment, such as one created with `kubectl autoscale`, whenever that component had no `autoscaling` or `podDisruptionBudget` and again on every lifecycle drain. Component cleanup now finds resources by the operator's labels and only deletes resources the Superset owns ([#507](https://github.com/apache/superset-kubernetes-operator/pull/507), [@villebro](https://github.com/villebro)).
+
 ## 0.3.1 - 2026-10-21
 
 ### Fixed
