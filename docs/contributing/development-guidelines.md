@@ -302,6 +302,34 @@ When adding new source files (`.go`, `.yaml`, `.sh`, `Dockerfile`, etc.), includ
 
 ---
 
+## Automation Principle
+
+When committed state must stay in sync with something external (upstream releases, generated docs, tables derived from a source of truth), build a CI-enforced sync mechanism instead of documenting a manual checklist. Manual steps rot; CI failures don't.
+
+Patterns to follow:
+
+- **One source of truth, generated outputs.** Keep canonical data in a single small file (`.github/supported-k8s.json`, Go type definitions, etc.) and derive everything else (docs tables, CI matrices, defaults) from it.
+- **`make codegen` aggregates all generators.** Anything regenerable goes through it. CI's `Verify codegen` job runs `make codegen` and fails on diff.
+- **Upstream drift checks.** When the source-of-truth file must track something external (a pinned dependency's release notes, the latest upstream minor), write a `make sync-<thing>` script that queries the upstream API and rewrites the file, plus a `make verify-<thing>` that runs it in `--check` mode in CI. See `scripts/sync-supported-versions.sh` for the canonical example.
+- **Scheduled auto-sync PRs.** Pair the sync script with a daily scheduled GitHub Actions job that runs it and opens a PR if anything changed, so open PRs don't all break when upstream moves.
+- **Renovate for pinned versions.** Use `customManagers` for non-standard pin sites (regex-matched JSON/YAML fields). Use `prBodyNotes` and `addLabels` to point the reviewer to the right follow-up command on PRs that need manual judgment.
+- **Sentinel-bounded generated blocks** in human-edited files (`<!-- BEGIN X -->` / `<!-- END X -->`), so generators can rewrite specific regions without disturbing the hand-written content around them.
+
+The bar: every new "remember to also update X when Y changes" instruction is a bug in the tooling. Fix the tooling instead.
+
+---
+
+## Documentation Style
+
+- **README** is a landing page: project description, philosophy, quick start, link to docs. Keep it welcoming and free of jargon. Don't reference specific knobs, internal config names, or implementation details that might intimidate newcomers.
+- **`docs/index.md`** is the primary feature overview for the docs site. Keep feature descriptions high-level and outcome-focused; implementation details belong in the user guide or architecture docs. Prefer consolidated bullets that group related capabilities (e.g., "Lifecycle automation — seeding, migrations, key rotation, and init" rather than a separate bullet per feature).
+- **`docs/user-guide/configuration.md`** is the full configuration reference. Here it's appropriate to name specific fields, presets, and env vars, and to show concrete YAML examples.
+- **`docs/architecture/overview.md`** explains design decisions and internal structure for contributors and advanced users.
+- **General principles:** be concise and objective, avoid overselling or verbose language, reserve code blocks for real code (not ASCII art), and minimize duplication between the README and the docs (the README links to the docs for details).
+- **Generated docs:** the API reference and the Helm chart README are generated; see [Development Setup](development-setup.md#documentation) for how to regenerate them and how to link built-in Kubernetes types.
+
+---
+
 ## Do's and Don'ts
 
 ### Do
@@ -323,7 +351,7 @@ When adding new source files (`.go`, `.yaml`, `.sh`, `Dockerfile`, etc.), includ
 - **Don't fetch resources by name for cleanup** — use `deleteByLabels` with parent/component labels to discover and clean up. Name-based `CreateOrUpdate` and status reads are fine — those address resources whose names the operator controls.
 - **Don't hardcode commands/ports** — use `DeploymentConfig` defaults
 - **Don't duplicate controller logic** — use `component_reconciler.go` helpers
-- **Don't copy derived facts between docs** — values defined in code or in one canonical doc (e.g. the per-component routing paths in [`networking-and-monitoring.md`](../user-guide/networking-and-monitoring.md)) should be stated once and cross-linked from elsewhere, not re-listed on other pages where they silently go stale. Same spirit as the Automation Principle: one source of truth.
+- **Don't copy derived facts between docs** — values defined in code or in one canonical doc (e.g. the per-component routing paths in [`networking-and-monitoring.md`](../user-guide/networking-and-monitoring.md)) should be stated once and cross-linked from elsewhere, not re-listed on other pages where they silently go stale. Same spirit as the [Automation Principle](#automation-principle): one source of truth.
 - **Don't echo upstream defaults in Helm values or docs** — when a Helm value passes through to a Kubernetes field, leave it unset (`~`) so the platform default applies, and don't restate the current default value in comments, `values.yaml`, or release notes. Defaults can change upstream, and repeating them creates a second source of truth that silently goes stale.
 - **Don't add fields without doc comments** — they become CRD descriptions
 - **Don't use `bool` with `omitempty`** — use `*bool` to distinguish false from unset
@@ -481,21 +509,7 @@ Scope is optional but encouraged when the change is scoped to a single area. Any
 
 CI validates this on every PR via the `PR / Validate PR title` check.
 
-**Allowed types:**
-
-| Type | Use for |
-|------|---------|
-| `feat` | New functionality |
-| `fix` | Bug fixes |
-| `refactor` | Code restructuring without behavior change |
-| `docs` | Documentation only |
-| `test` | Adding or updating tests |
-| `chore` | Maintenance (config, tooling, dependencies) |
-| `ci` | CI/CD workflow changes |
-| `build` | Build system or external dependency changes |
-| `perf` | Performance improvements |
-| `style` | Formatting, whitespace, linting |
-| `revert` | Reverting a previous commit |
+**Allowed types** are defined in [`.github/workflows/pr.yaml`](https://github.com/apache/superset-kubernetes-operator/blob/main/.github/workflows/pr.yaml) (the `types` input to the semantic-PR action) and follow the conventional-commit set. Check that file rather than copying the list, which would go stale.
 
 **Examples:**
 
