@@ -153,6 +153,23 @@ func TestReconcileHPA_NilAutoscaling(t *testing.T) {
 		}
 	})
 
+	// A user-managed HPA (e.g. from `kubectl autoscale`) carries the
+	// Deployment's name but no operator labels or owner; it must survive.
+	t.Run("keeps unowned HPA at name without operator labels", func(t *testing.T) {
+		hpa := &autoscalingv2.HorizontalPodAutoscaler{
+			Name: "test-web-server", Namespace: "default", UID: "hpa-uid",
+			Spec: autoscalingv2.HorizontalPodAutoscalerSpec{MaxReplicas: 5},
+		}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner, hpa).Build()
+		if err := reconcileHPA(context.Background(), c, scheme, owner, nil, testLabels, "test-web-server", "default"); err != nil {
+			t.Fatalf("reconcileHPA: %v", err)
+		}
+		got := &autoscalingv2.HorizontalPodAutoscaler{}
+		if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, got); err != nil {
+			t.Fatalf("unowned HPA at managed name must survive, got: %v", err)
+		}
+	})
+
 	// The exact-name fallback must never delete an HPA controller-owned by a
 	// foreign owner that merely shares the managed name.
 	t.Run("keeps foreign-owned HPA at name", func(t *testing.T) {
@@ -295,6 +312,17 @@ func TestReconcilePDB_NilSpec(t *testing.T) {
 		pdb := &policyv1.PodDisruptionBudget{}
 		if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, pdb); !errors.IsNotFound(err) {
 			t.Fatalf("expected PDB to be deleted, got: %v", err)
+		}
+	})
+
+	t.Run("keeps unowned PDB at name without operator labels", func(t *testing.T) {
+		userPDB := &policyv1.PodDisruptionBudget{Name: "test-web-server", Namespace: "default"}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner, userPDB).Build()
+		if err := reconcilePDB(context.Background(), c, scheme, owner, nil, labels, "test-web-server", "default"); err != nil {
+			t.Fatalf("reconcilePDB: %v", err)
+		}
+		if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, &policyv1.PodDisruptionBudget{}); err != nil {
+			t.Fatalf("unowned PDB at managed name must survive, got: %v", err)
 		}
 	})
 

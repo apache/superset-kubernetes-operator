@@ -23,7 +23,9 @@ import (
 	"fmt"
 
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
+	policyv1 "k8s.io/api/policy/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -118,7 +120,7 @@ func reconcileComponentDeployment(
 		dt := safeDeploymentTemplatePtr(spec.DeploymentTemplate)
 		// Operator-managed labels are passed last so they win on conflict and
 		// cannot be overridden by user-supplied deployment labels.
-		deploy.Labels = mergeLabels(dt.Labels, labels)
+		deploy.Labels = mergeLabels(dt.Labels, podOperatorLabels(componentName, owner.GetName(), owner.GetName()))
 		deploy.Annotations = mergeAnnotations(deploy.Annotations, dt.Annotations)
 		desiredSpec := buildDeploymentSpec(spec, cfg, checksumAnnotations, labels)
 		preserveDeploymentReplicasWhenUnmanaged(&desiredSpec, deploy.Spec)
@@ -185,7 +187,7 @@ func reconcileComponentService(
 			userLabels = svcSpec.Labels
 			userAnnotations = svcSpec.Annotations
 		}
-		svc.Labels = mergeLabels(resolution.StripReservedLabels(userLabels), labels)
+		svc.Labels = mergeLabels(resolution.StripReservedLabels(userLabels), podOperatorLabels(componentName, owner.GetName(), owner.GetName()))
 		svc.Annotations = mergeAnnotations(nil, userAnnotations)
 		return nil
 	})
@@ -318,6 +320,45 @@ func deleteMatches(ctx context.Context, c client.Client, owner client.Object, li
 		uid := obj.GetUID()
 		if err := client.IgnoreNotFound(c.Delete(ctx, obj, client.Preconditions{UID: &uid})); err != nil {
 			return fmt.Errorf("deleting %s: %w", obj.GetName(), err)
+		}
+	}
+	return nil
+}
+
+// deleteComponentWorkload deletes a component's Deployment, HPA, PDB, and, when
+// deleteService is set, its Service. Resources are discovered by the reserved
+// parent and component labels, so a same-named resource created by a user or
+// another tool (for example a `kubectl autoscale` HPA) is left alone.
+func (r *SupersetReconciler) deleteComponentWorkload(
+	ctx context.Context,
+	superset *supersetv1alpha1.Superset,
+	componentType common.ComponentType,
+	deleteService bool,
+) error {
+	labels := podOperatorLabels(string(componentType), superset.Name, superset.Name)
+	resourceBaseName := common.ResourceBaseName(superset.Name, componentType)
+	type kind struct {
+		obj     client.Object
+		newList func() client.ObjectList
+	}
+	kinds := []kind{
+		{&appsv1.Deployment{}, func() client.ObjectList { return &appsv1.DeploymentList{} }},
+		{&autoscalingv2.HorizontalPodAutoscaler{}, func() client.ObjectList { return &autoscalingv2.HorizontalPodAutoscalerList{} }},
+		{&policyv1.PodDisruptionBudget{}, func() client.ObjectList { return &policyv1.PodDisruptionBudgetList{} }},
+	}
+	if deleteService {
+		kinds = append(kinds, kind{&corev1.Service{}, func() client.ObjectList { return &corev1.ServiceList{} }})
+	}
+	for _, k := range kinds {
+		// Exact-name fallback for resources created before the operator stamped
+		// the parent label on them; those are always controlled by this CR.
+		k.obj.SetName(resourceBaseName)
+		k.obj.SetNamespace(superset.Namespace)
+		if err := deleteIfControlledBy(ctx, r.Client, superset, k.obj); err != nil {
+			return fmt.Errorf("deleting %T %s: %w", k.obj, resourceBaseName, err)
+		}
+		if err := deleteByLabels(ctx, r.Client, superset, superset.Namespace, labels, k.newList, ""); err != nil {
+			return fmt.Errorf("deleting %T by labels: %w", k.obj, err)
 		}
 	}
 	return nil

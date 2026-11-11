@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/client-go/tools/events"
@@ -211,17 +212,22 @@ func TestInjectCeleryCommand(t *testing.T) {
 func TestDeleteComponentResources(t *testing.T) {
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		Name: "test", Namespace: "default",
+		Name: "test", Namespace: "default", UID: "uid-1",
 	}
 
 	// A web-server component (hasPythonConfig=true, defaultPort=0 so no Service).
 	wsName := common.ResourceBaseName("test", common.ComponentWebServer)
-	deploy := &appsv1.Deployment{Name: wsName, Namespace: "default"}
+	deploy := &appsv1.Deployment{
+		Name: wsName, Namespace: "default", OwnerReferences: controllerRefTo(superset),
+		Labels: podOperatorLabels(string(common.ComponentWebServer), "test", "test"),
+	}
 	cm := &corev1.ConfigMap{Name: common.ConfigMapName(wsName), Namespace: "default"}
+	// A user-managed HPA named after the Deployment, without operator labels.
+	userHPA := &autoscalingv2.HorizontalPodAutoscaler{Name: wsName, Namespace: "default"}
 
 	c := fake.NewClientBuilder().
 		WithScheme(scheme).
-		WithObjects(superset, deploy, cm).
+		WithObjects(superset, deploy, cm, userHPA).
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
@@ -237,4 +243,7 @@ func TestDeleteComponentResources(t *testing.T) {
 	gotCM := &corev1.ConfigMap{}
 	err = c.Get(context.Background(), client.ObjectKey{Name: common.ConfigMapName(wsName), Namespace: "default"}, gotCM)
 	assert.True(t, errors.IsNotFound(err), "expected ConfigMap deleted, got %v", err)
+
+	err = c.Get(context.Background(), client.ObjectKey{Name: wsName, Namespace: "default"}, &autoscalingv2.HorizontalPodAutoscaler{})
+	assert.NoError(t, err, "expected user-managed HPA at the managed name to survive")
 }

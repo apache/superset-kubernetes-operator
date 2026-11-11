@@ -281,7 +281,7 @@ When adding new source files (`.go`, `.yaml`, `.sh`, `Dockerfile`, etc.), includ
 ### Don't
 
 - **Don't hardcode resource names** — use `componentDescriptor.resourceBaseName()` and naming helpers. Component resources are named `{parentName}-{componentType}`.
-- **Don't fetch resources by name for cleanup** — use `deleteByLabels` with parent/component labels to discover and clean up. Name-based `CreateOrUpdate` and status reads are fine — those address resources whose names the operator controls.
+- **Don't fetch resources by name for cleanup** — use `deleteByLabels` with parent/component labels to discover and clean up. Name-based `CreateOrUpdate` and status reads are fine — those address resources whose names the operator controls. Users and other tools pick the same names by convention (`kubectl autoscale` names its HPA after the Deployment), so a name alone doesn't prove the operator created a resource. When an upgrade needs a name-based fallback for resources created before a label existed, delete through `deleteIfControlledBy`, which only removes resources this Superset controls.
 - **Don't hardcode commands/ports** — use `DeploymentConfig` defaults
 - **Don't duplicate controller logic** — use `component_reconciler.go` helpers
 - **Don't copy derived facts between docs** — values defined in code or in one canonical doc (e.g. the per-component routing paths in [`networking-and-monitoring.md`](../user-guide/networking-and-monitoring.md)) should be stated once and cross-linked from elsewhere, not re-listed on other pages where they silently go stale. Same spirit as the Automation Principle: one source of truth.

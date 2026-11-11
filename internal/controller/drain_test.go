@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/events"
@@ -398,23 +399,31 @@ func TestDrainComponents_DeletesWorkloadsAndReportsDrained(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{
-		Name: "test", Namespace: "default",
+		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{
 			WebServer:    &supersetv1alpha1.WebServerComponentSpec{},
 			CeleryWorker: &supersetv1alpha1.CeleryWorkerComponentSpec{},
 		},
 	}
+	workerName := common.ResourceBaseName("test", common.ComponentCeleryWorker)
+	workerLabels := podOperatorLabels(string(common.ComponentCeleryWorker), "test", "test")
 
+	// Created before the parent label was stamped on Deployment metadata:
+	// found by the owner-checked name fallback.
 	webDeploy := &appsv1.Deployment{
-		Name: common.ResourceBaseName("test", common.ComponentWebServer), Namespace: "default"}
+		Name: common.ResourceBaseName("test", common.ComponentWebServer), Namespace: "default",
+		OwnerReferences: controllerRefTo(superset)}
 	workerDeploy := &appsv1.Deployment{
-		Name: common.ResourceBaseName("test", common.ComponentCeleryWorker), Namespace: "default"}
+		Name: workerName, Namespace: "default", Labels: workerLabels, OwnerReferences: controllerRefTo(superset)}
 	// A celery-worker Service (non-web-server) should be deleted too.
 	workerSvc := &corev1.Service{
-		Name: common.ResourceBaseName("test", common.ComponentCeleryWorker), Namespace: "default"}
+		Name: workerName, Namespace: "default", Labels: workerLabels, OwnerReferences: controllerRefTo(superset)}
+	// A user-managed HPA named after the worker Deployment (e.g. kubectl
+	// autoscale) has no operator labels or owner and must survive the drain.
+	userHPA := &autoscalingv2.HorizontalPodAutoscaler{Name: workerName, Namespace: "default"}
 
 	c := fake.NewClientBuilder().WithScheme(scheme).
-		WithObjects(superset, webDeploy, workerDeploy, workerSvc).Build()
+		WithObjects(superset, webDeploy, workerDeploy, workerSvc, userHPA).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	// No component pods exist, so drain completes in a single pass.
@@ -439,6 +448,9 @@ func TestDrainComponents_DeletesWorkloadsAndReportsDrained(t *testing.T) {
 	// Worker Service deleted.
 	if err := c.Get(ctx, client.ObjectKey{Name: workerSvc.Name, Namespace: "default"}, &corev1.Service{}); err == nil {
 		t.Error("expected celery-worker Service deleted during drain")
+	}
+	if err := c.Get(ctx, client.ObjectKey{Name: workerName, Namespace: "default"}, &autoscalingv2.HorizontalPodAutoscaler{}); err != nil {
+		t.Errorf("expected user-managed HPA to survive drain: %v", err)
 	}
 }
 
