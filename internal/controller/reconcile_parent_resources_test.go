@@ -140,7 +140,8 @@ func TestReconcile_DisabledComponentDeletesParentOwnedResources(t *testing.T) {
 		Spec: minimalSupersetSpec(),
 	}
 	workerDeploy := &appsv1.Deployment{
-		Name: "test-celery-worker", Namespace: "default", OwnerReferences: controllerRefTo(superset)}
+		Name: "test-celery-worker", Namespace: "default", OwnerReferences: controllerRefTo(superset),
+		Labels: podOperatorLabels(string(common.ComponentCeleryWorker), "test", "test")}
 	workerConfig := &corev1.ConfigMap{Name: "test-celery-worker-config", Namespace: "default"}
 
 	c := reconcileOnce(t, scheme, superset).WithObjects(workerDeploy, workerConfig).Build()

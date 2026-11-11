@@ -84,23 +84,6 @@ func deleteIfNotForeignOwned(ctx context.Context, c client.Client, owner client.
 	return client.IgnoreNotFound(c.Delete(ctx, obj, opts...))
 }
 
-// deleteIfControlledBy deletes the object whose name/namespace are already
-// populated on obj only if the given parent Superset CR is its controller.
-// Unlike deleteIfNotForeignOwned it leaves unowned objects alone, so it is safe
-// for names that users or other tools also pick by convention (for example an
-// HPA created by `kubectl autoscale` is named after its Deployment). A missing
-// object is not an error.
-func deleteIfControlledBy(ctx context.Context, c client.Client, owner client.Object, obj client.Object) error {
-	if err := c.Get(ctx, client.ObjectKeyFromObject(obj), obj); err != nil {
-		return client.IgnoreNotFound(err)
-	}
-	if ref := metav1.GetControllerOf(obj); ref == nil || ref.UID != owner.GetUID() {
-		return nil
-	}
-	uid := obj.GetUID()
-	return client.IgnoreNotFound(c.Delete(ctx, obj, client.Preconditions{UID: &uid}))
-}
-
 // parentLabels returns the operator-managed labels for parent-owned resources
 // (ServiceAccount, Ingress, HTTPRoute, ServiceMonitor). These labels enable
 // label-based discovery for cleanup.

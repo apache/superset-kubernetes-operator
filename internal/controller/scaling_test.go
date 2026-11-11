@@ -131,28 +131,6 @@ func TestReconcileHPA_NilAutoscaling(t *testing.T) {
 		}
 	})
 
-	// Migration: an HPA created by a pre-patch operator lacks the reserved parent
-	// label the selector now requires, but is controller-owned by this CR. The
-	// owner-checked exact-name fallback must still clean it up.
-	t.Run("deletes pre-patch owned HPA at name lacking selector labels", func(t *testing.T) {
-		hpa := &autoscalingv2.HorizontalPodAutoscaler{
-			Name: "test-web-server", Namespace: "default", UID: "hpa-uid",
-			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion: "superset.apache.org/v1alpha1", Kind: "Superset",
-				Name: "test-web-server", UID: "uid-1", Controller: new(true),
-			}},
-			Spec: autoscalingv2.HorizontalPodAutoscalerSpec{MaxReplicas: 5},
-		}
-		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner, hpa).Build()
-		if err := reconcileHPA(context.Background(), c, scheme, owner, nil, testLabels, "test-web-server", "default"); err != nil {
-			t.Fatalf("reconcileHPA: %v", err)
-		}
-		got := &autoscalingv2.HorizontalPodAutoscaler{}
-		if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, got); !errors.IsNotFound(err) {
-			t.Fatalf("expected pre-patch owned HPA deleted by name fallback, got: %v", err)
-		}
-	})
-
 	// A user-managed HPA (e.g. from `kubectl autoscale`) carries the
 	// Deployment's name but no operator labels or owner; it must survive.
 	t.Run("keeps unowned HPA at name without operator labels", func(t *testing.T) {
@@ -170,8 +148,8 @@ func TestReconcileHPA_NilAutoscaling(t *testing.T) {
 		}
 	})
 
-	// The exact-name fallback must never delete an HPA controller-owned by a
-	// foreign owner that merely shares the managed name.
+	// An HPA controller-owned by a foreign owner that merely shares the managed
+	// name must survive too.
 	t.Run("keeps foreign-owned HPA at name", func(t *testing.T) {
 		hpa := &autoscalingv2.HorizontalPodAutoscaler{
 			Name: "test-web-server", Namespace: "default", UID: "hpa-uid",

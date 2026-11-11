@@ -45,16 +45,6 @@ func reconcileHPA(
 ) error {
 	if autoscaling == nil {
 		logf.FromContext(ctx).V(2).Info("Ensuring no HPA (autoscaling disabled)", "name", deploymentName)
-		// Exact-name fallback: an HPA created by a pre-0.3.0 operator predates
-		// the reserved parent label the label selector below requires, so it
-		// would be missed. Those HPAs are always controlled by this CR; an
-		// unowned HPA at this name belongs to the user (e.g. kubectl autoscale).
-		hpa := &autoscalingv2.HorizontalPodAutoscaler{
-			Name: deploymentName, Namespace: namespace,
-		}
-		if err := deleteIfControlledBy(ctx, c, owner, hpa); err != nil {
-			return err
-		}
 		return deleteByLabels(ctx, c, owner, namespace, labels,
 			func() client.ObjectList { return &autoscalingv2.HorizontalPodAutoscalerList{} }, "")
 	}
@@ -104,14 +94,6 @@ func reconcilePDB(
 ) error {
 	if pdbSpec == nil {
 		logf.FromContext(ctx).V(2).Info("Ensuring no PDB (disabled)", "name", name)
-		// Exact-name fallback for a pre-0.3.0 PDB that lacks the reserved parent
-		// label the selector below requires; see reconcileHPA.
-		pdb := &policyv1.PodDisruptionBudget{
-			Name: name, Namespace: namespace,
-		}
-		if err := deleteIfControlledBy(ctx, c, owner, pdb); err != nil {
-			return err
-		}
 		return deleteByLabels(ctx, c, owner, namespace, labels,
 			func() client.ObjectList { return &policyv1.PodDisruptionBudgetList{} }, "")
 	}

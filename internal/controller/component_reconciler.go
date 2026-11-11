@@ -336,29 +336,17 @@ func (r *SupersetReconciler) deleteComponentWorkload(
 	deleteService bool,
 ) error {
 	labels := podOperatorLabels(string(componentType), superset.Name, superset.Name)
-	resourceBaseName := common.ResourceBaseName(superset.Name, componentType)
-	type kind struct {
-		obj     client.Object
-		newList func() client.ObjectList
-	}
-	kinds := []kind{
-		{&appsv1.Deployment{}, func() client.ObjectList { return &appsv1.DeploymentList{} }},
-		{&autoscalingv2.HorizontalPodAutoscaler{}, func() client.ObjectList { return &autoscalingv2.HorizontalPodAutoscalerList{} }},
-		{&policyv1.PodDisruptionBudget{}, func() client.ObjectList { return &policyv1.PodDisruptionBudgetList{} }},
+	newLists := []func() client.ObjectList{
+		func() client.ObjectList { return &appsv1.DeploymentList{} },
+		func() client.ObjectList { return &autoscalingv2.HorizontalPodAutoscalerList{} },
+		func() client.ObjectList { return &policyv1.PodDisruptionBudgetList{} },
 	}
 	if deleteService {
-		kinds = append(kinds, kind{&corev1.Service{}, func() client.ObjectList { return &corev1.ServiceList{} }})
+		newLists = append(newLists, func() client.ObjectList { return &corev1.ServiceList{} })
 	}
-	for _, k := range kinds {
-		// Exact-name fallback for resources created before the operator stamped
-		// the parent label on them; those are always controlled by this CR.
-		k.obj.SetName(resourceBaseName)
-		k.obj.SetNamespace(superset.Namespace)
-		if err := deleteIfControlledBy(ctx, r.Client, superset, k.obj); err != nil {
-			return fmt.Errorf("deleting %T %s: %w", k.obj, resourceBaseName, err)
-		}
-		if err := deleteByLabels(ctx, r.Client, superset, superset.Namespace, labels, k.newList, ""); err != nil {
-			return fmt.Errorf("deleting %T by labels: %w", k.obj, err)
+	for _, newList := range newLists {
+		if err := deleteByLabels(ctx, r.Client, superset, superset.Namespace, labels, newList, ""); err != nil {
+			return fmt.Errorf("deleting %T: %w", newList(), err)
 		}
 	}
 	return nil

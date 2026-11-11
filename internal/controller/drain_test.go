@@ -408,10 +408,9 @@ func TestDrainComponents_DeletesWorkloadsAndReportsDrained(t *testing.T) {
 	workerName := common.ResourceBaseName("test", common.ComponentCeleryWorker)
 	workerLabels := podOperatorLabels(string(common.ComponentCeleryWorker), "test", "test")
 
-	// Created before the parent label was stamped on Deployment metadata:
-	// found by the owner-checked name fallback.
 	webDeploy := &appsv1.Deployment{
 		Name: common.ResourceBaseName("test", common.ComponentWebServer), Namespace: "default",
+		Labels:          podOperatorLabels(string(common.ComponentWebServer), "test", "test"),
 		OwnerReferences: controllerRefTo(superset)}
 	workerDeploy := &appsv1.Deployment{
 		Name: workerName, Namespace: "default", Labels: workerLabels, OwnerReferences: controllerRefTo(superset)}
