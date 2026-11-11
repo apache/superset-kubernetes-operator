@@ -27,6 +27,7 @@ import (
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	naming "github.com/apache/superset-kubernetes-operator/internal/common"
+	supersetconfig "github.com/apache/superset-kubernetes-operator/internal/config"
 	"github.com/apache/superset-kubernetes-operator/internal/resolution"
 )
 
@@ -41,6 +42,6 @@ func TestAppendLogLevelEnv_Websocket(t *testing.T) {
 	t.Run("explicit maps to winston name", func(t *testing.T) {
 		inj := &resolution.OperatorInjected{}
 		appendLogLevelEnv(naming.ComponentWebsocketServer, supersetv1alpha1.LogLevelWarning, true, inj)
-		assert.Equal(t, []corev1.EnvVar{{Name: naming.EnvWebsocketLogLevel, Value: "warn"}}, inj.Env)
+		assert.Equal(t, []corev1.EnvVar{{Name: supersetconfig.EnvWebsocketLogLevel, Value: "warn"}}, inj.Env)
 	})
 }

@@ -33,6 +33,7 @@ import (
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
+	supersetconfig "github.com/apache/superset-kubernetes-operator/internal/config"
 )
 
 func TestReconcile_CreatesParentOwnedComponentResources(t *testing.T) {
@@ -265,17 +266,17 @@ func TestReconcile_WebsocketLogLevelEnv(t *testing.T) {
 			var got *corev1.EnvVar
 			env := deploy.Spec.Template.Spec.Containers[0].Env
 			for i := range env {
-				if env[i].Name == common.EnvWebsocketLogLevel {
+				if env[i].Name == supersetconfig.EnvWebsocketLogLevel {
 					got = &env[i]
 					break
 				}
 			}
 
 			if tt.want == "" && got != nil {
-				t.Fatalf("expected no %s env var, got %+v", common.EnvWebsocketLogLevel, got)
+				t.Fatalf("expected no %s env var, got %+v", supersetconfig.EnvWebsocketLogLevel, got)
 			}
 			if tt.want != "" && (got == nil || got.Value != tt.want) {
-				t.Fatalf("expected %s=%s, got %+v", common.EnvWebsocketLogLevel, tt.want, got)
+				t.Fatalf("expected %s=%s, got %+v", supersetconfig.EnvWebsocketLogLevel, tt.want, got)
 			}
 		})
 	}
