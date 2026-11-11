@@ -99,7 +99,7 @@ func TestBuildSeedScript(t *testing.T) {
 	})
 
 	t.Run("mysql base", func(t *testing.T) {
-		mysqlType := "MySQL"
+		mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 		seed := &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
 				Type:     &mysqlType,
@@ -160,7 +160,7 @@ func TestBuildSeedScript(t *testing.T) {
 	})
 
 	t.Run("mysql exclude tables", func(t *testing.T) {
-		mysqlType := "MySQL"
+		mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 		seed := &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
 				Type:     &mysqlType,
@@ -182,7 +182,7 @@ func TestBuildSeedScript(t *testing.T) {
 	})
 
 	t.Run("mysql exclude table data", func(t *testing.T) {
-		mysqlType := "MySQL"
+		mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 		seed := &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
 				Type:     &mysqlType,
@@ -222,7 +222,7 @@ func TestBuildSeedScript(t *testing.T) {
 	})
 
 	t.Run("mysql no exclude table data keeps single pass", func(t *testing.T) {
-		mysqlType := "MySQL"
+		mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 		seed := &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
 				Type:     &mysqlType,
@@ -265,7 +265,7 @@ func TestBuildSeedScript(t *testing.T) {
 		})
 
 		t.Run("mysql", func(t *testing.T) {
-			mysqlType := "MySQL"
+			mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 			seed := &supersetv1alpha1.SeedTaskSpec{
 				Source: supersetv1alpha1.SeedSourceSpec{
 					Type: &mysqlType, Host: "mysql-prod.svc", Database: "superset_prod", Username: "reader",
@@ -282,7 +282,7 @@ func TestBuildSeedScript(t *testing.T) {
 	})
 
 	t.Run("shell metacharacters in table/SQL fields are inert", func(t *testing.T) {
-		mysqlType := "MySQL"
+		mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 		// $(...) command substitution and backticks would execute inside a
 		// double-quoted shell context; single-quoting via shellQuote neutralizes
 		// them while passing the value verbatim to the dump/restore tools.
@@ -376,7 +376,7 @@ func TestBuildSeedCommand(t *testing.T) {
 
 	t.Run("mysql", func(t *testing.T) {
 		r := &SupersetReconciler{}
-		mysqlType := "MySQL"
+		mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 		superset := &supersetv1alpha1.Superset{}
 		superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 			Seed: &supersetv1alpha1.SeedTaskSpec{
@@ -499,7 +499,7 @@ func TestCollectSeedEnvVars(t *testing.T) {
 	port := int32(5432)
 
 	superset := &supersetv1alpha1.Superset{}
-	superset.Spec.Environment = new(common.EnvironmentDev)
+	superset.Spec.Environment = new(supersetv1alpha1.EnvironmentDevelopment)
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 		Seed: &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
@@ -617,7 +617,7 @@ func TestResolveSeedImage(t *testing.T) {
 	})
 
 	t.Run("default mysql", func(t *testing.T) {
-		mysqlType := "MySQL"
+		mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 		seed := &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
 				Type:     &mysqlType,
@@ -660,28 +660,28 @@ func TestResolveSeedImage(t *testing.T) {
 	t.Run("partial override", func(t *testing.T) {
 		tests := []struct {
 			name         string
-			srcType      string
+			srcType      supersetv1alpha1.DatabaseType
 			image        *supersetv1alpha1.ContainerImageSpec
 			expectedRepo string
 			expectedTag  string
 		}{
 			{
 				name:         "tag-only override on PostgreSQL inherits postgres repo",
-				srcType:      dbTypePostgresql,
+				srcType:      supersetv1alpha1.DatabaseTypePostgreSQL,
 				image:        &supersetv1alpha1.ContainerImageSpec{Tag: "16-alpine"},
 				expectedRepo: "postgres",
 				expectedTag:  "16-alpine",
 			},
 			{
 				name:         "tag-only override on MySQL inherits mysql repo",
-				srcType:      dbTypeMySQL,
+				srcType:      supersetv1alpha1.DatabaseTypeMySQL,
 				image:        &supersetv1alpha1.ContainerImageSpec{Tag: "9-alpine"},
 				expectedRepo: "mysql",
 				expectedTag:  "9-alpine",
 			},
 			{
 				name:         "repository-only override on PostgreSQL inherits default tag",
-				srcType:      dbTypePostgresql,
+				srcType:      supersetv1alpha1.DatabaseTypePostgreSQL,
 				image:        &supersetv1alpha1.ContainerImageSpec{Repository: "my-registry/postgres"},
 				expectedRepo: "my-registry/postgres",
 				expectedTag:  "17-alpine",
@@ -1520,7 +1520,7 @@ func TestAllTasksStillComplete_WithSeedSchedule(t *testing.T) {
 func TestCollectSecretEnvVars_PreviousSecretKey(t *testing.T) {
 	t.Run("dev mode plaintext", func(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
-			Environment:       new("Development"),
+			Environment:       new(supersetv1alpha1.EnvironmentDevelopment),
 			SecretKey:         new("new-key"),
 			PreviousSecretKey: new("old-key"),
 		}
@@ -1784,7 +1784,7 @@ func TestIsTaskEnabled_InvalidCronScheduleGatesSeed(t *testing.T) {
 // (defense in depth behind CEL), falling back to the *From reference.
 func TestCollectSeedEnvVars_ProductionDropsInlinePasswords(t *testing.T) {
 	superset := &supersetv1alpha1.Superset{}
-	superset.Spec.Environment = new(common.EnvironmentProd)
+	superset.Spec.Environment = new(supersetv1alpha1.EnvironmentProduction)
 	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 		Seed: &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
@@ -1809,7 +1809,7 @@ func TestCollectSeedEnvVars_ProductionDropsInlinePasswords(t *testing.T) {
 }
 
 func TestGateOnSeedEnvironment(t *testing.T) {
-	newSuperset := func(env string, seedDisabled *bool) *supersetv1alpha1.Superset {
+	newSuperset := func(env supersetv1alpha1.Environment, seedDisabled *bool) *supersetv1alpha1.Superset {
 		s := &supersetv1alpha1.Superset{
 			Name: "test", Namespace: "default",
 			Spec: supersetv1alpha1.SupersetSpec{
@@ -1830,7 +1830,7 @@ func TestGateOnSeedEnvironment(t *testing.T) {
 	r := &SupersetReconciler{Recorder: events.NewFakeRecorder(10)}
 
 	t.Run("blocks in production", func(t *testing.T) {
-		s := newSuperset(common.EnvironmentProd, nil)
+		s := newSuperset(supersetv1alpha1.EnvironmentProduction, nil)
 		res, blocked := r.gateOnSeedEnvironment(s)
 		if !blocked || !res.TerminalFailure {
 			t.Fatalf("expected block+terminal in Production, got blocked=%v res=%#v", blocked, res)
@@ -1845,17 +1845,17 @@ func TestGateOnSeedEnvironment(t *testing.T) {
 		}
 	})
 	t.Run("allows in staging", func(t *testing.T) {
-		if _, blocked := r.gateOnSeedEnvironment(newSuperset(common.EnvironmentStaging, nil)); blocked {
+		if _, blocked := r.gateOnSeedEnvironment(newSuperset(supersetv1alpha1.EnvironmentStaging, nil)); blocked {
 			t.Fatal("expected no block in Staging")
 		}
 	})
 	t.Run("allows in development", func(t *testing.T) {
-		if _, blocked := r.gateOnSeedEnvironment(newSuperset(common.EnvironmentDev, nil)); blocked {
+		if _, blocked := r.gateOnSeedEnvironment(newSuperset(supersetv1alpha1.EnvironmentDevelopment, nil)); blocked {
 			t.Fatal("expected no block in Development")
 		}
 	})
 	t.Run("no-op when seed disabled", func(t *testing.T) {
-		if _, blocked := r.gateOnSeedEnvironment(newSuperset(common.EnvironmentProd, new(true))); blocked {
+		if _, blocked := r.gateOnSeedEnvironment(newSuperset(supersetv1alpha1.EnvironmentProduction, new(true))); blocked {
 			t.Fatal("expected no block when seed disabled")
 		}
 	})

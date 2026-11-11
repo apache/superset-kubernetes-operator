@@ -39,6 +39,27 @@ Use per-field selectors rather than assuming a whole-Secret key convention: conn
 
 CRD defaulting runs before CEL validation. Do not put a kubebuilder/OpenAPI default on the literal side of a literal/`*From` pair: when a user sets only the selector, admission would first materialize the literal default and then the mutual-exclusion rule would reject the resource as if both fields had been supplied. Apply the effective default in the resolution or env-building layer only when neither form is set. Preserve typed validation for explicit literals, document the runtime default, and use an envtest case with the `*From` field to verify the generated CRD—not just the Go helper.
 
+### Enumerated fields
+
+Model every field that accepts a fixed set of values, in spec or status, as a named string type in `api/v1alpha1` with a typed constant per value. Put the `+kubebuilder:validation:Enum` marker on the type, not the field, so the Go constants and the CRD schema are declared in one place:
+
+```go
+// UpgradeMode controls whether lifecycle upgrades require manual approval.
+// +kubebuilder:validation:Enum=Automatic;Supervised
+type UpgradeMode string
+
+const (
+	// UpgradeModeAutomatic runs lifecycle tasks immediately on image change.
+	UpgradeModeAutomatic UpgradeMode = "Automatic"
+	// UpgradeModeSupervised waits for an approval annotation before running lifecycle tasks.
+	UpgradeModeSupervised UpgradeMode = "Supervised"
+)
+```
+
+Use these constants everywhere, including controllers, config rendering, and tests, and keep the typed value through helper signatures. Convert with `string(...)` only where the value leaves Go, such as an env var or a command argument. Don't redeclare enum values as untyped string constants in internal packages. Document each constant: the API reference renders the comments as the table of allowed values.
+
+When a Kubernetes type already exists (`corev1.PullPolicy`, `corev1.ServiceType`), reuse it, and narrow it with a field-level `Enum` marker if only some values are supported. Prefer an enum over a `bool` for modes that may gain another value later.
+
 ---
 
 ## Testing Philosophy

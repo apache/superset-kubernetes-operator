@@ -26,14 +26,12 @@ import (
 	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
-const defaultPool = "prefork"
-
 // ResolvedCelery holds fully-resolved Celery worker parameters.
 type ResolvedCelery struct {
 	Disabled           bool
 	Concurrency        int32
-	Pool               string
-	Optimization       string
+	Pool               v1alpha1.CeleryPool
+	Optimization       v1alpha1.CeleryOptimization
 	MaxTasksPerChild   int32
 	MaxMemoryPerChild  int32
 	PrefetchMultiplier int32
@@ -44,19 +42,19 @@ type ResolvedCelery struct {
 // ResolveCelery resolves a CeleryWorkerProcessSpec into concrete values.
 // When spec is nil, balanced defaults are used.
 func ResolveCelery(spec *v1alpha1.CeleryWorkerProcessSpec) ResolvedCelery {
-	preset := PresetBalanced
+	preset := v1alpha1.PresetBalanced
 	if spec != nil && spec.Preset != nil {
 		preset = *spec.Preset
 	}
-	if preset == PresetDisabled {
+	if preset == v1alpha1.PresetDisabled {
 		return ResolvedCelery{Disabled: true}
 	}
 
 	concurrency := celeryPresetDefaults(preset)
 	r := ResolvedCelery{
 		Concurrency:        concurrency,
-		Pool:               defaultPool,
-		Optimization:       "fair",
+		Pool:               v1alpha1.CeleryPoolPrefork,
+		Optimization:       v1alpha1.CeleryOptimizationFair,
 		MaxTasksPerChild:   0,
 		MaxMemoryPerChild:  0,
 		PrefetchMultiplier: 4,
@@ -80,13 +78,13 @@ func ResolveCelery(spec *v1alpha1.CeleryWorkerProcessSpec) ResolvedCelery {
 	return r
 }
 
-func celeryPresetDefaults(preset string) int32 {
+func celeryPresetDefaults(preset v1alpha1.Preset) int32 {
 	switch preset {
-	case PresetConservative:
+	case v1alpha1.PresetConservative:
 		return 2
-	case PresetPerformance:
+	case v1alpha1.PresetPerformance:
 		return 8
-	case PresetAggressive:
+	case v1alpha1.PresetAggressive:
 		return 16
 	default:
 		return 4
@@ -98,7 +96,7 @@ func (c *ResolvedCelery) Command() []string {
 	cmd := []string{
 		"celery", common.CeleryAppArg, "worker",
 		fmt.Sprintf("--pool=%s", c.Pool),
-		"-O", c.Optimization,
+		"-O", string(c.Optimization),
 		"-c", fmt.Sprintf("%d", c.Concurrency),
 	}
 	cmd = appendIntFlag(cmd, "--max-tasks-per-child=%d", c.MaxTasksPerChild)

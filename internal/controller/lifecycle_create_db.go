@@ -108,7 +108,7 @@ func buildCreateDatabaseInitContainer(superset *supersetv1alpha1.Superset, lifec
 	dbType := metastoreType(superset.Spec.Metastore)
 	image := resolveCreateDatabaseImage(dbType)
 	script := createDatabasePostgresScript
-	if dbType == dbTypeMySQL {
+	if dbType == supersetv1alpha1.DatabaseTypeMySQL {
 		script = createDatabaseMySQLScript
 	}
 	ctr := &corev1.Container{
@@ -138,8 +138,8 @@ func buildCreateDatabaseInitContainer(superset *supersetv1alpha1.Superset, lifec
 // a pod-level runAsNonRoot policy. Using the image's built-in service-account
 // UID (postgres=70 on alpine, mysql=999) guarantees a matching /etc/passwd
 // entry; the client tools themselves work as any UID.
-func helperNonRootUID(dbType string) int64 {
-	if dbType == dbTypeMySQL {
+func helperNonRootUID(dbType supersetv1alpha1.DatabaseType) int64 {
+	if dbType == supersetv1alpha1.DatabaseTypeMySQL {
 		return 999
 	}
 	return 70
@@ -188,18 +188,18 @@ func createDatabaseEnabled(superset *supersetv1alpha1.Superset) bool {
 }
 
 // metastoreType returns the DB type, defaulting to PostgreSQL.
-func metastoreType(metastore *supersetv1alpha1.MetastoreSpec) string {
+func metastoreType(metastore *supersetv1alpha1.MetastoreSpec) supersetv1alpha1.DatabaseType {
 	if metastore != nil && metastore.Type != nil {
 		return *metastore.Type
 	}
-	return dbTypePostgresql
+	return supersetv1alpha1.DatabaseTypePostgreSQL
 }
 
 // resolveCreateDatabaseImage selects the DB-tool image. The metastore spec
 // has no image override field, so callers always get the operator default.
-func resolveCreateDatabaseImage(dbType string) supersetv1alpha1.ImageSpec {
+func resolveCreateDatabaseImage(dbType supersetv1alpha1.DatabaseType) supersetv1alpha1.ImageSpec {
 	defaultRef := naming.SeedImagePostgres
-	if dbType == dbTypeMySQL {
+	if dbType == supersetv1alpha1.DatabaseTypeMySQL {
 		defaultRef = naming.SeedImageMySQL
 	}
 	repo, tag := splitImageRef(defaultRef)

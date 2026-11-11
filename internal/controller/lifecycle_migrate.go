@@ -44,7 +44,7 @@ func (r *SupersetReconciler) migrateInputs(superset *supersetv1alpha1.Superset) 
 	}
 	createDatabase := false
 	var target struct {
-		Type            string
+		Type            supersetv1alpha1.DatabaseType
 		Host            string
 		Port            int32
 		Database        string
@@ -55,7 +55,7 @@ func (r *SupersetReconciler) migrateInputs(superset *supersetv1alpha1.Superset) 
 	if superset.Spec.Metastore != nil && superset.Spec.Metastore.CreateDatabase != nil && *superset.Spec.Metastore.CreateDatabase {
 		createDatabase = true
 		m := superset.Spec.Metastore
-		target.Type = derefOrDefault(m.Type, dbTypePostgresql)
+		target.Type = derefOrDefault(m.Type, supersetv1alpha1.DatabaseTypePostgreSQL)
 		target.Host = derefOrDefault(m.Host, "")
 		target.Port = defaultDBPort(m.Type)
 		if m.Port != nil {
@@ -72,7 +72,7 @@ func (r *SupersetReconciler) migrateInputs(superset *supersetv1alpha1.Superset) 
 			}{m.HostFrom, m.PortFrom, m.DatabaseFrom, m.UsernameFrom})
 		}
 		initContainerScript = createDatabasePostgresScript
-		if target.Type == dbTypeMySQL {
+		if target.Type == supersetv1alpha1.DatabaseTypeMySQL {
 			initContainerScript = createDatabaseMySQLScript
 		}
 	}

@@ -31,8 +31,8 @@ func TestResolveCelery_NilSpec(t *testing.T) {
 	c := ResolveCelery(nil)
 	assert.False(t, c.Disabled)
 	assert.Equal(t, int32(4), c.Concurrency)
-	assert.Equal(t, "prefork", c.Pool)
-	assert.Equal(t, "fair", c.Optimization)
+	assert.Equal(t, v1alpha1.CeleryPoolPrefork, c.Pool)
+	assert.Equal(t, v1alpha1.CeleryOptimizationFair, c.Optimization)
 	assert.Equal(t, int32(0), c.MaxTasksPerChild)
 	assert.Equal(t, int32(0), c.MaxMemoryPerChild)
 	assert.Equal(t, int32(4), c.PrefetchMultiplier)
@@ -42,37 +42,37 @@ func TestResolveCelery_NilSpec(t *testing.T) {
 
 func TestResolveCelery_Presets(t *testing.T) {
 	tests := []struct {
-		preset      string
+		preset      v1alpha1.Preset
 		concurrency int32
 	}{
-		{PresetConservative, 2},
-		{PresetBalanced, 4},
-		{PresetPerformance, 8},
-		{PresetAggressive, 16},
+		{v1alpha1.PresetConservative, 2},
+		{v1alpha1.PresetBalanced, 4},
+		{v1alpha1.PresetPerformance, 8},
+		{v1alpha1.PresetAggressive, 16},
 	}
 	for _, tt := range tests {
-		t.Run(tt.preset, func(t *testing.T) {
+		t.Run(string(tt.preset), func(t *testing.T) {
 			c := ResolveCelery(&v1alpha1.CeleryWorkerProcessSpec{Preset: &tt.preset})
 			assert.Equal(t, tt.concurrency, c.Concurrency)
-			assert.Equal(t, "prefork", c.Pool)
+			assert.Equal(t, v1alpha1.CeleryPoolPrefork, c.Pool)
 		})
 	}
 }
 
 func TestResolveCelery_Disabled(t *testing.T) {
-	c := ResolveCelery(&v1alpha1.CeleryWorkerProcessSpec{Preset: new(PresetDisabled)})
+	c := ResolveCelery(&v1alpha1.CeleryWorkerProcessSpec{Preset: new(v1alpha1.PresetDisabled)})
 	assert.True(t, c.Disabled)
 }
 
 func TestResolveCelery_FieldOverrides(t *testing.T) {
 	c := ResolveCelery(&v1alpha1.CeleryWorkerProcessSpec{
-		Preset:      new(PresetConservative),
+		Preset:      new(v1alpha1.PresetConservative),
 		Concurrency: new(int32(12)),
-		Pool:        new("gevent"),
+		Pool:        new(v1alpha1.CeleryPoolGevent),
 	})
 	assert.Equal(t, int32(12), c.Concurrency)
-	assert.Equal(t, "gevent", c.Pool)
-	assert.Equal(t, "fair", c.Optimization)
+	assert.Equal(t, v1alpha1.CeleryPoolGevent, c.Pool)
+	assert.Equal(t, v1alpha1.CeleryOptimizationFair, c.Optimization)
 }
 
 func TestResolveCelery_Command(t *testing.T) {

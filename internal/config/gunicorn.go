@@ -28,14 +28,6 @@ import (
 )
 
 const (
-	PresetDisabled     = "disabled"
-	PresetConservative = "conservative"
-	PresetBalanced     = "balanced"
-	PresetPerformance  = "performance"
-	PresetAggressive   = "aggressive"
-
-	defaultWorkerClass = "gthread"
-
 	EnvServerWorkerAmount        = "SERVER_WORKER_AMOUNT"
 	EnvServerThreadsAmount       = "SERVER_THREADS_AMOUNT"
 	EnvServerWorkerClass         = "SERVER_WORKER_CLASS"
@@ -53,24 +45,24 @@ type ResolvedGunicorn struct {
 	Disabled              bool
 	Workers               int32
 	Threads               int32
-	WorkerClass           string
+	WorkerClass           v1alpha1.GunicornWorkerClass
 	Timeout               int32
 	KeepAlive             int32
 	MaxRequests           int32
 	MaxRequestsJitter     int32
 	LimitRequestLine      int32
 	LimitRequestFieldSize int32
-	LogLevel              string
+	LogLevel              v1alpha1.GunicornLogLevel
 }
 
 // ResolveGunicorn resolves a GunicornSpec into concrete values.
 // When spec is nil, balanced defaults are used.
 func ResolveGunicorn(spec *v1alpha1.GunicornSpec) ResolvedGunicorn {
-	preset := PresetBalanced
+	preset := v1alpha1.PresetBalanced
 	if spec != nil && spec.Preset != nil {
 		preset = *spec.Preset
 	}
-	if preset == PresetDisabled {
+	if preset == v1alpha1.PresetDisabled {
 		return ResolvedGunicorn{Disabled: true}
 	}
 
@@ -78,14 +70,14 @@ func ResolveGunicorn(spec *v1alpha1.GunicornSpec) ResolvedGunicorn {
 	r := ResolvedGunicorn{
 		Workers:               workers,
 		Threads:               threads,
-		WorkerClass:           defaultWorkerClass,
+		WorkerClass:           v1alpha1.GunicornWorkerClassGthread,
 		Timeout:               60,
 		KeepAlive:             2,
 		MaxRequests:           0,
 		MaxRequestsJitter:     0,
 		LimitRequestLine:      0,
 		LimitRequestFieldSize: 0,
-		LogLevel:              "info",
+		LogLevel:              v1alpha1.GunicornLogLevelInfo,
 	}
 
 	if spec == nil {
@@ -106,13 +98,13 @@ func ResolveGunicorn(spec *v1alpha1.GunicornSpec) ResolvedGunicorn {
 	return r
 }
 
-func gunicornPresetDefaults(preset string) (workers, threads int32) {
+func gunicornPresetDefaults(preset v1alpha1.Preset) (workers, threads int32) {
 	switch preset {
-	case PresetConservative:
+	case v1alpha1.PresetConservative:
 		return 1, 4
-	case PresetPerformance:
+	case v1alpha1.PresetPerformance:
 		return 4, 8
-	case PresetAggressive:
+	case v1alpha1.PresetAggressive:
 		return 8, 16
 	default:
 		return 2, 8
@@ -124,13 +116,13 @@ func (g *ResolvedGunicorn) EnvVars() []corev1.EnvVar {
 	return []corev1.EnvVar{
 		{Name: EnvServerWorkerAmount, Value: fmt.Sprintf("%d", g.Workers)},
 		{Name: EnvServerThreadsAmount, Value: fmt.Sprintf("%d", g.Threads)},
-		{Name: EnvServerWorkerClass, Value: g.WorkerClass},
+		{Name: EnvServerWorkerClass, Value: string(g.WorkerClass)},
 		{Name: EnvGunicornTimeout, Value: fmt.Sprintf("%d", g.Timeout)},
 		{Name: EnvGunicornKeepAlive, Value: fmt.Sprintf("%d", g.KeepAlive)},
 		{Name: EnvWorkerMaxRequests, Value: fmt.Sprintf("%d", g.MaxRequests)},
 		{Name: EnvWorkerMaxRequestsJitter, Value: fmt.Sprintf("%d", g.MaxRequestsJitter)},
 		{Name: EnvServerLimitRequestLine, Value: fmt.Sprintf("%d", g.LimitRequestLine)},
 		{Name: EnvServerLimitRequestFieldSz, Value: fmt.Sprintf("%d", g.LimitRequestFieldSize)},
-		{Name: EnvGunicornLogLevel, Value: g.LogLevel},
+		{Name: EnvGunicornLogLevel, Value: string(g.LogLevel)},
 	}
 }

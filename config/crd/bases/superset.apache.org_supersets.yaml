@@ -40924,6 +40924,16 @@ spec:
                         type: string
                     type: object
                   phase:
+                    enum:
+                    - Seeding
+                    - Draining
+                    - Migrating
+                    - Rotating
+                    - Initializing
+                    - Restoring
+                    - Complete
+                    - Blocked
+                    - AwaitingApproval
                     type: string
                   rotate:
                     properties:

@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 
+	v1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
@@ -80,7 +81,7 @@ type ValkeyResultsInput struct {
 // ValkeyInput holds all resolved Valkey configuration for config rendering.
 type ValkeyInput struct {
 	SSL             bool
-	SSLCertRequired string
+	SSLCertRequired v1alpha1.ValkeyCertRequirement
 	SSLKeyFile      string
 	SSLCertFile     string
 	SSLCACertFile   string
@@ -101,7 +102,7 @@ type ConfigInput struct {
 	// Metastore mode and driver.
 	MetastoreMode MetastoreMode
 	// DBType is the database type for structured mode (PostgreSQL or MySQL).
-	DBType string
+	DBType v1alpha1.DatabaseType
 	// DBDriver is the SQLAlchemy driver for structured mode (e.g. psycopg2, mysqldb).
 	DBDriver string
 
@@ -256,10 +257,10 @@ func renderValkey(b *strings.Builder, v *ValkeyInput) {
 	if v.SSL {
 		certReq := v.SSLCertRequired
 		if certReq == "" {
-			certReq = "required"
+			certReq = v1alpha1.ValkeyCertRequired
 		}
 		b.WriteString("_vk_ssl_opts = {\n")
-		fmt.Fprintf(b, "    \"ssl_cert_reqs\": \"%s\",\n", pyQuote(certReq))
+		fmt.Fprintf(b, "    \"ssl_cert_reqs\": \"%s\",\n", pyQuote(string(certReq)))
 		if v.SSLKeyFile != "" {
 			fmt.Fprintf(b, "    \"ssl_keyfile\": \"%s\",\n", pyQuote(v.SSLKeyFile))
 		}
@@ -384,9 +385,9 @@ func pyQuote(s string) string {
 }
 
 // driverScheme returns the SQLAlchemy connection scheme for a database type and driver.
-func driverScheme(dbType, driver string) string {
+func driverScheme(dbType v1alpha1.DatabaseType, driver string) string {
 	switch dbType {
-	case "MySQL":
+	case v1alpha1.DatabaseTypeMySQL:
 		if driver == "" {
 			driver = "mysqldb"
 		}

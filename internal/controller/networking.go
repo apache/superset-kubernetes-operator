@@ -276,7 +276,7 @@ func flowerRoutePublished(superset *supersetv1alpha1.Superset) bool {
 // mode. Production is the default, so an unset environment is treated as such.
 func isProductionEnvironment(superset *supersetv1alpha1.Superset) bool {
 	env := superset.Spec.Environment
-	return env == nil || *env == common.EnvironmentProd
+	return env == nil || *env == supersetv1alpha1.EnvironmentProduction
 }
 
 // componentRoutes returns the path routes for every present routable component,

@@ -100,6 +100,17 @@ type ContainerImageSpec struct {
 
 // --- Metastore types ---
 
+// DatabaseType selects the database engine for a SQLAlchemy connection.
+// +kubebuilder:validation:Enum=PostgreSQL;MySQL
+type DatabaseType string
+
+const (
+	// DatabaseTypePostgreSQL selects PostgreSQL.
+	DatabaseTypePostgreSQL DatabaseType = "PostgreSQL"
+	// DatabaseTypeMySQL selects MySQL.
+	DatabaseTypeMySQL DatabaseType = "MySQL"
+)
+
 // MetastoreSpec defines the database connection for Superset's metastore.
 // Either a URI (passthrough) or structured fields (host, database, etc.) can be used.
 // They are mutually exclusive.
@@ -127,9 +138,8 @@ type MetastoreSpec struct {
 
 	// Database type. Determines the SQLAlchemy dialect and default driver.
 	// +optional
-	// +kubebuilder:validation:Enum=PostgreSQL;MySQL
 	// +kubebuilder:default=PostgreSQL
-	Type *string `json:"type,omitempty"`
+	Type *DatabaseType `json:"type,omitempty"`
 
 	// SQLAlchemy driver name for structured mode. When omitted, PostgreSQL uses
 	// psycopg2 and MySQL uses mysqldb. Set this to a driver installed in the
@@ -293,13 +303,25 @@ type ValkeySpec struct {
 	ResultsBackend *ValkeyResultsBackendSpec `json:"resultsBackend,omitempty"`
 }
 
+// ValkeyCertRequirement selects how the Valkey server certificate is verified.
+// +kubebuilder:validation:Enum=required;optional;none
+type ValkeyCertRequirement string
+
+const (
+	// ValkeyCertRequired requires a valid server certificate.
+	ValkeyCertRequired ValkeyCertRequirement = "required"
+	// ValkeyCertOptional verifies the server certificate only if one is presented.
+	ValkeyCertOptional ValkeyCertRequirement = "optional"
+	// ValkeyCertNone skips server certificate verification.
+	ValkeyCertNone ValkeyCertRequirement = "none"
+)
+
 // ValkeySSLSpec configures TLS for the Valkey connection.
 type ValkeySSLSpec struct {
 	// Certificate verification mode.
 	// +optional
-	// +kubebuilder:validation:Enum=required;optional;none
 	// +kubebuilder:default=required
-	CertRequired *string `json:"certRequired,omitempty"`
+	CertRequired *ValkeyCertRequirement `json:"certRequired,omitempty"`
 
 	// Path to the client private key file (for mTLS).
 	// +optional
@@ -366,6 +388,83 @@ type ValkeyResultsBackendSpec struct {
 
 // --- Process configuration types ---
 
+// Preset selects a sizing profile for Gunicorn, Celery worker, or SQLAlchemy pool settings.
+// +kubebuilder:validation:Enum=disabled;conservative;balanced;performance;aggressive
+type Preset string
+
+const (
+	// PresetDisabled suppresses operator-computed settings.
+	PresetDisabled Preset = "disabled"
+	// PresetConservative minimizes resource usage.
+	PresetConservative Preset = "conservative"
+	// PresetBalanced is the default sizing profile.
+	PresetBalanced Preset = "balanced"
+	// PresetPerformance favors throughput over resource usage.
+	PresetPerformance Preset = "performance"
+	// PresetAggressive maximizes throughput.
+	PresetAggressive Preset = "aggressive"
+)
+
+// GunicornWorkerClass selects the Gunicorn worker class.
+// +kubebuilder:validation:Enum=sync;gthread;gevent;eventlet
+type GunicornWorkerClass string
+
+const (
+	// GunicornWorkerClassSync handles one request at a time per worker.
+	GunicornWorkerClassSync GunicornWorkerClass = "sync"
+	// GunicornWorkerClassGthread runs a thread pool per worker; required for threads > 1.
+	GunicornWorkerClassGthread GunicornWorkerClass = "gthread"
+	// GunicornWorkerClassGevent uses gevent green threads.
+	GunicornWorkerClassGevent GunicornWorkerClass = "gevent"
+	// GunicornWorkerClassEventlet uses eventlet green threads.
+	GunicornWorkerClassEventlet GunicornWorkerClass = "eventlet"
+)
+
+// GunicornLogLevel selects the Gunicorn log level.
+// +kubebuilder:validation:Enum=debug;info;warning;error;critical
+type GunicornLogLevel string
+
+const (
+	// GunicornLogLevelDebug logs debug messages and above.
+	GunicornLogLevelDebug GunicornLogLevel = "debug"
+	// GunicornLogLevelInfo logs informational messages and above.
+	GunicornLogLevelInfo GunicornLogLevel = "info"
+	// GunicornLogLevelWarning logs warnings and above.
+	GunicornLogLevelWarning GunicornLogLevel = "warning"
+	// GunicornLogLevelError logs errors and above.
+	GunicornLogLevelError GunicornLogLevel = "error"
+	// GunicornLogLevelCritical logs only critical errors.
+	GunicornLogLevelCritical GunicornLogLevel = "critical"
+)
+
+// CeleryPool selects the Celery worker pool implementation.
+// +kubebuilder:validation:Enum=prefork;threads;gevent;eventlet;solo
+type CeleryPool string
+
+const (
+	// CeleryPoolPrefork runs tasks in forked child processes.
+	CeleryPoolPrefork CeleryPool = "prefork"
+	// CeleryPoolThreads runs tasks in a thread pool.
+	CeleryPoolThreads CeleryPool = "threads"
+	// CeleryPoolGevent runs tasks in gevent green threads.
+	CeleryPoolGevent CeleryPool = "gevent"
+	// CeleryPoolEventlet runs tasks in eventlet green threads.
+	CeleryPoolEventlet CeleryPool = "eventlet"
+	// CeleryPoolSolo runs tasks inline in the worker process.
+	CeleryPoolSolo CeleryPool = "solo"
+)
+
+// CeleryOptimization selects the Celery task distribution strategy.
+// +kubebuilder:validation:Enum=default;fair
+type CeleryOptimization string
+
+const (
+	// CeleryOptimizationDefault prefetches tasks to child processes eagerly.
+	CeleryOptimizationDefault CeleryOptimization = "default"
+	// CeleryOptimizationFair only sends tasks to child processes that are free.
+	CeleryOptimizationFair CeleryOptimization = "fair"
+)
+
 // GunicornSpec configures Gunicorn worker parameters for the web server.
 // Fields controlled by presets: workers, threads, workerClass.
 // All other fields have static defaults independent of preset.
@@ -374,8 +473,7 @@ type GunicornSpec struct {
 	// Preset controlling workers, threads, and workerClass defaults.
 	// Individual fields override preset-computed values.
 	// +optional
-	// +kubebuilder:validation:Enum=disabled;conservative;balanced;performance;aggressive
-	Preset *string `json:"preset,omitempty"`
+	Preset *Preset `json:"preset,omitempty"`
 
 	// Number of Gunicorn worker processes.
 	// +optional
@@ -389,8 +487,7 @@ type GunicornSpec struct {
 
 	// Gunicorn worker class.
 	// +optional
-	// +kubebuilder:validation:Enum=sync;gthread;gevent;eventlet
-	WorkerClass *string `json:"workerClass,omitempty"`
+	WorkerClass *GunicornWorkerClass `json:"workerClass,omitempty"`
 
 	// Request timeout in seconds.
 	// +optional
@@ -424,8 +521,7 @@ type GunicornSpec struct {
 
 	// Gunicorn log level.
 	// +optional
-	// +kubebuilder:validation:Enum=debug;info;warning;error;critical
-	LogLevel *string `json:"logLevel,omitempty"`
+	LogLevel *GunicornLogLevel `json:"logLevel,omitempty"`
 }
 
 // CeleryWorkerProcessSpec configures Celery worker execution parameters.
@@ -437,8 +533,7 @@ type CeleryWorkerProcessSpec struct {
 	// Preset controlling concurrency and pool defaults.
 	// Individual fields override preset-computed values.
 	// +optional
-	// +kubebuilder:validation:Enum=disabled;conservative;balanced;performance;aggressive
-	Preset *string `json:"preset,omitempty"`
+	Preset *Preset `json:"preset,omitempty"`
 
 	// Number of concurrent task workers (maps to celery -c flag).
 	// +optional
@@ -447,13 +542,11 @@ type CeleryWorkerProcessSpec struct {
 
 	// Celery pool implementation.
 	// +optional
-	// +kubebuilder:validation:Enum=prefork;threads;gevent;eventlet;solo
-	Pool *string `json:"pool,omitempty"`
+	Pool *CeleryPool `json:"pool,omitempty"`
 
 	// Task distribution optimization strategy.
 	// +optional
-	// +kubebuilder:validation:Enum=default;fair
-	Optimization *string `json:"optimization,omitempty"`
+	Optimization *CeleryOptimization `json:"optimization,omitempty"`
 
 	// Maximum tasks a worker process handles before being replaced (prefork only; 0 = unlimited).
 	// +optional
@@ -490,8 +583,7 @@ type SQLAlchemyEngineOptionsSpec struct {
 	// "balanced" through "aggressive" use QueuePool with increasing pool sizes.
 	// Individual fields override preset-computed values.
 	// +optional
-	// +kubebuilder:validation:Enum=disabled;conservative;balanced;performance;aggressive
-	Preset *string `json:"preset,omitempty"`
+	Preset *Preset `json:"preset,omitempty"`
 
 	// Number of persistent connections in the pool. Overrides preset calculation.
 	// +optional

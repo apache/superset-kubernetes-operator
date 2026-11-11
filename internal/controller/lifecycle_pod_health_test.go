@@ -161,7 +161,7 @@ func TestHandleStuckTaskPod_SelfHealsWhenSpecChanged(t *testing.T) {
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
 	flatSpec := &supersetv1alpha1.FlatComponentSpec{Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"}}
-	taskRef := &supersetv1alpha1.TaskRefStatus{State: taskStateRunning, MaxRetries: 3}
+	taskRef := &supersetv1alpha1.TaskRefStatus{State: supersetv1alpha1.TaskStateRunning, MaxRetries: 3}
 
 	res, handled, err := r.handleStuckTaskPod(ctx, superset, job, taskTypeMigrate, flatSpec, taskRef)
 	if err != nil {
@@ -173,7 +173,7 @@ func TestHandleStuckTaskPod_SelfHealsWhenSpecChanged(t *testing.T) {
 	if res.RequeueAfter <= 0 {
 		t.Errorf("expected a requeue, got %#v", res)
 	}
-	if taskRef.State != taskStatePending {
+	if taskRef.State != supersetv1alpha1.TaskStatePending {
 		t.Errorf("expected taskRef reset to Pending for recreation, got %q", taskRef.State)
 	}
 	if err := c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, &batchv1.Job{}); !apierrors.IsNotFound(err) {
@@ -204,7 +204,7 @@ func TestHandleStuckTaskPod_SurfacesWhenSpecUnchanged(t *testing.T) {
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, job, pod).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
-	taskRef := &supersetv1alpha1.TaskRefStatus{State: taskStateRunning, MaxRetries: 3}
+	taskRef := &supersetv1alpha1.TaskRefStatus{State: supersetv1alpha1.TaskStateRunning, MaxRetries: 3}
 
 	_, handled, err := r.handleStuckTaskPod(ctx, superset, job, taskTypeMigrate, flatSpec, taskRef)
 	if err != nil {
@@ -277,7 +277,7 @@ func TestHandleStuckTaskPod_IgnoresForeignPodWithSpoofedLabel(t *testing.T) {
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, job, foreign).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
-	taskRef := &supersetv1alpha1.TaskRefStatus{State: taskStateRunning, MaxRetries: 3}
+	taskRef := &supersetv1alpha1.TaskRefStatus{State: supersetv1alpha1.TaskStateRunning, MaxRetries: 3}
 	_, handled, err := r.handleStuckTaskPod(ctx, superset, job, taskTypeMigrate, flatSpec, taskRef)
 	if err != nil {
 		t.Fatalf("handleStuckTaskPod: %v", err)

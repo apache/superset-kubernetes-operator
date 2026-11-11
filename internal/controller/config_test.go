@@ -25,7 +25,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
-	"github.com/apache/superset-kubernetes-operator/internal/common"
 	supersetconfig "github.com/apache/superset-kubernetes-operator/internal/config"
 	"github.com/apache/superset-kubernetes-operator/internal/resolution"
 )
@@ -126,7 +125,7 @@ func TestBuildConfigInput(t *testing.T) {
 		name       string
 		spec       *supersetv1alpha1.SupersetSpec
 		wantMode   supersetconfig.MetastoreMode
-		wantType   string
+		wantType   supersetv1alpha1.DatabaseType
 		wantDriver string
 		wantConfig string
 	}{
@@ -159,12 +158,12 @@ func TestBuildConfigInput(t *testing.T) {
 		},
 		{
 			"metastore structured mysql",
-			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Type: new("MySQL"), Host: new("db.example.com")}},
+			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Type: new(supersetv1alpha1.DatabaseTypeMySQL), Host: new("db.example.com")}},
 			supersetconfig.MetastoreStructured, "MySQL", "", "",
 		},
 		{
 			"metastore structured custom driver",
-			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Type: new("MySQL"), Host: new("db.example.com"), Driver: new("pymysql")}},
+			&supersetv1alpha1.SupersetSpec{Metastore: &supersetv1alpha1.MetastoreSpec{Type: new(supersetv1alpha1.DatabaseTypeMySQL), Host: new("db.example.com"), Driver: new("pymysql")}},
 			supersetconfig.MetastoreStructured, "MySQL", "pymysql", "",
 		},
 		{
@@ -215,8 +214,8 @@ func TestCollectSecretEnvVars_SecretKey(t *testing.T) {
 		wantKey bool
 	}{
 		{"empty spec", &supersetv1alpha1.SupersetSpec{}, false},
-		{"dev with key", &supersetv1alpha1.SupersetSpec{Environment: new("Development"), SecretKey: new("mykey")}, true},
-		{"prod with key", &supersetv1alpha1.SupersetSpec{Environment: new("Production"), SecretKey: new("mykey")}, false},
+		{"dev with key", &supersetv1alpha1.SupersetSpec{Environment: new(supersetv1alpha1.EnvironmentDevelopment), SecretKey: new("mykey")}, true},
+		{"prod with key", &supersetv1alpha1.SupersetSpec{Environment: new(supersetv1alpha1.EnvironmentProduction), SecretKey: new("mykey")}, false},
 	}
 
 	for _, tt := range tests {
@@ -236,7 +235,7 @@ func TestCollectSecretEnvVars_SecretKey(t *testing.T) {
 }
 
 func TestCollectSecretEnvVars_Metastore(t *testing.T) {
-	dev := common.EnvironmentDev
+	dev := supersetv1alpha1.EnvironmentDevelopment
 	t.Run("passthrough", func(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
 			Environment: &dev,
@@ -288,7 +287,7 @@ func TestCollectSecretEnvVars_Metastore(t *testing.T) {
 
 	t.Run("default mysql port", func(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
-			Metastore: &supersetv1alpha1.MetastoreSpec{Type: new("MySQL"), Host: new("db.example.com")},
+			Metastore: &supersetv1alpha1.MetastoreSpec{Type: new(supersetv1alpha1.DatabaseTypeMySQL), Host: new("db.example.com")},
 		}
 		envMap := envSliceToMap(collectSecretEnvVars(spec, "test"))
 		if envMap["SUPERSET_OPERATOR__DB_PORT"] != "3306" {
@@ -300,7 +299,7 @@ func TestCollectSecretEnvVars_Metastore(t *testing.T) {
 	// literals must be dropped even if a CR slips past CEL. The *From reference
 	// is honored instead when present.
 	t.Run("production drops inline uri literal", func(t *testing.T) {
-		prod := common.EnvironmentProd
+		prod := supersetv1alpha1.EnvironmentProduction
 		spec := &supersetv1alpha1.SupersetSpec{
 			Environment: &prod,
 			Metastore:   &supersetv1alpha1.MetastoreSpec{URI: new("postgresql://user:pass@host/db")},
@@ -312,7 +311,7 @@ func TestCollectSecretEnvVars_Metastore(t *testing.T) {
 	})
 
 	t.Run("production drops inline password literal but honors passwordFrom", func(t *testing.T) {
-		prod := common.EnvironmentProd
+		prod := supersetv1alpha1.EnvironmentProduction
 		spec := &supersetv1alpha1.SupersetSpec{
 			Environment: &prod,
 			Metastore: &supersetv1alpha1.MetastoreSpec{
@@ -743,7 +742,7 @@ func TestBuildConfigInput_Valkey(t *testing.T) {
 			Valkey: &supersetv1alpha1.ValkeySpec{
 				Host: "valkey.default.svc",
 				SSL: &supersetv1alpha1.ValkeySSLSpec{
-					CertRequired: new("required"),
+					CertRequired: new(supersetv1alpha1.ValkeyCertRequired),
 					KeyFile:      new("/tls/key.pem"),
 					CertFile:     new("/tls/cert.pem"),
 					CACertFile:   new("/tls/ca.pem"),
@@ -798,7 +797,7 @@ func TestCollectSecretEnvVars_Valkey(t *testing.T) {
 
 	t.Run("dev mode password", func(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
-			Environment: new("Development"),
+			Environment: new(supersetv1alpha1.EnvironmentDevelopment),
 			Valkey:      &supersetv1alpha1.ValkeySpec{Host: "valkey", Password: new("secret")},
 		}
 		envMap := envSliceToMap(collectSecretEnvVars(spec, "test"))
@@ -809,7 +808,7 @@ func TestCollectSecretEnvVars_Valkey(t *testing.T) {
 
 	t.Run("prod mode password ignored", func(t *testing.T) {
 		spec := &supersetv1alpha1.SupersetSpec{
-			Environment: new("Production"),
+			Environment: new(supersetv1alpha1.EnvironmentProduction),
 			Valkey:      &supersetv1alpha1.ValkeySpec{Host: "valkey", Password: new("secret")},
 		}
 		envMap := envSliceToMap(collectSecretEnvVars(spec, "test"))

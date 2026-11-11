@@ -130,6 +130,45 @@ _Appears in:_
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration (type, port, annotations). |  | Optional: \{\} <br /> |
 
 
+#### CeleryOptimization
+
+_Underlying type:_ _string_
+
+CeleryOptimization selects the Celery task distribution strategy.
+
+_Validation:_
+- Enum: [default fair]
+
+_Appears in:_
+- [CeleryWorkerProcessSpec](#celeryworkerprocessspec)
+
+| Field | Description |
+| --- | --- |
+| `default` | CeleryOptimizationDefault prefetches tasks to child processes eagerly. |
+| `fair` | CeleryOptimizationFair only sends tasks to child processes that are free. |
+
+
+#### CeleryPool
+
+_Underlying type:_ _string_
+
+CeleryPool selects the Celery worker pool implementation.
+
+_Validation:_
+- Enum: [prefork threads gevent eventlet solo]
+
+_Appears in:_
+- [CeleryWorkerProcessSpec](#celeryworkerprocessspec)
+
+| Field | Description |
+| --- | --- |
+| `prefork` | CeleryPoolPrefork runs tasks in forked child processes. |
+| `threads` | CeleryPoolThreads runs tasks in a thread pool. |
+| `gevent` | CeleryPoolGevent runs tasks in gevent green threads. |
+| `eventlet` | CeleryPoolEventlet runs tasks in eventlet green threads. |
+| `solo` | CeleryPoolSolo runs tasks inline in the worker process. |
+
+
 #### CeleryWorkerComponentSpec
 
 
@@ -170,15 +209,36 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `preset` _string_ | Preset controlling concurrency and pool defaults. Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
+| `preset` _[Preset](#preset)_ | Preset controlling concurrency and pool defaults. Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
 | `concurrency` _integer_ | Number of concurrent task workers (maps to celery -c flag). |  | Minimum: 1 <br />Optional: \{\} <br /> |
-| `pool` _string_ | Celery pool implementation. |  | Enum: [prefork threads gevent eventlet solo] <br />Optional: \{\} <br /> |
-| `optimization` _string_ | Task distribution optimization strategy. |  | Enum: [default fair] <br />Optional: \{\} <br /> |
+| `pool` _[CeleryPool](#celerypool)_ | Celery pool implementation. |  | Enum: [prefork threads gevent eventlet solo] <br />Optional: \{\} <br /> |
+| `optimization` _[CeleryOptimization](#celeryoptimization)_ | Task distribution optimization strategy. |  | Enum: [default fair] <br />Optional: \{\} <br /> |
 | `maxTasksPerChild` _integer_ | Maximum tasks a worker process handles before being replaced (prefork only; 0 = unlimited). |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `maxMemoryPerChild` _integer_ | Maximum resident memory in bytes per worker before being replaced (prefork only; 0 = disabled). |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `prefetchMultiplier` _integer_ | Task prefetch multiplier — number of tasks prefetched per worker. |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `softTimeLimit` _integer_ | Soft time limit in seconds — raises SoftTimeLimitExceeded (0 = disabled). |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `timeLimit` _integer_ | Hard time limit in seconds — kills the task (0 = disabled). |  | Minimum: 0 <br />Optional: \{\} <br /> |
+
+
+#### ComponentPhase
+
+_Underlying type:_ _string_
+
+ComponentPhase summarizes the workload state of a component.
+
+_Validation:_
+- Enum: [Pending Progressing Ready Unavailable Drained]
+
+_Appears in:_
+- [ComponentRefStatus](#componentrefstatus)
+
+| Field | Description |
+| --- | --- |
+| `Pending` | ComponentPhasePending means the component Deployment does not exist yet. |
+| `Progressing` | ComponentPhaseProgressing means the component Deployment is rolling out. |
+| `Ready` | ComponentPhaseReady means all desired replicas are ready. |
+| `Unavailable` | ComponentPhaseUnavailable means the component has no ready replicas. |
+| `Drained` | ComponentPhaseDrained means the component is scaled down while lifecycle tasks run. |
 
 
 #### ComponentRefStatus
@@ -194,7 +254,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `phase` _string_ | Phase summarizes the component workload state. |  | Enum: [Pending Progressing Ready Unavailable Drained] <br />Optional: \{\} <br /> |
+| `phase` _[ComponentPhase](#componentphase)_ | Phase summarizes the component workload state. |  | Enum: [Pending Progressing Ready Unavailable Drained] <br />Optional: \{\} <br /> |
 | `resources` _[ComponentResourceStatus](#componentresourcestatus) array_ | Resources lists the Kubernetes resources currently expected for this component and whether the operator can observe them. |  | Optional: \{\} <br /> |
 | `image` _string_ | Image currently configured on the component's main container. |  | Optional: \{\} <br /> |
 | `replicas` _integer_ | Desired replica count used for status reporting. |  | Optional: \{\} <br /> |
@@ -203,6 +263,24 @@ _Appears in:_
 | `availableReplicas` _integer_ | AvailableReplicas is the number of available component pods. |  | Optional: \{\} <br /> |
 | `configChecksum` _string_ | Checksum stamped on the component pod template by the parent. Drives rolling restarts; surfaced here so users can see which revision each component is reconciling against. |  | Optional: \{\} <br /> |
 | `message` _string_ | Message gives a short human-oriented reason when the component is not ready. |  | Optional: \{\} <br /> |
+
+
+#### ComponentResourceState
+
+_Underlying type:_ _string_
+
+ComponentResourceState reports whether an expected component resource exists.
+
+_Validation:_
+- Enum: [Present Missing]
+
+_Appears in:_
+- [ComponentResourceStatus](#componentresourcestatus)
+
+| Field | Description |
+| --- | --- |
+| `Present` | ComponentResourcePresent means the resource exists. |
+| `Missing` | ComponentResourceMissing means the resource does not exist. |
 
 
 #### ComponentResourceStatus
@@ -221,7 +299,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `kind` _string_ | Resource kind, for example Deployment, Service, ConfigMap, HorizontalPodAutoscaler. |  |  |
 | `name` _string_ | Resource name. |  |  |
-| `status` _string_ | Observed status: Present or Missing. |  | Enum: [Present Missing] <br /> |
+| `status` _[ComponentResourceState](#componentresourcestate)_ | Observed status: Present or Missing. |  | Enum: [Present Missing] <br /> |
 
 
 #### ComponentServiceSpec
@@ -341,6 +419,25 @@ _Appears in:_
 | `lifecycle` _[Lifecycle](https://pkg.go.dev/k8s.io/api/core/v1#Lifecycle)_ | Lifecycle hooks for the main container. |  | Optional: \{\} <br /> |
 
 
+#### DatabaseType
+
+_Underlying type:_ _string_
+
+DatabaseType selects the database engine for a SQLAlchemy connection.
+
+_Validation:_
+- Enum: [PostgreSQL MySQL]
+
+_Appears in:_
+- [MetastoreSpec](#metastorespec)
+- [SeedSourceSpec](#seedsourcespec)
+
+| Field | Description |
+| --- | --- |
+| `PostgreSQL` | DatabaseTypePostgreSQL selects PostgreSQL. |
+| `MySQL` | DatabaseTypeMySQL selects MySQL. |
+
+
 #### DeploymentTemplate
 
 
@@ -372,6 +469,25 @@ _Appears in:_
 | `annotations` _object (keys:string, values:string)_ | Deployment metadata annotations. |  | Optional: \{\} <br /> |
 
 
+#### Environment
+
+_Underlying type:_ _string_
+
+Environment selects how strictly a Superset instance is validated.
+
+_Validation:_
+- Enum: [Development Staging Production]
+
+_Appears in:_
+- [SupersetSpec](#supersetspec)
+
+| Field | Description |
+| --- | --- |
+| `Development` | EnvironmentDevelopment permits plain text secrets, seeding, admin user, and load examples. |
+| `Staging` | EnvironmentStaging enforces Secret references like Production but allows seeding. |
+| `Production` | EnvironmentProduction rejects plain text secrets and disallows seeding. |
+
+
 #### GatewaySpec
 
 
@@ -391,6 +507,27 @@ _Appears in:_
 | `labels` _object (keys:string, values:string)_ | HTTPRoute labels. |  | Optional: \{\} <br /> |
 
 
+#### GunicornLogLevel
+
+_Underlying type:_ _string_
+
+GunicornLogLevel selects the Gunicorn log level.
+
+_Validation:_
+- Enum: [debug info warning error critical]
+
+_Appears in:_
+- [GunicornSpec](#gunicornspec)
+
+| Field | Description |
+| --- | --- |
+| `debug` | GunicornLogLevelDebug logs debug messages and above. |
+| `info` | GunicornLogLevelInfo logs informational messages and above. |
+| `warning` | GunicornLogLevelWarning logs warnings and above. |
+| `error` | GunicornLogLevelError logs errors and above. |
+| `critical` | GunicornLogLevelCritical logs only critical errors. |
+
+
 #### GunicornSpec
 
 
@@ -406,17 +543,37 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `preset` _string_ | Preset controlling workers, threads, and workerClass defaults. Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
+| `preset` _[Preset](#preset)_ | Preset controlling workers, threads, and workerClass defaults. Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
 | `workers` _integer_ | Number of Gunicorn worker processes. |  | Minimum: 1 <br />Optional: \{\} <br /> |
 | `threads` _integer_ | Number of threads per worker (only effective with gthread worker class). |  | Minimum: 1 <br />Optional: \{\} <br /> |
-| `workerClass` _string_ | Gunicorn worker class. |  | Enum: [sync gthread gevent eventlet] <br />Optional: \{\} <br /> |
+| `workerClass` _[GunicornWorkerClass](#gunicornworkerclass)_ | Gunicorn worker class. |  | Enum: [sync gthread gevent eventlet] <br />Optional: \{\} <br /> |
 | `timeout` _integer_ | Request timeout in seconds. |  | Minimum: 1 <br />Optional: \{\} <br /> |
 | `keepAlive` _integer_ | Keep-alive timeout in seconds for waiting for requests on a connection. |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `maxRequests` _integer_ | Maximum requests per worker before recycling (0 = disabled). |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `maxRequestsJitter` _integer_ | Random jitter added to maxRequests to prevent thundering herd on worker recycling. |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `limitRequestLine` _integer_ | Maximum size of HTTP request line in bytes (0 = unlimited). |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `limitRequestFieldSize` _integer_ | Maximum size of HTTP request header field in bytes (0 = unlimited). |  | Minimum: 0 <br />Optional: \{\} <br /> |
-| `logLevel` _string_ | Gunicorn log level. |  | Enum: [debug info warning error critical] <br />Optional: \{\} <br /> |
+| `logLevel` _[GunicornLogLevel](#gunicornloglevel)_ | Gunicorn log level. |  | Enum: [debug info warning error critical] <br />Optional: \{\} <br /> |
+
+
+#### GunicornWorkerClass
+
+_Underlying type:_ _string_
+
+GunicornWorkerClass selects the Gunicorn worker class.
+
+_Validation:_
+- Enum: [sync gthread gevent eventlet]
+
+_Appears in:_
+- [GunicornSpec](#gunicornspec)
+
+| Field | Description |
+| --- | --- |
+| `sync` | GunicornWorkerClassSync handles one request at a time per worker. |
+| `gthread` | GunicornWorkerClassGthread runs a thread pool per worker; required for threads > 1. |
+| `gevent` | GunicornWorkerClassGevent uses gevent green threads. |
+| `eventlet` | GunicornWorkerClassEventlet uses eventlet green threads. |
 
 
 #### ImageOverrideSpec
@@ -543,6 +700,31 @@ _Appears in:_
 | `loadExamples` _boolean_ | Load example dashboards and data during initialization. Only allowed in Development mode. When true, the operator appends a superset load-examples step to the init command. |  | Optional: \{\} <br /> |
 
 
+#### LifecyclePhase
+
+_Underlying type:_ _string_
+
+LifecyclePhase is the current step of the lifecycle pipeline.
+
+_Validation:_
+- Enum: [Seeding Draining Migrating Rotating Initializing Restoring Complete Blocked AwaitingApproval]
+
+_Appears in:_
+- [LifecycleStatus](#lifecyclestatus)
+
+| Field | Description |
+| --- | --- |
+| `Seeding` | LifecyclePhaseSeeding means the seed task is running. |
+| `Draining` | LifecyclePhaseDraining means components are being scaled down before lifecycle tasks. |
+| `Migrating` | LifecyclePhaseMigrating means the migrate task is running. |
+| `Rotating` | LifecyclePhaseRotating means the rotate task is running. |
+| `Initializing` | LifecyclePhaseInitializing means the init task is running. |
+| `Restoring` | LifecyclePhaseRestoring means lifecycle tasks finished and components are being brought back up. |
+| `Complete` | LifecyclePhaseComplete means all enabled lifecycle tasks have completed. |
+| `Blocked` | LifecyclePhaseBlocked means a lifecycle task failed and blocks progress. |
+| `AwaitingApproval` | LifecyclePhaseAwaitingApproval means a supervised upgrade is waiting for approval. |
+
+
 #### LifecycleSpec
 
 
@@ -557,7 +739,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `upgradeMode` _string_ | UpgradeMode controls whether upgrades require manual approval. Automatic runs immediately on image change; Supervised waits for an approval annotation matching the recorded upgrade token before proceeding. | Automatic | Enum: [Automatic Supervised] <br />Optional: \{\} <br /> |
+| `upgradeMode` _[UpgradeMode](#upgrademode)_ | UpgradeMode controls whether upgrades require manual approval. Automatic runs immediately on image change; Supervised waits for an approval annotation matching the recorded upgrade token before proceeding. | Automatic | Enum: [Automatic Supervised] <br />Optional: \{\} <br /> |
 | `disabled` _boolean_ | Set to true to skip all lifecycle tasks entirely. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image override for lifecycle task Jobs. |  | Optional: \{\} <br /> |
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for lifecycle task Jobs. |  | Optional: \{\} <br /> |
@@ -585,7 +767,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `phase` _string_ | Phase of the lifecycle: Seeding, Draining, Migrating, Rotating, Initializing, Restoring, Complete, Blocked, AwaitingApproval. |  | Optional: \{\} <br /> |
+| `phase` _[LifecyclePhase](#lifecyclephase)_ | Phase of the lifecycle: Seeding, Draining, Migrating, Rotating, Initializing, Restoring, Complete, Blocked, AwaitingApproval. |  | Enum: [Seeding Draining Migrating Rotating Initializing Restoring Complete Blocked AwaitingApproval] <br />Optional: \{\} <br /> |
 | `maintenanceActive` _boolean_ | MaintenanceActive indicates the maintenance page is currently serving traffic via the web-server Service. |  | Optional: \{\} <br /> |
 | `lastCompletedChecksums` _object (keys:string, values:string)_ | LastCompletedChecksums maps task type to its task checksum at last successful completion. Used to detect input drift when task status refs are absent. |  | Optional: \{\} <br /> |
 | `seed` _[TaskRefStatus](#taskrefstatus)_ | Seed task status summary. |  | Optional: \{\} <br /> |
@@ -665,7 +847,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `uri` _string_ | Full SQLAlchemy database URI. Mutually exclusive with structured fields and uriFrom. In Staging or Production, CRD validation rejects plain text URIs — use uriFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
 | `uriFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the full SQLAlchemy URI. Mutually exclusive with uri and structured fields. |  | Optional: \{\} <br /> |
-| `type` _string_ | Database type. Determines the SQLAlchemy dialect and default driver. | PostgreSQL | Enum: [PostgreSQL MySQL] <br />Optional: \{\} <br /> |
+| `type` _[DatabaseType](#databasetype)_ | Database type. Determines the SQLAlchemy dialect and default driver. | PostgreSQL | Enum: [PostgreSQL MySQL] <br />Optional: \{\} <br /> |
 | `driver` _string_ | SQLAlchemy driver name for structured mode. When omitted, PostgreSQL uses psycopg2 and MySQL uses mysqldb. Set this to a driver installed in the Superset image, such as psycopg, pg8000, pymysql, or mysqlconnector. The operator selects the SQLAlchemy scheme only; it does not install Python driver packages into the image. |  | Pattern: `^[A-Za-z0-9_]+$` <br />Optional: \{\} <br /> |
 | `host` _string_ | Database hostname. |  | MinLength: 1 <br />Optional: \{\} <br /> |
 | `hostFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the database hostname. Mutually exclusive with host. |  | Optional: \{\} <br /> |
@@ -775,6 +957,25 @@ _Appears in:_
 | `maxUnavailable` _[IntOrString](https://pkg.go.dev/k8s.io/apimachinery/pkg/util/intstr#IntOrString)_ | Maximum pods allowed to be unavailable during voluntary disruptions. Mutually exclusive with minAvailable. |  | Optional: \{\} <br /> |
 
 
+#### PodRetentionPolicy
+
+_Underlying type:_ _string_
+
+PodRetentionPolicy selects which lifecycle task Jobs and Pods are kept after completion.
+
+_Validation:_
+- Enum: [Delete Retain RetainOnFailure]
+
+_Appears in:_
+- [PodRetentionSpec](#podretentionspec)
+
+| Field | Description |
+| --- | --- |
+| `Delete` | PodRetentionPolicyDelete removes Jobs and Pods after completion. |
+| `Retain` | PodRetentionPolicyRetain keeps all Jobs and Pods. |
+| `RetainOnFailure` | PodRetentionPolicyRetainOnFailure keeps only failed Jobs and Pods. |
+
+
 #### PodRetentionSpec
 
 
@@ -789,7 +990,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `policy` _string_ | Retention policy: Delete removes Jobs and Pods after completion, Retain keeps all, RetainOnFailure (the default) keeps only failed Jobs and Pods for debugging and deletes successful ones to reduce noise. Retained Jobs and Pods are automatically deleted when the task is reset or disabled, and garbage-collected when the parent Superset CR is deleted. | RetainOnFailure | Enum: [Delete Retain RetainOnFailure] <br />Optional: \{\} <br /> |
+| `policy` _[PodRetentionPolicy](#podretentionpolicy)_ | Retention policy: Delete removes Jobs and Pods after completion, Retain keeps all, RetainOnFailure (the default) keeps only failed Jobs and Pods for debugging and deletes successful ones to reduce noise. Retained Jobs and Pods are automatically deleted when the task is reset or disabled, and garbage-collected when the parent Superset CR is deleted. | RetainOnFailure | Enum: [Delete Retain RetainOnFailure] <br />Optional: \{\} <br /> |
 
 
 #### PodTemplate
@@ -837,6 +1038,29 @@ _Appears in:_
 | `container` _[ContainerTemplate](#containertemplate)_ | Main container configuration. |  | Optional: \{\} <br /> |
 
 
+#### Preset
+
+_Underlying type:_ _string_
+
+Preset selects a sizing profile for Gunicorn, Celery worker, or SQLAlchemy pool settings.
+
+_Validation:_
+- Enum: [disabled conservative balanced performance aggressive]
+
+_Appears in:_
+- [CeleryWorkerProcessSpec](#celeryworkerprocessspec)
+- [GunicornSpec](#gunicornspec)
+- [SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)
+
+| Field | Description |
+| --- | --- |
+| `disabled` | PresetDisabled suppresses operator-computed settings. |
+| `conservative` | PresetConservative minimizes resource usage. |
+| `balanced` | PresetBalanced is the default sizing profile. |
+| `performance` | PresetPerformance favors throughput over resource usage. |
+| `aggressive` | PresetAggressive maximizes throughput. |
+
+
 #### RotateTaskSpec
 
 
@@ -881,7 +1105,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `preset` _string_ | Preset for connection pool behavior. "disabled" suppresses rendering entirely. "conservative" uses NullPool (no persistent connections). "balanced" through "aggressive" use QueuePool with increasing pool sizes. Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
+| `preset` _[Preset](#preset)_ | Preset for connection pool behavior. "disabled" suppresses rendering entirely. "conservative" uses NullPool (no persistent connections). "balanced" through "aggressive" use QueuePool with increasing pool sizes. Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
 | `poolSize` _integer_ | Number of persistent connections in the pool. Overrides preset calculation. |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `maxOverflow` _integer_ | Maximum overflow connections beyond poolSize (-1 = unlimited). |  | Optional: \{\} <br /> |
 | `poolRecycle` _integer_ | Connection max-age in seconds before recycling. |  | Minimum: 0 <br />Optional: \{\} <br /> |
@@ -953,7 +1177,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `type` _string_ | Database type: PostgreSQL (default) or MySQL. | PostgreSQL | Enum: [PostgreSQL MySQL] <br />Optional: \{\} <br /> |
+| `type` _[DatabaseType](#databasetype)_ | Database type: PostgreSQL (default) or MySQL. | PostgreSQL | Enum: [PostgreSQL MySQL] <br />Optional: \{\} <br /> |
 | `host` _string_ | Source database hostname. Mutually exclusive with hostFrom. |  | MinLength: 1 <br />Optional: \{\} <br /> |
 | `hostFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the source database hostname. Mutually exclusive with host. |  | Optional: \{\} <br /> |
 | `port` _integer_ | Source database port. Defaults to 5432 (postgresql) or 3306 (mysql). |  | Optional: \{\} <br /> |
@@ -1054,6 +1278,29 @@ Superset is the top-level resource representing a complete Superset deployment.
 | `status` _[SupersetStatus](#supersetstatus)_ |  |  |  |
 
 
+#### SupersetPhase
+
+_Underlying type:_ _string_
+
+SupersetPhase is the high-level phase of a Superset instance.
+
+_Validation:_
+- Enum: [Initializing Upgrading Running Degraded Suspended Blocked AwaitingApproval]
+
+_Appears in:_
+- [SupersetStatus](#supersetstatus)
+
+| Field | Description |
+| --- | --- |
+| `Initializing` | SupersetPhaseInitializing means lifecycle tasks are running for a new instance. |
+| `Upgrading` | SupersetPhaseUpgrading means lifecycle tasks are running for an image change. |
+| `Running` | SupersetPhaseRunning means all enabled components are ready. |
+| `Degraded` | SupersetPhaseDegraded means one or more components are not ready. |
+| `Suspended` | SupersetPhaseSuspended means reconciliation is suspended. |
+| `Blocked` | SupersetPhaseBlocked means a lifecycle task failed and blocks progress. |
+| `AwaitingApproval` | SupersetPhaseAwaitingApproval means a supervised upgrade is waiting for approval. |
+
+
 #### SupersetSpec
 
 
@@ -1073,7 +1320,7 @@ _Appears in:_
 | `replicas` _integer_ | Default replica count for all scalable components; per-component replicas override this. |  | Optional: \{\} <br /> |
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | Default autoscaling for all scalable components (component-level overrides this). |  | Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | Default pod disruption budget for all scalable components (component-level overrides this). |  | Optional: \{\} <br /> |
-| `environment` _string_ | Environment mode: "Development", "Staging", or "Production". Controls validation strictness. In Production mode, CRD validation rejects plain text secrets and disallows seeding. In Staging mode, secrets are enforced (like Production) but seeding is allowed. In Development mode, plain text secrets, seeding, admin user, and load examples are all permitted. | Production | Enum: [Development Staging Production] <br />Optional: \{\} <br /> |
+| `environment` _[Environment](#environment)_ | Environment mode: "Development", "Staging", or "Production". Controls validation strictness. In Production mode, CRD validation rejects plain text secrets and disallows seeding. In Staging mode, secrets are enforced (like Production) but seeding is allowed. In Development mode, plain text secrets, seeding, admin user, and load examples are all permitted. | Production | Enum: [Development Staging Production] <br />Optional: \{\} <br /> |
 | `secretKey` _string_ | Plain text secret key for session signing. Only allowed in Development mode. In Staging or Production, use secretKeyFrom to reference a Kubernetes Secret. |  | Optional: \{\} <br /> |
 | `secretKeyFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the secret key for session signing. Mutually exclusive with secretKey. |  | Optional: \{\} <br /> |
 | `previousSecretKey` _string_ | Plain text previous secret key for key rotation. Only allowed in Development mode. When set, rendered as PREVIOUS_SECRET_KEY in superset_config.py for all Python components, enabling fallback decryption during key transitions. |  | Optional: \{\} <br /> |
@@ -1120,7 +1367,7 @@ _Appears in:_
 | `lastLifecycleImage` _string_ | Last image (repository:tag) that successfully completed the lifecycle. Used to detect image changes on subsequent reconciles. |  | Optional: \{\} <br /> |
 | `tag` _string_ | Tag is the resolved image tag currently reconciled. |  | Optional: \{\} <br /> |
 | `configChecksum` _string_ |  |  | Optional: \{\} <br /> |
-| `phase` _string_ | High-level phase. |  | Enum: [Initializing Upgrading Running Degraded Suspended Blocked AwaitingApproval] <br />Optional: \{\} <br /> |
+| `phase` _[SupersetPhase](#supersetphase)_ | High-level phase. |  | Enum: [Initializing Upgrading Running Degraded Suspended Blocked AwaitingApproval] <br />Optional: \{\} <br /> |
 
 
 #### TaskRefStatus
@@ -1136,7 +1383,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `state` _string_ |  |  | Enum: [Pending Running Complete Failed] <br />Optional: \{\} <br /> |
+| `state` _[TaskState](#taskstate)_ |  |  | Enum: [Pending Running Complete Failed] <br />Optional: \{\} <br /> |
 | `startedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
 | `completedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
 | `attempts` _integer_ |  |  | Optional: \{\} <br /> |
@@ -1149,6 +1396,26 @@ _Appears in:_
 | `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ |  |  | Optional: \{\} <br /> |
 | `lastScheduledAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ | LastScheduledAt is the cron tick that triggered the most recent scheduled run. |  | Optional: \{\} <br /> |
 | `nextScheduleAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ | NextScheduleAt is the next future cron tick when the schedule will fire. |  | Optional: \{\} <br /> |
+
+
+#### TaskState
+
+_Underlying type:_ _string_
+
+TaskState is the execution state of a lifecycle task.
+
+_Validation:_
+- Enum: [Pending Running Complete Failed]
+
+_Appears in:_
+- [TaskRefStatus](#taskrefstatus)
+
+| Field | Description |
+| --- | --- |
+| `Pending` | TaskStatePending means the task has not started yet. |
+| `Running` | TaskStateRunning means the task Job is running. |
+| `Complete` | TaskStateComplete means the task Job succeeded. |
+| `Failed` | TaskStateFailed means the task Job failed. |
 
 
 #### UpgradeContext
@@ -1168,6 +1435,24 @@ _Appears in:_
 | `toTag` _string_ | ToTag is the image tag being reconciled. |  | Optional: \{\} <br /> |
 | `approvalToken` _string_ | ApprovalToken is the annotation value required to approve this exact upgrade transition. |  | Optional: \{\} <br /> |
 | `startedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
+
+
+#### UpgradeMode
+
+_Underlying type:_ _string_
+
+UpgradeMode controls whether lifecycle upgrades require manual approval.
+
+_Validation:_
+- Enum: [Automatic Supervised]
+
+_Appears in:_
+- [LifecycleSpec](#lifecyclespec)
+
+| Field | Description |
+| --- | --- |
+| `Automatic` | UpgradeModeAutomatic runs lifecycle tasks immediately on image change. |
+| `Supervised` | UpgradeModeSupervised waits for an approval annotation before running lifecycle tasks. |
 
 
 #### ValkeyCacheSpec
@@ -1206,6 +1491,25 @@ _Appears in:_
 | `database` _integer_ | Valkey database number. |  | Optional: \{\} <br /> |
 
 
+#### ValkeyCertRequirement
+
+_Underlying type:_ _string_
+
+ValkeyCertRequirement selects how the Valkey server certificate is verified.
+
+_Validation:_
+- Enum: [required optional none]
+
+_Appears in:_
+- [ValkeySSLSpec](#valkeysslspec)
+
+| Field | Description |
+| --- | --- |
+| `required` | ValkeyCertRequired requires a valid server certificate. |
+| `optional` | ValkeyCertOptional verifies the server certificate only if one is presented. |
+| `none` | ValkeyCertNone skips server certificate verification. |
+
+
 #### ValkeyResultsBackendSpec
 
 
@@ -1237,7 +1541,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `certRequired` _string_ | Certificate verification mode. | required | Enum: [required optional none] <br />Optional: \{\} <br /> |
+| `certRequired` _[ValkeyCertRequirement](#valkeycertrequirement)_ | Certificate verification mode. | required | Enum: [required optional none] <br />Optional: \{\} <br /> |
 | `keyFile` _string_ | Path to the client private key file (for mTLS). |  | Optional: \{\} <br /> |
 | `certFile` _string_ | Path to the client certificate file (for mTLS). |  | Optional: \{\} <br /> |
 | `caCertFile` _string_ | Path to the CA certificate file for server verification. |  | Optional: \{\} <br /> |

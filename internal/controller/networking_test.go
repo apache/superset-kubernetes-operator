@@ -1131,7 +1131,7 @@ func TestFlowerRoutePublished_EnvironmentAware(t *testing.T) {
 	// surface only when explicitly opted in (any environment) or when running
 	// outside the hardened Production mode. Production is the default, so an unset
 	// environment must behave as Production.
-	withEnv := func(env *string, gatewayPath *string) *supersetv1alpha1.Superset {
+	withEnv := func(env *supersetv1alpha1.Environment, gatewayPath *string) *supersetv1alpha1.Superset {
 		var svc *supersetv1alpha1.ComponentServiceSpec
 		if gatewayPath != nil {
 			svc = &supersetv1alpha1.ComponentServiceSpec{GatewayPath: gatewayPath}
@@ -1152,11 +1152,11 @@ func TestFlowerRoutePublished_EnvironmentAware(t *testing.T) {
 	}{
 		{"flower absent", &supersetv1alpha1.Superset{}, false},
 		{"production default, no opt-in", withEnv(nil, nil), false},
-		{"production explicit, no opt-in", withEnv(new(common.EnvironmentProd), nil), false},
-		{"production empty gatewayPath is not opt-in", withEnv(new(common.EnvironmentProd), &empty), false},
-		{"production with opt-in", withEnv(new(common.EnvironmentProd), &path), true},
-		{"development auto-publishes", withEnv(new(common.EnvironmentDev), nil), true},
-		{"staging auto-publishes", withEnv(new(common.EnvironmentStaging), nil), true},
+		{"production explicit, no opt-in", withEnv(new(supersetv1alpha1.EnvironmentProduction), nil), false},
+		{"production empty gatewayPath is not opt-in", withEnv(new(supersetv1alpha1.EnvironmentProduction), &empty), false},
+		{"production with opt-in", withEnv(new(supersetv1alpha1.EnvironmentProduction), &path), true},
+		{"development auto-publishes", withEnv(new(supersetv1alpha1.EnvironmentDevelopment), nil), true},
+		{"staging auto-publishes", withEnv(new(supersetv1alpha1.EnvironmentStaging), nil), true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

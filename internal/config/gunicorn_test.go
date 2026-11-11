@@ -32,42 +32,42 @@ func TestResolveGunicorn_NilSpec(t *testing.T) {
 	assert.False(t, g.Disabled)
 	assert.Equal(t, int32(2), g.Workers)
 	assert.Equal(t, int32(8), g.Threads)
-	assert.Equal(t, "gthread", g.WorkerClass)
+	assert.Equal(t, v1alpha1.GunicornWorkerClassGthread, g.WorkerClass)
 	assert.Equal(t, int32(60), g.Timeout)
 	assert.Equal(t, int32(2), g.KeepAlive)
 	assert.Equal(t, int32(0), g.MaxRequests)
-	assert.Equal(t, "info", g.LogLevel)
+	assert.Equal(t, v1alpha1.GunicornLogLevelInfo, g.LogLevel)
 }
 
 func TestResolveGunicorn_Presets(t *testing.T) {
 	tests := []struct {
-		preset  string
+		preset  v1alpha1.Preset
 		workers int32
 		threads int32
 	}{
-		{PresetConservative, 1, 4},
-		{PresetBalanced, 2, 8},
-		{PresetPerformance, 4, 8},
-		{PresetAggressive, 8, 16},
+		{v1alpha1.PresetConservative, 1, 4},
+		{v1alpha1.PresetBalanced, 2, 8},
+		{v1alpha1.PresetPerformance, 4, 8},
+		{v1alpha1.PresetAggressive, 8, 16},
 	}
 	for _, tt := range tests {
-		t.Run(tt.preset, func(t *testing.T) {
+		t.Run(string(tt.preset), func(t *testing.T) {
 			g := ResolveGunicorn(&v1alpha1.GunicornSpec{Preset: &tt.preset})
 			assert.Equal(t, tt.workers, g.Workers)
 			assert.Equal(t, tt.threads, g.Threads)
-			assert.Equal(t, "gthread", g.WorkerClass)
+			assert.Equal(t, v1alpha1.GunicornWorkerClassGthread, g.WorkerClass)
 		})
 	}
 }
 
 func TestResolveGunicorn_Disabled(t *testing.T) {
-	g := ResolveGunicorn(&v1alpha1.GunicornSpec{Preset: new(PresetDisabled)})
+	g := ResolveGunicorn(&v1alpha1.GunicornSpec{Preset: new(v1alpha1.PresetDisabled)})
 	assert.True(t, g.Disabled)
 }
 
 func TestResolveGunicorn_FieldOverrides(t *testing.T) {
 	g := ResolveGunicorn(&v1alpha1.GunicornSpec{
-		Preset:  new(PresetConservative),
+		Preset:  new(v1alpha1.PresetConservative),
 		Workers: new(int32(6)),
 		Timeout: new(int32(120)),
 	})
@@ -80,30 +80,30 @@ func TestResolveGunicorn_AllFieldOverrides(t *testing.T) {
 	// Every overridable field set to a non-default value, on top of a preset
 	// whose worker/thread defaults must be replaced by the explicit values.
 	g := ResolveGunicorn(&v1alpha1.GunicornSpec{
-		Preset:                new(PresetBalanced),
+		Preset:                new(v1alpha1.PresetBalanced),
 		Workers:               new(int32(3)),
 		Threads:               new(int32(5)),
-		WorkerClass:           new("sync"),
+		WorkerClass:           new(v1alpha1.GunicornWorkerClassSync),
 		Timeout:               new(int32(90)),
 		KeepAlive:             new(int32(7)),
 		MaxRequests:           new(int32(1000)),
 		MaxRequestsJitter:     new(int32(50)),
 		LimitRequestLine:      new(int32(8190)),
 		LimitRequestFieldSize: new(int32(16380)),
-		LogLevel:              new("debug"),
+		LogLevel:              new(v1alpha1.GunicornLogLevelDebug),
 	})
 
 	assert.False(t, g.Disabled)
 	assert.Equal(t, int32(3), g.Workers)
 	assert.Equal(t, int32(5), g.Threads)
-	assert.Equal(t, "sync", g.WorkerClass)
+	assert.Equal(t, v1alpha1.GunicornWorkerClassSync, g.WorkerClass)
 	assert.Equal(t, int32(90), g.Timeout)
 	assert.Equal(t, int32(7), g.KeepAlive)
 	assert.Equal(t, int32(1000), g.MaxRequests)
 	assert.Equal(t, int32(50), g.MaxRequestsJitter)
 	assert.Equal(t, int32(8190), g.LimitRequestLine)
 	assert.Equal(t, int32(16380), g.LimitRequestFieldSize)
-	assert.Equal(t, "debug", g.LogLevel)
+	assert.Equal(t, v1alpha1.GunicornLogLevelDebug, g.LogLevel)
 }
 
 func TestResolveGunicorn_EnvVars(t *testing.T) {

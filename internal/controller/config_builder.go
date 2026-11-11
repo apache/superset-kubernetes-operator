@@ -113,7 +113,7 @@ func buildConfigInput(spec *supersetv1alpha1.SupersetSpec) *supersetconfig.Confi
 			input.MetastoreMode = supersetconfig.MetastorePassthrough
 		} else if isStructuredMetastore(spec.Metastore) {
 			input.MetastoreMode = supersetconfig.MetastoreStructured
-			dbType := dbTypePostgresql
+			dbType := supersetv1alpha1.DatabaseTypePostgreSQL
 			if spec.Metastore.Type != nil {
 				dbType = *spec.Metastore.Type
 			}
@@ -243,7 +243,7 @@ func resolveValkeyResults(spec *supersetv1alpha1.ValkeyResultsBackendSpec, defau
 // CEL — so such a CR can never materialize an inline secret into a pod spec.
 // Mirrors the defensive createDatabaseEnabled precedent.
 func isDevEnvironment(spec *supersetv1alpha1.SupersetSpec) bool {
-	return spec.Environment != nil && *spec.Environment == naming.EnvironmentDev
+	return spec.Environment != nil && *spec.Environment == supersetv1alpha1.EnvironmentDevelopment
 }
 
 func collectSecretEnvVars(spec *supersetv1alpha1.SupersetSpec, parentName string) []corev1.EnvVar {
@@ -355,15 +355,15 @@ func structuredMetastoreEnvVars(metastore *supersetv1alpha1.MetastoreSpec, isDev
 	return envs
 }
 
-func derefOrDefault(ptr *string, def string) string {
+func derefOrDefault[T any](ptr *T, def T) T {
 	if ptr != nil {
 		return *ptr
 	}
 	return def
 }
 
-func defaultDBPort(driver *string) int32 {
-	if driver != nil && *driver == dbTypeMySQL {
+func defaultDBPort(dbType *supersetv1alpha1.DatabaseType) int32 {
+	if dbType != nil && *dbType == supersetv1alpha1.DatabaseTypeMySQL {
 		return 3306
 	}
 	return 5432

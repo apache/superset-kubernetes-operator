@@ -69,7 +69,7 @@ func TestReconcileLifecycleTaskJob_CheckpointsCompletionBeforeRetention(t *testi
 	if result.Complete {
 		t.Fatalf("expected checkpoint result before advancing pipeline, got %#v", result)
 	}
-	if taskRef.State != taskStateComplete || taskRef.CompletedChecksum != taskChecksum {
+	if taskRef.State != supersetv1alpha1.TaskStateComplete || taskRef.CompletedChecksum != taskChecksum {
 		t.Fatalf("expected completed status with checksum, got state=%q checksum=%q", taskRef.State, taskRef.CompletedChecksum)
 	}
 	if err := c.Get(ctx, types.NamespacedName{Name: job.Name, Namespace: job.Namespace}, &batchv1.Job{}); err != nil {
@@ -267,7 +267,7 @@ func TestReconcileLifecycleTaskJob_ForeignOwnedJobIsNotDeleted(t *testing.T) {
 	if err := c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, &batchv1.Job{}); err != nil {
 		t.Fatalf("foreign Job must not be deleted: %v", err)
 	}
-	if taskRef.State == taskStateComplete {
+	if taskRef.State == supersetv1alpha1.TaskStateComplete {
 		t.Fatalf("foreign Job status must not be attributed to this task; got state=%q", taskRef.State)
 	}
 	if !hasLifecycleConditionReason(superset, reasonTaskNameCollision) {
@@ -298,7 +298,7 @@ func TestReconcileLifecycleTaskJob_StaleStatusImageDoesNotDeleteMatchingJob(t *t
 	r.Client = c
 
 	taskRef := &supersetv1alpha1.TaskRefStatus{
-		State:      taskStateRunning,
+		State:      supersetv1alpha1.TaskStateRunning,
 		MaxRetries: 3,
 		Image:      oldImage,
 	}
@@ -343,7 +343,7 @@ func TestReconcileLifecycleTaskJob_DeletesJobWhenActualImageDiffers(t *testing.T
 	r.Client = c
 
 	taskRef := &supersetv1alpha1.TaskRefStatus{
-		State:      taskStateRunning,
+		State:      supersetv1alpha1.TaskStateRunning,
 		MaxRetries: 3,
 		Image:      "apache/superset:old",
 	}
@@ -461,7 +461,7 @@ func TestJobFailureMessage(t *testing.T) {
 func TestResetTaskStatusForRun(t *testing.T) {
 	now := metav1.Now()
 	taskRef := &supersetv1alpha1.TaskRefStatus{
-		State:             taskStateComplete,
+		State:             supersetv1alpha1.TaskStateComplete,
 		StartedAt:         &now,
 		CompletedAt:       &now,
 		Attempts:          2,
@@ -475,7 +475,7 @@ func TestResetTaskStatusForRun(t *testing.T) {
 
 	resetTaskStatusForRun(taskRef, "new-checksum", 5)
 
-	assert.Equal(t, taskStatePending, taskRef.State)
+	assert.Equal(t, supersetv1alpha1.TaskStatePending, taskRef.State)
 	assert.Nil(t, taskRef.StartedAt)
 	assert.Nil(t, taskRef.CompletedAt)
 	assert.Zero(t, taskRef.Attempts)

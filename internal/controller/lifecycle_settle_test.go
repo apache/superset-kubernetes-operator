@@ -99,7 +99,7 @@ func TestReconcileLifecycle_NoTasksConfigured(t *testing.T) {
 }
 
 func TestCheckUpgradeGates_SupervisedApprovalRequiresRecordedToken(t *testing.T) {
-	mode := upgradeModeSupervised
+	mode := supersetv1alpha1.UpgradeModeSupervised
 	lastImage := "apache/superset:1.0.0"
 	currentImage := "apache/superset:1.1.0"
 	token := upgradeApprovalToken(lastImage, currentImage)
@@ -120,7 +120,7 @@ func TestCheckUpgradeGates_SupervisedApprovalRequiresRecordedToken(t *testing.T)
 	if !gated {
 		t.Fatal("expected first reconcile to publish the approval token before accepting it")
 	}
-	if superset.Status.Phase != phaseAwaitingApproval {
+	if superset.Status.Phase != supersetv1alpha1.SupersetPhaseAwaitingApproval {
 		t.Fatalf("expected parent phase AwaitingApproval, got %q", superset.Status.Phase)
 	}
 	if got := superset.Status.Lifecycle.Upgrade.ApprovalToken; got != token {
@@ -134,7 +134,7 @@ func TestCheckUpgradeGates_SupervisedApprovalRequiresRecordedToken(t *testing.T)
 }
 
 func TestCheckUpgradeGates_StaleApprovalDoesNotApproveChangedTarget(t *testing.T) {
-	mode := upgradeModeSupervised
+	mode := supersetv1alpha1.UpgradeModeSupervised
 	lastImage := "apache/superset:1.0.0"
 	oldTarget := "apache/superset:1.1.0"
 	newTarget := "apache/superset:1.2.0"
@@ -237,7 +237,7 @@ func TestFinalizeLifecycleDoesNotPatchAnnotation(t *testing.T) {
 			Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "6.0.1"},
 		},
 		Status: supersetv1alpha1.SupersetStatus{
-			Lifecycle: &supersetv1alpha1.LifecycleStatus{Phase: lifecyclePhaseInitializing},
+			Lifecycle: &supersetv1alpha1.LifecycleStatus{Phase: supersetv1alpha1.LifecyclePhaseInitializing},
 		},
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
@@ -273,7 +273,7 @@ func hasConditionMessage(conditions []metav1.Condition, conditionType, message s
 // as disabled and migrate/init would silently run against the wrong dataset.
 func TestReconcileLifecycle_BlocksOnInvalidSeedSchedule(t *testing.T) {
 	scheme := testScheme(t)
-	devMode := "Development"
+	devMode := supersetv1alpha1.EnvironmentDevelopment
 	invalidSchedule := "99 99 99 99 99"
 	metastoreHost := "postgres.default.svc"
 	metastoreDB := "superset"
@@ -329,10 +329,10 @@ func TestReconcileLifecycle_BlocksOnInvalidSeedSchedule(t *testing.T) {
 	if !hasConditionReason(superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete, "InvalidCronSchedule") {
 		t.Fatalf("expected LifecycleComplete=False reason InvalidCronSchedule, got %#v", superset.Status.Conditions)
 	}
-	if superset.Status.Lifecycle.Phase != lifecyclePhaseBlocked {
+	if superset.Status.Lifecycle.Phase != supersetv1alpha1.LifecyclePhaseBlocked {
 		t.Fatalf("expected lifecycle phase Blocked, got %q", superset.Status.Lifecycle.Phase)
 	}
-	if superset.Status.Phase != phaseBlocked {
+	if superset.Status.Phase != supersetv1alpha1.SupersetPhaseBlocked {
 		t.Fatalf("expected parent phase Blocked, got %q", superset.Status.Phase)
 	}
 	jobs := &batchv1.JobList{}

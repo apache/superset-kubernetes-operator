@@ -89,7 +89,7 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		log.V(1).Info("Reconciliation suspended", "name", superset.Name)
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeSuspended,
 			metav1.ConditionTrue, "Suspended", "Reconciliation is suspended", superset.Generation)
-		superset.Status.Phase = phaseSuspended
+		superset.Status.Phase = supersetv1alpha1.SupersetPhaseSuspended
 		superset.Status.ObservedGeneration = superset.Generation
 		return ctrl.Result{}, patchStatusIfChanged(ctx, r.Client, superset, origSuperset, origSuperset.Status, superset.Status)
 	}
