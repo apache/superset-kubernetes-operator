@@ -31,6 +31,21 @@ See [Architecture](../architecture/overview.md) for the structural overview (CRD
 - **Pure Go packages** (no controller-runtime dependency): `internal/resolution/` (spec flattening), `internal/config/` (Python rendering), `internal/common/` (shared types), `internal/schedule/` (cron tick computation)
 - **Parent resolves and executes**: All layering, lifecycle orchestration, resource reconciliation, and status projection live in the parent controller
 
+### Top-level defaults and per-component overrides
+
+The `Superset` spec has two levels. A top-level field is a default that every component it applies to inherits, and the same field on a component overrides it. Users set shared settings once and only spell out per component what differs.
+
+When a field applies to more than one component, declare it at both levels and resolve it in `internal/resolution` according to its shape:
+
+- **Whole values** (`replicas`, `autoscaling`, `podDisruptionBudget`, `sqlaEngineOptions`): the component value replaces the top-level value (`ResolveScalar`, `ResolveOverridableValue`).
+- **Templates** (`deploymentTemplate`, `podTemplate`): field-level merge (see [How to Add a New Field](#how-to-add-a-new-field)).
+- **Image**: `tag` and `repository` override independently.
+- **Raw config** (`config`): the component value is appended after the top-level value.
+
+Keep a field per-component only when its meaning is specific to one component (`webServer.gunicorn`, `celeryWorker.celery`), or when inheriting it would be wrong (`command`/`args`). Components a top-level value doesn't apply to ignore it: Celery beat and lifecycle Jobs ignore `autoscaling` and `podDisruptionBudget`.
+
+Validation that depends on an inherited value must check the effective value, not just the field as written on the component. Put such CEL rules on `SupersetSpec`, where both levels are visible.
+
 ### External connection values
 
 Typed connection interfaces must compose with Kubernetes-native provisioners. For every literal connection field that a database, cache, or other service operator may publish after reconciliation—such as host, port, database, or username—provide a sibling `*From` field using `corev1.SecretKeySelector`. The literal and selector must be mutually exclusive through CEL validation, and both must produce the same operator-internal environment variable. Keep type-appropriate defaults when neither optional form is set.
@@ -325,6 +340,8 @@ New Deployment/Pod/Container fields go into the template hierarchy:
 5. Run `make manifests generate`
 6. Add assertions to existing comprehensive tests
 7. Update sample CRs if helpful
+
+Fields outside the templates follow the same layering: if a field applies to more than one component, add it at the top level and on each component it applies to, and resolve it as described in [Top-level defaults and per-component overrides](#top-level-defaults-and-per-component-overrides).
 
 ## How to Add a New Component
 
