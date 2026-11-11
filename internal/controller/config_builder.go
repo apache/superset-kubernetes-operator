@@ -371,7 +371,7 @@ func defaultDBPort(driver *string) int32 {
 
 // --- Operator-injected volumes/env/mounts ---
 
-func buildOperatorInjected(renderedConfig, bootstrapScript, resourceBaseName, forceReload, logLevel string, configEnvVars []corev1.EnvVar) *resolution.OperatorInjected {
+func buildOperatorInjected(renderedConfig, bootstrapScript, resourceBaseName, forceReload string, logLevel supersetv1alpha1.LogLevel, configEnvVars []corev1.EnvVar) *resolution.OperatorInjected {
 	injected := &resolution.OperatorInjected{}
 
 	if renderedConfig != "" || bootstrapScript != "" {
