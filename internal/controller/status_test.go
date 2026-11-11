@@ -430,6 +430,12 @@ func TestEffectiveAutoscalingForStatus(t *testing.T) {
 	t.Run("nil when neither set", func(t *testing.T) {
 		assert.Nil(t, effectiveAutoscalingForStatus(&supersetv1alpha1.Superset{}, nil))
 	})
+
+	t.Run("nil when externally scaled, ignoring top-level", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Autoscaling: topAS}}
+		accessor := &componentAccessor{scalingMode: new(supersetv1alpha1.ScalingModeExternal)}
+		assert.Nil(t, effectiveAutoscalingForStatus(superset, accessor))
+	})
 }
 
 func TestEffectivePDBForStatus(t *testing.T) {
@@ -484,6 +490,15 @@ func TestDesiredReplicasForStatus(t *testing.T) {
 
 	t.Run("defaults to 1 when nothing is set", func(t *testing.T) {
 		assert.Equal(t, int32(1), desiredReplicasForStatus(&supersetv1alpha1.Superset{}, webDesc, &componentAccessor{}))
+	})
+
+	t.Run("externally scaled starts at 1, ignoring top-level replicas and autoscaling", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
+			Replicas:    new(int32(5)),
+			Autoscaling: &supersetv1alpha1.AutoscalingSpec{MinReplicas: new(int32(3))},
+		}}
+		accessor := &componentAccessor{scalingMode: new(supersetv1alpha1.ScalingModeExternal)}
+		assert.Equal(t, int32(1), desiredReplicasForStatus(superset, webDesc, accessor))
 	})
 }
 

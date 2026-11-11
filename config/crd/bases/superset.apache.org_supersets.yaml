@@ -8087,6 +8087,11 @@ spec:
                   replicas:
                     format: int32
                     type: integer
+                  scalingMode:
+                    enum:
+                    - Operator
+                    - External
+                    type: string
                   service:
                     properties:
                       annotations:
@@ -8121,6 +8126,11 @@ spec:
                       rule: '!has(self.nodePort) || self.type == ''NodePort'' || self.type
                         == ''LoadBalancer'''
                 type: object
+                x-kubernetes-validations:
+                - message: replicas and autoscaling cannot be set when scalingMode
+                    is External
+                  rule: '!has(self.scalingMode) || self.scalingMode != ''External''
+                    || (!has(self.replicas) && !has(self.autoscaling))'
               celeryWorker:
                 properties:
                   autoscaling:
@@ -12181,6 +12191,11 @@ spec:
                   replicas:
                     format: int32
                     type: integer
+                  scalingMode:
+                    enum:
+                    - Operator
+                    - External
+                    type: string
                   sqlaEngineOptions:
                     properties:
                       maxOverflow:
@@ -12210,6 +12225,11 @@ spec:
                         type: string
                     type: object
                 type: object
+                x-kubernetes-validations:
+                - message: replicas and autoscaling cannot be set when scalingMode
+                    is External
+                  rule: '!has(self.scalingMode) || self.scalingMode != ''External''
+                    || (!has(self.replicas) && !has(self.autoscaling))'
               config:
                 type: string
               deploymentTemplate:
@@ -27655,6 +27675,11 @@ spec:
                   replicas:
                     format: int32
                     type: integer
+                  scalingMode:
+                    enum:
+                    - Operator
+                    - External
+                    type: string
                   service:
                     properties:
                       annotations:
@@ -27717,6 +27742,11 @@ spec:
                         type: string
                     type: object
                 type: object
+                x-kubernetes-validations:
+                - message: replicas and autoscaling cannot be set when scalingMode
+                    is External
+                  rule: '!has(self.scalingMode) || self.scalingMode != ''External''
+                    || (!has(self.replicas) && !has(self.autoscaling))'
               metastore:
                 properties:
                   createDatabase:
@@ -36186,6 +36216,11 @@ spec:
                   replicas:
                     format: int32
                     type: integer
+                  scalingMode:
+                    enum:
+                    - Operator
+                    - External
+                    type: string
                   service:
                     properties:
                       annotations:
@@ -36248,6 +36283,11 @@ spec:
                         type: string
                     type: object
                 type: object
+                x-kubernetes-validations:
+                - message: replicas and autoscaling cannot be set when scalingMode
+                    is External
+                  rule: '!has(self.scalingMode) || self.scalingMode != ''External''
+                    || (!has(self.replicas) && !has(self.autoscaling))'
               websocketServer:
                 properties:
                   autoscaling:
@@ -40274,6 +40314,11 @@ spec:
                   replicas:
                     format: int32
                     type: integer
+                  scalingMode:
+                    enum:
+                    - Operator
+                    - External
+                    type: string
                   service:
                     properties:
                       annotations:
@@ -40316,6 +40361,10 @@ spec:
                 - message: websocketServer.config and websocketServer.configFrom are
                     mutually exclusive
                   rule: '!(has(self.config) && has(self.configFrom))'
+                - message: replicas and autoscaling cannot be set when scalingMode
+                    is External
+                  rule: '!has(self.scalingMode) || self.scalingMode != ''External''
+                    || (!has(self.replicas) && !has(self.autoscaling))'
             required:
             - image
             type: object

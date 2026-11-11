@@ -409,7 +409,12 @@ func buildOperatorInjected(renderedConfig, bootstrapScript, resourceBaseName, fo
 // When imageOverride is non-nil, its Tag and/or Repository override the parent image.
 // saName is set on the FlatComponentSpec so it propagates to Deployment pods.
 func flatSpecFromResolution(flat *resolution.FlatSpec, parentImage *supersetv1alpha1.ImageSpec, imageOverride *supersetv1alpha1.ImageOverrideSpec, saName string) supersetv1alpha1.FlatComponentSpec {
-	replicas := flat.Replicas
+	// Nil replicas leave Deployment.spec.replicas to the external controller.
+	var replicas *int32
+	if !flat.ExternalScaling {
+		r := flat.Replicas
+		replicas = &r
+	}
 	image := *parentImage
 	if imageOverride != nil {
 		if imageOverride.Tag != nil {
@@ -424,7 +429,7 @@ func flatSpecFromResolution(flat *resolution.FlatSpec, parentImage *supersetv1al
 	}
 	return supersetv1alpha1.FlatComponentSpec{
 		Image:               image,
-		Replicas:            &replicas,
+		Replicas:            replicas,
 		DeploymentTemplate:  flat.DeploymentTemplate,
 		PodTemplate:         flat.PodTemplate,
 		ServiceAccountName:  saName,

@@ -123,6 +123,7 @@ _Appears in:_
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod template (Pod and container configuration). |  | Optional: \{\} <br /> |
 | `replicas` _integer_ | Desired replica count; overridden by autoscaling when active. Defaults to spec.replicas if unset. |  | Optional: \{\} <br /> |
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling. |  | Optional: \{\} <br /> |
+| `scalingMode` _[ScalingMode](#scalingmode)_ | Who manages the Deployment replica count. Operator (default) applies replicas or autoscaling. External hands it to an external controller such as a KEDA ScaledObject: the operator keeps the live replica count, creates no HorizontalPodAutoscaler, and ignores spec.replicas and spec.autoscaling. |  | Enum: [Operator External] <br />Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
@@ -147,6 +148,7 @@ _Appears in:_
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod template (Pod and container configuration). |  | Optional: \{\} <br /> |
 | `replicas` _integer_ | Desired replica count; overridden by autoscaling when active. Defaults to spec.replicas if unset. |  | Optional: \{\} <br /> |
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling. |  | Optional: \{\} <br /> |
+| `scalingMode` _[ScalingMode](#scalingmode)_ | Who manages the Deployment replica count. Operator (default) applies replicas or autoscaling. External hands it to an external controller such as a KEDA ScaledObject: the operator keeps the live replica count, creates no HorizontalPodAutoscaler, and ignores spec.replicas and spec.autoscaling. |  | Enum: [Operator External] <br />Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
@@ -742,6 +744,7 @@ _Appears in:_
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod template (Pod and container configuration). |  | Optional: \{\} <br /> |
 | `replicas` _integer_ | Desired replica count; overridden by autoscaling when active. Defaults to spec.replicas if unset. |  | Optional: \{\} <br /> |
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling. |  | Optional: \{\} <br /> |
+| `scalingMode` _[ScalingMode](#scalingmode)_ | Who manages the Deployment replica count. Operator (default) applies replicas or autoscaling. External hands it to an external controller such as a KEDA ScaledObject: the operator keeps the live replica count, creates no HorizontalPodAutoscaler, and ignores spec.replicas and spec.autoscaling. |  | Enum: [Operator External] <br />Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
@@ -1057,7 +1060,31 @@ _Appears in:_
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod template (Pod and container configuration). |  | Optional: \{\} <br /> |
 | `replicas` _integer_ | Desired replica count; overridden by autoscaling when active. Defaults to spec.replicas if unset. |  | Optional: \{\} <br /> |
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling. |  | Optional: \{\} <br /> |
+| `scalingMode` _[ScalingMode](#scalingmode)_ | Who manages the Deployment replica count. Operator (default) applies replicas or autoscaling. External hands it to an external controller such as a KEDA ScaledObject: the operator keeps the live replica count, creates no HorizontalPodAutoscaler, and ignores spec.replicas and spec.autoscaling. |  | Enum: [Operator External] <br />Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
+
+
+#### ScalingMode
+
+_Underlying type:_ _string_
+
+ScalingMode selects who manages a component Deployment's replica count.
+
+_Validation:_
+- Enum: [Operator External]
+
+_Appears in:_
+- [CeleryFlowerComponentSpec](#celeryflowercomponentspec)
+- [CeleryWorkerComponentSpec](#celeryworkercomponentspec)
+- [McpServerComponentSpec](#mcpservercomponentspec)
+- [ScalableComponentSpec](#scalablecomponentspec)
+- [WebServerComponentSpec](#webservercomponentspec)
+- [WebsocketServerComponentSpec](#websocketservercomponentspec)
+
+| Field | Description |
+| --- | --- |
+| `Operator` | ScalingModeOperator sets the replica count from replicas or autoscaling. |
+| `External` | ScalingModeExternal leaves the replica count to an external controller, such as a KEDA ScaledObject or a user-managed HorizontalPodAutoscaler. |
 
 
 #### SchedulableBaseTaskSpec
@@ -1500,6 +1527,7 @@ _Appears in:_
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod template (Pod and container configuration). |  | Optional: \{\} <br /> |
 | `replicas` _integer_ | Desired replica count; overridden by autoscaling when active. Defaults to spec.replicas if unset. |  | Optional: \{\} <br /> |
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling. |  | Optional: \{\} <br /> |
+| `scalingMode` _[ScalingMode](#scalingmode)_ | Who manages the Deployment replica count. Operator (default) applies replicas or autoscaling. External hands it to an external controller such as a KEDA ScaledObject: the operator keeps the live replica count, creates no HorizontalPodAutoscaler, and ignores spec.replicas and spec.autoscaling. |  | Enum: [Operator External] <br />Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
@@ -1532,6 +1560,7 @@ _Appears in:_
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod template (Pod and container configuration). |  | Optional: \{\} <br /> |
 | `replicas` _integer_ | Desired replica count; overridden by autoscaling when active. Defaults to spec.replicas if unset. |  | Optional: \{\} <br /> |
 | `autoscaling` _[AutoscalingSpec](#autoscalingspec)_ | HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling. |  | Optional: \{\} <br /> |
+| `scalingMode` _[ScalingMode](#scalingmode)_ | Who manages the Deployment replica count. Operator (default) applies replicas or autoscaling. External hands it to an external controller such as a KEDA ScaledObject: the operator keeps the live replica count, creates no HorizontalPodAutoscaler, and ignores spec.replicas and spec.autoscaling. |  | Enum: [Operator External] <br />Optional: \{\} <br /> |
 | `podDisruptionBudget` _[PDBSpec](#pdbspec)_ | PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget. |  | Optional: \{\} <br /> |
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _[JSON](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.31/#json-v1-apiextensions-k8s-io)_ | Inline config.json content for the websocket server. Only allowed in Development mode because this config commonly contains jwtSecret or Redis credentials. In Production, use configFrom to mount an existing Secret key. |  | Type: object <br />Optional: \{\} <br /> |

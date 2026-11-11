@@ -405,6 +405,30 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("mutually exclusive"))
 		})
+
+		DescribeTable("rejects replicas or autoscaling with scalingMode External",
+			func(name string, worker *supersetv1alpha1.CeleryWorkerComponentSpec) {
+				cr := validDevSuperset(name)
+				worker.ScalingMode = new(supersetv1alpha1.ScalingModeExternal)
+				cr.Spec.CeleryWorker = worker
+				err := k8sClient.Create(ctx, cr)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("replicas and autoscaling cannot be set when scalingMode is External"))
+			},
+			Entry("replicas", "external-replicas", &supersetv1alpha1.CeleryWorkerComponentSpec{Replicas: new(int32(2))}),
+			Entry("autoscaling", "external-autoscaling", &supersetv1alpha1.CeleryWorkerComponentSpec{
+				Autoscaling: &supersetv1alpha1.AutoscalingSpec{MaxReplicas: 4},
+			}),
+		)
+
+		It("accepts scalingMode External alongside top-level autoscaling", func() {
+			cr := validDevSuperset("external-top-level-hpa")
+			cr.Spec.Autoscaling = &supersetv1alpha1.AutoscalingSpec{MaxReplicas: 5}
+			cr.Spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{
+				ScalingMode: new(supersetv1alpha1.ScalingModeExternal),
+			}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
 	})
 
 	// --- Networking / Monitoring component requirements ---

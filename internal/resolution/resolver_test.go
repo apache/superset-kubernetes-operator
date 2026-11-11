@@ -633,4 +633,18 @@ func TestResolveComponentSpec_AutoscalingPDB_Inheritance(t *testing.T) {
 			t.Error("expected nil PDB when neither set")
 		}
 	})
+
+	t.Run("external scaling drops inherited autoscaling and keeps PDB", func(t *testing.T) {
+		component := &ComponentInput{ScalingMode: new(supersetv1alpha1.ScalingModeExternal)}
+		result := ResolveComponentSpec(ComponentCeleryWorker, topLevel, component, nil, nil)
+		if !result.ExternalScaling {
+			t.Error("expected ExternalScaling for scalingMode External")
+		}
+		if result.Autoscaling != nil {
+			t.Error("expected inherited autoscaling to be dropped for external scaling")
+		}
+		if result.PodDisruptionBudget == nil {
+			t.Error("expected inherited PDB to still apply under external scaling")
+		}
+	})
 }

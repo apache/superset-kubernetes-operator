@@ -198,6 +198,7 @@ type SupersetSpec struct {
 // --- Component specs (on parent CRD) ---
 
 // WebServerComponentSpec defines the web server component on the parent CRD.
+// +kubebuilder:validation:XValidation:rule="!has(self.scalingMode) || self.scalingMode != 'External' || (!has(self.replicas) && !has(self.autoscaling))",message="replicas and autoscaling cannot be set when scalingMode is External"
 type WebServerComponentSpec struct {
 	ScalableComponentSpec `json:",inline"`
 	ComponentSpec         `json:",inline"`
@@ -220,6 +221,7 @@ type WebServerComponentSpec struct {
 }
 
 // CeleryWorkerComponentSpec defines the celery worker component on the parent CRD.
+// +kubebuilder:validation:XValidation:rule="!has(self.scalingMode) || self.scalingMode != 'External' || (!has(self.replicas) && !has(self.autoscaling))",message="replicas and autoscaling cannot be set when scalingMode is External"
 type CeleryWorkerComponentSpec struct {
 	ScalableComponentSpec `json:",inline"`
 	ComponentSpec         `json:",inline"`
@@ -264,6 +266,7 @@ type CeleryBeatComponentSpec struct {
 }
 
 // CeleryFlowerComponentSpec defines the celery flower component on the parent CRD.
+// +kubebuilder:validation:XValidation:rule="!has(self.scalingMode) || self.scalingMode != 'External' || (!has(self.replicas) && !has(self.autoscaling))",message="replicas and autoscaling cannot be set when scalingMode is External"
 type CeleryFlowerComponentSpec struct {
 	ScalableComponentSpec `json:",inline"`
 	ComponentSpec         `json:",inline"`
@@ -288,6 +291,7 @@ type CeleryFlowerComponentSpec struct {
 // validated. The shape and behavior may change in a future release.
 // +kubebuilder:validation:XValidation:rule="has(self.image) && has(self.image.repository) && size(self.image.repository) > 0",message="websocketServer.image.repository is required: the default Superset image does not include websocket_server.js"
 // +kubebuilder:validation:XValidation:rule="!(has(self.config) && has(self.configFrom))",message="websocketServer.config and websocketServer.configFrom are mutually exclusive"
+// +kubebuilder:validation:XValidation:rule="!has(self.scalingMode) || self.scalingMode != 'External' || (!has(self.replicas) && !has(self.autoscaling))",message="replicas and autoscaling cannot be set when scalingMode is External"
 type WebsocketServerComponentSpec struct {
 	ScalableComponentSpec `json:",inline"`
 	ComponentSpec         `json:",inline"`
@@ -309,6 +313,7 @@ type WebsocketServerComponentSpec struct {
 }
 
 // McpServerComponentSpec defines the MCP server component on the parent CRD.
+// +kubebuilder:validation:XValidation:rule="!has(self.scalingMode) || self.scalingMode != 'External' || (!has(self.replicas) && !has(self.autoscaling))",message="replicas and autoscaling cannot be set when scalingMode is External"
 type McpServerComponentSpec struct {
 	ScalableComponentSpec `json:",inline"`
 	ComponentSpec         `json:",inline"`
