@@ -366,6 +366,9 @@ func componentHasService(desc *componentDescriptor, cfg componentReconcilerConfi
 }
 
 func effectiveAutoscalingForStatus(superset *supersetv1alpha1.Superset, accessor *componentAccessor) *supersetv1alpha1.AutoscalingSpec {
+	if accessor.externallyScaled() {
+		return nil
+	}
 	if accessor != nil && accessor.autoscaling != nil {
 		return accessor.autoscaling
 	}
@@ -382,6 +385,11 @@ func effectivePDBForStatus(superset *supersetv1alpha1.Superset, accessor *compon
 func desiredReplicasForStatus(superset *supersetv1alpha1.Superset, desc *componentDescriptor, accessor *componentAccessor) int32 {
 	if desc.componentType == naming.ComponentCeleryBeat {
 		return celeryBeatSingletonReplica
+	}
+	// A new Deployment without replicas starts at one; the external
+	// controller scales it from there.
+	if accessor.externallyScaled() {
+		return 1
 	}
 	if autoscaling := effectiveAutoscalingForStatus(superset, accessor); autoscaling != nil {
 		if autoscaling.MinReplicas != nil {

@@ -51,6 +51,7 @@ type SharedInput struct {
 // ComponentInput captures per-component fields. Embeds SharedInput.
 type ComponentInput struct {
 	SharedInput
+	ScalingMode *supersetv1alpha1.ScalingMode
 }
 
 // OperatorInjected holds volumes, mounts, env vars, and init containers
@@ -69,6 +70,9 @@ type FlatSpec struct {
 	PodTemplate         *supersetv1alpha1.PodTemplate
 	Autoscaling         *supersetv1alpha1.AutoscalingSpec
 	PodDisruptionBudget *supersetv1alpha1.PDBSpec
+	// ExternalScaling is true when an external controller owns the replica
+	// count: Replicas is not applied and Autoscaling is nil.
+	ExternalScaling bool
 }
 
 // defaultReplicas is the fallback when neither component nor defaults specify replicas.
@@ -102,6 +106,13 @@ func ResolveComponentSpec(
 
 	result.Autoscaling = ResolveOverridableValue(comp.Autoscaling, tl.Autoscaling)
 	result.PodDisruptionBudget = ResolveOverridableValue(comp.PodDisruptionBudget, tl.PodDisruptionBudget)
+
+	// An external controller owns the replica count, so inherited
+	// spec.autoscaling must not create a competing HPA.
+	if comp.ScalingMode != nil && *comp.ScalingMode == supersetv1alpha1.ScalingModeExternal {
+		result.ExternalScaling = true
+		result.Autoscaling = nil
+	}
 
 	return result
 }

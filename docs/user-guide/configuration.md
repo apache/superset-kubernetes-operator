@@ -877,6 +877,32 @@ spec:
 
 When HPA is configured, the `replicas` field is ignored (HPA manages scaling).
 
+### External scaling
+
+Set `scalingMode: External` to let another controller own a component's replica count, for example a [KEDA](https://keda.sh) `ScaledObject` that scales Celery workers on broker queue depth. The operator then keeps the Deployment's live replica count, creates no HPA for the component (removing one it created earlier), and ignores the inherited `spec.replicas` and `spec.autoscaling`. `replicas` and `autoscaling` cannot be set on the component itself. A newly created Deployment starts at one replica, and the external controller scales it from there.
+
+```yaml
+spec:
+  celeryWorker:
+    scalingMode: External
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: superset-celery-worker
+spec:
+  scaleTargetRef:
+    name: superset-celery-worker  # <superset name>-celery-worker
+  minReplicaCount: 2
+  maxReplicaCount: 10
+  triggers:
+    - type: redis
+      metadata:
+        address: valkey:6379
+        listName: celery
+        listLength: "4"
+```
+
 ## Pod Disruption Budget
 
 ```yaml

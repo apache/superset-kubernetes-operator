@@ -39,6 +39,7 @@ type componentAccessor struct {
 	podTemplate         *supersetv1alpha1.PodTemplate
 	replicas            *int32
 	autoscaling         *supersetv1alpha1.AutoscalingSpec
+	scalingMode         *supersetv1alpha1.ScalingMode
 	pdb                 *supersetv1alpha1.PDBSpec
 	config              *string
 	bootstrapScript     *string
@@ -85,6 +86,12 @@ var componentDescriptors = []*componentDescriptor{
 	websocketServerDescriptor,
 }
 
+// externallyScaled reports whether an external controller owns the
+// component's replica count (scalingMode: External).
+func (a *componentAccessor) externallyScaled() bool {
+	return a != nil && a.scalingMode != nil && *a.scalingMode == supersetv1alpha1.ScalingModeExternal
+}
+
 // convertComponent converts a componentAccessor to the resolution engine's ComponentInput.
 func convertComponent(a *componentAccessor) *resolution.ComponentInput {
 	if a == nil {
@@ -96,6 +103,7 @@ func convertComponent(a *componentAccessor) *resolution.ComponentInput {
 		PodTemplate:         a.podTemplate,
 		Autoscaling:         a.autoscaling,
 		PodDisruptionBudget: a.pdb,
+		ScalingMode:         a.scalingMode,
 	}
 }
 
@@ -366,6 +374,7 @@ func extractScalable(s *supersetv1alpha1.ScalableComponentSpec, config, bootstra
 		podTemplate:        s.PodTemplate,
 		replicas:           s.Replicas,
 		autoscaling:        s.Autoscaling,
+		scalingMode:        s.ScalingMode,
 		pdb:                s.PodDisruptionBudget,
 		config:             config,
 		bootstrapScript:    bootstrapScript,
