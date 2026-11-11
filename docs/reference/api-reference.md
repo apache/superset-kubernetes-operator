@@ -130,45 +130,6 @@ _Appears in:_
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration (type, port, annotations). |  | Optional: \{\} <br /> |
 
 
-#### CeleryOptimization
-
-_Underlying type:_ _string_
-
-CeleryOptimization selects the Celery task distribution strategy.
-
-_Validation:_
-- Enum: [default fair]
-
-_Appears in:_
-- [CeleryWorkerProcessSpec](#celeryworkerprocessspec)
-
-| Field | Description |
-| --- | --- |
-| `default` | CeleryOptimizationDefault prefetches tasks to child processes eagerly. |
-| `fair` | CeleryOptimizationFair only sends tasks to child processes that are free. |
-
-
-#### CeleryPool
-
-_Underlying type:_ _string_
-
-CeleryPool selects the Celery worker pool implementation.
-
-_Validation:_
-- Enum: [prefork threads gevent eventlet solo]
-
-_Appears in:_
-- [CeleryWorkerProcessSpec](#celeryworkerprocessspec)
-
-| Field | Description |
-| --- | --- |
-| `prefork` | CeleryPoolPrefork runs tasks in forked child processes. |
-| `threads` | CeleryPoolThreads runs tasks in a thread pool. |
-| `gevent` | CeleryPoolGevent runs tasks in gevent green threads. |
-| `eventlet` | CeleryPoolEventlet runs tasks in eventlet green threads. |
-| `solo` | CeleryPoolSolo runs tasks inline in the worker process. |
-
-
 #### CeleryWorkerComponentSpec
 
 
@@ -211,8 +172,8 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `preset` _[Preset](#preset)_ | Preset controlling concurrency and pool defaults. Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
 | `concurrency` _integer_ | Number of concurrent task workers (maps to celery -c flag). |  | Minimum: 1 <br />Optional: \{\} <br /> |
-| `pool` _[CeleryPool](#celerypool)_ | Celery pool implementation. |  | Enum: [prefork threads gevent eventlet solo] <br />Optional: \{\} <br /> |
-| `optimization` _[CeleryOptimization](#celeryoptimization)_ | Task distribution optimization strategy. |  | Enum: [default fair] <br />Optional: \{\} <br /> |
+| `pool` _string_ | Celery pool implementation (e.g. prefork, threads, gevent), passed to celery worker --pool as-is. Defaults to prefork. |  | Optional: \{\} <br /> |
+| `optimization` _string_ | Task distribution optimization strategy (e.g. fair, default), passed to celery worker -O as-is. Defaults to fair. |  | Optional: \{\} <br /> |
 | `maxTasksPerChild` _integer_ | Maximum tasks a worker process handles before being replaced (prefork only; 0 = unlimited). |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `maxMemoryPerChild` _integer_ | Maximum resident memory in bytes per worker before being replaced (prefork only; 0 = disabled). |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `prefetchMultiplier` _integer_ | Task prefetch multiplier — number of tasks prefetched per worker. |  | Minimum: 0 <br />Optional: \{\} <br /> |
@@ -507,27 +468,6 @@ _Appears in:_
 | `labels` _object (keys:string, values:string)_ | HTTPRoute labels. |  | Optional: \{\} <br /> |
 
 
-#### GunicornLogLevel
-
-_Underlying type:_ _string_
-
-GunicornLogLevel selects the Gunicorn log level.
-
-_Validation:_
-- Enum: [debug info warning error critical]
-
-_Appears in:_
-- [GunicornSpec](#gunicornspec)
-
-| Field | Description |
-| --- | --- |
-| `debug` | GunicornLogLevelDebug logs debug messages and above. |
-| `info` | GunicornLogLevelInfo logs informational messages and above. |
-| `warning` | GunicornLogLevelWarning logs warnings and above. |
-| `error` | GunicornLogLevelError logs errors and above. |
-| `critical` | GunicornLogLevelCritical logs only critical errors. |
-
-
 #### GunicornSpec
 
 
@@ -546,34 +486,14 @@ _Appears in:_
 | `preset` _[Preset](#preset)_ | Preset controlling workers, threads, and workerClass defaults. Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
 | `workers` _integer_ | Number of Gunicorn worker processes. |  | Minimum: 1 <br />Optional: \{\} <br /> |
 | `threads` _integer_ | Number of threads per worker (only effective with gthread worker class). |  | Minimum: 1 <br />Optional: \{\} <br /> |
-| `workerClass` _[GunicornWorkerClass](#gunicornworkerclass)_ | Gunicorn worker class. |  | Enum: [sync gthread gevent eventlet] <br />Optional: \{\} <br /> |
+| `workerClass` _string_ | Gunicorn worker class (e.g. gthread, sync, gevent), passed to Gunicorn as-is. Defaults to gthread. |  | Optional: \{\} <br /> |
 | `timeout` _integer_ | Request timeout in seconds. |  | Minimum: 1 <br />Optional: \{\} <br /> |
 | `keepAlive` _integer_ | Keep-alive timeout in seconds for waiting for requests on a connection. |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `maxRequests` _integer_ | Maximum requests per worker before recycling (0 = disabled). |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `maxRequestsJitter` _integer_ | Random jitter added to maxRequests to prevent thundering herd on worker recycling. |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `limitRequestLine` _integer_ | Maximum size of HTTP request line in bytes (0 = unlimited). |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `limitRequestFieldSize` _integer_ | Maximum size of HTTP request header field in bytes (0 = unlimited). |  | Minimum: 0 <br />Optional: \{\} <br /> |
-| `logLevel` _[GunicornLogLevel](#gunicornloglevel)_ | Gunicorn log level. |  | Enum: [debug info warning error critical] <br />Optional: \{\} <br /> |
-
-
-#### GunicornWorkerClass
-
-_Underlying type:_ _string_
-
-GunicornWorkerClass selects the Gunicorn worker class.
-
-_Validation:_
-- Enum: [sync gthread gevent eventlet]
-
-_Appears in:_
-- [GunicornSpec](#gunicornspec)
-
-| Field | Description |
-| --- | --- |
-| `sync` | GunicornWorkerClassSync handles one request at a time per worker. |
-| `gthread` | GunicornWorkerClassGthread runs a thread pool per worker; required for threads > 1. |
-| `gevent` | GunicornWorkerClassGevent uses gevent green threads. |
-| `eventlet` | GunicornWorkerClassEventlet uses eventlet green threads. |
+| `logLevel` _string_ | Gunicorn log level (e.g. debug, info, warning), passed to Gunicorn as-is. Defaults to info. |  | Optional: \{\} <br /> |
 
 
 #### ImageOverrideSpec
@@ -1491,25 +1411,6 @@ _Appears in:_
 | `database` _integer_ | Valkey database number. |  | Optional: \{\} <br /> |
 
 
-#### ValkeyCertRequirement
-
-_Underlying type:_ _string_
-
-ValkeyCertRequirement selects how the Valkey server certificate is verified.
-
-_Validation:_
-- Enum: [required optional none]
-
-_Appears in:_
-- [ValkeySSLSpec](#valkeysslspec)
-
-| Field | Description |
-| --- | --- |
-| `required` | ValkeyCertRequired requires a valid server certificate. |
-| `optional` | ValkeyCertOptional verifies the server certificate only if one is presented. |
-| `none` | ValkeyCertNone skips server certificate verification. |
-
-
 #### ValkeyResultsBackendSpec
 
 
@@ -1541,7 +1442,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `certRequired` _[ValkeyCertRequirement](#valkeycertrequirement)_ | Certificate verification mode. | required | Enum: [required optional none] <br />Optional: \{\} <br /> |
+| `certRequired` _string_ | Certificate verification mode, passed to the Valkey client as ssl_cert_reqs (e.g. required, optional, none). | required | Optional: \{\} <br /> |
 | `keyFile` _string_ | Path to the client private key file (for mTLS). |  | Optional: \{\} <br /> |
 | `certFile` _string_ | Path to the client certificate file (for mTLS). |  | Optional: \{\} <br /> |
 | `caCertFile` _string_ | Path to the CA certificate file for server verification. |  | Optional: \{\} <br /> |

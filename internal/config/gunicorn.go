@@ -28,6 +28,9 @@ import (
 )
 
 const (
+	defaultWorkerClass = "gthread"
+	defaultLogLevel    = "info"
+
 	EnvServerWorkerAmount        = "SERVER_WORKER_AMOUNT"
 	EnvServerThreadsAmount       = "SERVER_THREADS_AMOUNT"
 	EnvServerWorkerClass         = "SERVER_WORKER_CLASS"
@@ -45,14 +48,14 @@ type ResolvedGunicorn struct {
 	Disabled              bool
 	Workers               int32
 	Threads               int32
-	WorkerClass           v1alpha1.GunicornWorkerClass
+	WorkerClass           string
 	Timeout               int32
 	KeepAlive             int32
 	MaxRequests           int32
 	MaxRequestsJitter     int32
 	LimitRequestLine      int32
 	LimitRequestFieldSize int32
-	LogLevel              v1alpha1.GunicornLogLevel
+	LogLevel              string
 }
 
 // ResolveGunicorn resolves a GunicornSpec into concrete values.
@@ -70,14 +73,14 @@ func ResolveGunicorn(spec *v1alpha1.GunicornSpec) ResolvedGunicorn {
 	r := ResolvedGunicorn{
 		Workers:               workers,
 		Threads:               threads,
-		WorkerClass:           v1alpha1.GunicornWorkerClassGthread,
+		WorkerClass:           defaultWorkerClass,
 		Timeout:               60,
 		KeepAlive:             2,
 		MaxRequests:           0,
 		MaxRequestsJitter:     0,
 		LimitRequestLine:      0,
 		LimitRequestFieldSize: 0,
-		LogLevel:              v1alpha1.GunicornLogLevelInfo,
+		LogLevel:              defaultLogLevel,
 	}
 
 	if spec == nil {
@@ -116,13 +119,13 @@ func (g *ResolvedGunicorn) EnvVars() []corev1.EnvVar {
 	return []corev1.EnvVar{
 		{Name: EnvServerWorkerAmount, Value: fmt.Sprintf("%d", g.Workers)},
 		{Name: EnvServerThreadsAmount, Value: fmt.Sprintf("%d", g.Threads)},
-		{Name: EnvServerWorkerClass, Value: string(g.WorkerClass)},
+		{Name: EnvServerWorkerClass, Value: g.WorkerClass},
 		{Name: EnvGunicornTimeout, Value: fmt.Sprintf("%d", g.Timeout)},
 		{Name: EnvGunicornKeepAlive, Value: fmt.Sprintf("%d", g.KeepAlive)},
 		{Name: EnvWorkerMaxRequests, Value: fmt.Sprintf("%d", g.MaxRequests)},
 		{Name: EnvWorkerMaxRequestsJitter, Value: fmt.Sprintf("%d", g.MaxRequestsJitter)},
 		{Name: EnvServerLimitRequestLine, Value: fmt.Sprintf("%d", g.LimitRequestLine)},
 		{Name: EnvServerLimitRequestFieldSz, Value: fmt.Sprintf("%d", g.LimitRequestFieldSize)},
-		{Name: EnvGunicornLogLevel, Value: string(g.LogLevel)},
+		{Name: EnvGunicornLogLevel, Value: g.LogLevel},
 	}
 }

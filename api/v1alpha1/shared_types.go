@@ -303,25 +303,12 @@ type ValkeySpec struct {
 	ResultsBackend *ValkeyResultsBackendSpec `json:"resultsBackend,omitempty"`
 }
 
-// ValkeyCertRequirement selects how the Valkey server certificate is verified.
-// +kubebuilder:validation:Enum=required;optional;none
-type ValkeyCertRequirement string
-
-const (
-	// ValkeyCertRequired requires a valid server certificate.
-	ValkeyCertRequired ValkeyCertRequirement = "required"
-	// ValkeyCertOptional verifies the server certificate only if one is presented.
-	ValkeyCertOptional ValkeyCertRequirement = "optional"
-	// ValkeyCertNone skips server certificate verification.
-	ValkeyCertNone ValkeyCertRequirement = "none"
-)
-
 // ValkeySSLSpec configures TLS for the Valkey connection.
 type ValkeySSLSpec struct {
-	// Certificate verification mode.
+	// Certificate verification mode, passed to the Valkey client as ssl_cert_reqs (e.g. required, optional, none).
 	// +optional
 	// +kubebuilder:default=required
-	CertRequired *ValkeyCertRequirement `json:"certRequired,omitempty"`
+	CertRequired *string `json:"certRequired,omitempty"`
 
 	// Path to the client private key file (for mTLS).
 	// +optional
@@ -405,66 +392,6 @@ const (
 	PresetAggressive Preset = "aggressive"
 )
 
-// GunicornWorkerClass selects the Gunicorn worker class.
-// +kubebuilder:validation:Enum=sync;gthread;gevent;eventlet
-type GunicornWorkerClass string
-
-const (
-	// GunicornWorkerClassSync handles one request at a time per worker.
-	GunicornWorkerClassSync GunicornWorkerClass = "sync"
-	// GunicornWorkerClassGthread runs a thread pool per worker; required for threads > 1.
-	GunicornWorkerClassGthread GunicornWorkerClass = "gthread"
-	// GunicornWorkerClassGevent uses gevent green threads.
-	GunicornWorkerClassGevent GunicornWorkerClass = "gevent"
-	// GunicornWorkerClassEventlet uses eventlet green threads.
-	GunicornWorkerClassEventlet GunicornWorkerClass = "eventlet"
-)
-
-// GunicornLogLevel selects the Gunicorn log level.
-// +kubebuilder:validation:Enum=debug;info;warning;error;critical
-type GunicornLogLevel string
-
-const (
-	// GunicornLogLevelDebug logs debug messages and above.
-	GunicornLogLevelDebug GunicornLogLevel = "debug"
-	// GunicornLogLevelInfo logs informational messages and above.
-	GunicornLogLevelInfo GunicornLogLevel = "info"
-	// GunicornLogLevelWarning logs warnings and above.
-	GunicornLogLevelWarning GunicornLogLevel = "warning"
-	// GunicornLogLevelError logs errors and above.
-	GunicornLogLevelError GunicornLogLevel = "error"
-	// GunicornLogLevelCritical logs only critical errors.
-	GunicornLogLevelCritical GunicornLogLevel = "critical"
-)
-
-// CeleryPool selects the Celery worker pool implementation.
-// +kubebuilder:validation:Enum=prefork;threads;gevent;eventlet;solo
-type CeleryPool string
-
-const (
-	// CeleryPoolPrefork runs tasks in forked child processes.
-	CeleryPoolPrefork CeleryPool = "prefork"
-	// CeleryPoolThreads runs tasks in a thread pool.
-	CeleryPoolThreads CeleryPool = "threads"
-	// CeleryPoolGevent runs tasks in gevent green threads.
-	CeleryPoolGevent CeleryPool = "gevent"
-	// CeleryPoolEventlet runs tasks in eventlet green threads.
-	CeleryPoolEventlet CeleryPool = "eventlet"
-	// CeleryPoolSolo runs tasks inline in the worker process.
-	CeleryPoolSolo CeleryPool = "solo"
-)
-
-// CeleryOptimization selects the Celery task distribution strategy.
-// +kubebuilder:validation:Enum=default;fair
-type CeleryOptimization string
-
-const (
-	// CeleryOptimizationDefault prefetches tasks to child processes eagerly.
-	CeleryOptimizationDefault CeleryOptimization = "default"
-	// CeleryOptimizationFair only sends tasks to child processes that are free.
-	CeleryOptimizationFair CeleryOptimization = "fair"
-)
-
 // GunicornSpec configures Gunicorn worker parameters for the web server.
 // Fields controlled by presets: workers, threads, workerClass.
 // All other fields have static defaults independent of preset.
@@ -485,9 +412,9 @@ type GunicornSpec struct {
 	// +kubebuilder:validation:Minimum=1
 	Threads *int32 `json:"threads,omitempty"`
 
-	// Gunicorn worker class.
+	// Gunicorn worker class (e.g. gthread, sync, gevent), passed to Gunicorn as-is. Defaults to gthread.
 	// +optional
-	WorkerClass *GunicornWorkerClass `json:"workerClass,omitempty"`
+	WorkerClass *string `json:"workerClass,omitempty"`
 
 	// Request timeout in seconds.
 	// +optional
@@ -519,9 +446,9 @@ type GunicornSpec struct {
 	// +kubebuilder:validation:Minimum=0
 	LimitRequestFieldSize *int32 `json:"limitRequestFieldSize,omitempty"`
 
-	// Gunicorn log level.
+	// Gunicorn log level (e.g. debug, info, warning), passed to Gunicorn as-is. Defaults to info.
 	// +optional
-	LogLevel *GunicornLogLevel `json:"logLevel,omitempty"`
+	LogLevel *string `json:"logLevel,omitempty"`
 }
 
 // CeleryWorkerProcessSpec configures Celery worker execution parameters.
@@ -540,13 +467,13 @@ type CeleryWorkerProcessSpec struct {
 	// +kubebuilder:validation:Minimum=1
 	Concurrency *int32 `json:"concurrency,omitempty"`
 
-	// Celery pool implementation.
+	// Celery pool implementation (e.g. prefork, threads, gevent), passed to celery worker --pool as-is. Defaults to prefork.
 	// +optional
-	Pool *CeleryPool `json:"pool,omitempty"`
+	Pool *string `json:"pool,omitempty"`
 
-	// Task distribution optimization strategy.
+	// Task distribution optimization strategy (e.g. fair, default), passed to celery worker -O as-is. Defaults to fair.
 	// +optional
-	Optimization *CeleryOptimization `json:"optimization,omitempty"`
+	Optimization *string `json:"optimization,omitempty"`
 
 	// Maximum tasks a worker process handles before being replaced (prefork only; 0 = unlimited).
 	// +optional

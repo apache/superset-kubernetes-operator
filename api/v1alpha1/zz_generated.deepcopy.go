@@ -272,12 +272,12 @@ func (in *CeleryWorkerProcessSpec) DeepCopyInto(out *CeleryWorkerProcessSpec) {
 	}
 	if in.Pool != nil {
 		in, out := &in.Pool, &out.Pool
-		*out = new(CeleryPool)
+		*out = new(string)
 		**out = **in
 	}
 	if in.Optimization != nil {
 		in, out := &in.Optimization, &out.Optimization
-		*out = new(CeleryOptimization)
+		*out = new(string)
 		**out = **in
 	}
 	if in.MaxTasksPerChild != nil {
@@ -702,7 +702,7 @@ func (in *GunicornSpec) DeepCopyInto(out *GunicornSpec) {
 	}
 	if in.WorkerClass != nil {
 		in, out := &in.WorkerClass, &out.WorkerClass
-		*out = new(GunicornWorkerClass)
+		*out = new(string)
 		**out = **in
 	}
 	if in.Timeout != nil {
@@ -737,7 +737,7 @@ func (in *GunicornSpec) DeepCopyInto(out *GunicornSpec) {
 	}
 	if in.LogLevel != nil {
 		in, out := &in.LogLevel, &out.LogLevel
-		*out = new(GunicornLogLevel)
+		*out = new(string)
 		**out = **in
 	}
 }
@@ -2178,7 +2178,7 @@ func (in *ValkeySSLSpec) DeepCopyInto(out *ValkeySSLSpec) {
 	*out = *in
 	if in.CertRequired != nil {
 		in, out := &in.CertRequired, &out.CertRequired
-		*out = new(ValkeyCertRequirement)
+		*out = new(string)
 		**out = **in
 	}
 	if in.KeyFile != nil {

@@ -342,7 +342,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			cr.Spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{
 				Gunicorn: &supersetv1alpha1.GunicornSpec{
 					Threads:     new(int32(4)),
-					WorkerClass: new(supersetv1alpha1.GunicornWorkerClassSync),
+					WorkerClass: new("sync"),
 				},
 			}
 			err := k8sClient.Create(ctx, cr)
@@ -354,7 +354,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			cr := validDevSuperset("celery-maxtasks")
 			cr.Spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{
 				Celery: &supersetv1alpha1.CeleryWorkerProcessSpec{
-					Pool:             new(supersetv1alpha1.CeleryPoolThreads),
+					Pool:             new("threads"),
 					MaxTasksPerChild: new(int32(100)),
 				},
 			}
@@ -367,7 +367,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			cr := validDevSuperset("celery-maxmem")
 			cr.Spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{
 				Celery: &supersetv1alpha1.CeleryWorkerProcessSpec{
-					Pool:              new(supersetv1alpha1.CeleryPoolGevent),
+					Pool:              new("gevent"),
 					MaxMemoryPerChild: new(int32(500000)),
 				},
 			}

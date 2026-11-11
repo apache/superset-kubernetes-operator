@@ -8425,17 +8425,8 @@ spec:
                         minimum: 0
                         type: integer
                       optimization:
-                        enum:
-                        - default
-                        - fair
                         type: string
                       pool:
-                        enum:
-                        - prefork
-                        - threads
-                        - gevent
-                        - eventlet
-                        - solo
                         type: string
                       prefetchMultiplier:
                         format: int32
@@ -32086,10 +32077,6 @@ spec:
                         type: string
                       certRequired:
                         default: required
-                        enum:
-                        - required
-                        - optional
-                        - none
                         type: string
                       keyFile:
                         type: string
@@ -32478,12 +32465,6 @@ spec:
                         minimum: 0
                         type: integer
                       logLevel:
-                        enum:
-                        - debug
-                        - info
-                        - warning
-                        - error
-                        - critical
                         type: string
                       maxRequests:
                         format: int32
@@ -32510,11 +32491,6 @@ spec:
                         minimum: 1
                         type: integer
                       workerClass:
-                        enum:
-                        - sync
-                        - gthread
-                        - gevent
-                        - eventlet
                         type: string
                       workers:
                         format: int32

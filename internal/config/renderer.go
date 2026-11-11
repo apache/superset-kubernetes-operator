@@ -81,7 +81,7 @@ type ValkeyResultsInput struct {
 // ValkeyInput holds all resolved Valkey configuration for config rendering.
 type ValkeyInput struct {
 	SSL             bool
-	SSLCertRequired v1alpha1.ValkeyCertRequirement
+	SSLCertRequired string
 	SSLKeyFile      string
 	SSLCertFile     string
 	SSLCACertFile   string
@@ -257,10 +257,10 @@ func renderValkey(b *strings.Builder, v *ValkeyInput) {
 	if v.SSL {
 		certReq := v.SSLCertRequired
 		if certReq == "" {
-			certReq = v1alpha1.ValkeyCertRequired
+			certReq = "required"
 		}
 		b.WriteString("_vk_ssl_opts = {\n")
-		fmt.Fprintf(b, "    \"ssl_cert_reqs\": \"%s\",\n", pyQuote(string(certReq)))
+		fmt.Fprintf(b, "    \"ssl_cert_reqs\": \"%s\",\n", pyQuote(certReq))
 		if v.SSLKeyFile != "" {
 			fmt.Fprintf(b, "    \"ssl_keyfile\": \"%s\",\n", pyQuote(v.SSLKeyFile))
 		}

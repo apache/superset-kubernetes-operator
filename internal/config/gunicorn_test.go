@@ -32,11 +32,11 @@ func TestResolveGunicorn_NilSpec(t *testing.T) {
 	assert.False(t, g.Disabled)
 	assert.Equal(t, int32(2), g.Workers)
 	assert.Equal(t, int32(8), g.Threads)
-	assert.Equal(t, v1alpha1.GunicornWorkerClassGthread, g.WorkerClass)
+	assert.Equal(t, "gthread", g.WorkerClass)
 	assert.Equal(t, int32(60), g.Timeout)
 	assert.Equal(t, int32(2), g.KeepAlive)
 	assert.Equal(t, int32(0), g.MaxRequests)
-	assert.Equal(t, v1alpha1.GunicornLogLevelInfo, g.LogLevel)
+	assert.Equal(t, "info", g.LogLevel)
 }
 
 func TestResolveGunicorn_Presets(t *testing.T) {
@@ -55,7 +55,7 @@ func TestResolveGunicorn_Presets(t *testing.T) {
 			g := ResolveGunicorn(&v1alpha1.GunicornSpec{Preset: &tt.preset})
 			assert.Equal(t, tt.workers, g.Workers)
 			assert.Equal(t, tt.threads, g.Threads)
-			assert.Equal(t, v1alpha1.GunicornWorkerClassGthread, g.WorkerClass)
+			assert.Equal(t, "gthread", g.WorkerClass)
 		})
 	}
 }
@@ -83,27 +83,27 @@ func TestResolveGunicorn_AllFieldOverrides(t *testing.T) {
 		Preset:                new(v1alpha1.PresetBalanced),
 		Workers:               new(int32(3)),
 		Threads:               new(int32(5)),
-		WorkerClass:           new(v1alpha1.GunicornWorkerClassSync),
+		WorkerClass:           new("sync"),
 		Timeout:               new(int32(90)),
 		KeepAlive:             new(int32(7)),
 		MaxRequests:           new(int32(1000)),
 		MaxRequestsJitter:     new(int32(50)),
 		LimitRequestLine:      new(int32(8190)),
 		LimitRequestFieldSize: new(int32(16380)),
-		LogLevel:              new(v1alpha1.GunicornLogLevelDebug),
+		LogLevel:              new("debug"),
 	})
 
 	assert.False(t, g.Disabled)
 	assert.Equal(t, int32(3), g.Workers)
 	assert.Equal(t, int32(5), g.Threads)
-	assert.Equal(t, v1alpha1.GunicornWorkerClassSync, g.WorkerClass)
+	assert.Equal(t, "sync", g.WorkerClass)
 	assert.Equal(t, int32(90), g.Timeout)
 	assert.Equal(t, int32(7), g.KeepAlive)
 	assert.Equal(t, int32(1000), g.MaxRequests)
 	assert.Equal(t, int32(50), g.MaxRequestsJitter)
 	assert.Equal(t, int32(8190), g.LimitRequestLine)
 	assert.Equal(t, int32(16380), g.LimitRequestFieldSize)
-	assert.Equal(t, v1alpha1.GunicornLogLevelDebug, g.LogLevel)
+	assert.Equal(t, "debug", g.LogLevel)
 }
 
 func TestResolveGunicorn_EnvVars(t *testing.T) {

@@ -56,7 +56,7 @@ CRD defaulting runs before CEL validation. Do not put a kubebuilder/OpenAPI defa
 
 ### Enumerated fields
 
-Model every field that accepts a fixed set of values, in spec or status, as a named string type in `api/v1alpha1` with a typed constant per value. Put the `+kubebuilder:validation:Enum` marker on the type, not the field, so the Go constants and the CRD schema are declared in one place:
+Only use an enum when the operator defines the set of values: modes and policies it implements (`environment`, `upgradeMode`, presets, retention policy), choices it maps to its own behavior (`metastore.type` selects the driver, default port, and database-tool image), and status values it writes. Model each one as a named string type in `api/v1alpha1` with a typed constant per value. Put the `+kubebuilder:validation:Enum` marker on the type, not the field, so the Go constants and the CRD schema are declared in one place:
 
 ```go
 // UpgradeMode controls whether lifecycle upgrades require manual approval.
@@ -73,7 +73,9 @@ const (
 
 Use these constants everywhere, including controllers, config rendering, and tests, and keep the typed value through helper signatures. Convert with `string(...)` only where the value leaves Go, such as an env var or a command argument. Don't redeclare enum values as untyped string constants in internal packages. Document each constant: the API reference renders the comments as the table of allowed values.
 
-When a Kubernetes type already exists (`corev1.PullPolicy`, `corev1.ServiceType`), reuse it, and narrow it with a field-level `Enum` marker if only some values are supported. Prefer an enum over a `bool` for modes that may gain another value later.
+Don't use an enum for values the operator passes through to software it doesn't control, such as the Gunicorn worker class and log level, the Celery pool and optimization, or the Valkey client's `ssl_cert_reqs`. Upstream can add values at any time, and an enum would reject them until the operator is released again. Keep these fields plain `*string`, name a few common values and the default in the doc comment, and keep the operator's default as an unexported constant in the package that applies it.
+
+When a Kubernetes type already exists (`corev1.PullPolicy`, `corev1.ServiceType`), reuse it, and narrow it with a field-level `Enum` marker if the operator only supports some values. Prefer an enum over a `bool` for operator-defined modes that may gain another value later.
 
 ---
 

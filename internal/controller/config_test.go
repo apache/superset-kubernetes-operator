@@ -742,7 +742,7 @@ func TestBuildConfigInput_Valkey(t *testing.T) {
 			Valkey: &supersetv1alpha1.ValkeySpec{
 				Host: "valkey.default.svc",
 				SSL: &supersetv1alpha1.ValkeySSLSpec{
-					CertRequired: new(supersetv1alpha1.ValkeyCertRequired),
+					CertRequired: new("required"),
 					KeyFile:      new("/tls/key.pem"),
 					CertFile:     new("/tls/cert.pem"),
 					CACertFile:   new("/tls/ca.pem"),

@@ -31,8 +31,8 @@ func TestResolveCelery_NilSpec(t *testing.T) {
 	c := ResolveCelery(nil)
 	assert.False(t, c.Disabled)
 	assert.Equal(t, int32(4), c.Concurrency)
-	assert.Equal(t, v1alpha1.CeleryPoolPrefork, c.Pool)
-	assert.Equal(t, v1alpha1.CeleryOptimizationFair, c.Optimization)
+	assert.Equal(t, "prefork", c.Pool)
+	assert.Equal(t, "fair", c.Optimization)
 	assert.Equal(t, int32(0), c.MaxTasksPerChild)
 	assert.Equal(t, int32(0), c.MaxMemoryPerChild)
 	assert.Equal(t, int32(4), c.PrefetchMultiplier)
@@ -54,7 +54,7 @@ func TestResolveCelery_Presets(t *testing.T) {
 		t.Run(string(tt.preset), func(t *testing.T) {
 			c := ResolveCelery(&v1alpha1.CeleryWorkerProcessSpec{Preset: &tt.preset})
 			assert.Equal(t, tt.concurrency, c.Concurrency)
-			assert.Equal(t, v1alpha1.CeleryPoolPrefork, c.Pool)
+			assert.Equal(t, "prefork", c.Pool)
 		})
 	}
 }
@@ -68,11 +68,11 @@ func TestResolveCelery_FieldOverrides(t *testing.T) {
 	c := ResolveCelery(&v1alpha1.CeleryWorkerProcessSpec{
 		Preset:      new(v1alpha1.PresetConservative),
 		Concurrency: new(int32(12)),
-		Pool:        new(v1alpha1.CeleryPoolGevent),
+		Pool:        new("gevent"),
 	})
 	assert.Equal(t, int32(12), c.Concurrency)
-	assert.Equal(t, v1alpha1.CeleryPoolGevent, c.Pool)
-	assert.Equal(t, v1alpha1.CeleryOptimizationFair, c.Optimization)
+	assert.Equal(t, "gevent", c.Pool)
+	assert.Equal(t, "fair", c.Optimization)
 }
 
 func TestResolveCelery_Command(t *testing.T) {
