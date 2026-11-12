@@ -29,7 +29,7 @@ import (
 type lifecycleTaskDescriptor struct {
 	TaskType        string
 	Suffix          string
-	Phase           string
+	Phase           supersetv1alpha1.LifecyclePhase
 	DrainsByDefault bool
 
 	// BuildCommand returns the task command (respecting user override).
@@ -62,7 +62,7 @@ var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 	{
 		TaskType:        taskTypeSeed,
 		Suffix:          suffixSeed,
-		Phase:           lifecyclePhaseSeeding,
+		Phase:           supersetv1alpha1.LifecyclePhaseSeeding,
 		DrainsByDefault: true,
 		BuildCommand: func(r *SupersetReconciler, s *supersetv1alpha1.Superset) []string {
 			return r.buildSeedCommand(s)
@@ -92,7 +92,7 @@ var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 	{
 		TaskType:        taskTypeMigrate,
 		Suffix:          suffixMigrate,
-		Phase:           lifecyclePhaseMigrating,
+		Phase:           supersetv1alpha1.LifecyclePhaseMigrating,
 		DrainsByDefault: true,
 		BuildCommand: func(_ *SupersetReconciler, s *supersetv1alpha1.Superset) []string {
 			return defaultMigrateCommand(s)
@@ -119,7 +119,7 @@ var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 	{
 		TaskType:        taskTypeRotate,
 		Suffix:          suffixRotate,
-		Phase:           lifecyclePhaseRotating,
+		Phase:           supersetv1alpha1.LifecyclePhaseRotating,
 		DrainsByDefault: true,
 		BuildCommand: func(_ *SupersetReconciler, s *supersetv1alpha1.Superset) []string {
 			return defaultRotateCommand(s)
@@ -146,7 +146,7 @@ var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 	{
 		TaskType:        taskTypeInit,
 		Suffix:          suffixInit,
-		Phase:           lifecyclePhaseInitializing,
+		Phase:           supersetv1alpha1.LifecyclePhaseInitializing,
 		DrainsByDefault: false,
 		BuildCommand: func(_ *SupersetReconciler, s *supersetv1alpha1.Superset) []string {
 			return defaultInitCommand(s)

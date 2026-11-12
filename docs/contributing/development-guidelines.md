@@ -31,6 +31,21 @@ See [Architecture](../architecture/overview.md) for the structural overview (CRD
 - **Pure Go packages** (no controller-runtime dependency): `internal/resolution/` (spec flattening), `internal/config/` (Python rendering), `internal/common/` (shared types), `internal/schedule/` (cron tick computation)
 - **Parent resolves and executes**: All layering, lifecycle orchestration, resource reconciliation, and status projection live in the parent controller
 
+### Top-level defaults and per-component overrides
+
+The `Superset` spec has two levels. A top-level field is a default that every component it applies to inherits, and the same field on a component overrides it. Users set shared settings once and only spell out per component what differs.
+
+When a field applies to more than one component, declare it at both levels and resolve it in `internal/resolution` according to its shape:
+
+- **Whole values** (`replicas`, `autoscaling`, `podDisruptionBudget`, `sqlaEngineOptions`): the component value replaces the top-level value (`ResolveScalar`, `ResolveOverridableValue`).
+- **Templates** (`deploymentTemplate`, `podTemplate`): field-level merge (see [How to Add a New Field](#how-to-add-a-new-field)).
+- **Image**: `tag` and `repository` override independently.
+- **Raw config** (`config`): the component value is appended after the top-level value.
+
+Keep a field per-component only when its meaning is specific to one component (`webServer.gunicorn`, `celeryWorker.celery`), or when inheriting it would be wrong (`command`/`args`). Components a top-level value doesn't apply to ignore it: Celery beat and lifecycle Jobs ignore `autoscaling` and `podDisruptionBudget`.
+
+Validation that depends on an inherited value must check the effective value, not just the field as written on the component. Put such CEL rules on `SupersetSpec`, where both levels are visible.
+
 ### External connection values
 
 Typed connection interfaces must compose with Kubernetes-native provisioners. For every literal connection field that a database, cache, or other service operator may publish after reconciliation—such as host, port, database, or username—provide a sibling `*From` field using `corev1.SecretKeySelector`. The literal and selector must be mutually exclusive through CEL validation, and both must produce the same operator-internal environment variable. Keep type-appropriate defaults when neither optional form is set.
@@ -38,6 +53,29 @@ Typed connection interfaces must compose with Kubernetes-native provisioners. Fo
 Use per-field selectors rather than assuming a whole-Secret key convention: connection Secret keys differ across provisioners, and endpoint data and credentials may be owned by separate resources. The operator must pass selectors through as `valueFrom.secretKeyRef`; it must not read referenced Secret values or render them into ConfigMaps, checksums, status, or logs. Apply this convention consistently to every connection tuple, including lifecycle-only source or target connections, and cover both generated schema validation and observable Pod env output.
 
 CRD defaulting runs before CEL validation. Do not put a kubebuilder/OpenAPI default on the literal side of a literal/`*From` pair: when a user sets only the selector, admission would first materialize the literal default and then the mutual-exclusion rule would reject the resource as if both fields had been supplied. Apply the effective default in the resolution or env-building layer only when neither form is set. Preserve typed validation for explicit literals, document the runtime default, and use an envtest case with the `*From` field to verify the generated CRD—not just the Go helper.
+
+### Enumerated fields
+
+Only use an enum when the operator defines the set of values: modes and policies it implements (`environment`, `upgradeMode`, presets, retention policy), choices it maps to its own behavior (`metastore.type` selects the driver, default port, and database-tool image), and status values it writes. Model each one as a named string type in `api/v1alpha1` with a typed constant per value. Put the `+kubebuilder:validation:Enum` marker on the type, not the field, so the Go constants and the CRD schema are declared in one place:
+
+```go
+// UpgradeMode controls whether lifecycle upgrades require manual approval.
+// +kubebuilder:validation:Enum=Automatic;Supervised
+type UpgradeMode string
+
+const (
+	// UpgradeModeAutomatic runs lifecycle tasks immediately on image change.
+	UpgradeModeAutomatic UpgradeMode = "Automatic"
+	// UpgradeModeSupervised waits for an approval annotation before running lifecycle tasks.
+	UpgradeModeSupervised UpgradeMode = "Supervised"
+)
+```
+
+Use these constants in controllers and config rendering, and keep the typed value through helper signatures. Convert with `string(...)` only where the value leaves Go, such as an env var or a command argument. Don't redeclare enum values as untyped string constants in internal packages. Document each constant: the API reference renders the comments as the table of allowed values. Tests may build inputs from the constants but assert expected values as literals; see [Testing Philosophy](#guiding-principle-assert-on-observable-outputs).
+
+Don't use an enum for values the operator passes through to software it doesn't control, such as the Gunicorn worker class and log level, the Celery pool and optimization, or the Valkey client's `ssl_cert_reqs`. Upstream can add values at any time, and an enum would reject them until the operator is released again. Keep these fields plain `*string`, name a few common values and the default in the doc comment, and keep the operator's default as an unexported constant in the package that applies it.
+
+When a Kubernetes type already exists (`corev1.PullPolicy`, `corev1.ServiceType`), reuse it, and narrow it with a field-level `Enum` marker if the operator only supports some values. Prefer an enum over a `bool` for operator-defined modes that may gain another value later.
 
 ---
 
@@ -53,6 +91,7 @@ Across all tiers:
 
 - **Avoid testing private functions in isolation** unless they contain genuinely complex logic (merge semantics, backoff math). If a behavior is only meaningful through reconciliation, test it through reconciliation.
 - **Refactor freely without rewriting tests.** If renaming an internal helper or restructuring a package breaks tests, those tests were coupled to implementation, not behavior, and should be rewritten to assert on observable outputs or removed entirely.
+- **Assert expected values as literals, not production constants.** A user sees `Running`, `GUNICORN_LOGLEVEL`, or `prefork`, not the Go constant behind it. Write the expected value out (`assert.EqualValues(t, "Running", superset.Status.Phase)`) so an accidental change to a constant, enum value, env var name, or label key fails a test instead of silently moving the expectation with it. Building test inputs from constants is fine.
 - **Don't test non-actions.** A test should pin a behavior the code actively produces, not assert the absence of behavior the code never had (or no longer has). When you delete a feature, delete its tests — don't invert them into "X no longer happens" assertions. The positive tests for the surviving behavior already cover it: e.g. after removing downgrade blocking, a "downgrade proceeds" test is redundant because the general "an image change proceeds and re-runs migrate" test already exercises that path. (Mirrors the documentation rule: don't describe what the default already precludes.)
 
 ### Security and the threat model
@@ -263,6 +302,34 @@ When adding new source files (`.go`, `.yaml`, `.sh`, `Dockerfile`, etc.), includ
 
 ---
 
+## Automation Principle
+
+When committed state must stay in sync with something external (upstream releases, generated docs, tables derived from a source of truth), build a CI-enforced sync mechanism instead of documenting a manual checklist. Manual steps rot; CI failures don't.
+
+Patterns to follow:
+
+- **One source of truth, generated outputs.** Keep canonical data in a single small file (`.github/supported-k8s.json`, Go type definitions, etc.) and derive everything else (docs tables, CI matrices, defaults) from it.
+- **`make codegen` aggregates all generators.** Anything regenerable goes through it. CI's `Verify codegen` job runs `make codegen` and fails on diff.
+- **Upstream drift checks.** When the source-of-truth file must track something external (a pinned dependency's release notes, the latest upstream minor), write a `make sync-<thing>` script that queries the upstream API and rewrites the file, plus a `make verify-<thing>` that runs it in `--check` mode in CI. See `scripts/sync-supported-versions.sh` for the canonical example.
+- **Scheduled auto-sync PRs.** Pair the sync script with a daily scheduled GitHub Actions job that runs it and opens a PR if anything changed, so open PRs don't all break when upstream moves.
+- **Renovate for pinned versions.** Use `customManagers` for non-standard pin sites (regex-matched JSON/YAML fields). Use `prBodyNotes` and `addLabels` to point the reviewer to the right follow-up command on PRs that need manual judgment.
+- **Sentinel-bounded generated blocks** in human-edited files (`<!-- BEGIN X -->` / `<!-- END X -->`), so generators can rewrite specific regions without disturbing the hand-written content around them.
+
+The bar: every new "remember to also update X when Y changes" instruction is a bug in the tooling. Fix the tooling instead.
+
+---
+
+## Documentation Style
+
+- **README** is a landing page: project description, philosophy, quick start, link to docs. Keep it welcoming and free of jargon. Don't reference specific knobs, internal config names, or implementation details that might intimidate newcomers.
+- **`docs/index.md`** is the primary feature overview for the docs site. Keep feature descriptions high-level and outcome-focused; implementation details belong in the user guide or architecture docs. Prefer consolidated bullets that group related capabilities (e.g., "Lifecycle automation — seeding, migrations, key rotation, and init" rather than a separate bullet per feature).
+- **`docs/user-guide/configuration.md`** is the full configuration reference. Here it's appropriate to name specific fields, presets, and env vars, and to show concrete YAML examples.
+- **`docs/architecture/overview.md`** explains design decisions and internal structure for contributors and advanced users.
+- **General principles:** be concise and objective, avoid overselling or verbose language, reserve code blocks for real code (not ASCII art), and minimize duplication between the README and the docs (the README links to the docs for details).
+- **Generated docs:** the API reference and the Helm chart README are generated; see [Development Setup](development-setup.md#documentation) for how to regenerate them and how to link built-in Kubernetes types.
+
+---
+
 ## Do's and Don'ts
 
 ### Do
@@ -284,7 +351,7 @@ When adding new source files (`.go`, `.yaml`, `.sh`, `Dockerfile`, etc.), includ
 - **Don't fetch resources by name for cleanup** — use `deleteByLabels` with parent/component labels to discover and clean up. Name-based `CreateOrUpdate` and status reads are fine — those address resources whose names the operator controls.
 - **Don't hardcode commands/ports** — use `DeploymentConfig` defaults
 - **Don't duplicate controller logic** — use `component_reconciler.go` helpers
-- **Don't copy derived facts between docs** — values defined in code or in one canonical doc (e.g. the per-component routing paths in [`networking-and-monitoring.md`](../user-guide/networking-and-monitoring.md)) should be stated once and cross-linked from elsewhere, not re-listed on other pages where they silently go stale. Same spirit as the Automation Principle: one source of truth.
+- **Don't copy derived facts between docs** — values defined in code or in one canonical doc (e.g. the per-component routing paths in [`networking-and-monitoring.md`](../user-guide/networking-and-monitoring.md)) should be stated once and cross-linked from elsewhere, not re-listed on other pages where they silently go stale. Same spirit as the [Automation Principle](#automation-principle): one source of truth.
 - **Don't echo upstream defaults in Helm values or docs** — when a Helm value passes through to a Kubernetes field, leave it unset (`~`) so the platform default applies, and don't restate the current default value in comments, `values.yaml`, or release notes. Defaults can change upstream, and repeating them creates a second source of truth that silently goes stale.
 - **Don't add fields without doc comments** — they become CRD descriptions
 - **Don't use `bool` with `omitempty`** — use `*bool` to distinguish false from unset
@@ -304,6 +371,8 @@ New Deployment/Pod/Container fields go into the template hierarchy:
 5. Run `make manifests generate`
 6. Add assertions to existing comprehensive tests
 7. Update sample CRs if helpful
+
+Fields outside the templates follow the same layering: if a field applies to more than one component, add it at the top level and on each component it applies to, and resolve it as described in [Top-level defaults and per-component overrides](#top-level-defaults-and-per-component-overrides).
 
 ## How to Add a New Component
 
@@ -440,21 +509,7 @@ Scope is optional but encouraged when the change is scoped to a single area. Any
 
 CI validates this on every PR via the `PR / Validate PR title` check.
 
-**Allowed types:**
-
-| Type | Use for |
-|------|---------|
-| `feat` | New functionality |
-| `fix` | Bug fixes |
-| `refactor` | Code restructuring without behavior change |
-| `docs` | Documentation only |
-| `test` | Adding or updating tests |
-| `chore` | Maintenance (config, tooling, dependencies) |
-| `ci` | CI/CD workflow changes |
-| `build` | Build system or external dependency changes |
-| `perf` | Performance improvements |
-| `style` | Formatting, whitespace, linting |
-| `revert` | Reverting a previous commit |
+**Allowed types** are defined in [`.github/workflows/pr.yaml`](https://github.com/apache/superset-kubernetes-operator/blob/main/.github/workflows/pr.yaml) (the `types` input to the semantic-PR action) and follow the conventional-commit set. Check that file rather than copying the list, which would go stale.
 
 **Examples:**
 

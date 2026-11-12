@@ -24,6 +24,7 @@ import (
 	"strconv"
 	"strings"
 
+	v1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
@@ -101,7 +102,7 @@ type ConfigInput struct {
 	// Metastore mode and driver.
 	MetastoreMode MetastoreMode
 	// DBType is the database type for structured mode (PostgreSQL or MySQL).
-	DBType string
+	DBType v1alpha1.DatabaseType
 	// DBDriver is the SQLAlchemy driver for structured mode (e.g. psycopg2, mysqldb).
 	DBDriver string
 
@@ -384,9 +385,9 @@ func pyQuote(s string) string {
 }
 
 // driverScheme returns the SQLAlchemy connection scheme for a database type and driver.
-func driverScheme(dbType, driver string) string {
+func driverScheme(dbType v1alpha1.DatabaseType, driver string) string {
 	switch dbType {
-	case "MySQL":
+	case v1alpha1.DatabaseTypeMySQL:
 		if driver == "" {
 			driver = "mysqldb"
 		}

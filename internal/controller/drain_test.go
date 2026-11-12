@@ -62,14 +62,14 @@ func TestDrainIfNeededEmitsStartedWhenPodsRemain(t *testing.T) {
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: recorder}
 
-	result, err := r.drainIfNeeded(ctx, superset, "cfg", phaseUpgrading)
+	result, err := r.drainIfNeeded(ctx, superset, "cfg", supersetv1alpha1.SupersetPhaseUpgrading)
 	if err != nil {
 		t.Fatalf("drainIfNeeded: %v", err)
 	}
 	if result.Complete || result.RequeueAfter == 0 {
 		t.Fatalf("expected drain wait result, got %#v", result)
 	}
-	if superset.Status.Lifecycle.Phase != lifecyclePhaseDraining || superset.Status.Phase != phaseUpgrading {
+	if superset.Status.Lifecycle.Phase != "Draining" || superset.Status.Phase != "Upgrading" {
 		t.Fatalf("expected draining phases, got lifecycle=%q phase=%q", superset.Status.Lifecycle.Phase, superset.Status.Phase)
 	}
 	assertNextEventContains(t, recorder, "Normal DrainingStarted Draining component workloads before lifecycle tasks")
@@ -86,7 +86,7 @@ func TestDrainIfNeededEmitsCompletedAfterWaitingForPods(t *testing.T) {
 			WebServer: &supersetv1alpha1.WebServerComponentSpec{},
 		},
 		Status: supersetv1alpha1.SupersetStatus{
-			Lifecycle: &supersetv1alpha1.LifecycleStatus{Phase: lifecyclePhaseDraining},
+			Lifecycle: &supersetv1alpha1.LifecycleStatus{Phase: supersetv1alpha1.LifecyclePhaseDraining},
 			Conditions: []metav1.Condition{
 				{
 					Type:   supersetv1alpha1.ConditionTypeLifecycleComplete,
@@ -110,7 +110,7 @@ func TestDrainIfNeededEmitsCompletedAfterWaitingForPods(t *testing.T) {
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: recorder}
 
-	result, err := r.drainIfNeeded(ctx, superset, "cfg", phaseInitializing)
+	result, err := r.drainIfNeeded(ctx, superset, "cfg", supersetv1alpha1.SupersetPhaseInitializing)
 	if err != nil {
 		t.Fatalf("drainIfNeeded: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestDrainIfNeededSkipsWhenNoComponentHasDesiredReplicas(t *testing.T) {
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: recorder}
 
-	result, err := r.drainIfNeeded(ctx, superset, "cfg", phaseInitializing)
+	result, err := r.drainIfNeeded(ctx, superset, "cfg", supersetv1alpha1.SupersetPhaseInitializing)
 	if err != nil {
 		t.Fatalf("drainIfNeeded: %v", err)
 	}
@@ -183,7 +183,7 @@ func TestPrepareMaintenancePageSkipsWhenNoComponentHasDesiredReplicas(t *testing
 	}
 	r := &SupersetReconciler{}
 
-	result, err := r.prepareMaintenancePage(ctx, superset, "cfg", phaseInitializing)
+	result, err := r.prepareMaintenancePage(ctx, superset, "cfg", supersetv1alpha1.SupersetPhaseInitializing)
 	if err != nil {
 		t.Fatalf("prepareMaintenancePage: %v", err)
 	}
@@ -212,7 +212,7 @@ func TestPrepareMaintenancePageSkipsWhenWebServerHasNoDesiredReplicas(t *testing
 	}
 	r := &SupersetReconciler{}
 
-	result, err := r.prepareMaintenancePage(ctx, superset, "cfg", phaseInitializing)
+	result, err := r.prepareMaintenancePage(ctx, superset, "cfg", supersetv1alpha1.SupersetPhaseInitializing)
 	if err != nil {
 		t.Fatalf("prepareMaintenancePage: %v", err)
 	}
@@ -244,7 +244,7 @@ func TestPrepareMaintenancePageSkipsInitialInstallWithoutWebServerWorkload(t *te
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: recorder}
 
-	result, err := r.prepareMaintenancePage(ctx, superset, "cfg", phaseInitializing)
+	result, err := r.prepareMaintenancePage(ctx, superset, "cfg", supersetv1alpha1.SupersetPhaseInitializing)
 	if err != nil {
 		t.Fatalf("prepareMaintenancePage: %v", err)
 	}
@@ -289,7 +289,7 @@ func TestPrepareMaintenancePageStartsWhenWebServerDeploymentExists(t *testing.T)
 		Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: recorder}
 
-	result, err := r.prepareMaintenancePage(ctx, superset, "cfg", phaseInitializing)
+	result, err := r.prepareMaintenancePage(ctx, superset, "cfg", supersetv1alpha1.SupersetPhaseInitializing)
 	if err != nil {
 		t.Fatalf("prepareMaintenancePage: %v", err)
 	}
@@ -340,7 +340,7 @@ func TestDrainIfNeededSkipsWhenOnlyNonDrainInitWillRun(t *testing.T) {
 	r.Client = c
 	r.Scheme = scheme
 
-	result, err := r.drainIfNeeded(ctx, superset, "new-config", phaseInitializing)
+	result, err := r.drainIfNeeded(ctx, superset, "new-config", supersetv1alpha1.SupersetPhaseInitializing)
 	if err != nil {
 		t.Fatalf("drainIfNeeded: %v", err)
 	}

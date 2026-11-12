@@ -46,7 +46,7 @@ func (r *SupersetReconciler) drainIfNeeded(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
 	configChecksum string,
-	parentPhase string,
+	parentPhase supersetv1alpha1.SupersetPhase,
 ) (lifecycleResult, error) {
 	if !r.lifecycleNeedsDrain(superset, configChecksum) {
 		return lifecycleComplete(), nil
@@ -62,7 +62,7 @@ func (r *SupersetReconciler) drainIfNeeded(
 			r.Recorder.Eventf(superset, nil, corev1.EventTypeNormal, "DrainingStarted", "Lifecycle",
 				"Draining component workloads before lifecycle tasks")
 		}
-		superset.Status.Lifecycle.Phase = lifecyclePhaseDraining
+		superset.Status.Lifecycle.Phase = supersetv1alpha1.LifecyclePhaseDraining
 		superset.Status.Phase = parentPhase
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 			metav1.ConditionFalse, "Draining", "Scaling components to zero before lifecycle tasks", superset.Generation)
@@ -99,7 +99,7 @@ func (r *SupersetReconciler) taskNeedsRun(
 ) bool {
 	taskRef := taskStatusForType(superset, taskType)
 	if taskRef != nil {
-		if taskRef.State == taskStateComplete && taskRef.CompletedChecksum == taskChecksum {
+		if taskRef.State == supersetv1alpha1.TaskStateComplete && taskRef.CompletedChecksum == taskChecksum {
 			return false
 		}
 		if r.taskTerminalFailedForChecksum(superset, taskType, taskChecksum) {
@@ -118,7 +118,7 @@ func (r *SupersetReconciler) taskTerminalFailedForChecksum(
 	taskChecksum string,
 ) bool {
 	taskRef := taskStatusForType(superset, taskType)
-	if taskRef == nil || taskRef.State != taskStateFailed || taskRef.CompletedChecksum != taskChecksum {
+	if taskRef == nil || taskRef.State != supersetv1alpha1.TaskStateFailed || taskRef.CompletedChecksum != taskChecksum {
 		return false
 	}
 	maxRetries := taskRef.MaxRetries

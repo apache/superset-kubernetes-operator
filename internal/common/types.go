@@ -33,10 +33,3 @@ const (
 	ComponentMaintenancePage ComponentType = "maintenance-page"
 	ComponentInit            ComponentType = "init"
 )
-
-// Environment mode values.
-const (
-	EnvironmentDev     = "Development"
-	EnvironmentStaging = "Staging"
-	EnvironmentProd    = "Production"
-)

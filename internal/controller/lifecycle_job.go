@@ -57,7 +57,7 @@ func ensureTaskStatus(superset *supersetv1alpha1.Superset, taskType string) *sup
 }
 
 func resetTaskStatusForRun(taskRef *supersetv1alpha1.TaskRefStatus, desiredChecksum string, maxRetries int32) {
-	taskRef.State = taskStatePending
+	taskRef.State = supersetv1alpha1.TaskStatePending
 	taskRef.StartedAt = nil
 	taskRef.CompletedAt = nil
 	taskRef.Attempts = 0
@@ -93,7 +93,7 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 	image := fmt.Sprintf("%s:%s", flatSpec.Image.Repository, flatSpec.Image.Tag)
 
 	if taskRef.State == "" {
-		taskRef.State = taskStatePending
+		taskRef.State = supersetv1alpha1.TaskStatePending
 	}
 	if taskRef.Image == "" {
 		taskRef.Image = image
@@ -144,7 +144,7 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 		}
 
 		if jobFailed(existingJob) {
-			if taskRef.State == taskStatePending && taskRef.Attempts > 0 && taskRef.NextAttemptAt == nil {
+			if taskRef.State == supersetv1alpha1.TaskStatePending && taskRef.Attempts > 0 && taskRef.NextAttemptAt == nil {
 				if err := r.deleteLifecycleJob(ctx, superset, existingJob); err != nil {
 					return lifecycleResult{}, err
 				}
@@ -154,7 +154,7 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 			taskRef.Attempts++
 			taskRef.Message = jobFailureMessage(existingJob)
 			if taskRef.Attempts >= maxRetries {
-				taskRef.State = taskStateFailed
+				taskRef.State = supersetv1alpha1.TaskStateFailed
 				taskRef.CompletedChecksum = taskChecksum
 				if completed := jobConditionTransitionTime(existingJob, batchv1.JobFailed); completed != nil {
 					taskRef.CompletedAt = completed
@@ -171,7 +171,7 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 			backoff := calculateBackoff(taskRef.Attempts)
 			next := metav1.NewTime(r.now().Add(backoff))
 			taskRef.NextAttemptAt = &next
-			taskRef.State = taskStatePending
+			taskRef.State = supersetv1alpha1.TaskStatePending
 
 			r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "TaskRetry", "Lifecycle",
 				"%s task failed (attempt %d/%d), retrying in %s", taskType, taskRef.Attempts, maxRetries, backoff)
@@ -186,7 +186,7 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 			return result, err
 		}
 
-		taskRef.State = taskStateRunning
+		taskRef.State = supersetv1alpha1.TaskStateRunning
 		if taskRef.StartedAt == nil {
 			if existingJob.Status.StartTime != nil {
 				taskRef.StartedAt = existingJob.Status.StartTime
@@ -215,7 +215,7 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 	}
 
 	now := metav1.Now()
-	taskRef.State = taskStateRunning
+	taskRef.State = supersetv1alpha1.TaskStateRunning
 	taskRef.StartedAt = &now
 	taskRef.CompletedAt = nil
 	taskRef.Image = image
@@ -242,7 +242,7 @@ func (r *SupersetReconciler) recordTaskCompletion(
 	if completed := jobConditionTransitionTime(existingJob, batchv1.JobComplete); completed != nil {
 		now = *completed
 	}
-	taskRef.State = taskStateComplete
+	taskRef.State = supersetv1alpha1.TaskStateComplete
 	taskRef.CompletedAt = &now
 	if taskRef.StartedAt == nil && existingJob.Status.StartTime != nil {
 		taskRef.StartedAt = existingJob.Status.StartTime
@@ -328,7 +328,7 @@ func (r *SupersetReconciler) handleStuckTaskPod(
 		if err := r.deleteLifecycleJob(ctx, superset, existingJob); err != nil {
 			return lifecycleResult{}, false, fmt.Errorf("deleting wedged task job %s: %w", existingJob.Name, err)
 		}
-		taskRef.State = taskStatePending
+		taskRef.State = supersetv1alpha1.TaskStatePending
 		taskRef.Message = "Recreating task after spec change: " + msg
 		r.Recorder.Eventf(superset, nil, corev1.EventTypeNormal, "TaskRecovering", "Lifecycle",
 			"%s task pod could not start (%s); recreating with updated spec", taskType, msg)
@@ -482,7 +482,7 @@ func (r *SupersetReconciler) reconcileTaskJobImage(
 		if err := r.deleteLifecycleJob(ctx, superset, existingJob); err != nil {
 			return lifecycleResult{}, false, err
 		}
-		taskRef.State = taskStatePending
+		taskRef.State = supersetv1alpha1.TaskStatePending
 		taskRef.Image = image
 		taskRef.Message = "Image changed, re-running task"
 		r.Recorder.Eventf(superset, nil, corev1.EventTypeNormal, "TaskImageChanged", "Lifecycle",

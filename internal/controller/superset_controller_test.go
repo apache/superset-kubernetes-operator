@@ -44,7 +44,7 @@ var _ = Describe("Integration", Ordered, func() {
 
 	// --- helpers ---
 
-	devEnv := "Development"
+	devEnv := supersetv1alpha1.EnvironmentDevelopment
 
 	newSuperset := func(name, ns string) *supersetv1alpha1.Superset {
 		return &supersetv1alpha1.Superset{
@@ -78,7 +78,7 @@ var _ = Describe("Integration", Ordered, func() {
 
 		It("should reject invalid environment enum value", func() {
 			cr := newSuperset("env-enum", ns)
-			invalid := "staging"
+			invalid := supersetv1alpha1.Environment("staging")
 			cr.Spec.Environment = &invalid
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
@@ -102,7 +102,7 @@ var _ = Describe("Integration", Ordered, func() {
 			cr := newSuperset("type-enum", ns)
 			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
 				Host: new("db.example.com"),
-				Type: new("sqlite"),
+				Type: new(supersetv1alpha1.DatabaseType("sqlite")),
 			}
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
@@ -319,7 +319,7 @@ var _ = Describe("Integration", Ordered, func() {
 		})
 
 		It("should reject inline websocketServer config outside Development", func() {
-			prodEnv := "Production"
+			prodEnv := supersetv1alpha1.EnvironmentProduction
 			cr := newSuperset("ws-config-prod", ns)
 			cr.Spec.Environment = &prodEnv
 			cr.Spec.SecretKey = nil
@@ -340,7 +340,7 @@ var _ = Describe("Integration", Ordered, func() {
 		})
 
 		It("should accept websocketServer configFrom outside Development", func() {
-			prodEnv := "Production"
+			prodEnv := supersetv1alpha1.EnvironmentProduction
 			cr := newSuperset("ws-configfrom-prod", ns)
 			cr.Spec.Environment = &prodEnv
 			cr.Spec.SecretKey = nil
@@ -498,7 +498,7 @@ var _ = Describe("Integration", Ordered, func() {
 		})
 
 		It("should set status phase on the parent CR", func() {
-			Eventually(func() string {
+			Eventually(func() supersetv1alpha1.SupersetPhase {
 				cr := &supersetv1alpha1.Superset{}
 				if err := k8sClient.Get(ctx, types.NamespacedName{
 					Name: "lifecycle", Namespace: ns,

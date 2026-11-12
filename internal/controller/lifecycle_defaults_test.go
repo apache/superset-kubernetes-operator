@@ -96,18 +96,18 @@ func TestTaskRetentionPolicyValue(t *testing.T) {
 	})
 
 	t.Run("uses lifecycle-level policy", func(t *testing.T) {
-		policy := retentionDelete
+		policy := supersetv1alpha1.PodRetentionPolicyDelete
 		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{
 				PodRetention: &supersetv1alpha1.PodRetentionSpec{Policy: &policy},
 			},
 		}}
-		assert.Equal(t, retentionDelete, r.taskRetentionPolicyValue(superset, taskTypeInit))
+		assert.EqualValues(t, "Delete", r.taskRetentionPolicyValue(superset, taskTypeInit))
 	})
 
 	t.Run("seed-specific policy overrides lifecycle-level", func(t *testing.T) {
-		lifecyclePolicy := retentionRetain
-		seedPolicy := retentionDelete
+		lifecyclePolicy := supersetv1alpha1.PodRetentionPolicyRetain
+		seedPolicy := supersetv1alpha1.PodRetentionPolicyDelete
 		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{
 				PodRetention: &supersetv1alpha1.PodRetentionSpec{Policy: &lifecyclePolicy},
@@ -116,28 +116,28 @@ func TestTaskRetentionPolicyValue(t *testing.T) {
 				},
 			},
 		}}
-		assert.Equal(t, retentionDelete, r.taskRetentionPolicyValue(superset, taskTypeSeed))
+		assert.EqualValues(t, "Delete", r.taskRetentionPolicyValue(superset, taskTypeSeed))
 	})
 }
 
 func TestGetUpgradeMode(t *testing.T) {
 	t.Run("defaults to Automatic when lifecycle nil", func(t *testing.T) {
-		assert.Equal(t, upgradeModeAutomatic, getUpgradeMode(&supersetv1alpha1.Superset{}))
+		assert.EqualValues(t, "Automatic", getUpgradeMode(&supersetv1alpha1.Superset{}))
 	})
 
 	t.Run("defaults to Automatic when unset", func(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{},
 		}}
-		assert.Equal(t, upgradeModeAutomatic, getUpgradeMode(superset))
+		assert.EqualValues(t, "Automatic", getUpgradeMode(superset))
 	})
 
 	t.Run("returns Supervised when set", func(t *testing.T) {
-		mode := upgradeModeSupervised
+		mode := supersetv1alpha1.UpgradeModeSupervised
 		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{UpgradeMode: &mode},
 		}}
-		assert.Equal(t, upgradeModeSupervised, getUpgradeMode(superset))
+		assert.EqualValues(t, "Supervised", getUpgradeMode(superset))
 	})
 }
 
