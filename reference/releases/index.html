@@ -802,6 +802,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Fixed
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -820,7 +831,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#fixed" class="md-nav__link">
+  <a href="#fixed_1" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
         Fixed
@@ -870,7 +881,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#fixed_1" class="md-nav__link">
+  <a href="#fixed_2" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
         Fixed
@@ -959,7 +970,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#fixed_2" class="md-nav__link">
+  <a href="#fixed_3" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
         Fixed
@@ -1273,6 +1284,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Fixed
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1291,7 +1313,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#fixed" class="md-nav__link">
+  <a href="#fixed_1" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
         Fixed
@@ -1341,7 +1363,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#fixed_1" class="md-nav__link">
+  <a href="#fixed_2" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
         Fixed
@@ -1430,7 +1452,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#fixed_2" class="md-nav__link">
+  <a href="#fixed_3" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
         Fixed
@@ -1541,8 +1563,12 @@ under the License.
 <li><strong>Celery worker liveness probe.</strong> The Celery worker now gets a default liveness probe that runs <code>celery inspect ping</code> against the pod's own worker node, so a worker that stays Running but no longer answers over the broker is restarted. Timings match the upstream Superset Helm chart (120s initial delay, 60s period and timeout, 3 failures). Existing worker Deployments roll once on upgrade, and setting <code>livenessProbe</code> on the worker replaces the default (<a href="https://github.com/apache/superset-kubernetes-operator/pull/427">#427</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
 <li><code>webServer.gunicorn.workerClass</code>, <code>webServer.gunicorn.logLevel</code>, <code>celeryWorker.celery.pool</code>, <code>celeryWorker.celery.optimization</code>, and <code>valkey.ssl.certRequired</code> no longer have a fixed list of allowed values. The operator passes them to Gunicorn, Celery, and the Valkey client unchanged, so values added in newer releases of those projects work without an operator update (<a href="https://github.com/apache/superset-kubernetes-operator/pull/508">#508</a>, <a href="https://github.com/villebro">@villebro</a>).</li>
 </ul>
-<h2 id="031-2026-10-21">0.3.1 - 2026-10-21<a class="headerlink" href="#031-2026-10-21" title="Permanent link">&para;</a></h2>
 <h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>User-managed HPAs and PDBs are no longer deleted.</strong> The operator used to delete an unowned HPA or PDB named after a component Deployment, such as one created with <code>kubectl autoscale</code>, whenever that component had no <code>autoscaling</code> or <code>podDisruptionBudget</code> and again on every lifecycle drain. Component cleanup now finds resources by the operator's labels, and by name only for resources the Superset owns (<a href="https://github.com/apache/superset-kubernetes-operator/pull/507">#507</a>, <a href="https://github.com/villebro">@villebro</a>).</li>
+</ul>
+<h2 id="031-2026-10-21">0.3.1 - 2026-10-21<a class="headerlink" href="#031-2026-10-21" title="Permanent link">&para;</a></h2>
+<h3 id="fixed_1">Fixed<a class="headerlink" href="#fixed_1" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Credential redaction in lifecycle task failure messages now masks the whole value when a quoted credential key is followed by empty quotes and more characters, such as <code>{"password": ""hunter2}</code>. Previously the characters after the empty quotes were left in the parent Superset status and Kubernetes Events (<a href="https://github.com/apache/superset-kubernetes-operator/pull/437">#437</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
 <li>Setting <code>spec.valkey.ssl</code> without certificate files (for example <code>ssl: {}</code> for managed Valkey or Redis with in-transit encryption) no longer crash-loops the Celery worker. The operator now renders <code>ssl_cert_reqs</code> and the Celery <code>broker_use_ssl</code> and <code>redis_backend_use_ssl</code> options whenever SSL is enabled, and <code>ssl.certRequired</code> takes effect without certificate paths. Deployments that use SSL roll once on upgrade (<a href="https://github.com/apache/superset-kubernetes-operator/pull/440">#440</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
@@ -1560,7 +1586,7 @@ under the License.
 <li>Valkey's default port is now applied at runtime, aligning it with the existing structured-metastore behavior, instead of being stored by CRD defaulting. Resources that omit both <code>valkey.port</code> and <code>valkey.portFrom</code> therefore no longer materialize <code>port: 6379</code>, while generated configuration continues to use port 6379. This permits <code>portFrom</code> without a defaulted literal conflicting at admission (<a href="https://github.com/apache/superset-kubernetes-operator/pull/369">#369</a>).</li>
 <li>Kubernetes support now covers the three newest <code>kind</code>-published minor versions instead of two. CI tests Kubernetes 1.37, 1.36, and 1.35 natively, with the experimental <code>next</code> lane disabled again (<a href="https://github.com/apache/superset-kubernetes-operator/pull/315">#315</a>).</li>
 </ul>
-<h3 id="fixed_1">Fixed<a class="headerlink" href="#fixed_1" title="Permanent link">&para;</a></h3>
+<h3 id="fixed_2">Fixed<a class="headerlink" href="#fixed_2" title="Permanent link">&para;</a></h3>
 <ul>
 <li>The default MySQL tool image for the seed task and the <code>createDatabase</code> init container is now <code>mysql:8.4</code>. The previous default, <code>mysql:8-alpine</code>, does not exist on Docker Hub, so MySQL seeding and database auto-creation failed with an image pull error unless an image was set explicitly. Staging instances that seed from MySQL with the default image re-seed once after upgrading, because the seed image is part of the seed task checksum (<a href="https://github.com/apache/superset-kubernetes-operator/pull/389">#389</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
 <li>The operator-managed maintenance page now sets <code>seccompProfile: RuntimeDefault</code> on its container, so it is admitted in namespaces enforcing the restricted Pod Security Standard (its other hardened defaults were already set, but the missing seccomp profile caused rejection) (<a href="https://github.com/apache/superset-kubernetes-operator/pull/362">#362</a>, <a href="https://github.com/villebro">@villebro</a>).</li>
@@ -1600,7 +1626,7 @@ under the License.
 <li><strong>Credential redaction in task failure output.</strong> Lifecycle task failure messages are now scrubbed with best-effort pattern-based redaction before being persisted to the parent Superset status and Kubernetes Events: passwords embedded in connection URIs and common credential assignments (<code>password=...</code>, <code>token=...</code>, etc.) are masked. This mitigates the known limitation where a failing task command could leak credential fragments into status (<a href="https://github.com/younsl">@younsl</a>).</li>
 </ul>
 <h2 id="011-2026-06-29">0.1.1 - 2026-06-29<a class="headerlink" href="#011-2026-06-29" title="Permanent link">&para;</a></h2>
-<h3 id="fixed_2">Fixed<a class="headerlink" href="#fixed_2" title="Permanent link">&para;</a></h3>
+<h3 id="fixed_3">Fixed<a class="headerlink" href="#fixed_3" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Honor HPA-managed replica counts: the operator no longer overwrites the replica count on Deployments whose scaling is owned by a HorizontalPodAutoscaler (<a href="https://github.com/apache/superset-kubernetes-operator/pull/152">#152</a>, <a href="https://github.com/pashtet04">@pashtet04</a>).</li>
 </ul>
