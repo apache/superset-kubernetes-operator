@@ -336,17 +336,30 @@ func (r *SupersetReconciler) deleteComponentWorkload(
 	deleteService bool,
 ) error {
 	labels := podOperatorLabels(string(componentType), superset.Name, superset.Name)
-	newLists := []func() client.ObjectList{
-		func() client.ObjectList { return &appsv1.DeploymentList{} },
-		func() client.ObjectList { return &autoscalingv2.HorizontalPodAutoscalerList{} },
-		func() client.ObjectList { return &policyv1.PodDisruptionBudgetList{} },
+	resourceBaseName := common.ResourceBaseName(superset.Name, componentType)
+	type kind struct {
+		obj     client.Object
+		newList func() client.ObjectList
+	}
+	kinds := []kind{
+		{&appsv1.Deployment{}, func() client.ObjectList { return &appsv1.DeploymentList{} }},
+		{&autoscalingv2.HorizontalPodAutoscaler{}, func() client.ObjectList { return &autoscalingv2.HorizontalPodAutoscalerList{} }},
+		{&policyv1.PodDisruptionBudget{}, func() client.ObjectList { return &policyv1.PodDisruptionBudgetList{} }},
 	}
 	if deleteService {
-		newLists = append(newLists, func() client.ObjectList { return &corev1.ServiceList{} })
+		kinds = append(kinds, kind{&corev1.Service{}, func() client.ObjectList { return &corev1.ServiceList{} }})
 	}
-	for _, newList := range newLists {
-		if err := deleteByLabels(ctx, r.Client, superset, superset.Namespace, labels, newList, ""); err != nil {
-			return fmt.Errorf("deleting %T: %w", newList(), err)
+	for _, k := range kinds {
+		// TODO(0.5.0): remove this name-based fallback. Deployments and
+		// Services created before 0.4.0 lack the parent label until their next
+		// reconcile; it only deletes resources this CR controls.
+		k.obj.SetName(resourceBaseName)
+		k.obj.SetNamespace(superset.Namespace)
+		if err := deleteIfControlledBy(ctx, r.Client, superset, k.obj); err != nil {
+			return fmt.Errorf("deleting %T %s: %w", k.obj, resourceBaseName, err)
+		}
+		if err := deleteByLabels(ctx, r.Client, superset, superset.Namespace, labels, k.newList, ""); err != nil {
+			return fmt.Errorf("deleting %T: %w", k.obj, err)
 		}
 	}
 	return nil

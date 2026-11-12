@@ -39,7 +39,7 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 
 ### Fixed
 
-- **User-managed HPAs and PDBs are no longer deleted.** The operator used to delete an unowned HPA or PDB named after a component Deployment, such as one created with `kubectl autoscale`, whenever that component had no `autoscaling` or `podDisruptionBudget` and again on every lifecycle drain. Component cleanup now finds resources only by the operator's labels. Component Deployments and Services created by earlier versions get those labels on the first reconcile after upgrading. Until then, a lifecycle drain doesn't see them and keeps waiting for their pods. To avoid this, let the upgraded operator reconcile each Superset before changing its image or anything else that re-runs lifecycle tasks. If a drain is already stuck, delete the component Deployments by hand (`kubectl delete deployment <name>-web-server <name>-celery-worker ...`) and the drain continues ([#507](https://github.com/apache/superset-kubernetes-operator/pull/507), [@villebro](https://github.com/villebro)).
+- **User-managed HPAs and PDBs are no longer deleted.** The operator used to delete an unowned HPA or PDB named after a component Deployment, such as one created with `kubectl autoscale`, whenever that component had no `autoscaling` or `podDisruptionBudget` and again on every lifecycle drain. Component cleanup now finds resources by the operator's labels, and by name only for resources the Superset owns ([#507](https://github.com/apache/superset-kubernetes-operator/pull/507), [@villebro](https://github.com/villebro)).
 
 ## 0.3.1 - 2026-10-21
 

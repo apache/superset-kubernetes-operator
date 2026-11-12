@@ -45,6 +45,14 @@ func reconcileHPA(
 ) error {
 	if autoscaling == nil {
 		logf.FromContext(ctx).V(2).Info("Ensuring no HPA (autoscaling disabled)", "name", deploymentName)
+		// TODO(0.5.0): remove this name-based fallback. HPAs created before
+		// 0.3.0 lack the parent label the selector below requires; it only
+		// deletes HPAs this CR controls, never unowned ones.
+		if err := deleteIfControlledBy(ctx, c, owner, &autoscalingv2.HorizontalPodAutoscaler{
+			Name: deploymentName, Namespace: namespace,
+		}); err != nil {
+			return err
+		}
 		return deleteByLabels(ctx, c, owner, namespace, labels,
 			func() client.ObjectList { return &autoscalingv2.HorizontalPodAutoscalerList{} }, "")
 	}
@@ -94,6 +102,12 @@ func reconcilePDB(
 ) error {
 	if pdbSpec == nil {
 		logf.FromContext(ctx).V(2).Info("Ensuring no PDB (disabled)", "name", name)
+		// TODO(0.5.0): remove this name-based fallback; see reconcileHPA.
+		if err := deleteIfControlledBy(ctx, c, owner, &policyv1.PodDisruptionBudget{
+			Name: name, Namespace: namespace,
+		}); err != nil {
+			return err
+		}
 		return deleteByLabels(ctx, c, owner, namespace, labels,
 			func() client.ObjectList { return &policyv1.PodDisruptionBudgetList{} }, "")
 	}
