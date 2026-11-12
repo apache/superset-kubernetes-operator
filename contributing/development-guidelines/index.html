@@ -923,10 +923,32 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#top-level-defaults-and-per-component-overrides" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Top-level defaults and per-component overrides
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#external-connection-values" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
         External connection values
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#enumerated-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Enumerated fields
       </span>
     </span>
   </a>
@@ -1070,6 +1092,28 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         License Headers
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#automation-principle" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Automation Principle
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation-style" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Documentation Style
       </span>
     </span>
   </a>
@@ -1428,10 +1472,32 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
+  <a href="#top-level-defaults-and-per-component-overrides" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Top-level defaults and per-component overrides
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#external-connection-values" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
         External connection values
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#enumerated-fields" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Enumerated fields
       </span>
     </span>
   </a>
@@ -1575,6 +1641,28 @@
     <span class="md-ellipsis">
       <span class="md-typeset">
         License Headers
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#automation-principle" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Automation Principle
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#documentation-style" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Documentation Style
       </span>
     </span>
   </a>
@@ -1886,10 +1974,37 @@ under the License.
 <li><strong>Pure Go packages</strong> (no controller-runtime dependency): <code>internal/resolution/</code> (spec flattening), <code>internal/config/</code> (Python rendering), <code>internal/common/</code> (shared types), <code>internal/schedule/</code> (cron tick computation)</li>
 <li><strong>Parent resolves and executes</strong>: All layering, lifecycle orchestration, resource reconciliation, and status projection live in the parent controller</li>
 </ul>
+<h3 id="top-level-defaults-and-per-component-overrides">Top-level defaults and per-component overrides<a class="headerlink" href="#top-level-defaults-and-per-component-overrides" title="Permanent link">&para;</a></h3>
+<p>The <code>Superset</code> spec has two levels. A top-level field is a default that every component it applies to inherits, and the same field on a component overrides it. Users set shared settings once and only spell out per component what differs.</p>
+<p>When a field applies to more than one component, declare it at both levels and resolve it in <code>internal/resolution</code> according to its shape:</p>
+<ul>
+<li><strong>Whole values</strong> (<code>replicas</code>, <code>autoscaling</code>, <code>podDisruptionBudget</code>, <code>sqlaEngineOptions</code>): the component value replaces the top-level value (<code>ResolveScalar</code>, <code>ResolveOverridableValue</code>).</li>
+<li><strong>Templates</strong> (<code>deploymentTemplate</code>, <code>podTemplate</code>): field-level merge (see <a href="#how-to-add-a-new-field">How to Add a New Field</a>).</li>
+<li><strong>Image</strong>: <code>tag</code> and <code>repository</code> override independently.</li>
+<li><strong>Raw config</strong> (<code>config</code>): the component value is appended after the top-level value.</li>
+</ul>
+<p>Keep a field per-component only when its meaning is specific to one component (<code>webServer.gunicorn</code>, <code>celeryWorker.celery</code>), or when inheriting it would be wrong (<code>command</code>/<code>args</code>). Components a top-level value doesn't apply to ignore it: Celery beat and lifecycle Jobs ignore <code>autoscaling</code> and <code>podDisruptionBudget</code>.</p>
+<p>Validation that depends on an inherited value must check the effective value, not just the field as written on the component. Put such CEL rules on <code>SupersetSpec</code>, where both levels are visible.</p>
 <h3 id="external-connection-values">External connection values<a class="headerlink" href="#external-connection-values" title="Permanent link">&para;</a></h3>
 <p>Typed connection interfaces must compose with Kubernetes-native provisioners. For every literal connection field that a database, cache, or other service operator may publish after reconciliation—such as host, port, database, or username—provide a sibling <code>*From</code> field using <code>corev1.SecretKeySelector</code>. The literal and selector must be mutually exclusive through CEL validation, and both must produce the same operator-internal environment variable. Keep type-appropriate defaults when neither optional form is set.</p>
 <p>Use per-field selectors rather than assuming a whole-Secret key convention: connection Secret keys differ across provisioners, and endpoint data and credentials may be owned by separate resources. The operator must pass selectors through as <code>valueFrom.secretKeyRef</code>; it must not read referenced Secret values or render them into ConfigMaps, checksums, status, or logs. Apply this convention consistently to every connection tuple, including lifecycle-only source or target connections, and cover both generated schema validation and observable Pod env output.</p>
 <p>CRD defaulting runs before CEL validation. Do not put a kubebuilder/OpenAPI default on the literal side of a literal/<code>*From</code> pair: when a user sets only the selector, admission would first materialize the literal default and then the mutual-exclusion rule would reject the resource as if both fields had been supplied. Apply the effective default in the resolution or env-building layer only when neither form is set. Preserve typed validation for explicit literals, document the runtime default, and use an envtest case with the <code>*From</code> field to verify the generated CRD—not just the Go helper.</p>
+<h3 id="enumerated-fields">Enumerated fields<a class="headerlink" href="#enumerated-fields" title="Permanent link">&para;</a></h3>
+<p>Only use an enum when the operator defines the set of values: modes and policies it implements (<code>environment</code>, <code>upgradeMode</code>, presets, retention policy), choices it maps to its own behavior (<code>metastore.type</code> selects the driver, default port, and database-tool image), and status values it writes. Model each one as a named string type in <code>api/v1alpha1</code> with a typed constant per value. Put the <code>+kubebuilder:validation:Enum</code> marker on the type, not the field, so the Go constants and the CRD schema are declared in one place:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1">// UpgradeMode controls whether lifecycle upgrades require manual approval.</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="c1">// +kubebuilder:validation:Enum=Automatic;Supervised</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="kd">type</span><span class="w"> </span><span class="nx">UpgradeMode</span><span class="w"> </span><span class="kt">string</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="kd">const</span><span class="w"> </span><span class="p">(</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">    </span><span class="c1">// UpgradeModeAutomatic runs lifecycle tasks immediately on image change.</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="nx">UpgradeModeAutomatic</span><span class="w"> </span><span class="nx">UpgradeMode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"Automatic"</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="c1">// UpgradeModeSupervised waits for an approval annotation before running lifecycle tasks.</span>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">    </span><span class="nx">UpgradeModeSupervised</span><span class="w"> </span><span class="nx">UpgradeMode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">"Supervised"</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="p">)</span>
+</code></pre></div>
+<p>Use these constants in controllers and config rendering, and keep the typed value through helper signatures. Convert with <code>string(...)</code> only where the value leaves Go, such as an env var or a command argument. Don't redeclare enum values as untyped string constants in internal packages. Document each constant: the API reference renders the comments as the table of allowed values. Tests may build inputs from the constants but assert expected values as literals; see <a href="#guiding-principle-assert-on-observable-outputs">Testing Philosophy</a>.</p>
+<p>Don't use an enum for values the operator passes through to software it doesn't control, such as the Gunicorn worker class and log level, the Celery pool and optimization, or the Valkey client's <code>ssl_cert_reqs</code>. Upstream can add values at any time, and an enum would reject them until the operator is released again. Keep these fields plain <code>*string</code>, name a few common values and the default in the doc comment, and keep the operator's default as an unexported constant in the package that applies it.</p>
+<p>When a Kubernetes type already exists (<code>corev1.PullPolicy</code>, <code>corev1.ServiceType</code>), reuse it, and narrow it with a field-level <code>Enum</code> marker if the operator only supports some values. Prefer an enum over a <code>bool</code> for operator-defined modes that may gain another value later.</p>
 <hr />
 <h2 id="testing-philosophy">Testing Philosophy<a class="headerlink" href="#testing-philosophy" title="Permanent link">&para;</a></h2>
 <h3 id="guiding-principle-assert-on-observable-outputs">Guiding principle: assert on observable outputs<a class="headerlink" href="#guiding-principle-assert-on-observable-outputs" title="Permanent link">&para;</a></h3>
@@ -1899,6 +2014,7 @@ under the License.
 <ul>
 <li><strong>Avoid testing private functions in isolation</strong> unless they contain genuinely complex logic (merge semantics, backoff math). If a behavior is only meaningful through reconciliation, test it through reconciliation.</li>
 <li><strong>Refactor freely without rewriting tests.</strong> If renaming an internal helper or restructuring a package breaks tests, those tests were coupled to implementation, not behavior, and should be rewritten to assert on observable outputs or removed entirely.</li>
+<li><strong>Assert expected values as literals, not production constants.</strong> A user sees <code>Running</code>, <code>GUNICORN_LOGLEVEL</code>, or <code>prefork</code>, not the Go constant behind it. Write the expected value out (<code>assert.EqualValues(t, "Running", superset.Status.Phase)</code>) so an accidental change to a constant, enum value, env var name, or label key fails a test instead of silently moving the expectation with it. Building test inputs from constants is fine.</li>
 <li><strong>Don't test non-actions.</strong> A test should pin a behavior the code actively produces, not assert the absence of behavior the code never had (or no longer has). When you delete a feature, delete its tests — don't invert them into "X no longer happens" assertions. The positive tests for the surviving behavior already cover it: e.g. after removing downgrade blocking, a "downgrade proceeds" test is redundant because the general "an image change proceeds and re-runs migrate" test already exercises that path. (Mirrors the documentation rule: don't describe what the default already precludes.)</li>
 </ul>
 <h3 id="security-and-the-threat-model">Security and the threat model<a class="headerlink" href="#security-and-the-threat-model" title="Permanent link">&para;</a></h3>
@@ -1985,46 +2101,46 @@ under the License.
 </ul>
 <h3 id="running-e2e-tests-locally">Running E2E tests locally<a class="headerlink" href="#running-e2e-tests-locally" title="Permanent link">&para;</a></h3>
 <p><code>make test-e2e</code> creates a throwaway Kind cluster (<code>superset-kubernetes-operator-test-e2e</code>), builds the operator image, loads it into the cluster, runs the Ginkgo specs, and tears the cluster down.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>make<span class="w"> </span>test-e2e
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>make<span class="w"> </span>test-e2e
 </code></pre></div>
 <p>The Kind node image (<code>KIND_NODE_IMAGE</code>) is read from the first entry in <code>.github/supported-k8s.json</code> and matches the Kind binary version used in CI. Override <code>E2E_PROJECT_IMAGE</code> or <code>E2E_CURL_IMAGE</code> if your environment requires a mirror registry, or set <code>E2E_SKIP_BUILD_LOAD=1</code> to reuse an image you've already loaded into Kind during iteration.</p>
 <h3 id="writing-a-new-unit-test">Writing a new unit test<a class="headerlink" href="#writing-a-new-unit-test" title="Permanent link">&para;</a></h3>
 <p>Use the standard pattern from <code>reconcile_parent_resources_test.go</code>:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">TestReconcile_MyScenario</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">    </span><span class="nx">scheme</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">testScheme</span><span class="p">(</span><span class="nx">t</span><span class="p">)</span>
-<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>
-<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="nx">superset</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">supersetv1alpha1</span><span class="p">.</span><span class="nx">Superset</span><span class="p">{</span>
-<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a><span class="w">        </span><span class="nx">Name</span><span class="p">:</span><span class="w">      </span><span class="s">"test"</span><span class="p">,</span>
-<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="w">        </span><span class="nx">Namespace</span><span class="p">:</span><span class="w"> </span><span class="s">"default"</span><span class="p">,</span>
-<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="w">        </span><span class="nx">Spec</span><span class="p">:</span><span class="w"> </span><span class="nx">supersetv1alpha1</span><span class="p">.</span><span class="nx">SupersetSpec</span><span class="p">{</span>
-<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">            </span><span class="nx">Image</span><span class="p">:</span><span class="w">       </span><span class="nx">supersetv1alpha1</span><span class="p">.</span><span class="nx">ImageSpec</span><span class="p">{</span><span class="nx">Repository</span><span class="p">:</span><span class="w"> </span><span class="s">"apache/superset"</span><span class="p">,</span><span class="w"> </span><span class="nx">Tag</span><span class="p">:</span><span class="w"> </span><span class="s">"6.1.0"</span><span class="p">},</span>
-<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">            </span><span class="nx">Environment</span><span class="p">:</span><span class="w"> </span><span class="nb">new</span><span class="p">(</span><span class="nx">common</span><span class="p">.</span><span class="nx">EnvironmentDev</span><span class="p">),</span>
-<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">            </span><span class="nx">SecretKey</span><span class="p">:</span><span class="w">   </span><span class="nb">new</span><span class="p">(</span><span class="s">"test-secret-key"</span><span class="p">),</span>
-<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">            </span><span class="nx">Lifecycle</span><span class="p">:</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">supersetv1alpha1</span><span class="p">.</span><span class="nx">LifecycleSpec</span><span class="p">{</span>
-<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="w">                </span><span class="nx">Disabled</span><span class="p">:</span><span class="w"> </span><span class="nb">new</span><span class="p">(</span><span class="kc">true</span><span class="p">),</span>
-<a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="w">            </span><span class="p">},</span>
-<a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="w">        </span><span class="p">},</span>
-<a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a>
-<a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">    </span><span class="nx">c</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">fake</span><span class="p">.</span><span class="nx">NewClientBuilder</span><span class="p">().</span>
-<a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">        </span><span class="nx">WithScheme</span><span class="p">(</span><span class="nx">scheme</span><span class="p">).</span>
-<a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">        </span><span class="nx">WithObjects</span><span class="p">(</span><span class="nx">superset</span><span class="p">).</span>
-<a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a><span class="w">        </span><span class="nx">WithStatusSubresource</span><span class="p">(</span><span class="nx">superset</span><span class="p">).</span>
-<a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="w">        </span><span class="nx">Build</span><span class="p">()</span>
-<a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a>
-<a id="__codelineno-1-23" name="__codelineno-1-23" href="#__codelineno-1-23"></a><span class="w">    </span><span class="nx">r</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">SupersetReconciler</span><span class="p">{</span>
-<a id="__codelineno-1-24" name="__codelineno-1-24" href="#__codelineno-1-24"></a><span class="w">        </span><span class="nx">Client</span><span class="p">:</span><span class="w"> </span><span class="nx">c</span><span class="p">,</span><span class="w"> </span><span class="nx">Scheme</span><span class="p">:</span><span class="w"> </span><span class="nx">scheme</span><span class="p">,</span><span class="w"> </span><span class="nx">Recorder</span><span class="p">:</span><span class="w"> </span><span class="nx">events</span><span class="p">.</span><span class="nx">NewFakeRecorder</span><span class="p">(</span><span class="mi">10</span><span class="p">),</span>
-<a id="__codelineno-1-25" name="__codelineno-1-25" href="#__codelineno-1-25"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-1-26" name="__codelineno-1-26" href="#__codelineno-1-26"></a>
-<a id="__codelineno-1-27" name="__codelineno-1-27" href="#__codelineno-1-27"></a><span class="w">    </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">r</span><span class="p">.</span><span class="nx">Reconcile</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">Background</span><span class="p">(),</span><span class="w"> </span><span class="nx">reconcile</span><span class="p">.</span><span class="nx">Request</span><span class="p">{</span>
-<a id="__codelineno-1-28" name="__codelineno-1-28" href="#__codelineno-1-28"></a><span class="w">        </span><span class="nx">NamespacedName</span><span class="p">:</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">NamespacedName</span><span class="p">{</span><span class="nx">Name</span><span class="p">:</span><span class="w"> </span><span class="s">"test"</span><span class="p">,</span><span class="w"> </span><span class="nx">Namespace</span><span class="p">:</span><span class="w"> </span><span class="s">"default"</span><span class="p">},</span>
-<a id="__codelineno-1-29" name="__codelineno-1-29" href="#__codelineno-1-29"></a><span class="w">    </span><span class="p">})</span>
-<a id="__codelineno-1-30" name="__codelineno-1-30" href="#__codelineno-1-30"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-1-31" name="__codelineno-1-31" href="#__codelineno-1-31"></a><span class="w">        </span><span class="nx">t</span><span class="p">.</span><span class="nx">Fatalf</span><span class="p">(</span><span class="s">"reconcile: %v"</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
-<a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a><span class="w">    </span><span class="p">}</span>
-<a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a>
-<a id="__codelineno-1-34" name="__codelineno-1-34" href="#__codelineno-1-34"></a><span class="w">    </span><span class="c1">// Assert on the result...</span>
-<a id="__codelineno-1-35" name="__codelineno-1-35" href="#__codelineno-1-35"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">TestReconcile_MyScenario</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="nx">scheme</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">testScheme</span><span class="p">(</span><span class="nx">t</span><span class="p">)</span>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">    </span><span class="nx">superset</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">supersetv1alpha1</span><span class="p">.</span><span class="nx">Superset</span><span class="p">{</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">        </span><span class="nx">Name</span><span class="p">:</span><span class="w">      </span><span class="s">"test"</span><span class="p">,</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">        </span><span class="nx">Namespace</span><span class="p">:</span><span class="w"> </span><span class="s">"default"</span><span class="p">,</span>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">        </span><span class="nx">Spec</span><span class="p">:</span><span class="w"> </span><span class="nx">supersetv1alpha1</span><span class="p">.</span><span class="nx">SupersetSpec</span><span class="p">{</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">            </span><span class="nx">Image</span><span class="p">:</span><span class="w">       </span><span class="nx">supersetv1alpha1</span><span class="p">.</span><span class="nx">ImageSpec</span><span class="p">{</span><span class="nx">Repository</span><span class="p">:</span><span class="w"> </span><span class="s">"apache/superset"</span><span class="p">,</span><span class="w"> </span><span class="nx">Tag</span><span class="p">:</span><span class="w"> </span><span class="s">"6.1.0"</span><span class="p">},</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">            </span><span class="nx">Environment</span><span class="p">:</span><span class="w"> </span><span class="nb">new</span><span class="p">(</span><span class="nx">common</span><span class="p">.</span><span class="nx">EnvironmentDev</span><span class="p">),</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">            </span><span class="nx">SecretKey</span><span class="p">:</span><span class="w">   </span><span class="nb">new</span><span class="p">(</span><span class="s">"test-secret-key"</span><span class="p">),</span>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">            </span><span class="nx">Lifecycle</span><span class="p">:</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">supersetv1alpha1</span><span class="p">.</span><span class="nx">LifecycleSpec</span><span class="p">{</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">                </span><span class="nx">Disabled</span><span class="p">:</span><span class="w"> </span><span class="nb">new</span><span class="p">(</span><span class="kc">true</span><span class="p">),</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">            </span><span class="p">},</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">        </span><span class="p">},</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="w">    </span><span class="nx">c</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">fake</span><span class="p">.</span><span class="nx">NewClientBuilder</span><span class="p">().</span>
+<a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="w">        </span><span class="nx">WithScheme</span><span class="p">(</span><span class="nx">scheme</span><span class="p">).</span>
+<a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="w">        </span><span class="nx">WithObjects</span><span class="p">(</span><span class="nx">superset</span><span class="p">).</span>
+<a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a><span class="w">        </span><span class="nx">WithStatusSubresource</span><span class="p">(</span><span class="nx">superset</span><span class="p">).</span>
+<a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="w">        </span><span class="nx">Build</span><span class="p">()</span>
+<a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a>
+<a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a><span class="w">    </span><span class="nx">r</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">SupersetReconciler</span><span class="p">{</span>
+<a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a><span class="w">        </span><span class="nx">Client</span><span class="p">:</span><span class="w"> </span><span class="nx">c</span><span class="p">,</span><span class="w"> </span><span class="nx">Scheme</span><span class="p">:</span><span class="w"> </span><span class="nx">scheme</span><span class="p">,</span><span class="w"> </span><span class="nx">Recorder</span><span class="p">:</span><span class="w"> </span><span class="nx">events</span><span class="p">.</span><span class="nx">NewFakeRecorder</span><span class="p">(</span><span class="mi">10</span><span class="p">),</span>
+<a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a>
+<a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a><span class="w">    </span><span class="nx">_</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">r</span><span class="p">.</span><span class="nx">Reconcile</span><span class="p">(</span><span class="nx">context</span><span class="p">.</span><span class="nx">Background</span><span class="p">(),</span><span class="w"> </span><span class="nx">reconcile</span><span class="p">.</span><span class="nx">Request</span><span class="p">{</span>
+<a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a><span class="w">        </span><span class="nx">NamespacedName</span><span class="p">:</span><span class="w"> </span><span class="nx">types</span><span class="p">.</span><span class="nx">NamespacedName</span><span class="p">{</span><span class="nx">Name</span><span class="p">:</span><span class="w"> </span><span class="s">"test"</span><span class="p">,</span><span class="w"> </span><span class="nx">Namespace</span><span class="p">:</span><span class="w"> </span><span class="s">"default"</span><span class="p">},</span>
+<a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a><span class="w">    </span><span class="p">})</span>
+<a id="__codelineno-2-30" name="__codelineno-2-30" href="#__codelineno-2-30"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">err</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="kc">nil</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-2-31" name="__codelineno-2-31" href="#__codelineno-2-31"></a><span class="w">        </span><span class="nx">t</span><span class="p">.</span><span class="nx">Fatalf</span><span class="p">(</span><span class="s">"reconcile: %v"</span><span class="p">,</span><span class="w"> </span><span class="nx">err</span><span class="p">)</span>
+<a id="__codelineno-2-32" name="__codelineno-2-32" href="#__codelineno-2-32"></a><span class="w">    </span><span class="p">}</span>
+<a id="__codelineno-2-33" name="__codelineno-2-33" href="#__codelineno-2-33"></a>
+<a id="__codelineno-2-34" name="__codelineno-2-34" href="#__codelineno-2-34"></a><span class="w">    </span><span class="c1">// Assert on the result...</span>
+<a id="__codelineno-2-35" name="__codelineno-2-35" href="#__codelineno-2-35"></a><span class="p">}</span>
 </code></pre></div>
 <p>Key patterns:</p>
 <ul>
@@ -2035,20 +2151,20 @@ under the License.
 </ul>
 <h3 id="testing-pure-packages">Testing pure packages<a class="headerlink" href="#testing-pure-packages" title="Permanent link">&para;</a></h3>
 <p><code>internal/resolution/</code> and <code>internal/config/</code> are pure Go with zero controller-runtime dependencies. Test them directly:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">TestMergeEnvVars_ConflictResolution</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">    </span><span class="nx">result</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">resolution</span><span class="p">.</span><span class="nx">MergeEnvVars</span><span class="p">(</span>
-<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">        </span><span class="p">[]</span><span class="nx">corev1</span><span class="p">.</span><span class="nx">EnvVar</span><span class="p">{{</span><span class="nx">Name</span><span class="p">:</span><span class="w"> </span><span class="s">"A"</span><span class="p">,</span><span class="w"> </span><span class="nx">Value</span><span class="p">:</span><span class="w"> </span><span class="s">"1"</span><span class="p">}},</span>
-<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w">        </span><span class="p">[]</span><span class="nx">corev1</span><span class="p">.</span><span class="nx">EnvVar</span><span class="p">{{</span><span class="nx">Name</span><span class="p">:</span><span class="w"> </span><span class="s">"A"</span><span class="p">,</span><span class="w"> </span><span class="nx">Value</span><span class="p">:</span><span class="w"> </span><span class="s">"2"</span><span class="p">}},</span>
-<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w">    </span><span class="p">)</span>
-<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">    </span><span class="c1">// Later slice wins on name conflict.</span>
-<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">result</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="nx">Value</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="s">"2"</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">}</span>
-<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="p">}</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="kd">func</span><span class="w"> </span><span class="nx">TestMergeEnvVars_ConflictResolution</span><span class="p">(</span><span class="nx">t</span><span class="w"> </span><span class="o">*</span><span class="nx">testing</span><span class="p">.</span><span class="nx">T</span><span class="p">)</span><span class="w"> </span><span class="p">{</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">    </span><span class="nx">result</span><span class="w"> </span><span class="o">:=</span><span class="w"> </span><span class="nx">resolution</span><span class="p">.</span><span class="nx">MergeEnvVars</span><span class="p">(</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="w">        </span><span class="p">[]</span><span class="nx">corev1</span><span class="p">.</span><span class="nx">EnvVar</span><span class="p">{{</span><span class="nx">Name</span><span class="p">:</span><span class="w"> </span><span class="s">"A"</span><span class="p">,</span><span class="w"> </span><span class="nx">Value</span><span class="p">:</span><span class="w"> </span><span class="s">"1"</span><span class="p">}},</span>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">        </span><span class="p">[]</span><span class="nx">corev1</span><span class="p">.</span><span class="nx">EnvVar</span><span class="p">{{</span><span class="nx">Name</span><span class="p">:</span><span class="w"> </span><span class="s">"A"</span><span class="p">,</span><span class="w"> </span><span class="nx">Value</span><span class="p">:</span><span class="w"> </span><span class="s">"2"</span><span class="p">}},</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">    </span><span class="p">)</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">    </span><span class="c1">// Later slice wins on name conflict.</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="nx">result</span><span class="p">[</span><span class="mi">0</span><span class="p">].</span><span class="nx">Value</span><span class="w"> </span><span class="o">!=</span><span class="w"> </span><span class="s">"2"</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">...</span><span class="w"> </span><span class="p">}</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="p">}</span>
 </code></pre></div>
 <h3 id="fuzzing">Fuzzing<a class="headerlink" href="#fuzzing" title="Permanent link">&para;</a></h3>
 <p>We fuzz a small set of pure functions with Go's built-in fuzzing (<code>go test -fuzz</code>).</p>
 <p>Fuzz targets live in <code>*_fuzz_test.go</code> files beside the code they exercise, in the same package and with no build tag (so they compile under the default <code>go test</code>). Run all of them, bounded, with:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>make<span class="w"> </span>fuzz<span class="w">              </span><span class="c1"># 30s per target</span>
-<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>make<span class="w"> </span>fuzz<span class="w"> </span><span class="nv">FUZZTIME</span><span class="o">=</span>2m<span class="w">  </span><span class="c1"># longer local run</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>make<span class="w"> </span>fuzz<span class="w">              </span><span class="c1"># 30s per target</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>make<span class="w"> </span>fuzz<span class="w"> </span><span class="nv">FUZZTIME</span><span class="o">=</span>2m<span class="w">  </span><span class="c1"># longer local run</span>
 </code></pre></div>
 <p>Each target seeds a corpus with <code>f.Add(...)</code> cases and asserts an invariant beyond "does not panic" — e.g. <code>RenderConfig</code> is deterministic, <code>pyQuote</code> round-trips, <code>MergeMaps</code> is a last-writer-wins union. The seed corpus replays as ordinary subtests during <code>make test-unit</code>, so regressions are caught on every PR; the scheduled <code>fuzz.yaml</code> workflow runs the targets for longer to explore new inputs.</p>
 <p><strong>When to add a target:</strong> a pure, deterministic function that parses strings, generates code/config, or merges collections from CR-author-controlled input. Skip trivial scalar or preset math already covered by table tests.</p>
@@ -2057,13 +2173,13 @@ under the License.
 <h3 id="helm-chart-tests">Helm chart tests<a class="headerlink" href="#helm-chart-tests" title="Permanent link">&para;</a></h3>
 <p>The Helm chart (<code>charts/superset-operator/</code>) has its own <a href="https://github.com/helm-unittest/helm-unittest">helm-unittest</a> suite under <code>charts/superset-operator/tests/</code>. It renders the chart with different values and asserts on the output — the same "assert on observable outputs" principle as the Go tests, applied to rendered manifests. CI runs it in the <code>Helm lint &amp; test</code> job.</p>
 <p>Install the tooling once (the plugin binary is pinned; <code>yq</code> is only needed for the coverage gate):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>bash<span class="w"> </span>scripts/install-helm-unittest.sh
-<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>bash<span class="w"> </span>scripts/install-yq.sh<span class="w">   </span><span class="c1"># or: brew install yq</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>bash<span class="w"> </span>scripts/install-helm-unittest.sh
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>bash<span class="w"> </span>scripts/install-yq.sh<span class="w">   </span><span class="c1"># or: brew install yq</span>
 </code></pre></div>
 <p>Run locally:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>make<span class="w"> </span>helm-test<span class="w">              </span><span class="c1"># run the chart unit tests</span>
-<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a>helm<span class="w"> </span>unittest<span class="w"> </span>-u<span class="w"> </span>charts/superset-operator<span class="w">   </span><span class="c1"># update snapshots after an intended change</span>
-<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>make<span class="w"> </span>helm-values-covered<span class="w">    </span><span class="c1"># verify every values.yaml knob is exercised</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>make<span class="w"> </span>helm-test<span class="w">              </span><span class="c1"># run the chart unit tests</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>helm<span class="w"> </span>unittest<span class="w"> </span>-u<span class="w"> </span>charts/superset-operator<span class="w">   </span><span class="c1"># update snapshots after an intended change</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>make<span class="w"> </span>helm-values-covered<span class="w">    </span><span class="c1"># verify every values.yaml knob is exercised</span>
 </code></pre></div>
 <p>Coverage comes in two complementary forms. Full-render <strong>snapshots</strong> catch drift across the whole rendered output — <code>minimal_test.yaml</code> (default <code>values.yaml</code>) and <code>full_options_test.yaml</code> (every knob set via <code>tests/values/full-options.yaml</code>), stored in <code>tests/__snapshot__/</code>. Targeted assertions (e.g. <code>optout_and_helpers_test.yaml</code>) cover opt-out and template-helper branches a single combined snapshot cannot systematically reach, varying one knob at a time. Chart/release identity is pinned in each suite so snapshots stay stable across chart version bumps.</p>
 <p><strong>Any change to the chart — especially a new values knob or feature — must be exercised in <code>tests/values/full-options.yaml</code> and its rendered effect captured in the snapshot (<code>helm unittest -u</code>).</strong> This is enforced: <code>make helm-values-covered</code> (<code>scripts/check-chart-values-covered.sh</code>) fails CI when a <code>values.yaml</code> key is not set in the comprehensive values file. It closes the gap a snapshot alone cannot — a knob that defaults to null and renders nothing under defaults would otherwise leave both suites green. The gate keys off <code>values.yaml</code>, so a template that reads an <em>undocumented</em> <code>.Values.x</code> is not caught by it; that already violates the chart's documented-values contract (the README is generated from <code>values.yaml</code> via helm-docs) and is expected to be caught in review.</p>
@@ -2071,25 +2187,48 @@ under the License.
 <h2 id="license-headers">License Headers<a class="headerlink" href="#license-headers" title="Permanent link">&para;</a></h2>
 <p>All source files must carry the Apache License 2.0 header. This is enforced in CI by <a href="https://creadur.apache.org/rat/">Apache Rat</a>.</p>
 <p>To check locally (requires Java):</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>make<span class="w"> </span>check-license
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>make<span class="w"> </span>check-license
 </code></pre></div>
 <p>The script downloads the Rat jar to <code>${XDG_CACHE_HOME:-$HOME/.cache}/superset-kubernetes-operator/lib/</code> on first run. Files that are generated, scaffolded by Operator SDK, or not user-authored are excluded via <code>.rat-excludes</code>.</p>
 <p>When adding new source files (<code>.go</code>, <code>.yaml</code>, <code>.sh</code>, <code>Dockerfile</code>, etc.), include the appropriate license header. Go files get this automatically from <code>hack/boilerplate.go.txt</code> when using <code>make generate</code>. For other file types, use the <code>#</code>-comment form:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a># Licensed to the Apache Software Foundation (ASF) under one or more
-<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a># contributor license agreements.  See the NOTICE file distributed with
-<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a># this work for additional information regarding copyright ownership.
-<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a># The ASF licenses this file to You under the Apache License, Version 2.0
-<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a># (the "License"); you may not use this file except in compliance with
-<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a># the License.  You may obtain a copy of the License at
-<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a>#
-<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a>#    http://www.apache.org/licenses/LICENSE-2.0
-<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a>#
-<a id="__codelineno-7-10" name="__codelineno-7-10" href="#__codelineno-7-10"></a># Unless required by applicable law or agreed to in writing, software
-<a id="__codelineno-7-11" name="__codelineno-7-11" href="#__codelineno-7-11"></a># distributed under the License is distributed on an "AS IS" BASIS,
-<a id="__codelineno-7-12" name="__codelineno-7-12" href="#__codelineno-7-12"></a># WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-<a id="__codelineno-7-13" name="__codelineno-7-13" href="#__codelineno-7-13"></a># See the License for the specific language governing permissions and
-<a id="__codelineno-7-14" name="__codelineno-7-14" href="#__codelineno-7-14"></a># limitations under the License.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a># Licensed to the Apache Software Foundation (ASF) under one or more
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a># contributor license agreements.  See the NOTICE file distributed with
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a># this work for additional information regarding copyright ownership.
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a># The ASF licenses this file to You under the Apache License, Version 2.0
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a># (the "License"); you may not use this file except in compliance with
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a># the License.  You may obtain a copy of the License at
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>#
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>#    http://www.apache.org/licenses/LICENSE-2.0
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>#
+<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a># Unless required by applicable law or agreed to in writing, software
+<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a># distributed under the License is distributed on an "AS IS" BASIS,
+<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a># WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+<a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a># See the License for the specific language governing permissions and
+<a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a># limitations under the License.
 </code></pre></div>
+<hr />
+<h2 id="automation-principle">Automation Principle<a class="headerlink" href="#automation-principle" title="Permanent link">&para;</a></h2>
+<p>When committed state must stay in sync with something external (upstream releases, generated docs, tables derived from a source of truth), build a CI-enforced sync mechanism instead of documenting a manual checklist. Manual steps rot; CI failures don't.</p>
+<p>Patterns to follow:</p>
+<ul>
+<li><strong>One source of truth, generated outputs.</strong> Keep canonical data in a single small file (<code>.github/supported-k8s.json</code>, Go type definitions, etc.) and derive everything else (docs tables, CI matrices, defaults) from it.</li>
+<li><strong><code>make codegen</code> aggregates all generators.</strong> Anything regenerable goes through it. CI's <code>Verify codegen</code> job runs <code>make codegen</code> and fails on diff.</li>
+<li><strong>Upstream drift checks.</strong> When the source-of-truth file must track something external (a pinned dependency's release notes, the latest upstream minor), write a <code>make sync-&lt;thing&gt;</code> script that queries the upstream API and rewrites the file, plus a <code>make verify-&lt;thing&gt;</code> that runs it in <code>--check</code> mode in CI. See <code>scripts/sync-supported-versions.sh</code> for the canonical example.</li>
+<li><strong>Scheduled auto-sync PRs.</strong> Pair the sync script with a daily scheduled GitHub Actions job that runs it and opens a PR if anything changed, so open PRs don't all break when upstream moves.</li>
+<li><strong>Renovate for pinned versions.</strong> Use <code>customManagers</code> for non-standard pin sites (regex-matched JSON/YAML fields). Use <code>prBodyNotes</code> and <code>addLabels</code> to point the reviewer to the right follow-up command on PRs that need manual judgment.</li>
+<li><strong>Sentinel-bounded generated blocks</strong> in human-edited files (<code>&lt;!-- BEGIN X --&gt;</code> / <code>&lt;!-- END X --&gt;</code>), so generators can rewrite specific regions without disturbing the hand-written content around them.</li>
+</ul>
+<p>The bar: every new "remember to also update X when Y changes" instruction is a bug in the tooling. Fix the tooling instead.</p>
+<hr />
+<h2 id="documentation-style">Documentation Style<a class="headerlink" href="#documentation-style" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>README</strong> is a landing page: project description, philosophy, quick start, link to docs. Keep it welcoming and free of jargon. Don't reference specific knobs, internal config names, or implementation details that might intimidate newcomers.</li>
+<li><strong><code>docs/index.md</code></strong> is the primary feature overview for the docs site. Keep feature descriptions high-level and outcome-focused; implementation details belong in the user guide or architecture docs. Prefer consolidated bullets that group related capabilities (e.g., "Lifecycle automation — seeding, migrations, key rotation, and init" rather than a separate bullet per feature).</li>
+<li><strong><code>docs/user-guide/configuration.md</code></strong> is the full configuration reference. Here it's appropriate to name specific fields, presets, and env vars, and to show concrete YAML examples.</li>
+<li><strong><code>docs/architecture/overview.md</code></strong> explains design decisions and internal structure for contributors and advanced users.</li>
+<li><strong>General principles:</strong> be concise and objective, avoid overselling or verbose language, reserve code blocks for real code (not ASCII art), and minimize duplication between the README and the docs (the README links to the docs for details).</li>
+<li><strong>Generated docs:</strong> the API reference and the Helm chart README are generated; see <a href="../development-setup/#documentation">Development Setup</a> for how to regenerate them and how to link built-in Kubernetes types.</li>
+</ul>
 <hr />
 <h2 id="dos-and-donts">Do's and Don'ts<a class="headerlink" href="#dos-and-donts" title="Permanent link">&para;</a></h2>
 <h3 id="do">Do<a class="headerlink" href="#do" title="Permanent link">&para;</a></h3>
@@ -2111,7 +2250,7 @@ under the License.
 <li><strong>Don't fetch resources by name for cleanup</strong> — use <code>deleteByLabels</code> with parent/component labels to discover and clean up. Name-based <code>CreateOrUpdate</code> and status reads are fine — those address resources whose names the operator controls.</li>
 <li><strong>Don't hardcode commands/ports</strong> — use <code>DeploymentConfig</code> defaults</li>
 <li><strong>Don't duplicate controller logic</strong> — use <code>component_reconciler.go</code> helpers</li>
-<li><strong>Don't copy derived facts between docs</strong> — values defined in code or in one canonical doc (e.g. the per-component routing paths in <a href="../../user-guide/networking-and-monitoring/"><code>networking-and-monitoring.md</code></a>) should be stated once and cross-linked from elsewhere, not re-listed on other pages where they silently go stale. Same spirit as the Automation Principle: one source of truth.</li>
+<li><strong>Don't copy derived facts between docs</strong> — values defined in code or in one canonical doc (e.g. the per-component routing paths in <a href="../../user-guide/networking-and-monitoring/"><code>networking-and-monitoring.md</code></a>) should be stated once and cross-linked from elsewhere, not re-listed on other pages where they silently go stale. Same spirit as the <a href="#automation-principle">Automation Principle</a>: one source of truth.</li>
 <li><strong>Don't echo upstream defaults in Helm values or docs</strong> — when a Helm value passes through to a Kubernetes field, leave it unset (<code>~</code>) so the platform default applies, and don't restate the current default value in comments, <code>values.yaml</code>, or release notes. Defaults can change upstream, and repeating them creates a second source of truth that silently goes stale.</li>
 <li><strong>Don't add fields without doc comments</strong> — they become CRD descriptions</li>
 <li><strong>Don't use <code>bool</code> with <code>omitempty</code></strong> — use <code>*bool</code> to distinguish false from unset</li>
@@ -2131,6 +2270,7 @@ under the License.
 <li>Add assertions to existing comprehensive tests</li>
 <li>Update sample CRs if helpful</li>
 </ol>
+<p>Fields outside the templates follow the same layering: if a field applies to more than one component, add it at the top level and on each component it applies to, and resolve it as described in <a href="#top-level-defaults-and-per-component-overrides">Top-level defaults and per-component overrides</a>.</p>
 <h2 id="how-to-add-a-new-component">How to Add a New Component<a class="headerlink" href="#how-to-add-a-new-component" title="Permanent link">&para;</a></h2>
 <ol>
 <li>Add the component spec to the parent <code>SupersetSpec</code> in <code>superset_types.go</code>.</li>
@@ -2145,18 +2285,18 @@ under the License.
 <li>Add sample CR coverage, focused unit tests, and e2e assertions for the parent-owned resources.</li>
 </ol>
 <h2 id="package-structure">Package Structure<a class="headerlink" href="#package-structure" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>internal/
-<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a>├── resolution/       # Pure Go — spec flattening engine
-<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>│                     # Zero controller-runtime deps, fully unit-testable
-<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a>│                     # MergeMaps, MergeEnvVars, ResolveComponentSpec(), etc.
-<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a>├── config/           # Pure Go — Python config renderer
-<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a>│                     # Per-component rendering, metastore URI,
-<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>│                     # config appending
-<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a>├── common/           # Shared types (ComponentType, environment constants)
-<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a>├── schedule/         # Pure Go — cron tick computation
-<a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a>└── controller/       # controller-runtime — reconcilers
-<a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a>                      # Parent controller, component resources,
-<a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a>                      # task job lifecycle, status, scaling, networking
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>internal/
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>├── resolution/       # Pure Go — spec flattening engine
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>│                     # Zero controller-runtime deps, fully unit-testable
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>│                     # MergeMaps, MergeEnvVars, ResolveComponentSpec(), etc.
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>├── config/           # Pure Go — Python config renderer
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>│                     # Per-component rendering, metastore URI,
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>│                     # config appending
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>├── common/           # Shared types (ComponentType, environment constants)
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>├── schedule/         # Pure Go — cron tick computation
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>└── controller/       # controller-runtime — reconcilers
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>                      # Parent controller, component resources,
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>                      # task job lifecycle, status, scaling, networking
 </code></pre></div>
 <hr />
 <h2 id="key-files-reference">Key Files Reference<a class="headerlink" href="#key-files-reference" title="Permanent link">&para;</a></h2>
@@ -2309,79 +2449,25 @@ under the License.
 <li>Pure packages (<code>internal/resolution/</code>, <code>internal/config/</code>, <code>internal/common/</code>, <code>internal/schedule/</code>) do <strong>zero</strong> logging by design — they have no controller-runtime dependency and return errors only. Keep it that way.</li>
 </ul>
 <h3 id="enabling-verbose-logs-when-debugging">Enabling verbose logs when debugging<a class="headerlink" href="#enabling-verbose-logs-when-debugging" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>make<span class="w"> </span>run<span class="w"> </span><span class="nv">ARGS</span><span class="o">=</span><span class="s2">"--zap-log-level=debug"</span><span class="w">   </span><span class="c1"># V(1)</span>
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>make<span class="w"> </span>run<span class="w"> </span><span class="nv">ARGS</span><span class="o">=</span><span class="s2">"--zap-log-level=2"</span><span class="w">        </span><span class="c1"># V(1)+V(2)</span>
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="c1"># in-cluster (Helm): --set logLevel=debug (or 2) — see Installation › Debugging the operator</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>make<span class="w"> </span>run<span class="w"> </span><span class="nv">ARGS</span><span class="o">=</span><span class="s2">"--zap-log-level=debug"</span><span class="w">   </span><span class="c1"># V(1)</span>
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>make<span class="w"> </span>run<span class="w"> </span><span class="nv">ARGS</span><span class="o">=</span><span class="s2">"--zap-log-level=2"</span><span class="w">        </span><span class="c1"># V(1)+V(2)</span>
+<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="c1"># in-cluster (Helm): --set logLevel=debug (or 2) — see Installation › Debugging the operator</span>
 </code></pre></div>
 <hr />
 <h2 id="pull-requests">Pull Requests<a class="headerlink" href="#pull-requests" title="Permanent link">&para;</a></h2>
 <h3 id="title-format">Title format<a class="headerlink" href="#title-format" title="Permanent link">&para;</a></h3>
 <p>PR titles must follow the conventional commits format:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>type(scope): description
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>type: description
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>type(scope): description
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>type: description
 </code></pre></div>
 <p>Scope is optional but encouraged when the change is scoped to a single area. Any scope is accepted, but prefer short, recognizable repository areas such as <code>api</code>, <code>controller</code>, <code>helm</code>, <code>ci</code>, <code>docs</code>, or <code>deps</code>. Keep titles concise: aim for 50 characters when practical, and avoid exceeding 72 characters because GitHub wraps longer titles in common views.</p>
 <p>CI validates this on every PR via the <code>PR / Validate PR title</code> check.</p>
-<p><strong>Allowed types:</strong></p>
-<table>
-<thead>
-<tr>
-<th>Type</th>
-<th>Use for</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>feat</code></td>
-<td>New functionality</td>
-</tr>
-<tr>
-<td><code>fix</code></td>
-<td>Bug fixes</td>
-</tr>
-<tr>
-<td><code>refactor</code></td>
-<td>Code restructuring without behavior change</td>
-</tr>
-<tr>
-<td><code>docs</code></td>
-<td>Documentation only</td>
-</tr>
-<tr>
-<td><code>test</code></td>
-<td>Adding or updating tests</td>
-</tr>
-<tr>
-<td><code>chore</code></td>
-<td>Maintenance (config, tooling, dependencies)</td>
-</tr>
-<tr>
-<td><code>ci</code></td>
-<td>CI/CD workflow changes</td>
-</tr>
-<tr>
-<td><code>build</code></td>
-<td>Build system or external dependency changes</td>
-</tr>
-<tr>
-<td><code>perf</code></td>
-<td>Performance improvements</td>
-</tr>
-<tr>
-<td><code>style</code></td>
-<td>Formatting, whitespace, linting</td>
-</tr>
-<tr>
-<td><code>revert</code></td>
-<td>Reverting a previous commit</td>
-</tr>
-</tbody>
-</table>
+<p><strong>Allowed types</strong> are defined in <a href="https://github.com/apache/superset-kubernetes-operator/blob/main/.github/workflows/pr.yaml"><code>.github/workflows/pr.yaml</code></a> (the <code>types</code> input to the semantic-PR action) and follow the conventional-commit set. Check that file rather than copying the list, which would go stale.</p>
 <p><strong>Examples:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>feat(api): add tolerations field to PodTemplate
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>fix(controller): handle nil deployment template in scaling reconciler
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>docs: add valkey configuration examples to user guide
-<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>chore(deps): bump controller-runtime to v0.20.0
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>feat(api): add tolerations field to PodTemplate
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>fix(controller): handle nil deployment template in scaling reconciler
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>docs: add valkey configuration examples to user guide
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>chore(deps): bump controller-runtime to v0.20.0
 </code></pre></div>
 <h3 id="description">Description<a class="headerlink" href="#description" title="Permanent link">&para;</a></h3>
 <p>Every PR must include a <strong>Summary</strong> section with at least one paragraph explaining what the change does and why. A reviewer should understand the motivation and scope from the summary alone, without reading the diff.</p>
@@ -2393,18 +2479,18 @@ under the License.
 for noteworthy changes — new features, new CRD fields, behavior changes, breaking changes, deprecations, and critical bug fixes. Skip the entry for routine work that a user wouldn't care about: dependency bumps, CI tweaks, internal refactors, test-only changes, and documentation-only updates.</p>
 <p>Group entries under <code>Added</code>, <code>Changed</code>, <code>Deprecated</code>, <code>Removed</code>, <code>Fixed</code>, or <code>Security</code> (per <a href="https://keepachangelog.com/en/1.1.0/">Keep a Changelog</a>); create the subheading on first use. These are the only subheadings — Keep a Changelog has no dedicated "Breaking" section. Lead each bullet with the user-facing effect, not the implementation.</p>
 <p>Mark a breaking change with a bold <code>**Breaking:**</code> prefix under the most fitting category (usually <code>Changed</code> or <code>Removed</code>) and state the required migration in the same bullet. The <code>Added</code> section and the <code>**Breaking:**</code> markers are what operators scan first when deciding whether — and how carefully — to upgrade, so keep both accurate:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="gu">## Unreleased</span>
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="gu">### Added</span>
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="k">-</span><span class="w"> </span>New <span class="sb">`webServer.gunicorn.keepAlive`</span> field for tuning Gunicorn keepalive timeouts.
-<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>
-<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="gu">### Changed</span>
-<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="k">-</span><span class="w"> </span><span class="gs">**Breaking:**</span> renamed <span class="sb">`spec.oldField`</span> to <span class="sb">`spec.newField`</span>; rename it in
-<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>  existing Superset resources before upgrading.
-<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>
-<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="gu">### Fixed</span>
-<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="k">-</span><span class="w"> </span>Lifecycle <span class="sb">`migrate`</span> task no longer retries indefinitely when the metastore
-<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>  rejects credentials; the parent surfaces an <span class="sb">`AuthenticationFailed`</span> reason.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="gu">## Unreleased</span>
+<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
+<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="gu">### Added</span>
+<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="k">-</span><span class="w"> </span>New <span class="sb">`webServer.gunicorn.keepAlive`</span> field for tuning Gunicorn keepalive timeouts.
+<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>
+<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="gu">### Changed</span>
+<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="k">-</span><span class="w"> </span><span class="gs">**Breaking:**</span> renamed <span class="sb">`spec.oldField`</span> to <span class="sb">`spec.newField`</span>; rename it in
+<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>  existing Superset resources before upgrading.
+<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>
+<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="gu">### Fixed</span>
+<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="k">-</span><span class="w"> </span>Lifecycle <span class="sb">`migrate`</span> task no longer retries indefinitely when the metastore
+<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>  rejects credentials; the parent surfaces an <span class="sb">`AuthenticationFailed`</span> reason.
 </code></pre></div>
 <p>The release manager does a final review pass over <code>## Unreleased</code> before tagging — see <a href="../releasing/#reviewing-the-changelog">Releasing</a> — so it's fine to err on the side of including an entry; missing or duplicate ones can be cleaned up there.</p>
 <h3 id="code-coverage">Code coverage<a class="headerlink" href="#code-coverage" title="Permanent link">&para;</a></h3>
