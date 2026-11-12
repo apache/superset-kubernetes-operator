@@ -38,6 +38,10 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 - **Celery worker liveness probe.** The Celery worker now gets a default liveness probe that runs `celery inspect ping` against the pod's own worker node, so a worker that stays Running but no longer answers over the broker is restarted. Timings match the upstream Superset Helm chart (120s initial delay, 60s period and timeout, 3 failures). Existing worker Deployments roll once on upgrade, and setting `livenessProbe` on the worker replaces the default ([#427](https://github.com/apache/superset-kubernetes-operator/pull/427), [@younsl](https://github.com/younsl)).
 - `webServer.gunicorn.workerClass`, `webServer.gunicorn.logLevel`, `celeryWorker.celery.pool`, `celeryWorker.celery.optimization`, and `valkey.ssl.certRequired` no longer have a fixed list of allowed values. The operator passes them to Gunicorn, Celery, and the Valkey client unchanged, so values added in newer releases of those projects work without an operator update ([#508](https://github.com/apache/superset-kubernetes-operator/pull/508), [@villebro](https://github.com/villebro)).
 
+### Fixed
+
+- **User-managed HPAs and PDBs are no longer deleted.** The operator used to delete an unowned HPA or PDB named after a component Deployment, such as one created with `kubectl autoscale`, whenever that component had no `autoscaling` or `podDisruptionBudget` and again on every lifecycle drain. Component cleanup now finds resources by the operator's labels, and by name only for resources the Superset owns ([#507](https://github.com/apache/superset-kubernetes-operator/pull/507), [@villebro](https://github.com/villebro)).
+
 ## 0.3.1 - 2026-10-21
 
 ### Fixed

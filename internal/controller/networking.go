@@ -117,7 +117,7 @@ func (r *SupersetReconciler) reconcileWebServerService(ctx context.Context, supe
 	}
 
 	svcSpec := superset.Spec.WebServer.Service
-	webServerLabels := componentLabels(string(common.ComponentWebServer), superset.Name)
+	webServerLabels := podOperatorLabels(string(common.ComponentWebServer), superset.Name, superset.Name)
 
 	_, err := createOrUpdateWithRetry(ctx, r.Client, svc, func() error {
 		svc.OwnerReferences = stripLegacySupersetOwnerRefs(svc.OwnerReferences)
