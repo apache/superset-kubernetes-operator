@@ -32,34 +32,13 @@ import (
 const (
 	defaultInitTimeout           = 300 * time.Second
 	defaultMaxRetries      int32 = 3
-	defaultRetentionPolicy       = retentionRetainOnFail
-
-	retentionDelete       = "Delete"
-	retentionRetain       = "Retain"
-	retentionRetainOnFail = "RetainOnFailure"
+	defaultRetentionPolicy       = supersetv1alpha1.PodRetentionPolicyRetainOnFailure
 
 	initRequeueInterval = 10 * time.Second
 	taskRequeueInterval = initRequeueInterval
 
 	labelInitTask     = common.LabelKeyInitTask
 	labelInitInstance = common.LabelKeyInitInstance
-
-	// Task/init state constants.
-	initStatePending  = "Pending"
-	initStateRunning  = "Running"
-	initStateComplete = "Complete"
-	initStateFailed   = "Failed"
-
-	taskStatePending  = initStatePending
-	taskStateRunning  = initStateRunning
-	taskStateComplete = initStateComplete
-	taskStateFailed   = initStateFailed
-
-	// Phase constants.
-	phaseInitializing = "Initializing"
-	phaseRunning      = "Running"
-	phaseDegraded     = "Degraded"
-	phaseSuspended    = "Suspended"
 )
 
 // calculateBackoff returns the backoff duration for a given attempt using exponential backoff.
@@ -129,13 +108,13 @@ func buildInitPod(spec *supersetv1alpha1.FlatComponentSpec) corev1.PodSpec {
 }
 
 // ShouldDeletePod determines if a pod should be deleted based on retention policy and pod phase.
-func ShouldDeletePod(policy string, phase corev1.PodPhase) bool {
+func ShouldDeletePod(policy supersetv1alpha1.PodRetentionPolicy, phase corev1.PodPhase) bool {
 	switch policy {
-	case retentionDelete:
+	case supersetv1alpha1.PodRetentionPolicyDelete:
 		return true
-	case retentionRetainOnFail:
+	case supersetv1alpha1.PodRetentionPolicyRetainOnFailure:
 		return phase != corev1.PodFailed
-	case retentionRetain:
+	case supersetv1alpha1.PodRetentionPolicyRetain:
 		return false
 	default:
 		return true

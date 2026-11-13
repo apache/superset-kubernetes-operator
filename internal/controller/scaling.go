@@ -45,14 +45,12 @@ func reconcileHPA(
 ) error {
 	if autoscaling == nil {
 		logf.FromContext(ctx).V(2).Info("Ensuring no HPA (autoscaling disabled)", "name", deploymentName)
-		// Owner-checked exact-name fallback: an HPA created by a pre-patch
-		// operator predates the reserved parent label the label selector below
-		// now requires, so it would be missed. Delete it by its managed name too,
-		// but only if it is owned by this CR (or unowned) — never a foreign one.
-		hpa := &autoscalingv2.HorizontalPodAutoscaler{
+		// TODO(0.5.0): remove this name-based fallback. HPAs created before
+		// 0.3.0 lack the parent label the selector below requires; it only
+		// deletes HPAs this CR controls, never unowned ones.
+		if err := deleteIfControlledBy(ctx, c, owner, &autoscalingv2.HorizontalPodAutoscaler{
 			Name: deploymentName, Namespace: namespace,
-		}
-		if err := deleteIfNotForeignOwned(ctx, c, owner, hpa); err != nil {
+		}); err != nil {
 			return err
 		}
 		return deleteByLabels(ctx, c, owner, namespace, labels,
@@ -104,12 +102,10 @@ func reconcilePDB(
 ) error {
 	if pdbSpec == nil {
 		logf.FromContext(ctx).V(2).Info("Ensuring no PDB (disabled)", "name", name)
-		// Owner-checked exact-name fallback for a pre-patch PDB that lacks the
-		// reserved parent label the selector below now requires.
-		pdb := &policyv1.PodDisruptionBudget{
+		// TODO(0.5.0): remove this name-based fallback; see reconcileHPA.
+		if err := deleteIfControlledBy(ctx, c, owner, &policyv1.PodDisruptionBudget{
 			Name: name, Namespace: namespace,
-		}
-		if err := deleteIfNotForeignOwned(ctx, c, owner, pdb); err != nil {
+		}); err != nil {
 			return err
 		}
 		return deleteByLabels(ctx, c, owner, namespace, labels,

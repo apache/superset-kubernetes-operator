@@ -139,7 +139,9 @@ func TestReconcile_DisabledComponentDeletesParentOwnedResources(t *testing.T) {
 		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: minimalSupersetSpec(),
 	}
-	workerDeploy := &appsv1.Deployment{Name: "test-celery-worker", Namespace: "default"}
+	workerDeploy := &appsv1.Deployment{
+		Name: "test-celery-worker", Namespace: "default", OwnerReferences: controllerRefTo(superset),
+		Labels: podOperatorLabels(string(common.ComponentCeleryWorker), "test", "test")}
 	workerConfig := &corev1.ConfigMap{Name: "test-celery-worker-config", Namespace: "default"}
 
 	c := reconcileOnce(t, scheme, superset).WithObjects(workerDeploy, workerConfig).Build()
@@ -158,7 +160,7 @@ func TestReconcile_WebsocketInlineConfigCreatesConfigMapAndMount(t *testing.T) {
 	scheme := testScheme(t)
 
 	spec := minimalSupersetSpec()
-	spec.Environment = new("Development")
+	spec.Environment = new(supersetv1alpha1.EnvironmentDevelopment)
 	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
 		Image:  &supersetv1alpha1.ImageOverrideSpec{Repository: new("example.com/superset-websocket")},
 		Config: &apiextensionsv1.JSON{Raw: []byte(`{"port":8080,"jwtSecret":"dev-secret"}`)},
@@ -487,7 +489,7 @@ func TestReconcile_LifecycleCreatesParentOwnedTaskJobAndStatus(t *testing.T) {
 	if updated.Status.Lifecycle == nil || updated.Status.Lifecycle.Migrate == nil {
 		t.Fatal("expected migrate status on parent lifecycle status")
 	}
-	if updated.Status.Lifecycle.Migrate.State != taskStateRunning {
+	if updated.Status.Lifecycle.Migrate.State != "Running" {
 		t.Fatalf("expected migrate state Running, got %q", updated.Status.Lifecycle.Migrate.State)
 	}
 	if updated.Status.Lifecycle.Migrate.DesiredChecksum == "" {

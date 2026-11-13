@@ -131,17 +131,13 @@ func TestReconcileHPA_NilAutoscaling(t *testing.T) {
 		}
 	})
 
-	// Migration: an HPA created by a pre-patch operator lacks the reserved parent
-	// label the selector now requires, but is controller-owned by this CR. The
-	// owner-checked exact-name fallback must still clean it up.
-	t.Run("deletes pre-patch owned HPA at name lacking selector labels", func(t *testing.T) {
+	// Upgrade: an HPA created before 0.3.0 lacks the parent label the selector
+	// requires, but is controlled by this CR; the name fallback deletes it.
+	t.Run("deletes owned HPA without operator labels", func(t *testing.T) {
 		hpa := &autoscalingv2.HorizontalPodAutoscaler{
 			Name: "test-web-server", Namespace: "default", UID: "hpa-uid",
-			OwnerReferences: []metav1.OwnerReference{{
-				APIVersion: "superset.apache.org/v1alpha1", Kind: "Superset",
-				Name: "test-web-server", UID: "uid-1", Controller: new(true),
-			}},
-			Spec: autoscalingv2.HorizontalPodAutoscalerSpec{MaxReplicas: 5},
+			OwnerReferences: controllerRefTo(owner),
+			Spec:            autoscalingv2.HorizontalPodAutoscalerSpec{MaxReplicas: 5},
 		}
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner, hpa).Build()
 		if err := reconcileHPA(context.Background(), c, scheme, owner, nil, testLabels, "test-web-server", "default"); err != nil {
@@ -149,12 +145,29 @@ func TestReconcileHPA_NilAutoscaling(t *testing.T) {
 		}
 		got := &autoscalingv2.HorizontalPodAutoscaler{}
 		if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, got); !errors.IsNotFound(err) {
-			t.Fatalf("expected pre-patch owned HPA deleted by name fallback, got: %v", err)
+			t.Fatalf("expected owned HPA without labels deleted, got: %v", err)
 		}
 	})
 
-	// The exact-name fallback must never delete an HPA controller-owned by a
-	// foreign owner that merely shares the managed name.
+	// A user-managed HPA (e.g. from `kubectl autoscale`) carries the
+	// Deployment's name but no operator labels or owner; it must survive.
+	t.Run("keeps unowned HPA at name without operator labels", func(t *testing.T) {
+		hpa := &autoscalingv2.HorizontalPodAutoscaler{
+			Name: "test-web-server", Namespace: "default", UID: "hpa-uid",
+			Spec: autoscalingv2.HorizontalPodAutoscalerSpec{MaxReplicas: 5},
+		}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner, hpa).Build()
+		if err := reconcileHPA(context.Background(), c, scheme, owner, nil, testLabels, "test-web-server", "default"); err != nil {
+			t.Fatalf("reconcileHPA: %v", err)
+		}
+		got := &autoscalingv2.HorizontalPodAutoscaler{}
+		if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, got); err != nil {
+			t.Fatalf("unowned HPA at managed name must survive, got: %v", err)
+		}
+	})
+
+	// An HPA controller-owned by a foreign owner that merely shares the managed
+	// name must survive too.
 	t.Run("keeps foreign-owned HPA at name", func(t *testing.T) {
 		hpa := &autoscalingv2.HorizontalPodAutoscaler{
 			Name: "test-web-server", Namespace: "default", UID: "hpa-uid",
@@ -295,6 +308,30 @@ func TestReconcilePDB_NilSpec(t *testing.T) {
 		pdb := &policyv1.PodDisruptionBudget{}
 		if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, pdb); !errors.IsNotFound(err) {
 			t.Fatalf("expected PDB to be deleted, got: %v", err)
+		}
+	})
+
+	t.Run("deletes owned PDB without operator labels", func(t *testing.T) {
+		ownedPDB := &policyv1.PodDisruptionBudget{
+			Name: "test-web-server", Namespace: "default", OwnerReferences: controllerRefTo(owner),
+		}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner, ownedPDB).Build()
+		if err := reconcilePDB(context.Background(), c, scheme, owner, nil, labels, "test-web-server", "default"); err != nil {
+			t.Fatalf("reconcilePDB: %v", err)
+		}
+		if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, &policyv1.PodDisruptionBudget{}); !errors.IsNotFound(err) {
+			t.Fatalf("expected owned PDB without labels deleted, got: %v", err)
+		}
+	})
+
+	t.Run("keeps unowned PDB at name without operator labels", func(t *testing.T) {
+		userPDB := &policyv1.PodDisruptionBudget{Name: "test-web-server", Namespace: "default"}
+		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner, userPDB).Build()
+		if err := reconcilePDB(context.Background(), c, scheme, owner, nil, labels, "test-web-server", "default"); err != nil {
+			t.Fatalf("reconcilePDB: %v", err)
+		}
+		if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, &policyv1.PodDisruptionBudget{}); err != nil {
+			t.Fatalf("unowned PDB at managed name must survive, got: %v", err)
 		}
 	})
 

@@ -27,7 +27,7 @@ import (
 )
 
 func TestTaskStatusForType(t *testing.T) {
-	migrateRef := &supersetv1alpha1.TaskRefStatus{State: taskStateComplete}
+	migrateRef := &supersetv1alpha1.TaskRefStatus{State: supersetv1alpha1.TaskStateComplete}
 
 	t.Run("nil when lifecycle status absent", func(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{}
@@ -66,28 +66,28 @@ func TestTaskTerminalFailedForChecksum(t *testing.T) {
 	})
 
 	t.Run("false when not failed", func(t *testing.T) {
-		ref := &supersetv1alpha1.TaskRefStatus{State: taskStateComplete, CompletedChecksum: checksum}
+		ref := &supersetv1alpha1.TaskRefStatus{State: supersetv1alpha1.TaskStateComplete, CompletedChecksum: checksum}
 		assert.False(t, r.taskTerminalFailedForChecksum(supersetWithMigrate(ref), taskTypeMigrate, checksum))
 	})
 
 	t.Run("false when failed for a different checksum", func(t *testing.T) {
-		ref := &supersetv1alpha1.TaskRefStatus{State: taskStateFailed, CompletedChecksum: "other", Attempts: 5, MaxRetries: 3}
+		ref := &supersetv1alpha1.TaskRefStatus{State: supersetv1alpha1.TaskStateFailed, CompletedChecksum: "other", Attempts: 5, MaxRetries: 3}
 		assert.False(t, r.taskTerminalFailedForChecksum(supersetWithMigrate(ref), taskTypeMigrate, checksum))
 	})
 
 	t.Run("false when retries remain", func(t *testing.T) {
-		ref := &supersetv1alpha1.TaskRefStatus{State: taskStateFailed, CompletedChecksum: checksum, Attempts: 2, MaxRetries: 3}
+		ref := &supersetv1alpha1.TaskRefStatus{State: supersetv1alpha1.TaskStateFailed, CompletedChecksum: checksum, Attempts: 2, MaxRetries: 3}
 		assert.False(t, r.taskTerminalFailedForChecksum(supersetWithMigrate(ref), taskTypeMigrate, checksum))
 	})
 
 	t.Run("true when failed at max retries", func(t *testing.T) {
-		ref := &supersetv1alpha1.TaskRefStatus{State: taskStateFailed, CompletedChecksum: checksum, Attempts: 3, MaxRetries: 3}
+		ref := &supersetv1alpha1.TaskRefStatus{State: supersetv1alpha1.TaskStateFailed, CompletedChecksum: checksum, Attempts: 3, MaxRetries: 3}
 		assert.True(t, r.taskTerminalFailedForChecksum(supersetWithMigrate(ref), taskTypeMigrate, checksum))
 	})
 
 	t.Run("falls back to default max retries when ref MaxRetries is zero", func(t *testing.T) {
 		// defaultMaxRetries is 3; Attempts at the default ceiling is terminal.
-		ref := &supersetv1alpha1.TaskRefStatus{State: taskStateFailed, CompletedChecksum: checksum, Attempts: defaultMaxRetries}
+		ref := &supersetv1alpha1.TaskRefStatus{State: supersetv1alpha1.TaskStateFailed, CompletedChecksum: checksum, Attempts: defaultMaxRetries}
 		assert.True(t, r.taskTerminalFailedForChecksum(supersetWithMigrate(ref), taskTypeMigrate, checksum))
 	})
 }
@@ -104,7 +104,7 @@ func TestTaskNeedsRun(t *testing.T) {
 	t.Run("false when complete for the same checksum", func(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{
 			Status: supersetv1alpha1.SupersetStatus{Lifecycle: &supersetv1alpha1.LifecycleStatus{
-				Migrate: &supersetv1alpha1.TaskRefStatus{State: taskStateComplete, CompletedChecksum: checksum},
+				Migrate: &supersetv1alpha1.TaskRefStatus{State: supersetv1alpha1.TaskStateComplete, CompletedChecksum: checksum},
 			}},
 		}
 		assert.False(t, r.taskNeedsRun(superset, taskTypeMigrate, checksum))
@@ -113,7 +113,7 @@ func TestTaskNeedsRun(t *testing.T) {
 	t.Run("true when complete for a different checksum", func(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{
 			Status: supersetv1alpha1.SupersetStatus{Lifecycle: &supersetv1alpha1.LifecycleStatus{
-				Migrate: &supersetv1alpha1.TaskRefStatus{State: taskStateComplete, CompletedChecksum: "stale"},
+				Migrate: &supersetv1alpha1.TaskRefStatus{State: supersetv1alpha1.TaskStateComplete, CompletedChecksum: "stale"},
 			}},
 		}
 		assert.True(t, r.taskNeedsRun(superset, taskTypeMigrate, checksum))
@@ -123,7 +123,7 @@ func TestTaskNeedsRun(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{
 			Status: supersetv1alpha1.SupersetStatus{Lifecycle: &supersetv1alpha1.LifecycleStatus{
 				Migrate: &supersetv1alpha1.TaskRefStatus{
-					State: taskStateFailed, CompletedChecksum: checksum, Attempts: 3, MaxRetries: 3,
+					State: supersetv1alpha1.TaskStateFailed, CompletedChecksum: checksum, Attempts: 3, MaxRetries: 3,
 				},
 			}},
 		}

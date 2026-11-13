@@ -28,12 +28,6 @@ import (
 )
 
 const (
-	PresetDisabled     = "disabled"
-	PresetConservative = "conservative"
-	PresetBalanced     = "balanced"
-	PresetPerformance  = "performance"
-	PresetAggressive   = "aggressive"
-
 	defaultWorkerClass = "gthread"
 
 	EnvServerWorkerAmount        = "SERVER_WORKER_AMOUNT"
@@ -65,11 +59,11 @@ type ResolvedGunicorn struct {
 // ResolveGunicorn resolves a GunicornSpec into concrete values.
 // When spec is nil, balanced defaults are used.
 func ResolveGunicorn(spec *v1alpha1.GunicornSpec) ResolvedGunicorn {
-	preset := PresetBalanced
+	preset := v1alpha1.PresetBalanced
 	if spec != nil && spec.Preset != nil {
 		preset = *spec.Preset
 	}
-	if preset == PresetDisabled {
+	if preset == v1alpha1.PresetDisabled {
 		return ResolvedGunicorn{Disabled: true}
 	}
 
@@ -103,13 +97,13 @@ func ResolveGunicorn(spec *v1alpha1.GunicornSpec) ResolvedGunicorn {
 	return r
 }
 
-func gunicornPresetDefaults(preset string) (workers, threads int32) {
+func gunicornPresetDefaults(preset v1alpha1.Preset) (workers, threads int32) {
 	switch preset {
-	case PresetConservative:
+	case v1alpha1.PresetConservative:
 		return 1, 4
-	case PresetPerformance:
+	case v1alpha1.PresetPerformance:
 		return 4, 8
-	case PresetAggressive:
+	case v1alpha1.PresetAggressive:
 		return 8, 16
 	default:
 		return 2, 8

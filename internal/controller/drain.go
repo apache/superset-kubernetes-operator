@@ -23,10 +23,7 @@ import (
 	"fmt"
 	"strings"
 
-	appsv1 "k8s.io/api/apps/v1"
-	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
-	policyv1 "k8s.io/api/policy/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -46,7 +43,7 @@ func (r *SupersetReconciler) drainIfNeeded(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
 	configChecksum string,
-	parentPhase string,
+	parentPhase supersetv1alpha1.SupersetPhase,
 ) (lifecycleResult, error) {
 	if !r.lifecycleNeedsDrain(superset, configChecksum) {
 		return lifecycleComplete(), nil
@@ -62,7 +59,7 @@ func (r *SupersetReconciler) drainIfNeeded(
 			r.Recorder.Eventf(superset, nil, corev1.EventTypeNormal, "DrainingStarted", "Lifecycle",
 				"Draining component workloads before lifecycle tasks")
 		}
-		superset.Status.Lifecycle.Phase = lifecyclePhaseDraining
+		superset.Status.Lifecycle.Phase = supersetv1alpha1.LifecyclePhaseDraining
 		superset.Status.Phase = parentPhase
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 			metav1.ConditionFalse, "Draining", "Scaling components to zero before lifecycle tasks", superset.Generation)
@@ -99,7 +96,7 @@ func (r *SupersetReconciler) taskNeedsRun(
 ) bool {
 	taskRef := taskStatusForType(superset, taskType)
 	if taskRef != nil {
-		if taskRef.State == taskStateComplete && taskRef.CompletedChecksum == taskChecksum {
+		if taskRef.State == supersetv1alpha1.TaskStateComplete && taskRef.CompletedChecksum == taskChecksum {
 			return false
 		}
 		if r.taskTerminalFailedForChecksum(superset, taskType, taskChecksum) {
@@ -118,7 +115,7 @@ func (r *SupersetReconciler) taskTerminalFailedForChecksum(
 	taskChecksum string,
 ) bool {
 	taskRef := taskStatusForType(superset, taskType)
-	if taskRef == nil || taskRef.State != taskStateFailed || taskRef.CompletedChecksum != taskChecksum {
+	if taskRef == nil || taskRef.State != supersetv1alpha1.TaskStateFailed || taskRef.CompletedChecksum != taskChecksum {
 		return false
 	}
 	maxRetries := taskRef.MaxRetries
@@ -161,25 +158,10 @@ func (r *SupersetReconciler) drainComponents(ctx context.Context, superset *supe
 		if desc.extract(&superset.Spec) == nil {
 			continue
 		}
-		resourceBaseName := naming.ResourceBaseName(superset.Name, desc.componentType)
-		deleteNamed := func(obj client.Object) error {
-			obj.SetName(resourceBaseName)
-			obj.SetNamespace(superset.Namespace)
-			return deleteIfNotForeignOwned(ctx, r.Client, superset, obj)
-		}
-		if err := deleteNamed(&appsv1.Deployment{}); err != nil {
-			return false, fmt.Errorf("deleting Deployment for drain %s: %w", desc.componentType, err)
-		}
-		if err := deleteNamed(&autoscalingv2.HorizontalPodAutoscaler{}); err != nil {
-			return false, fmt.Errorf("deleting HPA for drain %s: %w", desc.componentType, err)
-		}
-		if err := deleteNamed(&policyv1.PodDisruptionBudget{}); err != nil {
-			return false, fmt.Errorf("deleting PDB for drain %s: %w", desc.componentType, err)
-		}
-		if desc.componentType != naming.ComponentWebServer {
-			if err := deleteNamed(&corev1.Service{}); err != nil {
-				return false, fmt.Errorf("deleting Service for drain %s: %w", desc.componentType, err)
-			}
+		// The web-server Service stays so it can route to the maintenance page.
+		deleteService := desc.componentType != naming.ComponentWebServer
+		if err := r.deleteComponentWorkload(ctx, superset, desc.componentType, deleteService); err != nil {
+			return false, fmt.Errorf("draining %s: %w", desc.componentType, err)
 		}
 		log.Info("Deleted component resources for drain", "component", desc.componentType)
 	}

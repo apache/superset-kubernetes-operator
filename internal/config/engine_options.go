@@ -52,20 +52,20 @@ func ComputeEngineOptions(
 		effective = perComponent
 	}
 
-	preset := PresetBalanced
+	preset := v1alpha1.PresetBalanced
 	if effective != nil && effective.Preset != nil {
 		preset = *effective.Preset
 	}
 
-	if preset == PresetDisabled {
+	if preset == v1alpha1.PresetDisabled {
 		return nil
 	}
 
-	if alwaysNullPool(componentType) && preset != PresetConservative {
-		preset = PresetConservative
+	if alwaysNullPool(componentType) && preset != v1alpha1.PresetConservative {
+		preset = v1alpha1.PresetConservative
 	}
 
-	if preset == PresetConservative {
+	if preset == v1alpha1.PresetConservative {
 		result := &EngineOptionsInput{UseNullPool: true}
 		applyExplicitOverrides(result, effective)
 		return result
@@ -90,13 +90,13 @@ func alwaysNullPool(ct common.ComponentType) bool {
 	}
 }
 
-func computePoolSize(ct common.ComponentType, preset string, workers, threads int32) int32 {
+func computePoolSize(ct common.ComponentType, preset v1alpha1.Preset, workers, threads int32) int32 {
 	switch ct {
 	case common.ComponentWebServer:
 		switch preset {
-		case PresetPerformance:
+		case v1alpha1.PresetPerformance:
 			return workers
-		case PresetAggressive:
+		case v1alpha1.PresetAggressive:
 			return workers * threads
 		default:
 			return 1
@@ -104,7 +104,7 @@ func computePoolSize(ct common.ComponentType, preset string, workers, threads in
 
 	case common.ComponentCeleryWorker:
 		switch preset {
-		case PresetPerformance, PresetAggressive:
+		case v1alpha1.PresetPerformance, v1alpha1.PresetAggressive:
 			return workers // workers = celery concurrency for celery components
 		default:
 			return 1
@@ -112,9 +112,9 @@ func computePoolSize(ct common.ComponentType, preset string, workers, threads in
 
 	case common.ComponentMcpServer:
 		switch preset {
-		case PresetPerformance:
+		case v1alpha1.PresetPerformance:
 			return 10
-		case PresetAggressive:
+		case v1alpha1.PresetAggressive:
 			return 20
 		default:
 			return 5

@@ -134,17 +134,17 @@ func TestBuildInitPod(t *testing.T) {
 func TestShouldDeletePod(t *testing.T) {
 	tests := []struct {
 		name   string
-		policy string
+		policy supersetv1alpha1.PodRetentionPolicy
 		phase  corev1.PodPhase
 		want   bool
 	}{
-		{name: "Delete always deletes succeeded", policy: retentionDelete, phase: corev1.PodSucceeded, want: true},
-		{name: "Delete always deletes failed", policy: retentionDelete, phase: corev1.PodFailed, want: true},
-		{name: "Retain never deletes succeeded", policy: retentionRetain, phase: corev1.PodSucceeded, want: false},
-		{name: "Retain never deletes failed", policy: retentionRetain, phase: corev1.PodFailed, want: false},
-		{name: "RetainOnFailure deletes succeeded", policy: retentionRetainOnFail, phase: corev1.PodSucceeded, want: true},
-		{name: "RetainOnFailure keeps failed", policy: retentionRetainOnFail, phase: corev1.PodFailed, want: false},
-		{name: "RetainOnFailure deletes running", policy: retentionRetainOnFail, phase: corev1.PodRunning, want: true},
+		{name: "Delete always deletes succeeded", policy: supersetv1alpha1.PodRetentionPolicyDelete, phase: corev1.PodSucceeded, want: true},
+		{name: "Delete always deletes failed", policy: supersetv1alpha1.PodRetentionPolicyDelete, phase: corev1.PodFailed, want: true},
+		{name: "Retain never deletes succeeded", policy: supersetv1alpha1.PodRetentionPolicyRetain, phase: corev1.PodSucceeded, want: false},
+		{name: "Retain never deletes failed", policy: supersetv1alpha1.PodRetentionPolicyRetain, phase: corev1.PodFailed, want: false},
+		{name: "RetainOnFailure deletes succeeded", policy: supersetv1alpha1.PodRetentionPolicyRetainOnFailure, phase: corev1.PodSucceeded, want: true},
+		{name: "RetainOnFailure keeps failed", policy: supersetv1alpha1.PodRetentionPolicyRetainOnFailure, phase: corev1.PodFailed, want: false},
+		{name: "RetainOnFailure deletes running", policy: supersetv1alpha1.PodRetentionPolicyRetainOnFailure, phase: corev1.PodRunning, want: true},
 		{name: "unknown policy deletes (safe default)", policy: "Bogus", phase: corev1.PodFailed, want: true},
 	}
 	for _, tt := range tests {
