@@ -647,4 +647,25 @@ func TestResolveComponentSpec_AutoscalingPDB_Inheritance(t *testing.T) {
 			t.Error("expected inherited PDB to still apply under external scaling")
 		}
 	})
+
+	t.Run("top-level External is inherited; Operator opts a component out; beat ignores it", func(t *testing.T) {
+		external := &SharedInput{ScalingMode: new(supersetv1alpha1.ScalingModeExternal)}
+
+		if result := ResolveComponentSpec(ComponentWebServer, external, nil, nil, nil); !result.ExternalScaling {
+			t.Error("expected web server to inherit top-level External")
+		}
+
+		optOut := &ComponentInput{
+			ScalingMode: new(supersetv1alpha1.ScalingModeOperator),
+			Autoscaling: &supersetv1alpha1.AutoscalingSpec{MaxReplicas: 4},
+		}
+		result := ResolveComponentSpec(ComponentWebServer, external, optOut, nil, nil)
+		if result.ExternalScaling || result.Autoscaling == nil || result.Autoscaling.MaxReplicas != 4 {
+			t.Errorf("expected Operator to opt out with its own autoscaling, got external=%v autoscaling=%v", result.ExternalScaling, result.Autoscaling)
+		}
+
+		if beat := ResolveComponentSpec(ComponentCeleryBeat, external, nil, nil, nil); beat.ExternalScaling || beat.Replicas != 1 {
+			t.Errorf("expected beat to ignore top-level External, got external=%v replicas=%d", beat.ExternalScaling, beat.Replicas)
+		}
+	})
 }

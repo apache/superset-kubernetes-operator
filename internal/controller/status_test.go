@@ -436,6 +436,13 @@ func TestEffectiveAutoscalingForStatus(t *testing.T) {
 		accessor := &componentAccessor{scalingMode: new(supersetv1alpha1.ScalingModeExternal)}
 		assert.Nil(t, effectiveAutoscalingForStatus(superset, accessor))
 	})
+
+	t.Run("top-level External is inherited unless the component opts out", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{ScalingMode: new(supersetv1alpha1.ScalingModeExternal)}}
+		assert.Nil(t, effectiveAutoscalingForStatus(superset, &componentAccessor{}))
+		optOut := &componentAccessor{scalingMode: new(supersetv1alpha1.ScalingModeOperator), autoscaling: componentAS}
+		assert.Same(t, componentAS, effectiveAutoscalingForStatus(superset, optOut))
+	})
 }
 
 func TestEffectivePDBForStatus(t *testing.T) {
@@ -499,6 +506,11 @@ func TestDesiredReplicasForStatus(t *testing.T) {
 		}}
 		accessor := &componentAccessor{scalingMode: new(supersetv1alpha1.ScalingModeExternal)}
 		assert.Equal(t, int32(1), desiredReplicasForStatus(superset, webDesc, accessor))
+	})
+
+	t.Run("inherited top-level External starts at 1", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{ScalingMode: new(supersetv1alpha1.ScalingModeExternal)}}
+		assert.Equal(t, int32(1), desiredReplicasForStatus(superset, webDesc, &componentAccessor{}))
 	})
 }
 

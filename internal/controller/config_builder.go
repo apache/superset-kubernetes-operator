@@ -36,6 +36,7 @@ func convertTopLevelSpec(spec *supersetv1alpha1.SupersetSpec) *resolution.Shared
 		PodTemplate:         spec.PodTemplate,
 		Autoscaling:         spec.Autoscaling,
 		PodDisruptionBudget: spec.PodDisruptionBudget,
+		ScalingMode:         spec.ScalingMode,
 	}
 }
 

@@ -86,12 +86,6 @@ var componentDescriptors = []*componentDescriptor{
 	websocketServerDescriptor,
 }
 
-// externallyScaled reports whether an external controller owns the
-// component's replica count (scalingMode: External).
-func (a *componentAccessor) externallyScaled() bool {
-	return a != nil && a.scalingMode != nil && *a.scalingMode == supersetv1alpha1.ScalingModeExternal
-}
-
 // convertComponent converts a componentAccessor to the resolution engine's ComponentInput.
 func convertComponent(a *componentAccessor) *resolution.ComponentInput {
 	if a == nil {

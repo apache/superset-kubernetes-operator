@@ -365,8 +365,15 @@ func componentHasService(desc *componentDescriptor, cfg componentReconcilerConfi
 	return cfg.defaultPort > 0 || desc.componentType == naming.ComponentWebServer
 }
 
+func effectiveScalingModeForStatus(superset *supersetv1alpha1.Superset, accessor *componentAccessor) *supersetv1alpha1.ScalingMode {
+	if accessor != nil && accessor.scalingMode != nil {
+		return accessor.scalingMode
+	}
+	return superset.Spec.ScalingMode
+}
+
 func effectiveAutoscalingForStatus(superset *supersetv1alpha1.Superset, accessor *componentAccessor) *supersetv1alpha1.AutoscalingSpec {
-	if accessor.externallyScaled() {
+	if effectiveScalingModeForStatus(superset, accessor).IsExternal() {
 		return nil
 	}
 	if accessor != nil && accessor.autoscaling != nil {
@@ -388,7 +395,7 @@ func desiredReplicasForStatus(superset *supersetv1alpha1.Superset, desc *compone
 	}
 	// A new Deployment without replicas starts at one; the external
 	// controller scales it from there.
-	if accessor.externallyScaled() {
+	if effectiveScalingModeForStatus(superset, accessor).IsExternal() {
 		return 1
 	}
 	if autoscaling := effectiveAutoscalingForStatus(superset, accessor); autoscaling != nil {
