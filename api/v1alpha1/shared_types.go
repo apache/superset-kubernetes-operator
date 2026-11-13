@@ -676,6 +676,24 @@ type ContainerTemplate struct {
 
 // --- Scaling and component types ---
 
+// ScalingMode selects who manages a component Deployment's replica count.
+// +kubebuilder:validation:Enum=Operator;External
+type ScalingMode string
+
+const (
+	// ScalingModeOperator sets the replica count from replicas or autoscaling.
+	ScalingModeOperator ScalingMode = "Operator"
+	// ScalingModeExternal leaves the replica count to an external controller,
+	// such as a KEDA ScaledObject or a user-managed HorizontalPodAutoscaler.
+	ScalingModeExternal ScalingMode = "External"
+)
+
+// IsExternal reports whether an external controller owns the replica count.
+// A nil mode is the default, Operator.
+func (m *ScalingMode) IsExternal() bool {
+	return m != nil && *m == ScalingModeExternal
+}
+
 // ScalableComponentSpec provides deployment template and scaling fields.
 // Embedded by scalable components (WebServer, CeleryWorker, CeleryFlower,
 // WebsocketServer, McpServer). Non-scalable components (CeleryBeat, Init)
@@ -693,6 +711,12 @@ type ScalableComponentSpec struct {
 	// HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling.
 	// +optional
 	Autoscaling *AutoscalingSpec `json:"autoscaling,omitempty"`
+	// Who manages the Deployment replica count. Operator (default) applies replicas or autoscaling.
+	// External hands it to an external controller such as a KEDA ScaledObject: the operator keeps the
+	// live replica count, creates no HorizontalPodAutoscaler, and ignores spec.replicas and spec.autoscaling.
+	// Overrides spec.scalingMode; set Operator to opt one component out of a top-level External.
+	// +optional
+	ScalingMode *ScalingMode `json:"scalingMode,omitempty"`
 	// PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget.
 	// +optional
 	PodDisruptionBudget *PDBSpec `json:"podDisruptionBudget,omitempty"`

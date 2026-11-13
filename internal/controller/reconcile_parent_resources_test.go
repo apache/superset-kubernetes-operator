@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -129,6 +130,46 @@ func TestReconcile_CreatesParentOwnedComponentResources(t *testing.T) {
 		if err := c.Get(context.Background(), types.NamespacedName{Name: name, Namespace: "default"}, svc); err != nil {
 			t.Fatalf("expected Service %s: %v", name, err)
 		}
+	}
+}
+
+func TestReconcile_ExternalScalingLeavesReplicasToExternalController(t *testing.T) {
+	scheme := testScheme(t)
+
+	spec := minimalSupersetSpec()
+	// Inherited by every component; the externally scaled worker must ignore it.
+	spec.Autoscaling = &supersetv1alpha1.AutoscalingSpec{MaxReplicas: 10}
+	spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{
+		ScalingMode: new(supersetv1alpha1.ScalingModeExternal),
+	}
+	superset := &supersetv1alpha1.Superset{Name: "test", Namespace: "default", UID: "uid-1", Spec: spec}
+
+	// An external controller (e.g. KEDA) has scaled the worker to 7, and the
+	// operator's HPA from before the switch to External is still present.
+	workerDeploy := &appsv1.Deployment{
+		Name: "test-celery-worker", Namespace: "default",
+		Spec: appsv1.DeploymentSpec{Replicas: new(int32(7))},
+	}
+	workerHPA := &autoscalingv2.HorizontalPodAutoscaler{Name: "test-celery-worker", Namespace: "default", OwnerReferences: controllerRefTo(superset)}
+
+	c := reconcileOnce(t, scheme, superset).WithObjects(workerDeploy, workerHPA).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r)
+
+	deploy := &appsv1.Deployment{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-celery-worker", Namespace: "default"}, deploy); err != nil {
+		t.Fatalf("expected worker Deployment: %v", err)
+	}
+	if deploy.Spec.Replicas == nil {
+		t.Error("worker replicas = nil, want the externally set 7")
+	} else if *deploy.Spec.Replicas != 7 {
+		t.Errorf("worker replicas = %d, want the externally set 7", *deploy.Spec.Replicas)
+	}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-celery-worker", Namespace: "default"}, &autoscalingv2.HorizontalPodAutoscaler{}); err == nil {
+		t.Error("expected the operator HPA for the externally scaled worker to be deleted")
+	}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, &autoscalingv2.HorizontalPodAutoscaler{}); err != nil {
+		t.Errorf("expected inherited autoscaling to still create the web-server HPA: %v", err)
 	}
 }
 
