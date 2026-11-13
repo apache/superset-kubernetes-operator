@@ -36,7 +36,6 @@ func TestResolveGunicorn_NilSpec(t *testing.T) {
 	assert.Equal(t, int32(60), g.Timeout)
 	assert.Equal(t, int32(2), g.KeepAlive)
 	assert.Equal(t, int32(0), g.MaxRequests)
-	assert.Equal(t, "info", g.LogLevel)
 }
 
 func TestResolveGunicorn_Presets(t *testing.T) {
@@ -90,7 +89,6 @@ func TestResolveGunicorn_AllFieldOverrides(t *testing.T) {
 		MaxRequestsJitter:     new(int32(50)),
 		LimitRequestLine:      new(int32(8190)),
 		LimitRequestFieldSize: new(int32(16380)),
-		LogLevel:              new("debug"),
 	})
 
 	assert.False(t, g.Disabled)
@@ -103,13 +101,12 @@ func TestResolveGunicorn_AllFieldOverrides(t *testing.T) {
 	assert.Equal(t, int32(50), g.MaxRequestsJitter)
 	assert.Equal(t, int32(8190), g.LimitRequestLine)
 	assert.Equal(t, int32(16380), g.LimitRequestFieldSize)
-	assert.Equal(t, "debug", g.LogLevel)
 }
 
 func TestResolveGunicorn_EnvVars(t *testing.T) {
 	g := ResolveGunicorn(nil)
 	envs := g.EnvVars()
-	assert.Len(t, envs, 10)
+	assert.Len(t, envs, 9)
 
 	envMap := make(map[string]string)
 	for _, e := range envs {
@@ -119,5 +116,4 @@ func TestResolveGunicorn_EnvVars(t *testing.T) {
 	assert.Equal(t, "8", envMap[EnvServerThreadsAmount])
 	assert.Equal(t, "gthread", envMap[EnvServerWorkerClass])
 	assert.Equal(t, "60", envMap[EnvGunicornTimeout])
-	assert.Equal(t, "info", envMap[EnvGunicornLogLevel])
 }

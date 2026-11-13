@@ -115,6 +115,8 @@ const (
 	EnvDBUser            = "SUPERSET_OPERATOR__DB_USER"
 	EnvDBPass            = "SUPERSET_OPERATOR__DB_PASS"
 	EnvForceReload       = "SUPERSET_OPERATOR__FORCE_RELOAD"
+	EnvLogLevel          = "SUPERSET_OPERATOR__LOG_LEVEL"
+	EnvWebsocketLogLevel = "LOG_LEVEL" // Node websocket server's own level var
 
 	// Valkey operator-internal transport vars.
 	EnvValkeyHost = "SUPERSET_OPERATOR__VALKEY_HOST"
