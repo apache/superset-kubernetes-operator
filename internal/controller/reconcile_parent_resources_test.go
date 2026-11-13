@@ -150,7 +150,7 @@ func TestReconcile_ExternalScalingLeavesReplicasToExternalController(t *testing.
 		Name: "test-celery-worker", Namespace: "default",
 		Spec: appsv1.DeploymentSpec{Replicas: new(int32(7))},
 	}
-	workerHPA := &autoscalingv2.HorizontalPodAutoscaler{Name: "test-celery-worker", Namespace: "default"}
+	workerHPA := &autoscalingv2.HorizontalPodAutoscaler{Name: "test-celery-worker", Namespace: "default", OwnerReferences: controllerRefTo(superset)}
 
 	c := reconcileOnce(t, scheme, superset).WithObjects(workerDeploy, workerHPA).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}

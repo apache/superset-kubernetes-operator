@@ -46,12 +46,12 @@ type SharedInput struct {
 	PodTemplate         *supersetv1alpha1.PodTemplate
 	Autoscaling         *supersetv1alpha1.AutoscalingSpec
 	PodDisruptionBudget *supersetv1alpha1.PDBSpec
+	ScalingMode         *supersetv1alpha1.ScalingMode
 }
 
 // ComponentInput captures per-component fields. Embeds SharedInput.
 type ComponentInput struct {
 	SharedInput
-	ScalingMode *supersetv1alpha1.ScalingMode
 }
 
 // OperatorInjected holds volumes, mounts, env vars, and init containers
@@ -108,8 +108,10 @@ func ResolveComponentSpec(
 	result.PodDisruptionBudget = ResolveOverridableValue(comp.PodDisruptionBudget, tl.PodDisruptionBudget)
 
 	// An external controller owns the replica count, so inherited
-	// spec.autoscaling must not create a competing HPA.
-	if comp.ScalingMode != nil && *comp.ScalingMode == supersetv1alpha1.ScalingModeExternal {
+	// spec.autoscaling must not create a competing HPA. Beat and lifecycle
+	// Jobs are not scalable and ignore the mode.
+	scalable := componentType != ComponentCeleryBeat && componentType != ComponentInit
+	if scalable && ResolveOverridableValue(comp.ScalingMode, tl.ScalingMode).IsExternal() {
 		result.ExternalScaling = true
 		result.Autoscaling = nil
 	}

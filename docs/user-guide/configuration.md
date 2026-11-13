@@ -879,13 +879,29 @@ When HPA is configured, the `replicas` field is ignored (HPA manages scaling).
 
 ### External scaling
 
-Set `scalingMode: External` to let another controller own a component's replica count, for example a [KEDA](https://keda.sh) `ScaledObject` that scales Celery workers on broker queue depth. The operator then keeps the Deployment's live replica count, creates no HPA for the component (removing one it created earlier), and ignores the inherited `spec.replicas` and `spec.autoscaling`. `replicas` and `autoscaling` cannot be set on the component itself. A newly created Deployment starts at one replica, and the external controller scales it from there.
+Set `scalingMode: External` to let another controller own the replica count, for example a [KEDA](https://keda.sh) `ScaledObject` that scales Celery workers on broker queue depth. The operator then keeps the Deployment's live replica count, creates no HPA for the component (removing one it created earlier), and ignores the inherited `spec.replicas` and `spec.autoscaling`. A newly created Deployment starts at one replica, and the external controller scales it from there.
+
+Like `replicas` and `autoscaling`, `scalingMode` can be set on a component or once at the top level for every scalable component. A component's own value overrides the top-level one, so `scalingMode: Operator` opts one component out of a top-level `External`. `replicas` and `autoscaling` cannot be set where the effective mode is `External`:
 
 ```yaml
 spec:
+  # Only the Celery workers are scaled externally.
   celeryWorker:
     scalingMode: External
----
+```
+
+```yaml
+spec:
+  # Every scalable component is scaled externally, except the web server.
+  scalingMode: External
+  webServer:
+    scalingMode: Operator
+    replicas: 2
+```
+
+A matching KEDA `ScaledObject` targets the component's Deployment by name:
+
+```yaml
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
@@ -902,6 +918,8 @@ spec:
         listName: celery
         listLength: "4"
 ```
+
+A lifecycle drain deletes component Deployments. When they are recreated they start at one replica, and for an externally scaled web server the maintenance page ends as soon as that pod is ready, so traffic briefly reaches a single web-server pod until the external controller scales it up.
 
 ## Pod Disruption Budget
 

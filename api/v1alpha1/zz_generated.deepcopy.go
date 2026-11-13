@@ -1861,6 +1861,11 @@ func (in *SupersetSpec) DeepCopyInto(out *SupersetSpec) {
 		*out = new(AutoscalingSpec)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.ScalingMode != nil {
+		in, out := &in.ScalingMode, &out.ScalingMode
+		*out = new(ScalingMode)
+		**out = **in
+	}
 	if in.PodDisruptionBudget != nil {
 		in, out := &in.PodDisruptionBudget, &out.PodDisruptionBudget
 		*out = new(PDBSpec)

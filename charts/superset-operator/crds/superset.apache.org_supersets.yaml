@@ -8126,11 +8126,6 @@ spec:
                       rule: '!has(self.nodePort) || self.type == ''NodePort'' || self.type
                         == ''LoadBalancer'''
                 type: object
-                x-kubernetes-validations:
-                - message: replicas and autoscaling cannot be set when scalingMode
-                    is External
-                  rule: '!has(self.scalingMode) || self.scalingMode != ''External''
-                    || (!has(self.replicas) && !has(self.autoscaling))'
               celeryWorker:
                 properties:
                   autoscaling:
@@ -12225,11 +12220,6 @@ spec:
                         type: string
                     type: object
                 type: object
-                x-kubernetes-validations:
-                - message: replicas and autoscaling cannot be set when scalingMode
-                    is External
-                  rule: '!has(self.scalingMode) || self.scalingMode != ''External''
-                    || (!has(self.replicas) && !has(self.autoscaling))'
               config:
                 type: string
               deploymentTemplate:
@@ -27742,11 +27732,6 @@ spec:
                         type: string
                     type: object
                 type: object
-                x-kubernetes-validations:
-                - message: replicas and autoscaling cannot be set when scalingMode
-                    is External
-                  rule: '!has(self.scalingMode) || self.scalingMode != ''External''
-                    || (!has(self.replicas) && !has(self.autoscaling))'
               metastore:
                 properties:
                   createDatabase:
@@ -31885,6 +31870,11 @@ spec:
               replicas:
                 format: int32
                 type: integer
+              scalingMode:
+                enum:
+                - Operator
+                - External
+                type: string
               secretKey:
                 type: string
               secretKeyFrom:
@@ -36283,11 +36273,6 @@ spec:
                         type: string
                     type: object
                 type: object
-                x-kubernetes-validations:
-                - message: replicas and autoscaling cannot be set when scalingMode
-                    is External
-                  rule: '!has(self.scalingMode) || self.scalingMode != ''External''
-                    || (!has(self.replicas) && !has(self.autoscaling))'
               websocketServer:
                 properties:
                   autoscaling:
@@ -40361,10 +40346,6 @@ spec:
                 - message: websocketServer.config and websocketServer.configFrom are
                     mutually exclusive
                   rule: '!(has(self.config) && has(self.configFrom))'
-                - message: replicas and autoscaling cannot be set when scalingMode
-                    is External
-                  rule: '!has(self.scalingMode) || self.scalingMode != ''External''
-                    || (!has(self.replicas) && !has(self.autoscaling))'
             required:
             - image
             type: object
@@ -40439,6 +40420,43 @@ spec:
               rule: '!has(self.lifecycle) || !has(self.lifecycle.rotate) || (has(self.lifecycle.rotate.disabled)
                 && self.lifecycle.rotate.disabled) || has(self.previousSecretKey)
                 || has(self.previousSecretKeyFrom)'
+            - message: replicas and autoscaling cannot be set when scalingMode is
+                External
+              rule: '!has(self.scalingMode) || self.scalingMode != ''External'' ||
+                (!has(self.replicas) && !has(self.autoscaling))'
+            - message: 'webServer.replicas and webServer.autoscaling cannot be set
+                when its effective scalingMode is External; set webServer.scalingMode:
+                Operator to opt out of a top-level External'
+              rule: '!has(self.webServer) || (has(self.webServer.scalingMode) ? self.webServer.scalingMode
+                : (has(self.scalingMode) ? self.scalingMode : ''Operator'')) != ''External''
+                || (!has(self.webServer.replicas) && !has(self.webServer.autoscaling))'
+            - message: 'celeryWorker.replicas and celeryWorker.autoscaling cannot
+                be set when its effective scalingMode is External; set celeryWorker.scalingMode:
+                Operator to opt out of a top-level External'
+              rule: '!has(self.celeryWorker) || (has(self.celeryWorker.scalingMode)
+                ? self.celeryWorker.scalingMode : (has(self.scalingMode) ? self.scalingMode
+                : ''Operator'')) != ''External'' || (!has(self.celeryWorker.replicas)
+                && !has(self.celeryWorker.autoscaling))'
+            - message: 'celeryFlower.replicas and celeryFlower.autoscaling cannot
+                be set when its effective scalingMode is External; set celeryFlower.scalingMode:
+                Operator to opt out of a top-level External'
+              rule: '!has(self.celeryFlower) || (has(self.celeryFlower.scalingMode)
+                ? self.celeryFlower.scalingMode : (has(self.scalingMode) ? self.scalingMode
+                : ''Operator'')) != ''External'' || (!has(self.celeryFlower.replicas)
+                && !has(self.celeryFlower.autoscaling))'
+            - message: 'websocketServer.replicas and websocketServer.autoscaling cannot
+                be set when its effective scalingMode is External; set websocketServer.scalingMode:
+                Operator to opt out of a top-level External'
+              rule: '!has(self.websocketServer) || (has(self.websocketServer.scalingMode)
+                ? self.websocketServer.scalingMode : (has(self.scalingMode) ? self.scalingMode
+                : ''Operator'')) != ''External'' || (!has(self.websocketServer.replicas)
+                && !has(self.websocketServer.autoscaling))'
+            - message: 'mcpServer.replicas and mcpServer.autoscaling cannot be set
+                when its effective scalingMode is External; set mcpServer.scalingMode:
+                Operator to opt out of a top-level External'
+              rule: '!has(self.mcpServer) || (has(self.mcpServer.scalingMode) ? self.mcpServer.scalingMode
+                : (has(self.scalingMode) ? self.scalingMode : ''Operator'')) != ''External''
+                || (!has(self.mcpServer.replicas) && !has(self.mcpServer.autoscaling))'
           status:
             properties:
               components:
