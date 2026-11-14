@@ -34,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
+	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
 // TestLifecyclePipeline_FullSuccess walks the full seed → migrate → rotate →
@@ -145,6 +146,78 @@ func TestLifecyclePipeline_FullSuccess(t *testing.T) {
 	}
 }
 
+func TestLifecyclePipeline_LogLevelAppliesOnTriggeredRerun(t *testing.T) {
+	scheme := testScheme(t)
+	initialLevel := supersetv1alpha1.LogLevelInfo
+	updatedLevel := supersetv1alpha1.LogLevelDebug
+	initialTrigger := "first"
+	updatedTrigger := "second"
+	disabled := true
+
+	superset := &supersetv1alpha1.Superset{
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: supersetv1alpha1.SupersetSpec{
+			Image:         supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"},
+			SecretKeyFrom: &corev1.SecretKeySelector{Name: "app-secret", Key: "secret-key"},
+			LogLevel:      &initialLevel,
+			Lifecycle: &supersetv1alpha1.LifecycleSpec{
+				Migrate: &supersetv1alpha1.MigrateTaskSpec{Trigger: &initialTrigger},
+				Init:    &supersetv1alpha1.InitTaskSpec{Disabled: &disabled},
+			},
+		},
+	}
+
+	c := fake.NewClientBuilder().
+		WithScheme(scheme).
+		WithObjects(superset).
+		WithStatusSubresource(&supersetv1alpha1.Superset{}).
+		Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(20)}
+	ctx := context.Background()
+	envValue := func(envs []corev1.EnvVar, name string) string {
+		for _, env := range envs {
+			if env.Name == name {
+				return env.Value
+			}
+		}
+		return ""
+	}
+
+	reconcileLifecycleWithoutFailure(t, r, ctx, superset)
+
+	job, err := getTaskJob(t, c, "default", "test-migrate")
+	require.NoError(t, err)
+	require.NotNil(t, job)
+
+	superset.Spec.LogLevel = &updatedLevel
+	require.NoError(t, c.Update(ctx, superset))
+	reconcileLifecycleWithoutFailure(t, r, ctx, superset)
+
+	runningJob, err := getTaskJob(t, c, "default", "test-migrate")
+	require.NoError(t, err)
+	require.NotNil(t, runningJob)
+
+	assert.Equal(t, job.Name, runningJob.Name)
+	assert.Equal(t, "INFO", envValue(runningJob.Spec.Template.Spec.Containers[0].Env, common.EnvLogLevel))
+
+	markJobSucceeded(t, c, job)
+	reconcileLifecycleWithoutFailure(t, r, ctx, superset)
+	require.Equal(t, taskStateComplete, superset.Status.Lifecycle.Migrate.State)
+
+	require.NoError(t, c.Get(ctx, types.NamespacedName{Name: "test", Namespace: "default"}, superset))
+	superset.Spec.Lifecycle.Migrate.Trigger = &updatedTrigger
+	require.NoError(t, c.Update(ctx, superset))
+	reconcileLifecycleWithoutFailure(t, r, ctx, superset)
+
+	// The first reconcile resets stale status; the next creates the replacement.
+	reconcileLifecycleWithoutFailure(t, r, ctx, superset)
+	job, err = getTaskJob(t, c, "default", "test-migrate")
+	require.NoError(t, err)
+	require.NotNil(t, job)
+
+	assert.Equal(t, "DEBUG", envValue(job.Spec.Template.Spec.Containers[0].Env, common.EnvLogLevel))
+}
+
 func taskJobName(parent, taskType string) string {
 	switch taskType {
 	case taskTypeSeed:
@@ -170,6 +243,14 @@ func getTaskJob(t *testing.T, c client.Client, namespace, name string) (*batchv1
 		return nil, err
 	}
 	return job, nil
+}
+
+func reconcileLifecycleWithoutFailure(t *testing.T, r *SupersetReconciler, ctx context.Context, superset *supersetv1alpha1.Superset) lifecycleResult {
+	t.Helper()
+	res, err := r.reconcileLifecycle(ctx, superset, "config-checksum", nil, "sa")
+	require.NoError(t, err)
+	require.False(t, res.TerminalFailure)
+	return res
 }
 
 func markJobSucceeded(t *testing.T, c client.Client, job *batchv1.Job) {
