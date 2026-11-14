@@ -65,7 +65,7 @@ func TestReconcile_SecretsNeverLeakIntoConfigMaps(t *testing.T) {
 	sentinels := []string{sentinelSecretKey, sentinelPrevKey, sentinelDBPass, sentinelValkey}
 
 	spec := minimalSupersetSpec()
-	spec.Environment = new("Development")
+	spec.Environment = new(supersetv1alpha1.EnvironmentDevelopment)
 	// Inline secrets (dev-mode) so the values are present in the spec.
 	spec.SecretKeyFrom = nil
 	spec.SecretKey = new(sentinelSecretKey)

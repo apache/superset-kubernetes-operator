@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
+	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -89,6 +90,53 @@ func TestMergeAnnotations(t *testing.T) {
 	// Both nil returns nil.
 	if mergeAnnotations(nil, nil) != nil {
 		t.Error("expected nil for both-nil input")
+	}
+}
+
+// controllerRefTo returns the controller owner reference the operator sets on
+// every resource it creates for the given Superset.
+func controllerRefTo(owner *supersetv1alpha1.Superset) []metav1.OwnerReference {
+	return []metav1.OwnerReference{{
+		APIVersion: supersetv1alpha1.GroupVersion.String(), Kind: "Superset",
+		Name: owner.Name, UID: owner.UID, Controller: new(true),
+	}}
+}
+
+func TestDeleteIfControlledBy(t *testing.T) {
+	ctx := context.Background()
+	scheme := testScheme(t)
+	superset := &supersetv1alpha1.Superset{Name: "test", Namespace: "default", UID: "uid-1"}
+	name := common.ResourceBaseName("test", common.ComponentCeleryWorker)
+
+	tests := []struct {
+		name        string
+		refs        []metav1.OwnerReference
+		wantDeleted bool
+	}{
+		{"deletes resource controlled by the CR", controllerRefTo(superset), true},
+		{"keeps unowned resource at managed name", nil, false},
+		{"keeps foreign-owned resource at managed name", []metav1.OwnerReference{{
+			APIVersion: "keda.sh/v1alpha1", Kind: "ScaledObject", Name: "so",
+			UID: "so-uid", Controller: new(true),
+		}}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hpa := &autoscalingv2.HorizontalPodAutoscaler{Name: name, Namespace: "default", OwnerReferences: tt.refs}
+			c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(hpa).Build()
+			if err := deleteIfControlledBy(ctx, c, superset, &autoscalingv2.HorizontalPodAutoscaler{
+				Name: name, Namespace: "default",
+			}); err != nil {
+				t.Fatalf("deleteIfControlledBy: %v", err)
+			}
+			err := c.Get(ctx, client.ObjectKey{Name: name, Namespace: "default"}, &autoscalingv2.HorizontalPodAutoscaler{})
+			if tt.wantDeleted && !errors.IsNotFound(err) {
+				t.Errorf("expected HPA deleted, got %v", err)
+			}
+			if !tt.wantDeleted && err != nil {
+				t.Errorf("expected HPA kept, got %v", err)
+			}
+		})
 	}
 }
 

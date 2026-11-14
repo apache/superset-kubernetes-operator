@@ -262,7 +262,7 @@ func (in *CeleryWorkerProcessSpec) DeepCopyInto(out *CeleryWorkerProcessSpec) {
 	*out = *in
 	if in.Preset != nil {
 		in, out := &in.Preset, &out.Preset
-		*out = new(string)
+		*out = new(Preset)
 		**out = **in
 	}
 	if in.Concurrency != nil {
@@ -692,7 +692,7 @@ func (in *GunicornSpec) DeepCopyInto(out *GunicornSpec) {
 	*out = *in
 	if in.Preset != nil {
 		in, out := &in.Preset, &out.Preset
-		*out = new(string)
+		*out = new(Preset)
 		**out = **in
 	}
 	if in.Workers != nil {
@@ -923,7 +923,7 @@ func (in *LifecycleSpec) DeepCopyInto(out *LifecycleSpec) {
 	*out = *in
 	if in.UpgradeMode != nil {
 		in, out := &in.UpgradeMode, &out.UpgradeMode
-		*out = new(string)
+		*out = new(UpgradeMode)
 		**out = **in
 	}
 	if in.Disabled != nil {
@@ -1152,7 +1152,7 @@ func (in *MetastoreSpec) DeepCopyInto(out *MetastoreSpec) {
 	}
 	if in.Type != nil {
 		in, out := &in.Type, &out.Type
-		*out = new(string)
+		*out = new(DatabaseType)
 		**out = **in
 	}
 	if in.Driver != nil {
@@ -1347,7 +1347,7 @@ func (in *PodRetentionSpec) DeepCopyInto(out *PodRetentionSpec) {
 	*out = *in
 	if in.Policy != nil {
 		in, out := &in.Policy, &out.Policy
-		*out = new(string)
+		*out = new(PodRetentionPolicy)
 		**out = **in
 	}
 }
@@ -1516,7 +1516,7 @@ func (in *SQLAlchemyEngineOptionsSpec) DeepCopyInto(out *SQLAlchemyEngineOptions
 	*out = *in
 	if in.Preset != nil {
 		in, out := &in.Preset, &out.Preset
-		*out = new(string)
+		*out = new(Preset)
 		**out = **in
 	}
 	if in.PoolSize != nil {
@@ -1622,7 +1622,7 @@ func (in *SeedSourceSpec) DeepCopyInto(out *SeedSourceSpec) {
 	*out = *in
 	if in.Type != nil {
 		in, out := &in.Type, &out.Type
-		*out = new(string)
+		*out = new(DatabaseType)
 		**out = **in
 	}
 	if in.HostFrom != nil {
@@ -1868,7 +1868,7 @@ func (in *SupersetSpec) DeepCopyInto(out *SupersetSpec) {
 	}
 	if in.Environment != nil {
 		in, out := &in.Environment, &out.Environment
-		*out = new(string)
+		*out = new(Environment)
 		**out = **in
 	}
 	if in.SecretKey != nil {

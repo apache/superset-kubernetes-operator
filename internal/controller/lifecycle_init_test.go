@@ -82,7 +82,7 @@ func TestInitInputs_ChangesWithRenderedConfig(t *testing.T) {
 			name: "lifecycle.sqlaEngineOptions.preset=disabled",
 			mutate: func(s *supersetv1alpha1.Superset) {
 				s.Spec.Lifecycle.SQLAlchemyEngineOptions = &supersetv1alpha1.SQLAlchemyEngineOptionsSpec{
-					Preset: new("disabled"),
+					Preset: new(supersetv1alpha1.PresetDisabled),
 				}
 			},
 		},

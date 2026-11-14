@@ -26,7 +26,10 @@ import (
 	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
-const defaultPool = "prefork"
+const (
+	defaultPool         = "prefork"
+	defaultOptimization = "fair"
+)
 
 // ResolvedCelery holds fully-resolved Celery worker parameters.
 type ResolvedCelery struct {
@@ -44,11 +47,11 @@ type ResolvedCelery struct {
 // ResolveCelery resolves a CeleryWorkerProcessSpec into concrete values.
 // When spec is nil, balanced defaults are used.
 func ResolveCelery(spec *v1alpha1.CeleryWorkerProcessSpec) ResolvedCelery {
-	preset := PresetBalanced
+	preset := v1alpha1.PresetBalanced
 	if spec != nil && spec.Preset != nil {
 		preset = *spec.Preset
 	}
-	if preset == PresetDisabled {
+	if preset == v1alpha1.PresetDisabled {
 		return ResolvedCelery{Disabled: true}
 	}
 
@@ -56,7 +59,7 @@ func ResolveCelery(spec *v1alpha1.CeleryWorkerProcessSpec) ResolvedCelery {
 	r := ResolvedCelery{
 		Concurrency:        concurrency,
 		Pool:               defaultPool,
-		Optimization:       "fair",
+		Optimization:       defaultOptimization,
 		MaxTasksPerChild:   0,
 		MaxMemoryPerChild:  0,
 		PrefetchMultiplier: 4,
@@ -80,13 +83,13 @@ func ResolveCelery(spec *v1alpha1.CeleryWorkerProcessSpec) ResolvedCelery {
 	return r
 }
 
-func celeryPresetDefaults(preset string) int32 {
+func celeryPresetDefaults(preset v1alpha1.Preset) int32 {
 	switch preset {
-	case PresetConservative:
+	case v1alpha1.PresetConservative:
 		return 2
-	case PresetPerformance:
+	case v1alpha1.PresetPerformance:
 		return 8
-	case PresetAggressive:
+	case v1alpha1.PresetAggressive:
 		return 16
 	default:
 		return 4

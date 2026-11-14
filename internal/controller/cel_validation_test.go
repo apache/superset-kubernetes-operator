@@ -36,7 +36,6 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
-	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
 // These specs exhaustively exercise the CRD's CEL (x-kubernetes-validations)
@@ -69,7 +68,7 @@ func toUnstructuredSuperset(s *supersetv1alpha1.Superset) *unstructured.Unstruct
 // are permitted, lifecycle tasks disabled, no components. A clean baseline that
 // satisfies every CEL rule.
 func validDevSuperset(name string) *supersetv1alpha1.Superset {
-	env := common.EnvironmentDev
+	env := supersetv1alpha1.EnvironmentDevelopment
 	return &supersetv1alpha1.Superset{
 		Name: name, Namespace: celValidationNS,
 		Spec: supersetv1alpha1.SupersetSpec{
@@ -85,7 +84,7 @@ func validDevSuperset(name string) *supersetv1alpha1.Superset {
 // validProdSuperset returns a minimal valid Production-mode CR: all secrets are
 // referenced from Secrets (no inline), lifecycle disabled, no components.
 func validProdSuperset(name string) *supersetv1alpha1.Superset {
-	env := common.EnvironmentProd
+	env := supersetv1alpha1.EnvironmentProduction
 	return &supersetv1alpha1.Superset{
 		Name: name, Namespace: celValidationNS,
 		Spec: supersetv1alpha1.SupersetSpec{
@@ -463,7 +462,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 	Describe("Seed", func() {
 		It("accepts a fully Secret-backed source connection", func() {
 			cr := validProdSuperset("seed-secret-source")
-			staging := common.EnvironmentStaging
+			staging := supersetv1alpha1.EnvironmentStaging
 			cr.Spec.Environment = &staging
 			cr.Spec.Metastore = structuredProdMetastore()
 			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
@@ -536,7 +535,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		})
 
 		It("rejects inline seed source password outside Development", func() {
-			staging := common.EnvironmentStaging
+			staging := supersetv1alpha1.EnvironmentStaging
 			cr := validProdSuperset("seed-staging-pw")
 			cr.Spec.Environment = &staging
 			cr.Spec.Metastore = structuredProdMetastore()
@@ -747,7 +746,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			Eventually(func(g Gomega) {
 				fetched := &supersetv1alpha1.Superset{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cr), fetched)).To(Succeed())
-				dev := common.EnvironmentDev
+				dev := supersetv1alpha1.EnvironmentDevelopment
 				fetched.Spec.Environment = &dev
 				err := k8sClient.Update(ctx, fetched)
 				g.Expect(err).To(HaveOccurred())
@@ -757,7 +756,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 
 		It("allows upgrade from Staging to Production", func() {
 			cr := validProdSuperset("env-upgrade-prod")
-			staging := common.EnvironmentStaging
+			staging := supersetv1alpha1.EnvironmentStaging
 			cr.Spec.Environment = &staging
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 
@@ -765,7 +764,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			Eventually(func(g Gomega) {
 				fetched := &supersetv1alpha1.Superset{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cr), fetched)).To(Succeed())
-				prod := common.EnvironmentProd
+				prod := supersetv1alpha1.EnvironmentProduction
 				fetched.Spec.Environment = &prod
 				g.Expect(k8sClient.Update(ctx, fetched)).To(Succeed())
 			}).Should(Succeed())

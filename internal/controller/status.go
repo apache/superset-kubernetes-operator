@@ -37,14 +37,6 @@ import (
 )
 
 const (
-	componentPhaseReady       = "Ready"
-	componentPhaseProgressing = "Progressing"
-	componentPhaseUnavailable = "Unavailable"
-	componentPhaseDrained     = "Drained"
-
-	componentResourceStatusPresent = "Present"
-	componentResourceStatusMissing = "Missing"
-
 	// kindDeployment is the Kubernetes Kind for component workloads, used both
 	// as HPA scaleTargetRef and in reported component resource status.
 	kindDeployment = "Deployment"
@@ -121,19 +113,19 @@ func (r *SupersetReconciler) updateStatus(ctx context.Context, superset *superse
 	if !anyComponentEnabled(superset) {
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeAvailable,
 			metav1.ConditionTrue, "NoComponentsEnabled", "No components are enabled", superset.Generation)
-		superset.Status.Phase = phaseRunning
+		superset.Status.Phase = supersetv1alpha1.SupersetPhaseRunning
 	} else if summary.allReady {
 		completeRestoringLifecycle(superset)
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeAvailable,
 			metav1.ConditionTrue, "AllComponentsReady", "All components are ready", superset.Generation)
-		superset.Status.Phase = phaseRunning
+		superset.Status.Phase = supersetv1alpha1.SupersetPhaseRunning
 	} else if isRestoringLifecycle(superset) {
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeAvailable,
 			metav1.ConditionFalse, "ComponentsRestoring", "Components are being restored after lifecycle tasks", superset.Generation)
 	} else {
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeAvailable,
 			metav1.ConditionFalse, "ComponentsNotReady", "One or more components are not ready", superset.Generation)
-		superset.Status.Phase = phaseDegraded
+		superset.Status.Phase = supersetv1alpha1.SupersetPhaseDegraded
 	}
 
 	return patchStatusIfChanged(ctx, r.Client, superset, origSuperset, origSuperset.Status, superset.Status)
@@ -170,12 +162,12 @@ func (r *SupersetReconciler) updateLifecycleComponentStatus(ctx context.Context,
 
 func isRestoringLifecycle(superset *supersetv1alpha1.Superset) bool {
 	return superset.Status.Lifecycle != nil &&
-		superset.Status.Lifecycle.Phase == lifecyclePhaseRestoring
+		superset.Status.Lifecycle.Phase == supersetv1alpha1.LifecyclePhaseRestoring
 }
 
 func completeRestoringLifecycle(superset *supersetv1alpha1.Superset) {
 	if isRestoringLifecycle(superset) {
-		superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
+		superset.Status.Lifecycle.Phase = supersetv1alpha1.LifecyclePhaseComplete
 	}
 }
 
@@ -231,7 +223,7 @@ func componentDeploymentMissing(status *supersetv1alpha1.ComponentRefStatus) boo
 		return false
 	}
 	for _, resource := range status.Resources {
-		if resource.Kind == kindDeployment && resource.Status == componentResourceStatusMissing {
+		if resource.Kind == kindDeployment && resource.Status == supersetv1alpha1.ComponentResourceMissing {
 			return true
 		}
 	}
@@ -249,7 +241,7 @@ func webServerMaintenanceStatus(status *supersetv1alpha1.ComponentRefStatus) *su
 		return status
 	}
 	copied := status.DeepCopy()
-	copied.Phase = componentPhaseProgressing
+	copied.Phase = supersetv1alpha1.ComponentPhaseProgressing
 	copied.ReadyReplicas = 0
 	copied.AvailableReplicas = 0
 	copied.Message = "Web-server Service is routing to the maintenance page"
@@ -264,11 +256,11 @@ func drainedComponentStatus(superset *supersetv1alpha1.Superset, desc *component
 		{
 			Kind:   kindDeployment,
 			Name:   resourceBaseName,
-			Status: componentResourceStatusMissing,
+			Status: supersetv1alpha1.ComponentResourceMissing,
 		},
 	}
 	return &supersetv1alpha1.ComponentRefStatus{
-		Phase:     componentPhaseDrained,
+		Phase:     supersetv1alpha1.ComponentPhaseDrained,
 		Resources: resources,
 		Replicas:  desired,
 		Message:   "Component reconciliation is paused while lifecycle tasks run",
@@ -291,7 +283,7 @@ func (r *SupersetReconciler) getComponentStatus(ctx context.Context, superset *s
 		resources = append(resources, componentResourceStatus(kindDeployment, resourceBaseName, false))
 		resources = append(resources, r.expectedComponentResources(ctx, superset, desc, accessor, cfg, resourceBaseName)...)
 		return &supersetv1alpha1.ComponentRefStatus{
-			Phase:     "Pending",
+			Phase:     supersetv1alpha1.ComponentPhasePending,
 			Resources: resources,
 			Replicas:  desired,
 			Message:   fmt.Sprintf("Deployment %s not found", resourceBaseName),
@@ -358,9 +350,9 @@ func (r *SupersetReconciler) observedResourceStatus(ctx context.Context, namespa
 }
 
 func componentResourceStatus(kind, name string, present bool) supersetv1alpha1.ComponentResourceStatus {
-	status := componentResourceStatusMissing
+	status := supersetv1alpha1.ComponentResourceMissing
 	if present {
-		status = componentResourceStatusPresent
+		status = supersetv1alpha1.ComponentResourcePresent
 	}
 	return supersetv1alpha1.ComponentResourceStatus{
 		Kind:   kind,
@@ -418,29 +410,29 @@ func deploymentMainImage(deploy *appsv1.Deployment) string {
 	return deploy.Spec.Template.Spec.Containers[0].Image
 }
 
-func componentPhaseAndMessage(deploy *appsv1.Deployment, desired int32) (string, string) {
+func componentPhaseAndMessage(deploy *appsv1.Deployment, desired int32) (supersetv1alpha1.ComponentPhase, string) {
 	if desired == 0 {
-		return componentPhaseReady, "Scaled to zero"
+		return supersetv1alpha1.ComponentPhaseReady, "Scaled to zero"
 	}
 	if deploy.Status.ReadyReplicas == desired &&
 		deploy.Status.UpdatedReplicas >= desired &&
 		deploy.Status.AvailableReplicas >= desired {
-		return componentPhaseReady, ""
+		return supersetv1alpha1.ComponentPhaseReady, ""
 	}
 	if deploy.Generation > deploy.Status.ObservedGeneration {
-		return componentPhaseProgressing, "Deployment has not observed the latest generation"
+		return supersetv1alpha1.ComponentPhaseProgressing, "Deployment has not observed the latest generation"
 	}
 	for _, condition := range deploy.Status.Conditions {
 		if condition.Type == appsv1.DeploymentProgressing &&
 			condition.Status == corev1.ConditionFalse &&
 			condition.Reason == "ProgressDeadlineExceeded" {
-			return componentPhaseUnavailable, condition.Message
+			return supersetv1alpha1.ComponentPhaseUnavailable, condition.Message
 		}
 	}
 	if deploy.Status.ReadyReplicas > 0 || deploy.Status.UpdatedReplicas > 0 {
-		return componentPhaseProgressing, fmt.Sprintf("%d of %d replicas are ready", deploy.Status.ReadyReplicas, desired)
+		return supersetv1alpha1.ComponentPhaseProgressing, fmt.Sprintf("%d of %d replicas are ready", deploy.Status.ReadyReplicas, desired)
 	}
-	return componentPhaseUnavailable, fmt.Sprintf("%d of %d replicas are ready", deploy.Status.ReadyReplicas, desired)
+	return supersetv1alpha1.ComponentPhaseUnavailable, fmt.Sprintf("%d of %d replicas are ready", deploy.Status.ReadyReplicas, desired)
 }
 
 func anyComponentEnabled(superset *supersetv1alpha1.Superset) bool {
@@ -453,5 +445,5 @@ func anyComponentEnabled(superset *supersetv1alpha1.Superset) bool {
 }
 
 func isComponentReady(status *supersetv1alpha1.ComponentRefStatus) bool {
-	return status.Phase == componentPhaseReady
+	return status.Phase == supersetv1alpha1.ComponentPhaseReady
 }
