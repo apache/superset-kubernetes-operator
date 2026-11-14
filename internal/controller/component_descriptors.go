@@ -22,12 +22,8 @@ import (
 	"context"
 	"fmt"
 
-	appsv1 "k8s.io/api/apps/v1"
-	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
-	policyv1 "k8s.io/api/policy/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
@@ -334,27 +330,10 @@ func applyFlowerProbes(componentType naming.ComponentType, cfg *componentReconci
 func (r *SupersetReconciler) deleteComponentResources(ctx context.Context, superset *supersetv1alpha1.Superset, desc *componentDescriptor) error {
 	resourceBaseName := naming.ResourceBaseName(superset.Name, desc.componentType)
 
-	deleteNamed := func(obj client.Object) error {
-		obj.SetName(resourceBaseName)
-		obj.SetNamespace(superset.Namespace)
-		return deleteIfNotForeignOwned(ctx, r.Client, superset, obj)
-	}
-
-	if err := deleteNamed(&appsv1.Deployment{}); err != nil {
-		return fmt.Errorf("deleting Deployment for disabled %s: %w", desc.componentType, err)
-	}
-	if err := deleteNamed(&autoscalingv2.HorizontalPodAutoscaler{}); err != nil {
-		return fmt.Errorf("deleting HPA for disabled %s: %w", desc.componentType, err)
-	}
-	if err := deleteNamed(&policyv1.PodDisruptionBudget{}); err != nil {
-		return fmt.Errorf("deleting PDB for disabled %s: %w", desc.componentType, err)
-	}
-
 	cfg, ok := componentResourceConfig(desc.componentType)
-	if ok && cfg.defaultPort > 0 {
-		if err := deleteNamed(&corev1.Service{}); err != nil {
-			return fmt.Errorf("deleting Service for disabled %s: %w", desc.componentType, err)
-		}
+	deleteService := ok && cfg.defaultPort > 0
+	if err := r.deleteComponentWorkload(ctx, superset, desc.componentType, deleteService); err != nil {
+		return fmt.Errorf("deleting resources for disabled %s: %w", desc.componentType, err)
 	}
 
 	if desc.hasPythonConfig {

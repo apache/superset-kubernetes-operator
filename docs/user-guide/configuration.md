@@ -331,7 +331,8 @@ The operator sets certain env vars automatically based on the CR spec. These are
 | `SUPERSET_OPERATOR__FLOWER_URL_PREFIX` | Operator-internal | Operator (from `celeryFlower.service.gatewayPath`, default `/flower`) | Flower URL prefix |
 | `SUPERSET_OPERATOR__FORCE_RELOAD` | Operator-internal | Operator (from `spec.forceReload`) | Triggers rolling restart |
 | `LOG_LEVEL` | Standard | Operator (from `spec.logLevel` or `websocketServer.logLevel`, websocket server only, set only when a level is configured) | Winston log level read by the websocket server |
-| `SERVER_WORKER_AMOUNT`, `SERVER_THREADS_AMOUNT`, `SERVER_WORKER_CLASS`, `GUNICORN_TIMEOUT`, `GUNICORN_KEEPALIVE`, `WORKER_MAX_REQUESTS`, `WORKER_MAX_REQUESTS_JITTER`, `SERVER_LIMIT_REQUEST_LINE`, `SERVER_LIMIT_REQUEST_FIELD_SIZE`, `GUNICORN_LOGLEVEL` | Standard | Operator (from `webServer.gunicorn`, web server only, skipped when `preset: disabled`) | Gunicorn settings read by `run-server.sh` |
+| `SERVER_WORKER_AMOUNT`, `SERVER_THREADS_AMOUNT`, `SERVER_WORKER_CLASS`, `GUNICORN_TIMEOUT`, `GUNICORN_KEEPALIVE`, `WORKER_MAX_REQUESTS`, `WORKER_MAX_REQUESTS_JITTER`, `SERVER_LIMIT_REQUEST_LINE`, `SERVER_LIMIT_REQUEST_FIELD_SIZE` | Standard | Operator (from `webServer.gunicorn`, web server only, skipped when `preset: disabled`) | Gunicorn settings read by `run-server.sh` |
+| `GUNICORN_LOGLEVEL` | Standard | Operator (from `webServer.logLevel` or `spec.logLevel`, web server only, always set) | Gunicorn log level read by `run-server.sh` |
 
 Operator-set env vars are merged after `podTemplate.container.env`, so a user-defined env var with the same name is overridden and the operator logs `operator env var overrides user-specified value`. Use the matching CRD field instead, for example `webServer.gunicorn.workers` rather than `SERVER_WORKER_AMOUNT`.
 
@@ -629,7 +630,7 @@ spec:
       maxRequestsJitter: 50
 ```
 
-The full set of configurable fields (static defaults in parentheses): `timeout` (60), `keepAlive` (2), `maxRequests` (0 = disabled), `maxRequestsJitter` (0), `limitRequestLine` (0 = unlimited), `limitRequestFieldSize` (0 = unlimited), `logLevel` (info).
+The full set of configurable fields (static defaults in parentheses): `timeout` (60), `keepAlive` (2), `maxRequests` (0 = disabled), `maxRequestsJitter` (0), `limitRequestLine` (0 = unlimited), `limitRequestFieldSize` (0 = unlimited). Gunicorn's log level comes from `spec.logLevel` or `spec.webServer.logLevel`.
 
 ## Celery Worker Configuration
 

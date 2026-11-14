@@ -8441,17 +8441,8 @@ spec:
                         minimum: 0
                         type: integer
                       optimization:
-                        enum:
-                        - default
-                        - fair
                         type: string
                       pool:
-                        enum:
-                        - prefork
-                        - threads
-                        - gevent
-                        - eventlet
-                        - solo
                         type: string
                       prefetchMultiplier:
                         format: int32
@@ -32134,10 +32125,6 @@ spec:
                         type: string
                       certRequired:
                         default: required
-                        enum:
-                        - required
-                        - optional
-                        - none
                         type: string
                       keyFile:
                         type: string
@@ -32550,11 +32537,6 @@ spec:
                         minimum: 1
                         type: integer
                       workerClass:
-                        enum:
-                        - sync
-                        - gthread
-                        - gevent
-                        - eventlet
                         type: string
                       workers:
                         format: int32
@@ -40980,6 +40962,16 @@ spec:
                         type: string
                     type: object
                   phase:
+                    enum:
+                    - Seeding
+                    - Draining
+                    - Migrating
+                    - Rotating
+                    - Initializing
+                    - Restoring
+                    - Complete
+                    - Blocked
+                    - AwaitingApproval
                     type: string
                   rotate:
                     properties:

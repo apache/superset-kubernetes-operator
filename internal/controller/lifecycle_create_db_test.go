@@ -56,7 +56,7 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 		pw := "p@$$"
 		superset := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{
-				Environment: new(common.EnvironmentDev),
+				Environment: new(supersetv1alpha1.EnvironmentDevelopment),
 				Metastore: &supersetv1alpha1.MetastoreSpec{
 					Host:           new("pg.svc"),
 					Database:       new("superset"),
@@ -120,7 +120,7 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 	})
 
 	t.Run("mysql", func(t *testing.T) {
-		mysqlType := "MySQL"
+		mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 		superset := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{
 				Metastore: &supersetv1alpha1.MetastoreSpec{
@@ -208,7 +208,7 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 		weirdName := `it's"weird` + "`db`"
 		superset := &supersetv1alpha1.Superset{
 			Spec: supersetv1alpha1.SupersetSpec{
-				Environment: new(common.EnvironmentDev),
+				Environment: new(supersetv1alpha1.EnvironmentDevelopment),
 				Metastore: &supersetv1alpha1.MetastoreSpec{
 					Host:           new("pg.svc"),
 					Database:       &weirdName,
@@ -254,7 +254,7 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 					CreateDatabase: new(true),
 				}
 				if kind == "mysql" {
-					meta.Type = new("MySQL")
+					meta.Type = new(supersetv1alpha1.DatabaseTypeMySQL)
 				}
 				ctr := buildCreateDatabaseInitContainer(&supersetv1alpha1.Superset{
 					Spec: supersetv1alpha1.SupersetSpec{Metastore: meta},
@@ -595,7 +595,7 @@ func TestMigrateInputs_StructuredTargetAffectsChecksumWhenCreateDatabaseTrue(t *
 		"port":     func(m *supersetv1alpha1.MetastoreSpec) { m.Port = new(int32(15432)) },
 		"database": func(m *supersetv1alpha1.MetastoreSpec) { m.Database = new("superset_new") },
 		"username": func(m *supersetv1alpha1.MetastoreSpec) { m.Username = new("superset_new") },
-		"type":     func(m *supersetv1alpha1.MetastoreSpec) { m.Type = new("MySQL") },
+		"type":     func(m *supersetv1alpha1.MetastoreSpec) { m.Type = new(supersetv1alpha1.DatabaseTypeMySQL) },
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -648,7 +648,7 @@ func TestMigrateInputs_LiteralTargetPreservesChecksumShape(t *testing.T) {
 			Port     int32
 			Database string
 			Username string
-		}{dbTypePostgresql, "pg", 5432, "superset", "superset"},
+		}{"PostgreSQL", "pg", 5432, "superset", "superset"},
 		InitContainerScript: createDatabasePostgresScript,
 	}
 
@@ -687,7 +687,7 @@ func TestMigrateInputs_InitContainerScriptParticipatesInChecksum(t *testing.T) {
 	// reconcileLifecycleTask would keep returning terminal even though the
 	// rendered Job would now succeed.
 	r := &SupersetReconciler{}
-	mkSuperset := func(dbType *string) *supersetv1alpha1.Superset {
+	mkSuperset := func(dbType *supersetv1alpha1.DatabaseType) *supersetv1alpha1.Superset {
 		s := &supersetv1alpha1.Superset{}
 		s.Spec.Image = supersetv1alpha1.ImageSpec{Repository: "superset", Tag: "1.0"}
 		s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
@@ -700,7 +700,7 @@ func TestMigrateInputs_InitContainerScriptParticipatesInChecksum(t *testing.T) {
 		return s
 	}
 	pgInputs := r.migrateInputs(mkSuperset(nil))
-	mysqlInputs := r.migrateInputs(mkSuperset(new("MySQL")))
+	mysqlInputs := r.migrateInputs(mkSuperset(new(supersetv1alpha1.DatabaseTypeMySQL)))
 
 	pgStruct, ok := pgInputs.(struct {
 		Image               string
@@ -740,41 +740,41 @@ func TestHelperNonRootSecurityContext(t *testing.T) {
 	cases := map[string]struct {
 		containerSC *corev1.SecurityContext
 		podSC       *corev1.PodSecurityContext
-		dbType      string
+		dbType      supersetv1alpha1.DatabaseType
 		wantUID     *int64
 		wantNonRoot *bool
 	}{
 		"nothing pinned -> default postgres uid": {
-			dbType:      dbTypePostgresql,
+			dbType:      supersetv1alpha1.DatabaseTypePostgreSQL,
 			wantUID:     new(int64(70)),
 			wantNonRoot: new(true),
 		},
 		"nothing pinned -> default mysql uid": {
-			dbType:      dbTypeMySQL,
+			dbType:      supersetv1alpha1.DatabaseTypeMySQL,
 			wantUID:     new(int64(999)),
 			wantNonRoot: new(true),
 		},
 		"pod runAsNonRoot but no uid -> default uid, do not override nonRoot": {
 			podSC:       &corev1.PodSecurityContext{RunAsNonRoot: new(true)},
-			dbType:      dbTypePostgresql,
+			dbType:      supersetv1alpha1.DatabaseTypePostgreSQL,
 			wantUID:     new(int64(70)),
 			wantNonRoot: nil, // pod-level runAsNonRoot already applies; container stays unset
 		},
 		"explicit container uid respected": {
 			containerSC: &corev1.SecurityContext{RunAsUser: new(int64(1234))},
-			dbType:      dbTypePostgresql,
+			dbType:      supersetv1alpha1.DatabaseTypePostgreSQL,
 			wantUID:     new(int64(1234)),
 			wantNonRoot: nil,
 		},
 		"pod pins uid -> container not defaulted": {
 			podSC:       &corev1.PodSecurityContext{RunAsUser: new(int64(2000))},
-			dbType:      dbTypePostgresql,
+			dbType:      supersetv1alpha1.DatabaseTypePostgreSQL,
 			wantUID:     nil,
 			wantNonRoot: nil,
 		},
 		"explicit runAsNonRoot false honored (no uid forced)": {
 			containerSC: &corev1.SecurityContext{RunAsNonRoot: new(false)},
-			dbType:      dbTypePostgresql,
+			dbType:      supersetv1alpha1.DatabaseTypePostgreSQL,
 			// no uid pinned anywhere, so the helper still defaults a uid, but
 			// must not flip the user's explicit runAsNonRoot:false.
 			wantUID:     new(int64(70)),

@@ -23,6 +23,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	v1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 )
 
 // FuzzPyQuote checks that pyQuote produces a safe Python double-quoted string
@@ -91,7 +93,7 @@ func FuzzRenderConfig(f *testing.F) {
 	) {
 		input := &ConfigInput{
 			MetastoreMode:   MetastoreMode(int(modeSel) % 3),
-			DBType:          dbType,
+			DBType:          v1alpha1.DatabaseType(dbType),
 			DBDriver:        dbDriver,
 			Config:          config,
 			ComponentConfig: componentConfig,

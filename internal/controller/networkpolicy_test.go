@@ -366,7 +366,7 @@ func TestFlowerExternalPort_GatedByPublish(t *testing.T) {
 
 	dev := &supersetv1alpha1.Superset{
 		Spec: supersetv1alpha1.SupersetSpec{
-			Environment:  new(common.EnvironmentDev),
+			Environment:  new(supersetv1alpha1.EnvironmentDevelopment),
 			CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{},
 		},
 	}

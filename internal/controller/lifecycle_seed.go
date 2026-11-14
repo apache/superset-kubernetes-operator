@@ -62,12 +62,12 @@ func (r *SupersetReconciler) buildSeedCommand(superset *supersetv1alpha1.Superse
 		return seed.Command
 	}
 
-	srcType := dbTypePostgresql
+	srcType := supersetv1alpha1.DatabaseTypePostgreSQL
 	if seed.Source.Type != nil {
 		srcType = *seed.Source.Type
 	}
 
-	if srcType == dbTypeMySQL {
+	if srcType == supersetv1alpha1.DatabaseTypeMySQL {
 		return []string{bootstrapShell, "-c", buildMySQLSeedScript(seed)}
 	}
 	return []string{bootstrapShell, "-c", buildPostgresSeedScript(seed)}
@@ -200,12 +200,12 @@ func collectSeedEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVar {
 // fields rather than the Superset image (which would be incorrect for a
 // database tooling container).
 func resolveSeedImage(seed *supersetv1alpha1.SeedTaskSpec) supersetv1alpha1.ImageSpec {
-	srcType := dbTypePostgresql
+	srcType := supersetv1alpha1.DatabaseTypePostgreSQL
 	if seed.Source.Type != nil {
 		srcType = *seed.Source.Type
 	}
 	defaultRef := naming.SeedImagePostgres
-	if srcType == dbTypeMySQL {
+	if srcType == supersetv1alpha1.DatabaseTypeMySQL {
 		defaultRef = naming.SeedImageMySQL
 	}
 	defRepo, defTag := splitImageRef(defaultRef)
