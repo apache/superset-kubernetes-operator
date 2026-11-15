@@ -121,17 +121,54 @@ func TestRenderConfig_ComponentVariants(t *testing.T) {
 		contains  []string
 	}{
 		{"init", ComponentInit, &ConfigInput{MetastoreMode: MetastoreNone},
-			[]string{"import os", "# Operator-generated configs"}},
+			[]string{
+				"import os",
+				"# Operator-generated configs",
+				"SECRET_KEY = os.environ['SUPERSET_OPERATOR__SECRET_KEY']",
+				"LOG_LEVEL = os.environ.get('SUPERSET_OPERATOR__LOG_LEVEL', 'INFO')",
+			}},
 		{"celery-worker", ComponentCeleryWorker, &ConfigInput{MetastoreMode: MetastoreNone},
-			[]string{"import os", "# Operator-generated configs"}},
+			[]string{
+				"import os",
+				"# Operator-generated configs",
+				"SECRET_KEY = os.environ['SUPERSET_OPERATOR__SECRET_KEY']",
+				"LOG_LEVEL = os.environ.get('SUPERSET_OPERATOR__LOG_LEVEL', 'INFO')",
+			}},
 		{"celery-beat", ComponentCeleryBeat, &ConfigInput{MetastoreMode: MetastoreNone},
-			[]string{"import os", "# Operator-generated configs"}},
+			[]string{
+				"import os",
+				"# Operator-generated configs",
+				"SECRET_KEY = os.environ['SUPERSET_OPERATOR__SECRET_KEY']",
+				"LOG_LEVEL = os.environ.get('SUPERSET_OPERATOR__LOG_LEVEL', 'INFO')",
+			}},
 		{"celery-flower", ComponentCeleryFlower, &ConfigInput{MetastoreMode: MetastoreNone},
-			[]string{"import os", "# Operator-generated configs"}},
+			[]string{
+				"import os",
+				"# Operator-generated configs",
+				"SECRET_KEY = os.environ['SUPERSET_OPERATOR__SECRET_KEY']",
+				"LOG_LEVEL = os.environ.get('SUPERSET_OPERATOR__LOG_LEVEL', 'INFO')",
+			}},
+		{"web-server", ComponentWebServer, &ConfigInput{MetastoreMode: MetastoreNone},
+			[]string{
+				"import os",
+				"# Operator-generated configs",
+				"SECRET_KEY = os.environ['SUPERSET_OPERATOR__SECRET_KEY']",
+				"LOG_LEVEL = os.environ.get('SUPERSET_OPERATOR__LOG_LEVEL', 'INFO')",
+			}},
 		{"mcp-server", ComponentMcpServer, &ConfigInput{MetastoreMode: MetastoreNone},
-			[]string{"import os", "# Operator-generated configs"}},
+			[]string{
+				"import os",
+				"# Operator-generated configs",
+				"SECRET_KEY = os.environ['SUPERSET_OPERATOR__SECRET_KEY']",
+				"LOG_LEVEL = os.environ.get('SUPERSET_OPERATOR__LOG_LEVEL', 'INFO')",
+			}},
 		{"minimal (no metastore)", ComponentCeleryWorker, &ConfigInput{},
-			[]string{"import os", "# Operator-generated configs"}},
+			[]string{
+				"import os",
+				"# Operator-generated configs",
+				"SECRET_KEY = os.environ['SUPERSET_OPERATOR__SECRET_KEY']",
+				"LOG_LEVEL = os.environ.get('SUPERSET_OPERATOR__LOG_LEVEL', 'INFO')",
+			}},
 	}
 
 	for _, tt := range tests {

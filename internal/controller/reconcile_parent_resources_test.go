@@ -20,9 +20,11 @@ package controller
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -240,61 +242,141 @@ func TestReconcile_WebsocketConfigFromMountsSecret(t *testing.T) {
 	}
 }
 
-func TestReconcile_WebsocketLogLevelEnv(t *testing.T) {
-	tests := []struct {
-		name      string
-		topLevel  *supersetv1alpha1.LogLevel
-		component *supersetv1alpha1.LogLevel
-		want      string // empty means LOG_LEVEL must not be injected
-	}{
-		{name: "unset injects nothing"},
-		{name: "top-level warning maps to warn", topLevel: new(supersetv1alpha1.LogLevelWarning), want: "warn"},
-		{name: "top-level critical maps to error", topLevel: new(supersetv1alpha1.LogLevelCritical), want: "error"},
-		{name: "top-level debug passes through", topLevel: new(supersetv1alpha1.LogLevelDebug), want: "debug"},
-		{name: "explicit info is injected", topLevel: new(supersetv1alpha1.LogLevelInfo), want: "info"},
-		{name: "component only", component: new(supersetv1alpha1.LogLevelError), want: "error"},
-		{
-			name:      "component overrides top-level",
-			topLevel:  new(supersetv1alpha1.LogLevelDebug),
-			component: new(supersetv1alpha1.LogLevelCritical),
-			want:      "error",
-		},
+func TestReconcile_LogLevelWiringAndRestartScope(t *testing.T) {
+	scheme := testScheme(t)
+	topLevel := supersetv1alpha1.LogLevelWarning
+	webLevel := supersetv1alpha1.LogLevelDebug
+	spec := minimalSupersetSpec()
+	spec.LogLevel = &topLevel
+	spec.WebServer.LogLevel = &webLevel
+	spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{}
+	spec.CeleryBeat = &supersetv1alpha1.CeleryBeatComponentSpec{}
+	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
+		Image:      &supersetv1alpha1.ImageOverrideSpec{Repository: new("example.com/superset-websocket")},
+		ConfigFrom: &corev1.SecretKeySelector{Name: "ws-config", Key: "config.json"},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			deploy := reconcileWebsocketDeployment(t, tt.topLevel, tt.component)
+	superset := &supersetv1alpha1.Superset{Name: "test", Namespace: "default", UID: "uid-1", Spec: spec}
 
-			// Find the LOG_LEVEL env var in the container
-			var got *corev1.EnvVar
-			env := deploy.Spec.Template.Spec.Containers[0].Env
-			for i := range env {
-				if env[i].Name == supersetconfig.EnvWebsocketLogLevel {
-					got = &env[i]
-					break
-				}
-			}
+	c := reconcileOnce(t, scheme, superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r)
 
-			if tt.want == "" && got != nil {
-				t.Fatalf("expected no %s env var, got %+v", supersetconfig.EnvWebsocketLogLevel, got)
+	deployments := make(map[string]*appsv1.Deployment)
+	for _, name := range []string{"test-web-server", "test-celery-worker", "test-celery-beat", "test-websocket-server"} {
+		deployments[name] = &appsv1.Deployment{}
+		if err := c.Get(context.Background(), types.NamespacedName{Name: name, Namespace: "default"}, deployments[name]); err != nil {
+			t.Fatalf("expected Deployment %s: %v", name, err)
+		}
+	}
+
+	envValue := func(deploy *appsv1.Deployment, name string) string {
+		for _, env := range deploy.Spec.Template.Spec.Containers[0].Env {
+			if env.Name == name {
+				return env.Value
 			}
-			if tt.want != "" && (got == nil || got.Value != tt.want) {
-				t.Fatalf("expected %s=%s, got %+v", supersetconfig.EnvWebsocketLogLevel, tt.want, got)
-			}
-		})
+		}
+		return ""
+	}
+	assert.Equal(t, "debug", envValue(deployments["test-web-server"], supersetconfig.EnvGunicornLogLevel))
+	assert.Equal(t, "DEBUG", envValue(deployments["test-web-server"], common.EnvLogLevel))
+	assert.Equal(t, "WARNING", envValue(deployments["test-celery-worker"], common.EnvLogLevel))
+	assert.Equal(t, "warn", envValue(deployments["test-websocket-server"], supersetconfig.EnvWebsocketLogLevel))
+	assert.Contains(t, deployments["test-celery-worker"].Spec.Template.Spec.Containers[0].Command, "--loglevel=warning")
+	assert.Contains(t, deployments["test-celery-beat"].Spec.Template.Spec.Containers[0].Command, "--loglevel=warning")
+
+	before := make(map[string]corev1.PodTemplateSpec)
+	for name, deploy := range deployments {
+		before[name] = *deploy.Spec.Template.DeepCopy()
+	}
+
+	nextLevel := supersetv1alpha1.LogLevelError
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, superset); err != nil {
+		t.Fatalf("getting reconciled Superset: %v", err)
+	}
+	superset.Spec.WebServer.LogLevel = &nextLevel
+	if err := c.Update(context.Background(), superset); err != nil {
+		t.Fatalf("updating Superset: %v", err)
+	}
+	doReconcile(t, r)
+
+	for name, wantUnchanged := range map[string]bool{
+		"test-celery-worker":    true,
+		"test-celery-beat":      true,
+		"test-websocket-server": true,
+	} {
+		deploy := &appsv1.Deployment{}
+		if err := c.Get(context.Background(), types.NamespacedName{Name: name, Namespace: "default"}, deploy); err != nil {
+			t.Fatalf("getting Deployment %s: %v", name, err)
+		}
+		if wantUnchanged && !reflect.DeepEqual(before[name], deploy.Spec.Template) {
+			t.Errorf("%s pod template changed when only web-server log level changed", name)
+		}
+	}
+	updatedWeb := &appsv1.Deployment{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, updatedWeb); err != nil {
+		t.Fatalf("getting updated web-server Deployment: %v", err)
+	}
+	assert.Equal(t, "error", envValue(updatedWeb, supersetconfig.EnvGunicornLogLevel))
+	if reflect.DeepEqual(before["test-web-server"], updatedWeb.Spec.Template) {
+		t.Fatal("web-server pod template did not change when its log level changed")
 	}
 }
 
-func TestReconcile_WebsocketLogLevelDoesNotChangeConfigChecksum(t *testing.T) {
-	before := reconcileWebsocketDeployment(t, nil, nil)
-	after := reconcileWebsocketDeployment(t, new(supersetv1alpha1.LogLevelDebug), nil)
+func TestReconcile_LogLevelWithDisabledCeleryPreset(t *testing.T) {
+	scheme := testScheme(t)
+	level := supersetv1alpha1.LogLevelError
+	disabled := supersetv1alpha1.Preset("disabled")
 
-	want := before.Spec.Template.Annotations[common.AnnotationConfigChecksum]
-	if want == "" {
-		t.Fatal("expected websocket config checksum annotation")
+	spec := minimalSupersetSpec()
+	spec.LogLevel = &level
+	spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{
+		Celery: &supersetv1alpha1.CeleryWorkerProcessSpec{
+			Preset: &disabled,
+		},
 	}
-	got := after.Spec.Template.Annotations[common.AnnotationConfigChecksum]
-	if got != want {
-		t.Fatalf("log level changed the workload checksum: before %q, after %q", want, got)
+	spec.CeleryBeat = &supersetv1alpha1.CeleryBeatComponentSpec{}
+	superset := &supersetv1alpha1.Superset{
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: spec,
+	}
+
+	c := reconcileOnce(t, scheme, superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r)
+
+	for _, name := range []string{"test-celery-worker", "test-celery-beat"} {
+		deploy := &appsv1.Deployment{}
+		if err := c.Get(context.Background(), types.NamespacedName{
+			Name: name, Namespace: "default",
+		}, deploy); err != nil {
+			t.Fatalf("expected Celery Deployment %s: %v", name, err)
+		}
+
+		command := deploy.Spec.Template.Spec.Containers[0].Command
+		assert.Contains(t, command, "--loglevel=error")
+	}
+}
+
+func TestReconcile_WebsocketLogLevelRequiresExplicitSetting(t *testing.T) {
+	scheme := testScheme(t)
+	spec := minimalSupersetSpec()
+	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
+		Image: &supersetv1alpha1.ImageOverrideSpec{Repository: new("example.com/superset-websocket")},
+	}
+	superset := &supersetv1alpha1.Superset{Name: "test", Namespace: "default", UID: "uid-1", Spec: spec}
+
+	c := reconcileOnce(t, scheme, superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r)
+
+	deploy := &appsv1.Deployment{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server", Namespace: "default"}, deploy); err != nil {
+		t.Fatalf("expected websocket Deployment: %v", err)
+	}
+	for _, env := range deploy.Spec.Template.Spec.Containers[0].Env {
+		if env.Name == supersetconfig.EnvWebsocketLogLevel {
+			t.Fatalf("did not expect websocket log-level environment variable when log level is not explicit")
+		}
 	}
 }
 
@@ -457,7 +539,10 @@ func TestReconcile_LifecycleCreatesParentOwnedTaskJobAndStatus(t *testing.T) {
 	scheme := testScheme(t)
 
 	spec := minimalSupersetSpec()
-	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{}
+	topLevelLogLevel := supersetv1alpha1.LogLevelWarning
+	lifecycleLogLevel := supersetv1alpha1.LogLevelError
+	spec.LogLevel = &topLevelLogLevel
+	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{LogLevel: &lifecycleLogLevel}
 	superset := &supersetv1alpha1.Superset{
 		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: spec,
@@ -481,6 +566,17 @@ func TestReconcile_LifecycleCreatesParentOwnedTaskJobAndStatus(t *testing.T) {
 	}
 	if got := jobs.Items[0].Spec.Template.Labels[common.LabelKeyParent]; got != "test" {
 		t.Fatalf("expected task pod template parent label, got %q", got)
+	}
+	var logLevelEnv *corev1.EnvVar
+	for i := range jobs.Items[0].Spec.Template.Spec.Containers[0].Env {
+		env := &jobs.Items[0].Spec.Template.Spec.Containers[0].Env[i]
+		if env.Name == common.EnvLogLevel {
+			logLevelEnv = env
+			break
+		}
+	}
+	if logLevelEnv == nil || logLevelEnv.Value != "ERROR" {
+		t.Fatalf("expected lifecycle log level ERROR overriding top-level warning, got %+v", logLevelEnv)
 	}
 
 	updated := &supersetv1alpha1.Superset{}
@@ -526,31 +622,4 @@ func findVolumeMount(mounts []corev1.VolumeMount, name string) *corev1.VolumeMou
 		}
 	}
 	return nil
-}
-
-func reconcileWebsocketDeployment(t *testing.T, topLevel, componentLevel *supersetv1alpha1.LogLevel) *appsv1.Deployment {
-	t.Helper()
-	scheme := testScheme(t)
-
-	spec := minimalSupersetSpec()
-	spec.LogLevel = topLevel
-	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
-		Image:      &supersetv1alpha1.ImageOverrideSpec{Repository: new("example.com/superset-websocket")},
-		LogLevel:   componentLevel,
-		ConfigFrom: &corev1.SecretKeySelector{Name: "ws-config", Key: "config.json"},
-	}
-	superset := &supersetv1alpha1.Superset{
-		Name: "test", Namespace: "default", UID: "uid-1",
-		Spec: spec,
-	}
-
-	c := reconcileOnce(t, scheme, superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
-	doReconcile(t, r)
-
-	deploy := &appsv1.Deployment{}
-	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server", Namespace: "default"}, deploy); err != nil {
-		t.Fatalf("expected websocket Deployment: %v", err)
-	}
-	return deploy
 }

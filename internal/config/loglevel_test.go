@@ -26,17 +26,45 @@ import (
 	v1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 )
 
-func TestWinstonLogLevel(t *testing.T) {
-	tests := map[v1alpha1.LogLevel]string{
-		v1alpha1.LogLevelDebug:    "debug",
-		v1alpha1.LogLevelInfo:     "info",
-		v1alpha1.LogLevelWarning:  "warn",
-		v1alpha1.LogLevelError:    "error",
-		v1alpha1.LogLevelCritical: "error",
+func TestLogLevelResolutionAndMappings(t *testing.T) {
+	t.Run("resolution precedence", func(t *testing.T) {
+		component := v1alpha1.LogLevelDebug
+		topLevel := v1alpha1.LogLevelWarning
+		tests := []struct {
+			name      string
+			component *v1alpha1.LogLevel
+			topLevel  *v1alpha1.LogLevel
+			want      v1alpha1.LogLevel
+			explicit  bool
+		}{
+			{"default", nil, nil, v1alpha1.LogLevelInfo, false},
+			{"top-level", nil, &topLevel, v1alpha1.LogLevelWarning, true},
+			{"component overrides top-level", &component, &topLevel, v1alpha1.LogLevelDebug, true},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				assert.Equal(t, tt.want, ResolveLogLevel(tt.component, tt.topLevel))
+				assert.Equal(t, tt.explicit, IsLogLevelExplicit(tt.component, tt.topLevel))
+			})
+		}
+	})
+
+	tests := map[v1alpha1.LogLevel]struct {
+		python  string
+		celery  string
+		winston string
+	}{
+		v1alpha1.LogLevelDebug:    {"DEBUG", "--loglevel=debug", "debug"},
+		v1alpha1.LogLevelInfo:     {"INFO", "--loglevel=info", "info"},
+		v1alpha1.LogLevelWarning:  {"WARNING", "--loglevel=warning", "warn"},
+		v1alpha1.LogLevelError:    {"ERROR", "--loglevel=error", "error"},
+		v1alpha1.LogLevelCritical: {"CRITICAL", "--loglevel=critical", "error"},
 	}
 	for in, want := range tests {
 		t.Run(string(in), func(t *testing.T) {
-			assert.Equal(t, want, WinstonLogLevel(in))
+			assert.Equal(t, want.python, PythonLogLevel(in))
+			assert.Equal(t, want.celery, CeleryLogLevelFlag(in))
+			assert.Equal(t, want.winston, WinstonLogLevel(in))
 		})
 	}
 }
