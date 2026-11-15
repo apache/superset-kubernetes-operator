@@ -107,7 +107,7 @@ The operator maps the resolved value to each component's native logging mechanis
 | Celery worker and Celery Beat | `--loglevel=<level>` | Celery overrides the root logger level at startup, so the command-line option is also required. |
 | Web server | `GUNICORN_LOGLEVEL` | The default `run-server.sh` passes it to Gunicorn. |
 | Websocket server | `LOG_LEVEL` environment variable | Uses Winston names: `warning` maps to `warn`, and `critical` maps to `error`. The variable is injected only when the top-level or websocket-specific `logLevel` is explicitly set. |
-| Celery Flower | `FLOWER_LOGGING` | Flower's own loggers ignore `LOG_LEVEL`, so the level must be set explicitly through Flower's logging configuration. |
+| Celery Flower | TBD | TBD |
 
 If a component uses a custom command (e.g. webserver), that command is responsible for consuming the injected logging environment variables or configuring logging itself. The operator does not modify custom commands to add runtime-specific logging arguments.
 
