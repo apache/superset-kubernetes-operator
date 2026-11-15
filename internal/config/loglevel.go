@@ -75,7 +75,7 @@ func WinstonLogLevel(level v1alpha1.LogLevel) string {
 }
 
 // FlowerLogLevel returns the level name Celery Flower's logging module expects.
-// "critical" returns "error", all other levels returned unchanged.
+// "critical" returns "ERROR", all other levels converted to uppercase.
 func CeleryFlowerLogLevel(level v1alpha1.LogLevel) string {
 	switch level {
 	case v1alpha1.LogLevelCritical:
