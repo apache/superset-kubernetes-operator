@@ -251,6 +251,7 @@ func TestReconcile_LogLevelWiringAndRestartScope(t *testing.T) {
 	spec.WebServer.LogLevel = &webLevel
 	spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{}
 	spec.CeleryBeat = &supersetv1alpha1.CeleryBeatComponentSpec{}
+	spec.CeleryFlower = &supersetv1alpha1.CeleryFlowerComponentSpec{}
 	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
 		Image:      &supersetv1alpha1.ImageOverrideSpec{Repository: new("example.com/superset-websocket")},
 		ConfigFrom: &corev1.SecretKeySelector{Name: "ws-config", Key: "config.json"},
@@ -262,7 +263,7 @@ func TestReconcile_LogLevelWiringAndRestartScope(t *testing.T) {
 	doReconcile(t, r)
 
 	deployments := make(map[string]*appsv1.Deployment)
-	for _, name := range []string{"test-web-server", "test-celery-worker", "test-celery-beat", "test-websocket-server"} {
+	for _, name := range []string{"test-web-server", "test-celery-worker", "test-celery-beat", "test-celery-flower", "test-websocket-server"} {
 		deployments[name] = &appsv1.Deployment{}
 		if err := c.Get(context.Background(), types.NamespacedName{Name: name, Namespace: "default"}, deployments[name]); err != nil {
 			t.Fatalf("expected Deployment %s: %v", name, err)
@@ -280,6 +281,7 @@ func TestReconcile_LogLevelWiringAndRestartScope(t *testing.T) {
 	assert.Equal(t, "debug", envValue(deployments["test-web-server"], supersetconfig.EnvGunicornLogLevel))
 	assert.Equal(t, "DEBUG", envValue(deployments["test-web-server"], common.EnvLogLevel))
 	assert.Equal(t, "WARNING", envValue(deployments["test-celery-worker"], common.EnvLogLevel))
+	assert.Equal(t, "WARNING", envValue(deployments["test-celery-flower"], supersetconfig.EnvCeleryFlowerLogLevel))
 	assert.Equal(t, "warn", envValue(deployments["test-websocket-server"], supersetconfig.EnvWebsocketLogLevel))
 	assert.Contains(t, deployments["test-celery-worker"].Spec.Template.Spec.Containers[0].Command, "--loglevel=warning")
 	assert.Contains(t, deployments["test-celery-beat"].Spec.Template.Spec.Containers[0].Command, "--loglevel=warning")
@@ -302,6 +304,7 @@ func TestReconcile_LogLevelWiringAndRestartScope(t *testing.T) {
 	for name, wantUnchanged := range map[string]bool{
 		"test-celery-worker":    true,
 		"test-celery-beat":      true,
+		"test-celery-flower":    true,
 		"test-websocket-server": true,
 	} {
 		deploy := &appsv1.Deployment{}
@@ -378,6 +381,54 @@ func TestReconcile_WebsocketLogLevelRequiresExplicitSetting(t *testing.T) {
 			t.Fatalf("did not expect websocket log-level environment variable when log level is not explicit")
 		}
 	}
+}
+
+func TestReconcile_CeleryFlowerLogLevelOverride(t *testing.T) {
+	scheme := testScheme(t)
+
+	topLevel := supersetv1alpha1.LogLevelWarning
+	flowerLevel := supersetv1alpha1.LogLevelError
+
+	spec := minimalSupersetSpec()
+	spec.LogLevel = &topLevel
+	spec.CeleryFlower = &supersetv1alpha1.CeleryFlowerComponentSpec{
+		LogLevel: &flowerLevel,
+	}
+
+	superset := &supersetv1alpha1.Superset{
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: spec,
+	}
+
+	c := reconcileOnce(t, scheme, superset).Build()
+	r := &SupersetReconciler{
+		Client:   c,
+		Scheme:   scheme,
+		Recorder: events.NewFakeRecorder(10),
+	}
+	doReconcile(t, r)
+
+	deploy := &appsv1.Deployment{}
+	if err := c.Get(context.Background(), types.NamespacedName{
+		Name:      "test-celery-flower",
+		Namespace: "default",
+	}, deploy); err != nil {
+		t.Fatalf("expected Flower Deployment: %v", err)
+	}
+
+	envValue := func(deploy *appsv1.Deployment, name string) string {
+		for _, env := range deploy.Spec.Template.Spec.Containers[0].Env {
+			if env.Name == name {
+				return env.Value
+			}
+		}
+		return ""
+	}
+
+	assert.Equal(t, "ERROR", envValue(
+		deploy,
+		supersetconfig.EnvCeleryFlowerLogLevel,
+	))
 }
 
 func TestReconcile_BootstrapScriptAppliesToPythonComponentsOnly(t *testing.T) {
