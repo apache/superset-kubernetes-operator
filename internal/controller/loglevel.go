@@ -51,6 +51,8 @@ func appendLogLevelEnv(componentType naming.ComponentType, level supersetv1alpha
 		if isExplicit {
 			injected.Env = append(injected.Env, corev1.EnvVar{Name: supersetconfig.EnvWebsocketLogLevel, Value: supersetconfig.WinstonLogLevel(level)})
 		}
+	case naming.ComponentCeleryFlower:
+		injected.Env = append(injected.Env, corev1.EnvVar{Name: supersetconfig.EnvCeleryFlowerLogLevel, Value: supersetconfig.CeleryFlowerLogLevel(level)})
 	}
 }
 

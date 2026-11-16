@@ -28,8 +28,9 @@ import (
 
 // DefaultLogLevel applies when neither the component nor spec.logLevel sets a level.
 const (
-	DefaultLogLevel      = v1alpha1.LogLevelInfo
-	EnvWebsocketLogLevel = "LOG_LEVEL"
+	DefaultLogLevel         = v1alpha1.LogLevelInfo
+	EnvWebsocketLogLevel    = "LOG_LEVEL"
+	EnvCeleryFlowerLogLevel = "FLOWER_LOGGING"
 )
 
 // ResolveLogLevel returns the effective lowercase level: the component value,
@@ -70,5 +71,16 @@ func WinstonLogLevel(level v1alpha1.LogLevel) string {
 		return "error"
 	default:
 		return string(level)
+	}
+}
+
+// FlowerLogLevel returns the level name Celery Flower's logging module expects.
+// "critical" returns "ERROR", all other levels converted to uppercase.
+func CeleryFlowerLogLevel(level v1alpha1.LogLevel) string {
+	switch level {
+	case v1alpha1.LogLevelCritical:
+		return "ERROR"
+	default:
+		return strings.ToUpper(string(level))
 	}
 }
