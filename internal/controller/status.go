@@ -34,6 +34,7 @@ import (
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	naming "github.com/apache/superset-kubernetes-operator/internal/common"
+	"github.com/apache/superset-kubernetes-operator/internal/resolution"
 )
 
 const (
@@ -366,10 +367,11 @@ func componentHasService(desc *componentDescriptor, cfg componentReconcilerConfi
 }
 
 func effectiveScalingModeForStatus(superset *supersetv1alpha1.Superset, accessor *componentAccessor) *supersetv1alpha1.ScalingMode {
-	if accessor != nil && accessor.scalingMode != nil {
-		return accessor.scalingMode
+	var component *supersetv1alpha1.ScalingMode
+	if accessor != nil {
+		component = accessor.scalingMode
 	}
-	return superset.Spec.ScalingMode
+	return resolution.ResolveOverridableValue(component, superset.Spec.ScalingMode)
 }
 
 func effectiveAutoscalingForStatus(superset *supersetv1alpha1.Superset, accessor *componentAccessor) *supersetv1alpha1.AutoscalingSpec {
