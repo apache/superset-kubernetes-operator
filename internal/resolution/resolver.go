@@ -109,7 +109,8 @@ func ResolveComponentSpec(
 
 	// An external controller owns the replica count, so inherited
 	// spec.autoscaling must not create a competing HPA. Beat and lifecycle
-	// Jobs are not scalable and ignore the mode.
+	// Jobs are not scalable and ignore the mode (they also have no scaling
+	// resources; see hasScaling in internal/controller/component_resources.go).
 	scalable := componentType != ComponentCeleryBeat && componentType != ComponentInit
 	if scalable && ResolveOverridableValue(comp.ScalingMode, tl.ScalingMode).IsExternal() {
 		result.ExternalScaling = true

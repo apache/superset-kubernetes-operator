@@ -142,6 +142,10 @@ func TestReconcile_ExternalScalingLeavesReplicasToExternalController(t *testing.
 	spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{
 		ScalingMode: new(supersetv1alpha1.ScalingModeExternal),
 	}
+	// Created fresh by this reconcile, so it covers the create path.
+	spec.CeleryFlower = &supersetv1alpha1.CeleryFlowerComponentSpec{
+		ScalingMode: new(supersetv1alpha1.ScalingModeExternal),
+	}
 	superset := &supersetv1alpha1.Superset{Name: "test", Namespace: "default", UID: "uid-1", Spec: spec}
 
 	// An external controller (e.g. KEDA) has scaled the worker to 7, and the
@@ -167,6 +171,13 @@ func TestReconcile_ExternalScalingLeavesReplicasToExternalController(t *testing.
 	}
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-celery-worker", Namespace: "default"}, &autoscalingv2.HorizontalPodAutoscaler{}); err == nil {
 		t.Error("expected the operator HPA for the externally scaled worker to be deleted")
+	}
+	flower := &appsv1.Deployment{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-celery-flower", Namespace: "default"}, flower); err != nil {
+		t.Fatalf("expected flower Deployment: %v", err)
+	}
+	if flower.Spec.Replicas != nil {
+		t.Errorf("new flower replicas = %d, want unset so the external controller owns them", *flower.Spec.Replicas)
 	}
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, &autoscalingv2.HorizontalPodAutoscaler{}); err != nil {
 		t.Errorf("expected inherited autoscaling to still create the web-server HPA: %v", err)

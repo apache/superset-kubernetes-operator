@@ -69,7 +69,7 @@ spec:
 
 Components fall into two runtime categories:
 
-**Scalable components** support replicas, HPA, and PodDisruptionBudgets:
+**Scalable components** support replicas, HPA, external scaling (`scalingMode`), and PodDisruptionBudgets:
 
 | Parent field | Suffix | Creates |
 |---|---|---|
