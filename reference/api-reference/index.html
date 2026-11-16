@@ -1245,6 +1245,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#scalingmode" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        ScalingMode
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#schedulablebasetaskspec" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2285,6 +2296,17 @@
 </li>
         
           <li class="md-nav__item">
+  <a href="#scalingmode" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        ScalingMode
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
   <a href="#schedulablebasetaskspec" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -2781,6 +2803,12 @@ replicas field, no autoscaling, and no PodDisruptionBudget by design.</p>
 <td>Optional: {} <br /></td>
 </tr>
 <tr>
+<td><code>scalingMode</code> <em><a href="#scalingmode">ScalingMode</a></em></td>
+<td>Who manages the Deployment replica count. Operator (default) applies replicas or autoscaling. External hands it to an external controller such as a KEDA ScaledObject: the operator keeps the live replica count, creates no HorizontalPodAutoscaler, and ignores spec.replicas and spec.autoscaling. Overrides spec.scalingMode; set Operator to opt one component out of a top-level External.</td>
+<td></td>
+<td>Enum: [Operator External] <br />Optional: {} <br /></td>
+</tr>
+<tr>
 <td><code>podDisruptionBudget</code> <em><a href="#pdbspec">PDBSpec</a></em></td>
 <td>PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget.</td>
 <td></td>
@@ -2849,6 +2877,12 @@ replicas field, no autoscaling, and no PodDisruptionBudget by design.</p>
 <td>HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling.</td>
 <td></td>
 <td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>scalingMode</code> <em><a href="#scalingmode">ScalingMode</a></em></td>
+<td>Who manages the Deployment replica count. Operator (default) applies replicas or autoscaling. External hands it to an external controller such as a KEDA ScaledObject: the operator keeps the live replica count, creates no HorizontalPodAutoscaler, and ignores spec.replicas and spec.autoscaling. Overrides spec.scalingMode; set Operator to opt one component out of a top-level External.</td>
+<td></td>
+<td>Enum: [Operator External] <br />Optional: {} <br /></td>
 </tr>
 <tr>
 <td><code>podDisruptionBudget</code> <em><a href="#pdbspec">PDBSpec</a></em></td>
@@ -4200,6 +4234,12 @@ Supports two modes:
 <td>Optional: {} <br /></td>
 </tr>
 <tr>
+<td><code>scalingMode</code> <em><a href="#scalingmode">ScalingMode</a></em></td>
+<td>Who manages the Deployment replica count. Operator (default) applies replicas or autoscaling. External hands it to an external controller such as a KEDA ScaledObject: the operator keeps the live replica count, creates no HorizontalPodAutoscaler, and ignores spec.replicas and spec.autoscaling. Overrides spec.scalingMode; set Operator to opt one component out of a top-level External.</td>
+<td></td>
+<td>Enum: [Operator External] <br />Optional: {} <br /></td>
+</tr>
+<tr>
 <td><code>podDisruptionBudget</code> <em><a href="#pdbspec">PDBSpec</a></em></td>
 <td>PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget.</td>
 <td></td>
@@ -4907,10 +4947,47 @@ use DeploymentTemplate or PodTemplate directly.</p>
 <td>Optional: {} <br /></td>
 </tr>
 <tr>
+<td><code>scalingMode</code> <em><a href="#scalingmode">ScalingMode</a></em></td>
+<td>Who manages the Deployment replica count. Operator (default) applies replicas or autoscaling. External hands it to an external controller such as a KEDA ScaledObject: the operator keeps the live replica count, creates no HorizontalPodAutoscaler, and ignores spec.replicas and spec.autoscaling. Overrides spec.scalingMode; set Operator to opt one component out of a top-level External.</td>
+<td></td>
+<td>Enum: [Operator External] <br />Optional: {} <br /></td>
+</tr>
+<tr>
 <td><code>podDisruptionBudget</code> <em><a href="#pdbspec">PDBSpec</a></em></td>
 <td>PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget.</td>
 <td></td>
 <td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="scalingmode">ScalingMode<a class="headerlink" href="#scalingmode" title="Permanent link">&para;</a></h4>
+<p><em>Underlying type:</em> <em>string</em></p>
+<p>ScalingMode selects who manages a component Deployment's replica count.</p>
+<p><em>Validation:</em>
+- Enum: [Operator External]</p>
+<p><em>Appears in:</em>
+- <a href="#celeryflowercomponentspec">CeleryFlowerComponentSpec</a>
+- <a href="#celeryworkercomponentspec">CeleryWorkerComponentSpec</a>
+- <a href="#mcpservercomponentspec">McpServerComponentSpec</a>
+- <a href="#scalablecomponentspec">ScalableComponentSpec</a>
+- <a href="#supersetspec">SupersetSpec</a>
+- <a href="#webservercomponentspec">WebServerComponentSpec</a>
+- <a href="#websocketservercomponentspec">WebsocketServerComponentSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Operator</code></td>
+<td>ScalingModeOperator sets the replica count from replicas or autoscaling.</td>
+</tr>
+<tr>
+<td><code>External</code></td>
+<td>ScalingModeExternal leaves the replica count to an external controller, such as a KEDA ScaledObject or a user-managed HorizontalPodAutoscaler.</td>
 </tr>
 </tbody>
 </table>
@@ -5360,6 +5437,12 @@ Triggers on source config changes and the trigger field (inherited from BaseTask
 <td>Default autoscaling for all scalable components (component-level overrides this).</td>
 <td></td>
 <td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>scalingMode</code> <em><a href="#scalingmode">ScalingMode</a></em></td>
+<td>Default scaling mode for all scalable components (component-level overrides this). External leaves replica counts to an external controller such as KEDA; see the component field.</td>
+<td></td>
+<td>Enum: [Operator External] <br />Optional: {} <br /></td>
 </tr>
 <tr>
 <td><code>podDisruptionBudget</code> <em><a href="#pdbspec">PDBSpec</a></em></td>
@@ -6082,6 +6165,12 @@ are enabled with sensible defaults — only host or hostFrom is required.</p>
 <td>Optional: {} <br /></td>
 </tr>
 <tr>
+<td><code>scalingMode</code> <em><a href="#scalingmode">ScalingMode</a></em></td>
+<td>Who manages the Deployment replica count. Operator (default) applies replicas or autoscaling. External hands it to an external controller such as a KEDA ScaledObject: the operator keeps the live replica count, creates no HorizontalPodAutoscaler, and ignores spec.replicas and spec.autoscaling. Overrides spec.scalingMode; set Operator to opt one component out of a top-level External.</td>
+<td></td>
+<td>Enum: [Operator External] <br />Optional: {} <br /></td>
+</tr>
+<tr>
 <td><code>podDisruptionBudget</code> <em><a href="#pdbspec">PDBSpec</a></em></td>
 <td>PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget.</td>
 <td></td>
@@ -6167,6 +6256,12 @@ validated. The shape and behavior may change in a future release.</p>
 <td>HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling.</td>
 <td></td>
 <td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>scalingMode</code> <em><a href="#scalingmode">ScalingMode</a></em></td>
+<td>Who manages the Deployment replica count. Operator (default) applies replicas or autoscaling. External hands it to an external controller such as a KEDA ScaledObject: the operator keeps the live replica count, creates no HorizontalPodAutoscaler, and ignores spec.replicas and spec.autoscaling. Overrides spec.scalingMode; set Operator to opt one component out of a top-level External.</td>
+<td></td>
+<td>Enum: [Operator External] <br />Optional: {} <br /></td>
 </tr>
 <tr>
 <td><code>podDisruptionBudget</code> <em><a href="#pdbspec">PDBSpec</a></em></td>

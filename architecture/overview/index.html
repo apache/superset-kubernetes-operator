@@ -1411,7 +1411,7 @@ under the License.
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">    </span><span class="nt">uri</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">postgresql+psycopg2://superset:superset@postgres:5432/superset</span>
 </code></pre></div>
 <p>Components fall into two runtime categories:</p>
-<p><strong>Scalable components</strong> support replicas, HPA, and PodDisruptionBudgets:</p>
+<p><strong>Scalable components</strong> support replicas, HPA, external scaling (<code>scalingMode</code>), and PodDisruptionBudgets:</p>
 <table>
 <thead>
 <tr>
@@ -1478,7 +1478,7 @@ under the License.
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>podTemplate                            → PodSpec-level (affinity, tolerations, volumes, ...)
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>└── container                          → Container-level (resources, env, probes, ...)
 </code></pre></div>
-<p><strong>Top-level <code>deploymentTemplate</code> and <code>podTemplate</code></strong> provide defaults inherited by all components. <strong>Per-component</strong> values are field-level merged with the top-level — only specify what's different. Scaling fields (<code>replicas</code>, <code>autoscaling</code>, <code>podDisruptionBudget</code>) are outside the templates since they interact with operator logic (HPA, Beat singleton).</p>
+<p><strong>Top-level <code>deploymentTemplate</code> and <code>podTemplate</code></strong> provide defaults inherited by all components. <strong>Per-component</strong> values are field-level merged with the top-level — only specify what's different. Scaling fields (<code>replicas</code>, <code>autoscaling</code>, <code>scalingMode</code>, <code>podDisruptionBudget</code>) are outside the templates since they interact with operator logic (HPA, Beat singleton).</p>
 <p>Merge semantics per field type:</p>
 <ul>
 <li><strong>Scalars/structs</strong> (resources, affinity, securityContext, probes, etc.) — component wins if set</li>

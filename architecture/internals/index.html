@@ -1810,7 +1810,7 @@ under the License.
 <hr />
 <h2 id="component-resource-pattern">Component Resource Pattern<a class="headerlink" href="#component-resource-pattern" title="Permanent link">&para;</a></h2>
 <p>The parent controller reconciles each component through table-driven component descriptors and shared resource helpers. This keeps per-component variation explicit while avoiding intermediate CRDs in the public API.</p>
-<p><strong>Scalable components</strong> (WebServer, CeleryWorker, CeleryFlower, WebsocketServer, McpServer) manage a Deployment and support replicas, HPA, and PDB. Their specs embed <code>ScalableComponentSpec</code>, which has <code>DeploymentTemplate</code>, <code>PodTemplate</code>, and scaling fields.</p>
+<p><strong>Scalable components</strong> (WebServer, CeleryWorker, CeleryFlower, WebsocketServer, McpServer) manage a Deployment and support replicas, HPA, external scaling (<code>scalingMode</code>), and PDB. Their specs embed <code>ScalableComponentSpec</code>, which has <code>DeploymentTemplate</code>, <code>PodTemplate</code>, and scaling fields.</p>
 <p><strong>Singleton components</strong> (lifecycle tasks and CeleryBeat) run exactly one instance. Lifecycle tasks are Jobs with operator-managed retry logic (uses <code>PodTemplate</code> only). CeleryBeat uses a Deployment but forces <code>replicas: 1</code> (has both <code>DeploymentTemplate</code> and <code>PodTemplate</code> but no scaling fields).</p>
 <p>All deployment components follow the same pattern: reconcile ConfigMap (if applicable), reconcile Deployment, reconcile Service (if the component exposes a port), reconcile scaling (HPA + PDB for scalable components), and project status onto the parent. Lifecycle task reconciliation creates a ConfigMap when needed and manages deterministic Jobs directly.</p>
 <h3 id="why-configmaps">Why ConfigMaps<a class="headerlink" href="#why-configmaps" title="Permanent link">&para;</a></h3>
@@ -1939,8 +1939,10 @@ under the License.
 <ol>
 <li><code>ForceReplicas</code> (beat singleton) — always wins</li>
 <li><code>nil</code> if HPA is configured — HPA manages scaling</li>
+<li><code>nil</code> if the effective <code>scalingMode</code> is <code>External</code> — an external controller such as KEDA manages scaling</li>
 <li><code>spec.Replicas</code> otherwise</li>
 </ol>
+<p>When replicas resolve to <code>nil</code>, the operator keeps the Deployment's live replica count on update instead of resetting it.</p>
 <h3 id="idempotent-reconciliation">Idempotent Reconciliation<a class="headerlink" href="#idempotent-reconciliation" title="Permanent link">&para;</a></h3>
 <p>All resource creation uses <code>controllerutil.CreateOrUpdate()</code>: creates the resource if it doesn't exist, updates it if the spec has drifted. This makes every reconciliation cycle safe to re-run.</p>
 <hr />
