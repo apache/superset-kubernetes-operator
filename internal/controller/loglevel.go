@@ -37,22 +37,13 @@ func lifecycleLogLevel(spec *supersetv1alpha1.SupersetSpec) supersetv1alpha1.Log
 }
 
 // appendLogLevelEnv injects the env vars that carry a component's resolved
-// level to loggers that don't read Superset's LOG_LEVEL.
-func appendLogLevelEnv(componentType naming.ComponentType, level supersetv1alpha1.LogLevel, isExplicit bool, injected *resolution.OperatorInjected) {
-	switch componentType {
-
-	// Separate from the Gunicorn tuning presets, so injected even with preset disabled.
-	case naming.ComponentWebServer:
-		injected.Env = append(injected.Env, corev1.EnvVar{Name: supersetconfig.EnvGunicornLogLevel, Value: string(level)})
-
-	// Websocket server applies env vars over its own config file, so
-	// the operator must only inject its level when the user sets one explicitly
-	case naming.ComponentWebsocketServer:
-		if isExplicit {
-			injected.Env = append(injected.Env, corev1.EnvVar{Name: supersetconfig.EnvWebsocketLogLevel, Value: supersetconfig.WinstonLogLevel(level)})
-		}
-	case naming.ComponentCeleryFlower:
-		injected.Env = append(injected.Env, corev1.EnvVar{Name: supersetconfig.EnvCeleryFlowerLogLevel, Value: supersetconfig.CeleryFlowerLogLevel(level)})
+// level to loggers that don't read Superset's LOG_LEVEL. Only Flower needs
+// one: it resets the root logger at startup, so it gets FLOWER_LOGGING.
+// Server-process loggers (Gunicorn, websocket, FastMCP) keep their own
+// native settings and are not driven by logLevel.
+func appendLogLevelEnv(componentType naming.ComponentType, level supersetv1alpha1.LogLevel, injected *resolution.OperatorInjected) {
+	if componentType == naming.ComponentCeleryFlower {
+		injected.Env = append(injected.Env, corev1.EnvVar{Name: supersetconfig.EnvCeleryFlowerLogLevel, Value: supersetconfig.PythonLogLevel(level)})
 	}
 }
 

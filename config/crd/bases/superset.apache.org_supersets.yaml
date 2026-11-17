@@ -32532,6 +32532,8 @@ spec:
                         format: int32
                         minimum: 0
                         type: integer
+                      logLevel:
+                        type: string
                       maxRequests:
                         format: int32
                         minimum: 0
@@ -36681,14 +36683,6 @@ spec:
                       tag:
                         type: string
                     type: object
-                  logLevel:
-                    enum:
-                    - debug
-                    - info
-                    - warning
-                    - error
-                    - critical
-                    type: string
                   podDisruptionBudget:
                     properties:
                       maxUnavailable:

@@ -330,11 +330,13 @@ func TestReconcile_LogLevelWiringAndRestartScope(t *testing.T) {
 		}
 		return ""
 	}
-	assert.Equal(t, "debug", envValue(deployments["test-web-server"], supersetconfig.EnvGunicornLogLevel))
 	assert.Equal(t, "DEBUG", envValue(deployments["test-web-server"], common.EnvLogLevel))
+	// The typed logLevel does not drive Gunicorn: GUNICORN_LOGLEVEL comes only
+	// from webServer.gunicorn.logLevel (default info).
+	assert.Equal(t, "info", envValue(deployments["test-web-server"], supersetconfig.EnvGunicornLogLevel))
 	assert.Equal(t, "WARNING", envValue(deployments["test-celery-worker"], common.EnvLogLevel))
 	assert.Equal(t, "WARNING", envValue(deployments["test-celery-flower"], supersetconfig.EnvCeleryFlowerLogLevel))
-	assert.Equal(t, "warn", envValue(deployments["test-websocket-server"], supersetconfig.EnvWebsocketLogLevel))
+	assert.Empty(t, envValue(deployments["test-websocket-server"], "LOG_LEVEL"))
 	assert.Contains(t, deployments["test-celery-worker"].Spec.Template.Spec.Containers[0].Command, "--loglevel=warning")
 	assert.Contains(t, deployments["test-celery-beat"].Spec.Template.Spec.Containers[0].Command, "--loglevel=warning")
 
@@ -371,7 +373,8 @@ func TestReconcile_LogLevelWiringAndRestartScope(t *testing.T) {
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, updatedWeb); err != nil {
 		t.Fatalf("getting updated web-server Deployment: %v", err)
 	}
-	assert.Equal(t, "error", envValue(updatedWeb, supersetconfig.EnvGunicornLogLevel))
+	assert.Equal(t, "ERROR", envValue(updatedWeb, common.EnvLogLevel))
+	assert.Equal(t, "info", envValue(updatedWeb, supersetconfig.EnvGunicornLogLevel))
 	if reflect.DeepEqual(before["test-web-server"], updatedWeb.Spec.Template) {
 		t.Fatal("web-server pod template did not change when its log level changed")
 	}
@@ -412,9 +415,12 @@ func TestReconcile_LogLevelWithDisabledCeleryPreset(t *testing.T) {
 	}
 }
 
-func TestReconcile_WebsocketLogLevelRequiresExplicitSetting(t *testing.T) {
+// The websocket server doesn't read superset_config.py and has its own native
+// websocketServer.config.logLevel, so it ignores spec.logLevel entirely.
+func TestReconcile_WebsocketIgnoresLogLevel(t *testing.T) {
 	scheme := testScheme(t)
 	spec := minimalSupersetSpec()
+	spec.LogLevel = new(supersetv1alpha1.LogLevelDebug)
 	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
 		Image: &supersetv1alpha1.ImageOverrideSpec{Repository: new("example.com/superset-websocket")},
 	}
@@ -429,8 +435,8 @@ func TestReconcile_WebsocketLogLevelRequiresExplicitSetting(t *testing.T) {
 		t.Fatalf("expected websocket Deployment: %v", err)
 	}
 	for _, env := range deploy.Spec.Template.Spec.Containers[0].Env {
-		if env.Name == supersetconfig.EnvWebsocketLogLevel {
-			t.Fatalf("did not expect websocket log-level environment variable when log level is not explicit")
+		if env.Name == "LOG_LEVEL" || env.Name == common.EnvLogLevel {
+			t.Fatalf("did not expect log-level env var %s on websocket server", env.Name)
 		}
 	}
 }
@@ -439,7 +445,7 @@ func TestReconcile_CeleryFlowerLogLevelOverride(t *testing.T) {
 	scheme := testScheme(t)
 
 	topLevel := supersetv1alpha1.LogLevelWarning
-	flowerLevel := supersetv1alpha1.LogLevelError
+	flowerLevel := supersetv1alpha1.LogLevelCritical
 
 	spec := minimalSupersetSpec()
 	spec.LogLevel = &topLevel
@@ -477,7 +483,7 @@ func TestReconcile_CeleryFlowerLogLevelOverride(t *testing.T) {
 		return ""
 	}
 
-	assert.Equal(t, "ERROR", envValue(
+	assert.Equal(t, "CRITICAL", envValue(
 		deploy,
 		supersetconfig.EnvCeleryFlowerLogLevel,
 	))
