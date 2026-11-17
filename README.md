@@ -33,7 +33,7 @@ Read the [documentation](https://apache.github.io/superset-kubernetes-operator/)
 - **Safe upgrades** — components drain, lifecycle tasks run, and traffic returns only once the new version is healthy, with an optional maintenance page for the window.
 - **Batteries included, never locked in** — tuned defaults and presets for Gunicorn, Celery, the metastore, and Valkey, with a raw Python escape hatch for anything not surfaced as a typed field.
 - **Production operations built in** — autoscaling, PodDisruptionBudgets, NetworkPolicies, Gateway API / Ingress routing, and a Prometheus ServiceMonitor.
-- **Fits your cluster** — cluster-scoped or namespace-scoped installs; the namespace-scoped Helm install renders no manager `ClusterRole` (CRD installation and, unless disabled, secure metrics auth still need cluster-scoped RBAC — see [installation](https://apache.github.io/superset-kubernetes-operator/user-guide/installation/#namespace-scoped-install)).
+- **Fits your cluster** — cluster-scoped or namespace-scoped installs; the namespace-scoped Helm install renders no manager `ClusterRole` (CRD installation and, unless disabled, secure metrics auth still need cluster-scoped RBAC — see [installation](https://apache.github.io/superset-kubernetes-operator/latest/user-guide/installation/#namespace-scoped-install)).
 
 → See the [full feature overview](https://apache.github.io/superset-kubernetes-operator/) in the docs.
 
@@ -83,7 +83,7 @@ spec:
   webServer: {}
 ```
 
-> **Note**: The example above uses `environment: Development` for simplicity. In production (the default), use `secretKeyFrom` and `metastore.passwordFrom` to reference Kubernetes Secrets. See the [User Guide](https://apache.github.io/superset-kubernetes-operator/user-guide/configuration/) and the [sample manifests](config/samples/) for production examples.
+> **Note**: The example above uses `environment: Development` for simplicity. In production (the default), use `secretKeyFrom` and `metastore.passwordFrom` to reference Kubernetes Secrets. See the [User Guide](https://apache.github.io/superset-kubernetes-operator/latest/user-guide/configuration/) and the [sample manifests](config/samples/) for production examples.
 
 ## Under the hood
 
@@ -92,7 +92,7 @@ For the plumbing-curious:
 - **Language & framework** — written in Go, scaffolded with the [Operator SDK](https://sdk.operatorframework.io/) and built on [controller-runtime](https://github.com/kubernetes-sigs/controller-runtime). Validation is CEL-based on the CRD — no admission webhooks to operate.
 - **Kubernetes APIs** — tracks the current `k8s.io` client libraries and [Gateway API](https://gateway-api.sigs.k8s.io/); exact pinned versions live in [`go.mod`](go.mod).
 - **Image & supply chain** — distroless, multi-architecture (amd64/arm64) container; releases are [Cosign](https://github.com/sigstore/cosign)-signed; dependencies are kept current via [Renovate](https://docs.renovatebot.com/) with a minimum release age.
-- **Design & internals** — a single public CRD reconciled into parent-owned resources. See the [architecture overview](https://apache.github.io/superset-kubernetes-operator/architecture/overview/) and the [security & supply-chain notes](https://apache.github.io/superset-kubernetes-operator/reference/security/).
+- **Design & internals** — a single public CRD reconciled into parent-owned resources. See the [architecture overview](https://apache.github.io/superset-kubernetes-operator/latest/architecture/overview/) and the [security & supply-chain notes](https://apache.github.io/superset-kubernetes-operator/reference/security/).
 
 ## Contributing
 

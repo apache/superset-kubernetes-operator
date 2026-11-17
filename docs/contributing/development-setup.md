@@ -126,7 +126,9 @@ kind delete cluster --name superset
 |---|---|
 | `make docs-lock` | Regenerate hash-pinned Python dependencies for documentation. |
 | `make docs-serve` | Serve documentation locally with live reload. |
-| `make docs-build` | Build documentation site. |
+| `make docs-build` | Build the standalone documentation preview. |
+| `make docs-build-ci` | Assemble the root and versioned docs like CI; set DOCS_SERVE=true to serve. |
+| `make docs-build-versioned` | Assemble docs under a minor version path; set DOCS_VERSION=X.Y and DOCS_SERVE=true to serve. |
 | `make docs-api` | Generate API reference documentation from Go types. |
 | `make supported-versions` | Regenerate the supported-Kubernetes-versions table in README.md and docs. |
 | `make make-commands` | Regenerate the make-commands tables in the contributing docs. |
@@ -235,11 +237,23 @@ This starts a live-reloading server at `http://localhost:8000`. Edit Markdown fi
 
 The documentation dependency lock is generated from `docs-requirements.in`. After changing documentation dependencies, run `make docs-lock` and commit the updated `docs-requirements.txt`.
 
-To verify the docs build cleanly (same check that runs in CI):
+To build the standalone local preview:
 
 ```sh
 make docs-build
 ```
+
+To assemble the root and versioned pages using the same link preparation and publishing flow as CI:
+
+```sh
+make docs-build-ci
+```
+
+`make docs-build-ci` builds into a temporary directory, then removes it when the command exits. It does not rewrite files in the working tree. To build and serve the assembled site in one command, use `make docs-build-ci DOCS_SERVE=true` and open <http://localhost:8000/superset-kubernetes-operator/>. Press Ctrl-C to stop the server and remove the temporary build.
+
+The local CI assembly already includes the `main` docs slice. To check how the current docs render under a release-style minor path, run `make docs-build-versioned DOCS_VERSION=0.3`. Add `DOCS_SERVE=true` to serve it locally. This uses current docs content; it does not fetch historical docs for that release.
+
+Docs CI uses two Zensical configs: `zensical-unversioned.toml` builds shared project pages at the site root, while `zensical-versioned.toml` builds version-sensitive docs under `/main/` or a release path. Add new pages to the appropriate navigation. Links to shared and versioned pages include `/superset-kubernetes-operator/`, the repository's GitHub Pages project path.
 
 ### Diagrams
 
