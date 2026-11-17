@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+      <url>
+        <loc>https://apache.github.io/superset-kubernetes-operator/main/architecture/internals/</loc>
+      </url>
+      <url>
+        <loc>https://apache.github.io/superset-kubernetes-operator/main/architecture/overview/</loc>
+      </url>
+      <url>
+        <loc>https://apache.github.io/superset-kubernetes-operator/main/getting-started/</loc>
+      </url>
+      <url>
+        <loc>https://apache.github.io/superset-kubernetes-operator/main/reference/api-reference/</loc>
+      </url>
+      <url>
+        <loc>https://apache.github.io/superset-kubernetes-operator/main/user-guide/configuration/</loc>
+      </url>
+      <url>
+        <loc>https://apache.github.io/superset-kubernetes-operator/main/user-guide/installation/</loc>
+      </url>
+      <url>
+        <loc>https://apache.github.io/superset-kubernetes-operator/main/user-guide/lifecycle/</loc>
+      </url>
+      <url>
+        <loc>https://apache.github.io/superset-kubernetes-operator/main/user-guide/migration/</loc>
+      </url>
+      <url>
+        <loc>https://apache.github.io/superset-kubernetes-operator/main/user-guide/networking-and-monitoring/</loc>
+      </url>
+</urlset>

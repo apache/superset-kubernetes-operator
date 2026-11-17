@@ -4,12 +4,6 @@
         <loc>https://apache.github.io/superset-kubernetes-operator/</loc>
       </url>
       <url>
-        <loc>https://apache.github.io/superset-kubernetes-operator/architecture/internals/</loc>
-      </url>
-      <url>
-        <loc>https://apache.github.io/superset-kubernetes-operator/architecture/overview/</loc>
-      </url>
-      <url>
         <loc>https://apache.github.io/superset-kubernetes-operator/contributing/development-guidelines/</loc>
       </url>
       <url>
@@ -19,12 +13,6 @@
         <loc>https://apache.github.io/superset-kubernetes-operator/contributing/releasing/</loc>
       </url>
       <url>
-        <loc>https://apache.github.io/superset-kubernetes-operator/getting-started/</loc>
-      </url>
-      <url>
-        <loc>https://apache.github.io/superset-kubernetes-operator/reference/api-reference/</loc>
-      </url>
-      <url>
         <loc>https://apache.github.io/superset-kubernetes-operator/reference/downloads/</loc>
       </url>
       <url>
@@ -32,20 +20,5 @@
       </url>
       <url>
         <loc>https://apache.github.io/superset-kubernetes-operator/reference/security/</loc>
-      </url>
-      <url>
-        <loc>https://apache.github.io/superset-kubernetes-operator/user-guide/configuration/</loc>
-      </url>
-      <url>
-        <loc>https://apache.github.io/superset-kubernetes-operator/user-guide/installation/</loc>
-      </url>
-      <url>
-        <loc>https://apache.github.io/superset-kubernetes-operator/user-guide/lifecycle/</loc>
-      </url>
-      <url>
-        <loc>https://apache.github.io/superset-kubernetes-operator/user-guide/migration/</loc>
-      </url>
-      <url>
-        <loc>https://apache.github.io/superset-kubernetes-operator/user-guide/networking-and-monitoring/</loc>
       </url>
 </urlset>
