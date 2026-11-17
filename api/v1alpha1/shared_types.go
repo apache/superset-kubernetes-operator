@@ -463,6 +463,10 @@ type GunicornSpec struct {
 	// +optional
 	// +kubebuilder:validation:Minimum=0
 	LimitRequestFieldSize *int32 `json:"limitRequestFieldSize,omitempty"`
+
+	// Gunicorn log level (e.g. debug, info, warning), passed to Gunicorn as-is. Defaults to info.
+	// +optional
+	LogLevel *string `json:"logLevel,omitempty"`
 }
 
 // CeleryWorkerProcessSpec configures Celery worker execution parameters.

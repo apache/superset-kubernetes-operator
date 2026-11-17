@@ -499,6 +499,7 @@ _Appears in:_
 | `maxRequestsJitter` _integer_ | Random jitter added to maxRequests to prevent thundering herd on worker recycling. |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `limitRequestLine` _integer_ | Maximum size of HTTP request line in bytes (0 = unlimited). |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `limitRequestFieldSize` _integer_ | Maximum size of HTTP request header field in bytes (0 = unlimited). |  | Minimum: 0 <br />Optional: \{\} <br /> |
+| `logLevel` _string_ | Gunicorn log level (e.g. debug, info, warning), passed to Gunicorn as-is. Defaults to info. |  | Optional: \{\} <br /> |
 
 
 #### ImageOverrideSpec

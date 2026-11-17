@@ -29,6 +29,7 @@ import (
 
 const (
 	defaultWorkerClass = "gthread"
+	defaultLogLevel    = "info"
 
 	EnvServerWorkerAmount        = "SERVER_WORKER_AMOUNT"
 	EnvServerThreadsAmount       = "SERVER_THREADS_AMOUNT"
@@ -54,6 +55,7 @@ type ResolvedGunicorn struct {
 	MaxRequestsJitter     int32
 	LimitRequestLine      int32
 	LimitRequestFieldSize int32
+	LogLevel              string
 }
 
 // ResolveGunicorn resolves a GunicornSpec into concrete values.
@@ -78,6 +80,7 @@ func ResolveGunicorn(spec *v1alpha1.GunicornSpec) ResolvedGunicorn {
 		MaxRequestsJitter:     0,
 		LimitRequestLine:      0,
 		LimitRequestFieldSize: 0,
+		LogLevel:              defaultLogLevel,
 	}
 
 	if spec == nil {
@@ -93,6 +96,7 @@ func ResolveGunicorn(spec *v1alpha1.GunicornSpec) ResolvedGunicorn {
 	setIf(&r.MaxRequestsJitter, spec.MaxRequestsJitter)
 	setIf(&r.LimitRequestLine, spec.LimitRequestLine)
 	setIf(&r.LimitRequestFieldSize, spec.LimitRequestFieldSize)
+	setIf(&r.LogLevel, spec.LogLevel)
 
 	return r
 }
@@ -122,5 +126,6 @@ func (g *ResolvedGunicorn) EnvVars() []corev1.EnvVar {
 		{Name: EnvWorkerMaxRequestsJitter, Value: fmt.Sprintf("%d", g.MaxRequestsJitter)},
 		{Name: EnvServerLimitRequestLine, Value: fmt.Sprintf("%d", g.LimitRequestLine)},
 		{Name: EnvServerLimitRequestFieldSz, Value: fmt.Sprintf("%d", g.LimitRequestFieldSize)},
+		{Name: EnvGunicornLogLevel, Value: g.LogLevel},
 	}
 }
