@@ -245,12 +245,11 @@ func getTaskJob(t *testing.T, c client.Client, namespace, name string) (*batchv1
 	return job, nil
 }
 
-func reconcileLifecycleWithoutFailure(t *testing.T, r *SupersetReconciler, ctx context.Context, superset *supersetv1alpha1.Superset) lifecycleResult {
+func reconcileLifecycleWithoutFailure(t *testing.T, r *SupersetReconciler, ctx context.Context, superset *supersetv1alpha1.Superset) {
 	t.Helper()
 	res, err := r.reconcileLifecycle(ctx, superset, "config-checksum", nil, "sa")
 	require.NoError(t, err)
 	require.False(t, res.TerminalFailure)
-	return res
 }
 
 func markJobSucceeded(t *testing.T, c client.Client, job *batchv1.Job) {
