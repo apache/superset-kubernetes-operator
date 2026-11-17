@@ -48,21 +48,19 @@ func TestLogLevelResolutionAndMappings(t *testing.T) {
 	})
 
 	tests := map[v1alpha1.LogLevel]struct {
-		python       string
-		celery       string
-		celeryFlower string
+		python string
+		celery string
 	}{
-		v1alpha1.LogLevelDebug:    {"DEBUG", "--loglevel=debug", "DEBUG"},
-		v1alpha1.LogLevelInfo:     {"INFO", "--loglevel=info", "INFO"},
-		v1alpha1.LogLevelWarning:  {"WARNING", "--loglevel=warning", "WARNING"},
-		v1alpha1.LogLevelError:    {"ERROR", "--loglevel=error", "ERROR"},
-		v1alpha1.LogLevelCritical: {"CRITICAL", "--loglevel=critical", "ERROR"},
+		v1alpha1.LogLevelDebug:    {"DEBUG", "--loglevel=debug"},
+		v1alpha1.LogLevelInfo:     {"INFO", "--loglevel=info"},
+		v1alpha1.LogLevelWarning:  {"WARNING", "--loglevel=warning"},
+		v1alpha1.LogLevelError:    {"ERROR", "--loglevel=error"},
+		v1alpha1.LogLevelCritical: {"CRITICAL", "--loglevel=critical"},
 	}
 	for in, want := range tests {
 		t.Run(string(in), func(t *testing.T) {
 			assert.Equal(t, want.python, PythonLogLevel(in))
 			assert.Equal(t, want.celery, CeleryLogLevelFlag(in))
-			assert.Equal(t, want.celeryFlower, CeleryFlowerLogLevel(in))
 		})
 	}
 }

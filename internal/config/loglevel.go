@@ -53,14 +53,3 @@ func PythonLogLevel(level v1alpha1.LogLevel) string {
 func CeleryLogLevelFlag(level v1alpha1.LogLevel) string {
 	return fmt.Sprintf("--loglevel=%s", level)
 }
-
-// FlowerLogLevel returns the level name Celery Flower's logging module expects.
-// "critical" returns "ERROR", all other levels converted to uppercase.
-func CeleryFlowerLogLevel(level v1alpha1.LogLevel) string {
-	switch level {
-	case v1alpha1.LogLevelCritical:
-		return "ERROR"
-	default:
-		return strings.ToUpper(string(level))
-	}
-}

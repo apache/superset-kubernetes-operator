@@ -43,7 +43,7 @@ func lifecycleLogLevel(spec *supersetv1alpha1.SupersetSpec) supersetv1alpha1.Log
 // native settings and are not driven by logLevel.
 func appendLogLevelEnv(componentType naming.ComponentType, level supersetv1alpha1.LogLevel, injected *resolution.OperatorInjected) {
 	if componentType == naming.ComponentCeleryFlower {
-		injected.Env = append(injected.Env, corev1.EnvVar{Name: supersetconfig.EnvCeleryFlowerLogLevel, Value: supersetconfig.CeleryFlowerLogLevel(level)})
+		injected.Env = append(injected.Env, corev1.EnvVar{Name: supersetconfig.EnvCeleryFlowerLogLevel, Value: supersetconfig.PythonLogLevel(level)})
 	}
 }
 

@@ -445,7 +445,7 @@ func TestReconcile_CeleryFlowerLogLevelOverride(t *testing.T) {
 	scheme := testScheme(t)
 
 	topLevel := supersetv1alpha1.LogLevelWarning
-	flowerLevel := supersetv1alpha1.LogLevelError
+	flowerLevel := supersetv1alpha1.LogLevelCritical
 
 	spec := minimalSupersetSpec()
 	spec.LogLevel = &topLevel
@@ -483,7 +483,7 @@ func TestReconcile_CeleryFlowerLogLevelOverride(t *testing.T) {
 		return ""
 	}
 
-	assert.Equal(t, "ERROR", envValue(
+	assert.Equal(t, "CRITICAL", envValue(
 		deploy,
 		supersetconfig.EnvCeleryFlowerLogLevel,
 	))
