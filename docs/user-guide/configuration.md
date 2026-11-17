@@ -920,6 +920,73 @@ spec:
 
 When HPA is configured, the `replicas` field is ignored (HPA manages scaling).
 
+### External scaling
+
+Set `scalingMode: External` to let another controller own the replica count, for example a [KEDA](https://keda.sh) `ScaledObject` that scales Celery workers on broker queue depth. The operator then keeps the Deployment's live replica count, creates no HPA for the component (removing one it created earlier), and ignores the inherited `spec.replicas` and `spec.autoscaling`. A newly created Deployment starts at one replica, and the external controller scales it from there.
+
+Like `replicas` and `autoscaling`, `scalingMode` can be set on a component or once at the top level for every scalable component. A component's own value overrides the top-level one, so `scalingMode: Operator` opts one component out of a top-level `External`. `replicas` and `autoscaling` cannot be set where the effective mode is `External`:
+
+```yaml
+spec:
+  # Only the Celery workers are scaled externally.
+  celeryWorker:
+    scalingMode: External
+```
+
+```yaml
+spec:
+  # Every scalable component is scaled externally, except the web server.
+  scalingMode: External
+  webServer:
+    scalingMode: Operator
+    replicas: 2
+```
+
+A matching KEDA `ScaledObject` targets the component's Deployment by name. Its `TriggerAuthentication` reads the Valkey password from the same Secret key as `valkey.passwordFrom`:
+
+```yaml
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: superset-valkey
+spec:
+  secretTargetRef:
+    - parameter: password
+      name: superset-valkey  # same Secret and key as valkey.passwordFrom
+      key: password
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: superset-celery-worker
+spec:
+  scaleTargetRef:
+    name: superset-celery-worker  # <superset name>-celery-worker
+  minReplicaCount: 1
+  maxReplicaCount: 10
+  triggers:
+    - type: redis
+      metadata:
+        address: valkey.example.com:6379  # valkey.host and valkey.port
+        databaseIndex: "0"                # valkey.celeryBroker.database
+        enableTLS: "true"                 # only when valkey.ssl is set
+        listName: celery                  # default Celery queue
+        listLength: "4"
+      authenticationRef:
+        name: superset-valkey
+```
+
+KEDA's `minReplicaCount` defaults to 0. Celery workers can scale to zero because new tasks reactivate the queue trigger, but keep it at 1 or more for the web server, websocket server, Flower, and MCP server: incoming requests don't activate a queue trigger, so a component scaled to zero stays unavailable. A queue-length trigger counts only waiting tasks, so scaling in can stop a worker in the middle of a task. Size `celeryWorker.podTemplate.terminationGracePeriodSeconds` for your longest tasks, or slow scale-in with the `ScaledObject`'s `advanced.horizontalPodAutoscalerConfig.behavior`.
+
+#### Switching modes
+
+Let only one controller own the replica count at a time:
+
+- **To `External`:** set `scalingMode: External` first, and create the `ScaledObject` once the operator has removed its HPA. KEDA's admission webhook rejects a `ScaledObject` for a Deployment that another HPA already manages.
+- **Back to `Operator`:** delete the `ScaledObject` first, then remove `scalingMode: External` and set `replicas` or `autoscaling` in the same change. While the `ScaledObject` exists, KEDA and the operator would both set the replica count, and without `replicas` or `autoscaling` the Deployment drops to one replica. Deleting the `ScaledObject` leaves the replica count where KEDA last set it, unless `advanced.restoreToOriginalReplicaCount` is set.
+
+A lifecycle drain deletes component Deployments. When they are recreated they start at one replica, and for an externally scaled web server the maintenance page ends as soon as that pod is ready, so traffic briefly reaches a single web-server pod until the external controller scales it up.
+
 ## Pod Disruption Budget
 
 ```yaml

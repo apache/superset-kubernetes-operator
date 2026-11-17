@@ -57,6 +57,12 @@ const (
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.previousSecretKey)",message="previousSecretKey is only allowed when environment is Development; use previousSecretKeyFrom in Staging or Production"
 // +kubebuilder:validation:XValidation:rule="!has(self.previousSecretKey) || !has(self.previousSecretKeyFrom)",message="previousSecretKey and previousSecretKeyFrom are mutually exclusive"
 // +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.rotate) || (has(self.lifecycle.rotate.disabled) && self.lifecycle.rotate.disabled) || has(self.previousSecretKey) || has(self.previousSecretKeyFrom)",message="lifecycle.rotate requires previousSecretKey (dev) or previousSecretKeyFrom to be set"
+// +kubebuilder:validation:XValidation:rule="!has(self.scalingMode) || self.scalingMode != 'External' || (!has(self.replicas) && !has(self.autoscaling))",message="replicas and autoscaling cannot be set when scalingMode is External"
+// +kubebuilder:validation:XValidation:rule="!has(self.webServer) || (has(self.webServer.scalingMode) ? self.webServer.scalingMode : (has(self.scalingMode) ? self.scalingMode : 'Operator')) != 'External' || (!has(self.webServer.replicas) && !has(self.webServer.autoscaling))",message="webServer.replicas and webServer.autoscaling cannot be set when its effective scalingMode is External; set webServer.scalingMode: Operator to opt out of a top-level External"
+// +kubebuilder:validation:XValidation:rule="!has(self.celeryWorker) || (has(self.celeryWorker.scalingMode) ? self.celeryWorker.scalingMode : (has(self.scalingMode) ? self.scalingMode : 'Operator')) != 'External' || (!has(self.celeryWorker.replicas) && !has(self.celeryWorker.autoscaling))",message="celeryWorker.replicas and celeryWorker.autoscaling cannot be set when its effective scalingMode is External; set celeryWorker.scalingMode: Operator to opt out of a top-level External"
+// +kubebuilder:validation:XValidation:rule="!has(self.celeryFlower) || (has(self.celeryFlower.scalingMode) ? self.celeryFlower.scalingMode : (has(self.scalingMode) ? self.scalingMode : 'Operator')) != 'External' || (!has(self.celeryFlower.replicas) && !has(self.celeryFlower.autoscaling))",message="celeryFlower.replicas and celeryFlower.autoscaling cannot be set when its effective scalingMode is External; set celeryFlower.scalingMode: Operator to opt out of a top-level External"
+// +kubebuilder:validation:XValidation:rule="!has(self.websocketServer) || (has(self.websocketServer.scalingMode) ? self.websocketServer.scalingMode : (has(self.scalingMode) ? self.scalingMode : 'Operator')) != 'External' || (!has(self.websocketServer.replicas) && !has(self.websocketServer.autoscaling))",message="websocketServer.replicas and websocketServer.autoscaling cannot be set when its effective scalingMode is External; set websocketServer.scalingMode: Operator to opt out of a top-level External"
+// +kubebuilder:validation:XValidation:rule="!has(self.mcpServer) || (has(self.mcpServer.scalingMode) ? self.mcpServer.scalingMode : (has(self.scalingMode) ? self.scalingMode : 'Operator')) != 'External' || (!has(self.mcpServer.replicas) && !has(self.mcpServer.autoscaling))",message="mcpServer.replicas and mcpServer.autoscaling cannot be set when its effective scalingMode is External; set mcpServer.scalingMode: Operator to opt out of a top-level External"
 type SupersetSpec struct {
 	// Image configuration inherited by all components.
 	Image ImageSpec `json:"image"`
@@ -73,6 +79,10 @@ type SupersetSpec struct {
 	// Default autoscaling for all scalable components (component-level overrides this).
 	// +optional
 	Autoscaling *AutoscalingSpec `json:"autoscaling,omitempty"`
+	// Default scaling mode for all scalable components (component-level overrides this).
+	// External leaves replica counts to an external controller such as KEDA; see the component field.
+	// +optional
+	ScalingMode *ScalingMode `json:"scalingMode,omitempty"`
 	// Default pod disruption budget for all scalable components (component-level overrides this).
 	// +optional
 	PodDisruptionBudget *PDBSpec `json:"podDisruptionBudget,omitempty"`
