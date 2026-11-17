@@ -25,7 +25,7 @@ under the License.
 
 **Run Apache Superset on Kubernetes from a single custom resource.** Define one `Superset` object and the operator reconciles everything that stands behind a working Superset — Deployments, Services, ConfigMaps, lifecycle Jobs, and the supporting resources — keeping migrations, configuration, scaling, and networking in sync as your spec changes.
 
-Read the [documentation](https://apache.github.io/superset-kubernetes-operator/) to get started, or jump straight to the [quick start](#quick-start).
+Read the [documentation](https://apache.github.io/superset-kubernetes-operator/) to get started, or jump straight to [quick start](#quick-start).
 
 ## Highlights
 
