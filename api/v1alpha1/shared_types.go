@@ -36,6 +36,24 @@ const (
 	ConditionTypeLifecycleComplete = "LifecycleComplete" // on Superset (aggregate lifecycle gate)
 )
 
+// LogLevel is the Superset application log level. The operator maps it onto
+// each Python component's logging mechanism.
+// +kubebuilder:validation:Enum=debug;info;warning;error;critical
+type LogLevel string
+
+const (
+	// Output critical errors only.
+	LogLevelCritical LogLevel = "critical"
+	// Output errors and above.
+	LogLevelError LogLevel = "error"
+	// Output warnings and above.
+	LogLevelWarning LogLevel = "warning"
+	// Output informational logs and above (default).
+	LogLevelInfo LogLevel = "info"
+	// Enables debug logs and above.
+	LogLevelDebug LogLevel = "debug"
+)
+
 // --- Image types ---
 
 // ImageSpec defines the container image configuration.

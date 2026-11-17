@@ -95,7 +95,7 @@ func (r *SupersetReconciler) buildStandardTaskFlatSpec(
 	if taskType == taskTypeInit {
 		initEnvVars = collectLifecycleInitEnvVars(superset.Spec.Lifecycle)
 	}
-	operatorInjected := buildOperatorInjected(renderedConfig, bootstrapScript, resourceBaseName, superset.Spec.ForceReload, append(secretEnvVars, initEnvVars...))
+	operatorInjected := buildOperatorInjected(renderedConfig, bootstrapScript, resourceBaseName, superset.Spec.ForceReload, lifecycleLogLevel(&superset.Spec), append(secretEnvVars, initEnvVars...))
 
 	flat := resolution.ResolveComponentSpec(
 		resolution.ComponentInit, topLevel, comp,

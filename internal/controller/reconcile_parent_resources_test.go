@@ -20,9 +20,11 @@ package controller
 
 import (
 	"context"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	batchv1 "k8s.io/api/batch/v1"
@@ -34,6 +36,7 @@ import (
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
+	supersetconfig "github.com/apache/superset-kubernetes-operator/internal/config"
 )
 
 func TestReconcile_CreatesParentOwnedComponentResources(t *testing.T) {
@@ -291,6 +294,201 @@ func TestReconcile_WebsocketConfigFromMountsSecret(t *testing.T) {
 	}
 }
 
+func TestReconcile_LogLevelWiringAndRestartScope(t *testing.T) {
+	scheme := testScheme(t)
+	topLevel := supersetv1alpha1.LogLevelWarning
+	webLevel := supersetv1alpha1.LogLevelDebug
+	spec := minimalSupersetSpec()
+	spec.LogLevel = &topLevel
+	spec.WebServer.LogLevel = &webLevel
+	spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{}
+	spec.CeleryBeat = &supersetv1alpha1.CeleryBeatComponentSpec{}
+	spec.CeleryFlower = &supersetv1alpha1.CeleryFlowerComponentSpec{}
+	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
+		Image:      &supersetv1alpha1.ImageOverrideSpec{Repository: new("example.com/superset-websocket")},
+		ConfigFrom: &corev1.SecretKeySelector{Name: "ws-config", Key: "config.json"},
+	}
+	superset := &supersetv1alpha1.Superset{Name: "test", Namespace: "default", UID: "uid-1", Spec: spec}
+
+	c := reconcileOnce(t, scheme, superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r)
+
+	deployments := make(map[string]*appsv1.Deployment)
+	for _, name := range []string{"test-web-server", "test-celery-worker", "test-celery-beat", "test-celery-flower", "test-websocket-server"} {
+		deployments[name] = &appsv1.Deployment{}
+		if err := c.Get(context.Background(), types.NamespacedName{Name: name, Namespace: "default"}, deployments[name]); err != nil {
+			t.Fatalf("expected Deployment %s: %v", name, err)
+		}
+	}
+
+	envValue := func(deploy *appsv1.Deployment, name string) string {
+		for _, env := range deploy.Spec.Template.Spec.Containers[0].Env {
+			if env.Name == name {
+				return env.Value
+			}
+		}
+		return ""
+	}
+	assert.Equal(t, "DEBUG", envValue(deployments["test-web-server"], common.EnvLogLevel))
+	// The typed logLevel does not drive Gunicorn: GUNICORN_LOGLEVEL comes only
+	// from webServer.gunicorn.logLevel (default info).
+	assert.Equal(t, "info", envValue(deployments["test-web-server"], supersetconfig.EnvGunicornLogLevel))
+	assert.Equal(t, "WARNING", envValue(deployments["test-celery-worker"], common.EnvLogLevel))
+	assert.Equal(t, "WARNING", envValue(deployments["test-celery-flower"], supersetconfig.EnvCeleryFlowerLogLevel))
+	assert.Empty(t, envValue(deployments["test-websocket-server"], "LOG_LEVEL"))
+	assert.Contains(t, deployments["test-celery-worker"].Spec.Template.Spec.Containers[0].Command, "--loglevel=warning")
+	assert.Contains(t, deployments["test-celery-beat"].Spec.Template.Spec.Containers[0].Command, "--loglevel=warning")
+
+	before := make(map[string]corev1.PodTemplateSpec)
+	for name, deploy := range deployments {
+		before[name] = *deploy.Spec.Template.DeepCopy()
+	}
+
+	nextLevel := supersetv1alpha1.LogLevelError
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, superset); err != nil {
+		t.Fatalf("getting reconciled Superset: %v", err)
+	}
+	superset.Spec.WebServer.LogLevel = &nextLevel
+	if err := c.Update(context.Background(), superset); err != nil {
+		t.Fatalf("updating Superset: %v", err)
+	}
+	doReconcile(t, r)
+
+	for name, wantUnchanged := range map[string]bool{
+		"test-celery-worker":    true,
+		"test-celery-beat":      true,
+		"test-celery-flower":    true,
+		"test-websocket-server": true,
+	} {
+		deploy := &appsv1.Deployment{}
+		if err := c.Get(context.Background(), types.NamespacedName{Name: name, Namespace: "default"}, deploy); err != nil {
+			t.Fatalf("getting Deployment %s: %v", name, err)
+		}
+		if wantUnchanged && !reflect.DeepEqual(before[name], deploy.Spec.Template) {
+			t.Errorf("%s pod template changed when only web-server log level changed", name)
+		}
+	}
+	updatedWeb := &appsv1.Deployment{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, updatedWeb); err != nil {
+		t.Fatalf("getting updated web-server Deployment: %v", err)
+	}
+	assert.Equal(t, "ERROR", envValue(updatedWeb, common.EnvLogLevel))
+	assert.Equal(t, "info", envValue(updatedWeb, supersetconfig.EnvGunicornLogLevel))
+	if reflect.DeepEqual(before["test-web-server"], updatedWeb.Spec.Template) {
+		t.Fatal("web-server pod template did not change when its log level changed")
+	}
+}
+
+func TestReconcile_LogLevelWithDisabledCeleryPreset(t *testing.T) {
+	scheme := testScheme(t)
+	level := supersetv1alpha1.LogLevelError
+	disabled := supersetv1alpha1.Preset("disabled")
+
+	spec := minimalSupersetSpec()
+	spec.LogLevel = &level
+	spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{
+		Celery: &supersetv1alpha1.CeleryWorkerProcessSpec{
+			Preset: &disabled,
+		},
+	}
+	spec.CeleryBeat = &supersetv1alpha1.CeleryBeatComponentSpec{}
+	superset := &supersetv1alpha1.Superset{
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: spec,
+	}
+
+	c := reconcileOnce(t, scheme, superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r)
+
+	for _, name := range []string{"test-celery-worker", "test-celery-beat"} {
+		deploy := &appsv1.Deployment{}
+		if err := c.Get(context.Background(), types.NamespacedName{
+			Name: name, Namespace: "default",
+		}, deploy); err != nil {
+			t.Fatalf("expected Celery Deployment %s: %v", name, err)
+		}
+
+		command := deploy.Spec.Template.Spec.Containers[0].Command
+		assert.Contains(t, command, "--loglevel=error")
+	}
+}
+
+// The websocket server doesn't read superset_config.py and has its own native
+// websocketServer.config.logLevel, so it ignores spec.logLevel entirely.
+func TestReconcile_WebsocketIgnoresLogLevel(t *testing.T) {
+	scheme := testScheme(t)
+	spec := minimalSupersetSpec()
+	spec.LogLevel = new(supersetv1alpha1.LogLevelDebug)
+	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
+		Image: &supersetv1alpha1.ImageOverrideSpec{Repository: new("example.com/superset-websocket")},
+	}
+	superset := &supersetv1alpha1.Superset{Name: "test", Namespace: "default", UID: "uid-1", Spec: spec}
+
+	c := reconcileOnce(t, scheme, superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r)
+
+	deploy := &appsv1.Deployment{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server", Namespace: "default"}, deploy); err != nil {
+		t.Fatalf("expected websocket Deployment: %v", err)
+	}
+	for _, env := range deploy.Spec.Template.Spec.Containers[0].Env {
+		if env.Name == "LOG_LEVEL" || env.Name == common.EnvLogLevel {
+			t.Fatalf("did not expect log-level env var %s on websocket server", env.Name)
+		}
+	}
+}
+
+func TestReconcile_CeleryFlowerLogLevelOverride(t *testing.T) {
+	scheme := testScheme(t)
+
+	topLevel := supersetv1alpha1.LogLevelWarning
+	flowerLevel := supersetv1alpha1.LogLevelCritical
+
+	spec := minimalSupersetSpec()
+	spec.LogLevel = &topLevel
+	spec.CeleryFlower = &supersetv1alpha1.CeleryFlowerComponentSpec{
+		LogLevel: &flowerLevel,
+	}
+
+	superset := &supersetv1alpha1.Superset{
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: spec,
+	}
+
+	c := reconcileOnce(t, scheme, superset).Build()
+	r := &SupersetReconciler{
+		Client:   c,
+		Scheme:   scheme,
+		Recorder: events.NewFakeRecorder(10),
+	}
+	doReconcile(t, r)
+
+	deploy := &appsv1.Deployment{}
+	if err := c.Get(context.Background(), types.NamespacedName{
+		Name:      "test-celery-flower",
+		Namespace: "default",
+	}, deploy); err != nil {
+		t.Fatalf("expected Flower Deployment: %v", err)
+	}
+
+	envValue := func(deploy *appsv1.Deployment, name string) string {
+		for _, env := range deploy.Spec.Template.Spec.Containers[0].Env {
+			if env.Name == name {
+				return env.Value
+			}
+		}
+		return ""
+	}
+
+	assert.Equal(t, "CRITICAL", envValue(
+		deploy,
+		supersetconfig.EnvCeleryFlowerLogLevel,
+	))
+}
+
 func TestReconcile_BootstrapScriptAppliesToPythonComponentsOnly(t *testing.T) {
 	scheme := testScheme(t)
 
@@ -450,7 +648,10 @@ func TestReconcile_LifecycleCreatesParentOwnedTaskJobAndStatus(t *testing.T) {
 	scheme := testScheme(t)
 
 	spec := minimalSupersetSpec()
-	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{}
+	topLevelLogLevel := supersetv1alpha1.LogLevelWarning
+	lifecycleLogLevel := supersetv1alpha1.LogLevelError
+	spec.LogLevel = &topLevelLogLevel
+	spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{LogLevel: &lifecycleLogLevel}
 	superset := &supersetv1alpha1.Superset{
 		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: spec,
@@ -474,6 +675,17 @@ func TestReconcile_LifecycleCreatesParentOwnedTaskJobAndStatus(t *testing.T) {
 	}
 	if got := jobs.Items[0].Spec.Template.Labels[common.LabelKeyParent]; got != "test" {
 		t.Fatalf("expected task pod template parent label, got %q", got)
+	}
+	var logLevelEnv *corev1.EnvVar
+	for i := range jobs.Items[0].Spec.Template.Spec.Containers[0].Env {
+		env := &jobs.Items[0].Spec.Template.Spec.Containers[0].Env[i]
+		if env.Name == common.EnvLogLevel {
+			logLevelEnv = env
+			break
+		}
+	}
+	if logLevelEnv == nil || logLevelEnv.Value != "ERROR" {
+		t.Fatalf("expected lifecycle log level ERROR overriding top-level warning, got %+v", logLevelEnv)
 	}
 
 	updated := &supersetv1alpha1.Superset{}

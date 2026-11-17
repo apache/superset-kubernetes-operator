@@ -71,6 +71,46 @@ spec:
   webServer: {}
 ```
 
+## Log Levels
+
+`spec.logLevel` sets the default log level for Superset workloads and
+lifecycle tasks managed by the operator. A component-level `logLevel` overrides
+the top-level value for that component. `spec.lifecycle.logLevel` similarly
+overrides the top-level value for lifecycle tasks.
+
+If no applicable field is set, the operator uses `info` at runtime.
+
+```yaml
+spec:
+  logLevel: warning
+
+  webServer:
+    logLevel: debug       # web server uses debug
+
+  celeryWorker: {}        # uses warning
+
+  lifecycle:
+    logLevel: error       # lifecycle tasks use error
+```
+
+The typed `logLevel` field is separate from component-specific configuration fields that may also be named `logLevel`, such as `websocketServer.config.logLevel`. The typed field is the operator's common control; a nested field belongs to that component's native configuration.
+
+For Python components and lifecycle tasks, component-specific configuration is applied after the operator-generated configuration, so an explicit `LOG_LEVEL` assignment overrides the typed `logLevel` field.
+
+The Node.js websocket server applies environment variables *after* its component-specific configuration, so an injected runtime `LOG_LEVEL` takes precedence. Therefore, the operator injects `LOG_LEVEL` for the websocket server only when `spec.logLevel` or `websocketServer.logLevel` is explicitly set.
+
+The operator maps the resolved value to each component's native logging mechanism:
+
+| Component | Mechanism | Notes |
+|---|---|---|
+| Python components and lifecycle tasks | `LOG_LEVEL` in rendered `superset_config.py` | Generated before `spec.config` and component configuration, so an explicit `LOG_LEVEL` assignment there overrides the typed `logLevel`. |
+| Celery worker and Celery Beat | `--loglevel=<level>` | Celery overrides the root logger level at startup, so the command-line option is also required. |
+| Web server | `GUNICORN_LOGLEVEL` | The default `run-server.sh` passes it to Gunicorn. |
+| Websocket server | `LOG_LEVEL` environment variable | Uses Winston names: `warning` maps to `warn`, and `critical` maps to `error`. The variable is injected only when the top-level or websocket-specific `logLevel` is explicitly set. |
+| Celery Flower | `FLOWER_LOGGING` | Flower's own loggers ignore `LOG_LEVEL`, so the level must be set explicitly through Flower's logging configuration. |
+
+If a component uses a custom command (e.g. webserver), that command is responsible for consuming the injected logging environment variables or configuring logging itself. The operator does not modify custom commands to add runtime-specific logging arguments.
+
 ## Image
 
 `spec.image` sets the Superset image for all Python components. `repository` defaults to the official Superset image; `tag` is required — set it to the release you want:
@@ -330,7 +370,11 @@ The operator sets certain env vars automatically based on the CR spec. These are
 | `SUPERSET_OPERATOR__VALKEY_PASS` | Operator-internal | Operator (from `valkey.password` or `valkey.passwordFrom`) | Valkey password |
 | `SUPERSET_OPERATOR__FLOWER_URL_PREFIX` | Operator-internal | Operator (from `celeryFlower.service.gatewayPath`, default `/flower`) | Flower URL prefix |
 | `SUPERSET_OPERATOR__FORCE_RELOAD` | Operator-internal | Operator (from `spec.forceReload`) | Triggers rolling restart |
-| `SERVER_WORKER_AMOUNT`, `SERVER_THREADS_AMOUNT`, `SERVER_WORKER_CLASS`, `GUNICORN_TIMEOUT`, `GUNICORN_KEEPALIVE`, `WORKER_MAX_REQUESTS`, `WORKER_MAX_REQUESTS_JITTER`, `SERVER_LIMIT_REQUEST_LINE`, `SERVER_LIMIT_REQUEST_FIELD_SIZE`, `GUNICORN_LOGLEVEL` | Standard | Operator (from `webServer.gunicorn`, web server only, skipped when `preset: disabled`) | Gunicorn settings read by `run-server.sh` |
+| `SUPERSET_OPERATOR__LOG_LEVEL` | Operator-internal | Operator (from the resolved level, Python components and lifecycle tasks) | Read by the generated `superset_config.py` as Python `LOG_LEVEL` |
+| `LOG_LEVEL` | Standard | Operator (from `spec.logLevel` or `websocketServer.logLevel`, websocket server only, set only when a level is explicitly configured) | Winston log level read by the websocket server |
+| `SERVER_WORKER_AMOUNT`, `SERVER_THREADS_AMOUNT`, `SERVER_WORKER_CLASS`, `GUNICORN_TIMEOUT`, `GUNICORN_KEEPALIVE`, `WORKER_MAX_REQUESTS`, `WORKER_MAX_REQUESTS_JITTER`, `SERVER_LIMIT_REQUEST_LINE`, `SERVER_LIMIT_REQUEST_FIELD_SIZE` | Standard | Operator (from `webServer.gunicorn`, web server only, skipped when `preset: disabled`) | Gunicorn settings read by `run-server.sh` |
+| `GUNICORN_LOGLEVEL` | Standard | Operator (from the resolved `spec.logLevel` or `webServer.logLevel`, web server only) | Gunicorn log level read by `run-server.sh`; independent of the Gunicorn tuning preset |
+| `FLOWER_LOGGING` | Standard | Operator (from the resolved `spec.logLevel` or `celeryFlower.logLevel`, Celery Flower only) | Flower logging level; Flower's own loggers ignore `LOG_LEVEL`, so this value must be set explicitly |
 
 Operator-set env vars are merged after `podTemplate.container.env`, so a user-defined env var with the same name is overridden and the operator logs `operator env var overrides user-specified value`. Use the matching CRD field instead, for example `webServer.gunicorn.workers` rather than `SERVER_WORKER_AMOUNT`.
 
@@ -369,14 +413,13 @@ In both passthrough and structured modes, the operator renders `SQLALCHEMY_DATAB
 
 The `config` field accepts raw Python that is appended after the operator-generated config. It is available at the top level (base config, shared by all Python components) and per component (component config).
 
-The operator exposes a curated set of knobs as typed CRD fields — Kubernetes resources, Kubernetes Secret references, and managed connectivity that the operator can safely validate and wire across components (for example metastore URIs, Valkey-backed caches, Celery broker/backend URLs, lifecycle gating, and feature presets). Application behavior stays in `config` as Python. Over time, settings that prove broadly useful or error-prone may graduate from raw Python to typed fields. See [Configuration Philosophy](../architecture/overview.md#configuration-philosophy-typed-fields-vs-raw-python) for the rationale.
+The operator exposes a curated set of knobs as typed CRD fields — Kubernetes resources, Kubernetes Secret references, and managed connectivity that the operator can safely validate and wire across components (for example metastore URIs, Valkey-backed caches, Celery broker/backend URLs, lifecycle gating, feature presets, and log levels). Application behavior stays in `config` as Python. Over time, settings that prove broadly useful or error-prone may graduate from raw Python to typed fields. See [Configuration Philosophy](../architecture/overview.md#configuration-philosophy-typed-fields-vs-raw-python) for the rationale.
 
 ```yaml
 spec:
   # Base config: appended to ALL Python components
   config: |
     ROW_LIMIT = 10000
-    LOG_LEVEL = "INFO"
 
   # Component config: appended after base config for this component only
   celeryWorker:
@@ -384,7 +427,7 @@ spec:
       CELERY_ANNOTATIONS = {"tasks.add": {"rate_limit": "10/s"}}
 ```
 
-Both fields are **concatenated**, not mutually exclusive. In this example, the celery worker's `superset_config.py` contains the operator-generated configs (`SECRET_KEY`, structured DB URI if applicable), then the base config (`ROW_LIMIT`, `LOG_LEVEL`), then the component config (`CELERY_ANNOTATIONS`). The web server receives only the operator-generated configs and the base config, since it has no component-specific `config` field set.
+Both fields are **concatenated**, not mutually exclusive. In this example, the celery worker's `superset_config.py` contains the operator-generated configs (`SECRET_KEY`, structured DB URI if applicable), then the base config (`ROW_LIMIT`), then the component config (`CELERY_ANNOTATIONS`). The web server receives only the operator-generated configs and the base config, since it has no component-specific `config` field set.
 
 See [Config Rendering Pipeline](../architecture/overview.md#config-rendering-pipeline) for the full rendering order and an example of the generated output.
 
@@ -616,7 +659,7 @@ Presets control **workers**, **threads**, and **workerClass**. All other fields 
 | threads | 4 | 8 | 8 | 16 |
 | workerClass | gthread | gthread | gthread | gthread |
 
-Set `preset: disabled` to suppress env var injection entirely — Superset's `run-server.sh` built-in defaults will apply instead.
+Set `preset: disabled` to suppress the operator's Gunicorn tuning env vars — Superset's `run-server.sh` built-in defaults will apply for those settings. This does not disable Gunicorn log-level configuration. The resolved value from `spec.logLevel` or `webServer.logLevel` is still passed to Gunicorn.
 
 ```yaml
 spec:
@@ -628,7 +671,7 @@ spec:
       maxRequestsJitter: 50
 ```
 
-The full set of configurable fields (static defaults in parentheses): `timeout` (60), `keepAlive` (2), `maxRequests` (0 = disabled), `maxRequestsJitter` (0), `limitRequestLine` (0 = unlimited), `limitRequestFieldSize` (0 = unlimited), `logLevel` (info).
+The full set of configurable fields (static defaults in parentheses): `timeout` (60), `keepAlive` (2), `maxRequests` (0 = disabled), `maxRequestsJitter` (0), `limitRequestLine` (0 = unlimited), `limitRequestFieldSize` (0 = unlimited).
 
 ## Celery Worker Configuration
 

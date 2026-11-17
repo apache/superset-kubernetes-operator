@@ -50,6 +50,7 @@ type componentAccessor struct {
 	sqlaEngineOptions   *supersetv1alpha1.SQLAlchemyEngineOptionsSpec
 	websocketConfig     *apiextensionsv1.JSON
 	websocketConfigFrom *corev1.SecretKeySelector
+	logLevel            *supersetv1alpha1.LogLevel
 }
 
 // componentDescriptor captures all per-component variation needed to reconcile
@@ -159,6 +160,7 @@ func (r *SupersetReconciler) reconcileComponent(
 	resourceBaseName := desiredResourceBaseName
 
 	comp := convertComponent(accessor)
+	logLevel := supersetconfig.ResolveLogLevel(accessor.logLevel, superset.Spec.LogLevel)
 
 	var renderedConfig string
 	var workloadChecksum string
@@ -196,7 +198,7 @@ func (r *SupersetReconciler) reconcileComponent(
 
 		renderedConfig = supersetconfig.RenderConfig(desc.componentType, compConfigInput)
 		secretEnvVars = collectSecretEnvVars(&superset.Spec, superset.Name)
-		operatorInjected = buildOperatorInjected(renderedConfig, bootstrapScript, resourceBaseName, superset.Spec.ForceReload, secretEnvVars)
+		operatorInjected = buildOperatorInjected(renderedConfig, bootstrapScript, resourceBaseName, superset.Spec.ForceReload, logLevel, secretEnvVars)
 		logf.FromContext(ctx).V(2).Info("Rendered component config",
 			"component", desc.componentType, "configBytes", len(renderedConfig), "envVars", len(secretEnvVars))
 
@@ -213,11 +215,14 @@ func (r *SupersetReconciler) reconcileComponent(
 			}
 		}
 
-		// Inject celery worker command.
+		// Inject celery worker command. Celery resets the root logger level
+		// when started, so the level must also be passed as --loglevel.
 		if desc.componentType == naming.ComponentCeleryWorker {
 			c := supersetconfig.ResolveCelery(accessor.celery)
 			if !c.Disabled {
-				injectCeleryCommand(comp, withBootstrapScript(c.Command(), bootstrapScript))
+				cmd := c.Command()
+				cmd = append(cmd, supersetconfig.CeleryLogLevelFlag(logLevel))
+				injectCeleryCommand(comp, withBootstrapScript(cmd, bootstrapScript))
 			}
 		}
 	} else {
@@ -267,6 +272,8 @@ func (r *SupersetReconciler) reconcileComponent(
 		})
 	}
 
+	appendLogLevelEnv(desc.componentType, logLevel, operatorInjected)
+
 	warnEnvVarOverrides(ctx, topLevel, comp, operatorInjected)
 
 	flat := resolution.ResolveComponentSpec(
@@ -291,6 +298,7 @@ func (r *SupersetReconciler) reconcileComponent(
 	if !ok {
 		return fmt.Errorf("missing resource config for %s", desc.componentType)
 	}
+	cfg.deployConfig.DefaultCommand = withCeleryDefaultLogLevel(desc.componentType, cfg.deployConfig.DefaultCommand, logLevel)
 	if desc.hasPythonConfig {
 		cfg.deployConfig.DefaultCommand = withBootstrapScript(
 			cfg.deployConfig.DefaultCommand,
@@ -387,6 +395,7 @@ var webServerDescriptor = &componentDescriptor{
 		}
 		a := extractScalable(&c.ScalableComponentSpec, c.Config, c.BootstrapScript, c.Image, c.Service)
 		a.gunicorn = c.Gunicorn
+		a.logLevel = c.LogLevel
 		a.sqlaEngineOptions = c.SQLAlchemyEngineOptions
 		return a
 	},
@@ -405,6 +414,7 @@ var celeryWorkerDescriptor = &componentDescriptor{
 		}
 		a := extractScalable(&c.ScalableComponentSpec, c.Config, c.BootstrapScript, c.Image, nil)
 		a.celery = c.Celery
+		a.logLevel = c.LogLevel
 		a.sqlaEngineOptions = c.SQLAlchemyEngineOptions
 		return a
 	},
@@ -428,6 +438,7 @@ var celeryBeatDescriptor = &componentDescriptor{
 			bootstrapScript:    c.BootstrapScript,
 			image:              c.Image,
 			sqlaEngineOptions:  c.SQLAlchemyEngineOptions,
+			logLevel:           c.LogLevel,
 		}
 	},
 	adjustSpec: func(flat *supersetv1alpha1.FlatComponentSpec) {
@@ -447,7 +458,9 @@ var celeryFlowerDescriptor = &componentDescriptor{
 		if c == nil {
 			return nil
 		}
-		return extractScalable(&c.ScalableComponentSpec, c.Config, c.BootstrapScript, c.Image, c.Service)
+		a := extractScalable(&c.ScalableComponentSpec, c.Config, c.BootstrapScript, c.Image, c.Service)
+		a.logLevel = c.LogLevel
+		return a
 	},
 	statusAccessor: func(m *supersetv1alpha1.ComponentStatusMap) **supersetv1alpha1.ComponentRefStatus {
 		return &m.CeleryFlower
@@ -464,6 +477,7 @@ var mcpServerDescriptor = &componentDescriptor{
 		}
 		a := extractScalable(&c.ScalableComponentSpec, c.Config, c.BootstrapScript, c.Image, c.Service)
 		a.sqlaEngineOptions = c.SQLAlchemyEngineOptions
+		a.logLevel = c.LogLevel
 		return a
 	},
 	statusAccessor: func(m *supersetv1alpha1.ComponentStatusMap) **supersetv1alpha1.ComponentRefStatus {

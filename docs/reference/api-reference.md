@@ -103,6 +103,7 @@ _Appears in:_
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
 | `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
+| `logLevel` _[LogLevel](#loglevel)_ | Superset app log level for this component. Overrides spec.logLevel; defaults to info when neither is set. |  | Enum: [debug info warning error critical] <br />Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
 
 
@@ -128,6 +129,7 @@ _Appears in:_
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
 | `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
+| `logLevel` _[LogLevel](#loglevel)_ | Superset app log level for this component. Overrides spec.logLevel; defaults to info when neither is set. |  | Enum: [debug info warning error critical] <br />Optional: \{\} <br /> |
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration (type, port, annotations). |  | Optional: \{\} <br /> |
 
 
@@ -153,6 +155,7 @@ _Appears in:_
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
 | `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
+| `logLevel` _[LogLevel](#loglevel)_ | Superset app log level for this component. Overrides spec.logLevel; defaults to info when neither is set. |  | Enum: [debug info warning error critical] <br />Optional: \{\} <br /> |
 | `celery` _[CeleryWorkerProcessSpec](#celeryworkerprocessspec)_ | Celery worker execution configuration. Controls concurrency, pool type, and related parameters. |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
 
@@ -669,6 +672,7 @@ _Appears in:_
 | `config` _string_ | Per-lifecycle raw Python appended after top-level config. |  | Optional: \{\} <br /> |
 | `bootstrapScript` _string_ | Bootstrap script for lifecycle migrate, rotate, and init task Jobs. Overrides spec.bootstrapScript. Set to an empty string to disable inherited bootstrap for lifecycle tasks. |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-lifecycle SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
+| `logLevel` _[LogLevel](#loglevel)_ | Log level for all lifecycle tasks. Overrides spec.logLevel. A changed level applies on each task's next run; it does not re-run tasks. |  | Enum: [debug info warning error critical] <br />Optional: \{\} <br /> |
 | `maintenancePage` _[MaintenancePageSpec](#maintenancepagespec)_ | MaintenancePage configures a lightweight maintenance page served during lifecycle drain and task execution. Presence enables the feature when a drain will actually run and an existing web-server workload is present. In managed mode (no image override), an nginx:alpine container serves a default or custom HTML page. In custom mode (image set), the user's image handles serving, and content fields are passed as env vars. |  | Optional: \{\} <br /> |
 | `seed` _[SeedTaskSpec](#seedtaskspec)_ | Seed configures database seeding from an external source before running migrations. The seed target is always spec.metastore. Only allowed in Development or Staging mode. |  | Optional: \{\} <br /> |
 | `migrate` _[MigrateTaskSpec](#migratetaskspec)_ | Database migration task configuration. |  | Optional: \{\} <br /> |
@@ -697,6 +701,34 @@ _Appears in:_
 | `rotate` _[TaskRefStatus](#taskrefstatus)_ | Rotate task status summary. |  | Optional: \{\} <br /> |
 | `init` _[TaskRefStatus](#taskrefstatus)_ | Init task status summary. |  | Optional: \{\} <br /> |
 | `upgrade` _[UpgradeContext](#upgradecontext)_ | Upgrade context (populated during active upgrade). |  | Optional: \{\} <br /> |
+
+
+#### LogLevel
+
+_Underlying type:_ _string_
+
+LogLevel is the Superset application log level. The operator maps it onto
+each Python component's logging mechanism.
+
+_Validation:_
+- Enum: [debug info warning error critical]
+
+_Appears in:_
+- [CeleryBeatComponentSpec](#celerybeatcomponentspec)
+- [CeleryFlowerComponentSpec](#celeryflowercomponentspec)
+- [CeleryWorkerComponentSpec](#celeryworkercomponentspec)
+- [LifecycleSpec](#lifecyclespec)
+- [McpServerComponentSpec](#mcpservercomponentspec)
+- [SupersetSpec](#supersetspec)
+- [WebServerComponentSpec](#webservercomponentspec)
+
+| Field | Description |
+| --- | --- |
+| `critical` | Output critical errors only. |
+| `error` | Output errors and above. |
+| `warning` | Output warnings and above. |
+| `info` | Output informational logs and above (default). |
+| `debug` | Enables debug logs and above. |
 
 
 #### MaintenancePageSpec
@@ -749,6 +781,7 @@ _Appears in:_
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
 | `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
+| `logLevel` _[LogLevel](#loglevel)_ | Superset app log level for this component. Overrides spec.logLevel; defaults to info when neither is set. |  | Enum: [debug info warning error critical] <br />Optional: \{\} <br /> |
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration (type, port, annotations). |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |
 
@@ -1280,6 +1313,7 @@ _Appears in:_
 | `bootstrapScript` _string_ | Shell script mounted as superset_bootstrap.sh and sourced before the default command for Python components and lifecycle tasks. This is trusted executable input; prefer custom images for production dependency installs. Per-component bootstrapScript overrides this value. Set an override to an empty string to disable inherited bootstrap for that component. |  | Optional: \{\} <br /> |
 | `featureFlags` _object (keys:string, values:boolean)_ | Feature flags toggled in superset_config.py via FEATURE_FLAGS = \{...\}. Keys conventionally use UPPER_SNAKE_CASE (e.g. ALERT_REPORTS); values are booleans. |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | SQLAlchemy engine options for connection pooling. Inherited by all Python components; per-component sqlaEngineOptions overrides this entirely. When unset, the operator computes balanced defaults per component. |  | Optional: \{\} <br /> |
+| `logLevel` _[LogLevel](#loglevel)_ | Superset app log level inherited by the Python components and lifecycle tasks. Per-component and lifecycle logLevel override it. Defaults to info when unset. The websocket server ignores it; set its level in websocketServer.config.logLevel. |  | Enum: [debug info warning error critical] <br />Optional: \{\} <br /> |
 | `webServer` _[WebServerComponentSpec](#webservercomponentspec)_ | Web server (gunicorn) component. Presence enables it; absence disables. |  | Optional: \{\} <br /> |
 | `celeryWorker` _[CeleryWorkerComponentSpec](#celeryworkercomponentspec)_ | Celery async task worker component. Uses spec.valkey as broker/backend when set; otherwise the broker must be configured manually via spec.config. |  | Optional: \{\} <br /> |
 | `celeryBeat` _[CeleryBeatComponentSpec](#celerybeatcomponentspec)_ | Celery periodic task scheduler (singleton, always 1 replica). Uses spec.valkey as broker/backend when set; otherwise the broker must be configured manually via spec.config. |  | Optional: \{\} <br /> |
@@ -1534,6 +1568,7 @@ _Appears in:_
 | `image` _[ImageOverrideSpec](#imageoverridespec)_ | Image tag and/or repository overrides; inherits from spec.image if unset. |  | Optional: \{\} <br /> |
 | `config` _string_ | Per-component raw Python appended after top-level config. |  | Optional: \{\} <br /> |
 | `bootstrapScript` _string_ | Per-component bootstrap script. Overrides spec.bootstrapScript. Set to an empty string to disable inherited bootstrap for this component. |  | Optional: \{\} <br /> |
+| `logLevel` _[LogLevel](#loglevel)_ | Superset app log level for this component. Overrides spec.logLevel; defaults to info when neither is set. |  | Enum: [debug info warning error critical] <br />Optional: \{\} <br /> |
 | `service` _[ComponentServiceSpec](#componentservicespec)_ | Service configuration (type, port, annotations). |  | Optional: \{\} <br /> |
 | `gunicorn` _[GunicornSpec](#gunicornspec)_ | Gunicorn worker configuration. Controls worker processes, threads, and related parameters. |  | Optional: \{\} <br /> |
 | `sqlaEngineOptions` _[SQLAlchemyEngineOptionsSpec](#sqlalchemyengineoptionsspec)_ | Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely). |  | Optional: \{\} <br /> |

@@ -115,6 +115,7 @@ const (
 	EnvDBUser            = "SUPERSET_OPERATOR__DB_USER"
 	EnvDBPass            = "SUPERSET_OPERATOR__DB_PASS"
 	EnvForceReload       = "SUPERSET_OPERATOR__FORCE_RELOAD"
+	EnvLogLevel          = "SUPERSET_OPERATOR__LOG_LEVEL"
 
 	// Valkey operator-internal transport vars.
 	EnvValkeyHost = "SUPERSET_OPERATOR__VALKEY_HOST"
