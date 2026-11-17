@@ -36683,14 +36683,6 @@ spec:
                       tag:
                         type: string
                     type: object
-                  logLevel:
-                    enum:
-                    - debug
-                    - info
-                    - warning
-                    - error
-                    - critical
-                    type: string
                   podDisruptionBudget:
                     properties:
                       maxUnavailable:

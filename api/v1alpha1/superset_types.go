@@ -147,8 +147,10 @@ type SupersetSpec struct {
 	// +optional
 	SQLAlchemyEngineOptions *SQLAlchemyEngineOptionsSpec `json:"sqlaEngineOptions,omitempty"`
 
-	// Log level inherited by all components and lifecycle tasks. Per component
-	// and lifecycle logLevel override it. Defaults to info when unset.
+	// Superset app log level inherited by the Python components and lifecycle
+	// tasks. Per-component and lifecycle logLevel override it. Defaults to info
+	// when unset. The websocket server ignores it; set its level in
+	// websocketServer.config.logLevel.
 	// +optional
 	LogLevel *LogLevel `json:"logLevel,omitempty"`
 
@@ -223,6 +225,10 @@ type WebServerComponentSpec struct {
 	// empty string to disable inherited bootstrap for this component.
 	// +optional
 	BootstrapScript *string `json:"bootstrapScript,omitempty"`
+	// Superset app log level for this component. Overrides spec.logLevel;
+	// defaults to info when neither is set.
+	// +optional
+	LogLevel *LogLevel `json:"logLevel,omitempty"`
 	// Service configuration (type, port, annotations).
 	// +optional
 	Service *ComponentServiceSpec `json:"service,omitempty"`
@@ -245,6 +251,10 @@ type CeleryWorkerComponentSpec struct {
 	// empty string to disable inherited bootstrap for this component.
 	// +optional
 	BootstrapScript *string `json:"bootstrapScript,omitempty"`
+	// Superset app log level for this component. Overrides spec.logLevel;
+	// defaults to info when neither is set.
+	// +optional
+	LogLevel *LogLevel `json:"logLevel,omitempty"`
 	// Celery worker execution configuration. Controls concurrency, pool type, and related parameters.
 	// +optional
 	Celery *CeleryWorkerProcessSpec `json:"celery,omitempty"`
@@ -273,6 +283,10 @@ type CeleryBeatComponentSpec struct {
 	// empty string to disable inherited bootstrap for this component.
 	// +optional
 	BootstrapScript *string `json:"bootstrapScript,omitempty"`
+	// Superset app log level for this component. Overrides spec.logLevel;
+	// defaults to info when neither is set.
+	// +optional
+	LogLevel *LogLevel `json:"logLevel,omitempty"`
 	// Per-component SQLAlchemy engine options (overrides spec.sqlaEngineOptions entirely).
 	// +optional
 	SQLAlchemyEngineOptions *SQLAlchemyEngineOptionsSpec `json:"sqlaEngineOptions,omitempty"`
@@ -289,6 +303,10 @@ type CeleryFlowerComponentSpec struct {
 	// empty string to disable inherited bootstrap for this component.
 	// +optional
 	BootstrapScript *string `json:"bootstrapScript,omitempty"`
+	// Superset app log level for this component. Overrides spec.logLevel;
+	// defaults to info when neither is set.
+	// +optional
+	LogLevel *LogLevel `json:"logLevel,omitempty"`
 	// Service configuration (type, port, annotations).
 	// +optional
 	Service *ComponentServiceSpec `json:"service,omitempty"`
@@ -334,6 +352,10 @@ type McpServerComponentSpec struct {
 	// empty string to disable inherited bootstrap for this component.
 	// +optional
 	BootstrapScript *string `json:"bootstrapScript,omitempty"`
+	// Superset app log level for this component. Overrides spec.logLevel;
+	// defaults to info when neither is set.
+	// +optional
+	LogLevel *LogLevel `json:"logLevel,omitempty"`
 	// Service configuration (type, port, annotations).
 	// +optional
 	Service *ComponentServiceSpec `json:"service,omitempty"`

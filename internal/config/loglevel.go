@@ -29,7 +29,6 @@ import (
 // DefaultLogLevel applies when neither the component nor spec.logLevel sets a level.
 const (
 	DefaultLogLevel         = v1alpha1.LogLevelInfo
-	EnvWebsocketLogLevel    = "LOG_LEVEL"
 	EnvCeleryFlowerLogLevel = "FLOWER_LOGGING"
 )
 
@@ -45,12 +44,6 @@ func ResolveLogLevel(component, topLevel *v1alpha1.LogLevel) v1alpha1.LogLevel {
 	return DefaultLogLevel
 }
 
-// IsLogLevelExplicit returns true if log level was set explicitly in
-// either the component or top-level spec.
-func IsLogLevelExplicit(component, topLevel *v1alpha1.LogLevel) bool {
-	return component != nil || topLevel != nil
-}
-
 // PythonLogLevel returns the level name Python's logging module expects.
 func PythonLogLevel(level v1alpha1.LogLevel) string {
 	return strings.ToUpper(string(level))
@@ -59,19 +52,6 @@ func PythonLogLevel(level v1alpha1.LogLevel) string {
 // CeleryLogLevelFlag returns the Celery worker/beat --loglevel argument.
 func CeleryLogLevelFlag(level v1alpha1.LogLevel) string {
 	return fmt.Sprintf("--loglevel=%s", level)
-}
-
-// WinstonLogLevel returns the level name Winston's logging module expects.
-// "warning" returns "warn", "critical" returns "error", all other levels returned unchanged.
-func WinstonLogLevel(level v1alpha1.LogLevel) string {
-	switch level {
-	case v1alpha1.LogLevelWarning:
-		return "warn"
-	case v1alpha1.LogLevelCritical:
-		return "error"
-	default:
-		return string(level)
-	}
 }
 
 // FlowerLogLevel returns the level name Celery Flower's logging module expects.

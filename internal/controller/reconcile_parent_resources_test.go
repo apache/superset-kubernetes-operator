@@ -336,7 +336,7 @@ func TestReconcile_LogLevelWiringAndRestartScope(t *testing.T) {
 	assert.Equal(t, "info", envValue(deployments["test-web-server"], supersetconfig.EnvGunicornLogLevel))
 	assert.Equal(t, "WARNING", envValue(deployments["test-celery-worker"], common.EnvLogLevel))
 	assert.Equal(t, "WARNING", envValue(deployments["test-celery-flower"], supersetconfig.EnvCeleryFlowerLogLevel))
-	assert.Equal(t, "warn", envValue(deployments["test-websocket-server"], supersetconfig.EnvWebsocketLogLevel))
+	assert.Empty(t, envValue(deployments["test-websocket-server"], "LOG_LEVEL"))
 	assert.Contains(t, deployments["test-celery-worker"].Spec.Template.Spec.Containers[0].Command, "--loglevel=warning")
 	assert.Contains(t, deployments["test-celery-beat"].Spec.Template.Spec.Containers[0].Command, "--loglevel=warning")
 
@@ -415,9 +415,12 @@ func TestReconcile_LogLevelWithDisabledCeleryPreset(t *testing.T) {
 	}
 }
 
-func TestReconcile_WebsocketLogLevelRequiresExplicitSetting(t *testing.T) {
+// The websocket server doesn't read superset_config.py and has its own native
+// websocketServer.config.logLevel, so it ignores spec.logLevel entirely.
+func TestReconcile_WebsocketIgnoresLogLevel(t *testing.T) {
 	scheme := testScheme(t)
 	spec := minimalSupersetSpec()
+	spec.LogLevel = new(supersetv1alpha1.LogLevelDebug)
 	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
 		Image: &supersetv1alpha1.ImageOverrideSpec{Repository: new("example.com/superset-websocket")},
 	}
@@ -432,8 +435,8 @@ func TestReconcile_WebsocketLogLevelRequiresExplicitSetting(t *testing.T) {
 		t.Fatalf("expected websocket Deployment: %v", err)
 	}
 	for _, env := range deploy.Spec.Template.Spec.Containers[0].Env {
-		if env.Name == supersetconfig.EnvWebsocketLogLevel {
-			t.Fatalf("did not expect websocket log-level environment variable when log level is not explicit")
+		if env.Name == "LOG_LEVEL" || env.Name == common.EnvLogLevel {
+			t.Fatalf("did not expect log-level env var %s on websocket server", env.Name)
 		}
 	}
 }
