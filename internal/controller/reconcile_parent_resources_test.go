@@ -330,8 +330,10 @@ func TestReconcile_LogLevelWiringAndRestartScope(t *testing.T) {
 		}
 		return ""
 	}
-	assert.Equal(t, "debug", envValue(deployments["test-web-server"], supersetconfig.EnvGunicornLogLevel))
 	assert.Equal(t, "DEBUG", envValue(deployments["test-web-server"], common.EnvLogLevel))
+	// The typed logLevel does not drive Gunicorn: GUNICORN_LOGLEVEL comes only
+	// from webServer.gunicorn.logLevel (default info).
+	assert.Equal(t, "info", envValue(deployments["test-web-server"], supersetconfig.EnvGunicornLogLevel))
 	assert.Equal(t, "WARNING", envValue(deployments["test-celery-worker"], common.EnvLogLevel))
 	assert.Equal(t, "WARNING", envValue(deployments["test-celery-flower"], supersetconfig.EnvCeleryFlowerLogLevel))
 	assert.Equal(t, "warn", envValue(deployments["test-websocket-server"], supersetconfig.EnvWebsocketLogLevel))
@@ -371,7 +373,8 @@ func TestReconcile_LogLevelWiringAndRestartScope(t *testing.T) {
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, updatedWeb); err != nil {
 		t.Fatalf("getting updated web-server Deployment: %v", err)
 	}
-	assert.Equal(t, "error", envValue(updatedWeb, supersetconfig.EnvGunicornLogLevel))
+	assert.Equal(t, "ERROR", envValue(updatedWeb, common.EnvLogLevel))
+	assert.Equal(t, "info", envValue(updatedWeb, supersetconfig.EnvGunicornLogLevel))
 	if reflect.DeepEqual(before["test-web-server"], updatedWeb.Spec.Template) {
 		t.Fatal("web-server pod template did not change when its log level changed")
 	}
