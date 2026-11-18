@@ -24,6 +24,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
 	batchv1 "k8s.io/api/batch/v1"
@@ -408,6 +409,13 @@ func TestTruncateFailureMessage(t *testing.T) {
 		got := truncateFailureMessage(msg)
 		assert.Equal(t, strings.Repeat("x", maxTerminationMessageLen-len(truncationMarker))+"...", got)
 		assert.Len(t, got, maxTerminationMessageLen)
+	})
+	t.Run("multi-byte runes are not split", func(t *testing.T) {
+		// 252 one-byte chars put a 3-byte rune across the 253-byte cut point.
+		msg := strings.Repeat("x", 252) + strings.Repeat("€", 10)
+		got := truncateFailureMessage(msg)
+		assert.True(t, utf8.ValidString(got), "truncated message must be valid UTF-8: %q", got)
+		assert.Equal(t, strings.Repeat("x", 252)+"...", got)
 	})
 }
 

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -319,7 +320,7 @@ func (r *SupersetReconciler) handleStuckTaskPod(
 	if !stuck {
 		return lifecycleResult{}, false, nil
 	}
-	msg = redactCredentials(msg)
+	msg = truncateFailureMessage(redactCredentials(msg))
 
 	desiredHash := podSpecHash(buildInitPod(flatSpec))
 	if existingJob.Annotations[naming.AnnotationTaskPodSpecHash] != desiredHash {
@@ -638,9 +639,15 @@ func jobFailureMessage(job *batchv1.Job) string {
 // that budget.
 const truncationMarker = "..."
 
+// truncateFailureMessage caps msg at maxTerminationMessageLen bytes, cutting at
+// a rune boundary so the result stays valid UTF-8.
 func truncateFailureMessage(msg string) string {
-	if len(msg) > maxTerminationMessageLen {
-		return msg[:maxTerminationMessageLen-len(truncationMarker)] + truncationMarker
+	if len(msg) <= maxTerminationMessageLen {
+		return msg
 	}
-	return msg
+	cut := maxTerminationMessageLen - len(truncationMarker)
+	for cut > 0 && !utf8.RuneStart(msg[cut]) {
+		cut--
+	}
+	return msg[:cut] + truncationMarker
 }
