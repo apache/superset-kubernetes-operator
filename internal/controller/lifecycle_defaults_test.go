@@ -216,6 +216,7 @@ func TestDefaultInitCommand(t *testing.T) {
 
 	t.Run("admin user is appended before bootstrap wrapping", func(t *testing.T) {
 		s := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
+			Environment: new(supersetv1alpha1.EnvironmentDevelopment),
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{Init: &supersetv1alpha1.InitTaskSpec{
 				AdminUser: &supersetv1alpha1.AdminUserSpec{},
 			}},

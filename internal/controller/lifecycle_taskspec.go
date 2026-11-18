@@ -93,7 +93,7 @@ func (r *SupersetReconciler) buildStandardTaskFlatSpec(
 	secretEnvVars := collectSecretEnvVars(&superset.Spec, superset.Name)
 	var initEnvVars []corev1.EnvVar
 	if taskType == taskTypeInit {
-		initEnvVars = collectLifecycleInitEnvVars(superset.Spec.Lifecycle)
+		initEnvVars = collectLifecycleInitEnvVars(&superset.Spec)
 	}
 	operatorInjected := buildOperatorInjected(renderedConfig, bootstrapScript, resourceBaseName, superset.Spec.ForceReload, append(secretEnvVars, initEnvVars...))
 
