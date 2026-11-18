@@ -78,30 +78,9 @@ const (
 	suffixRotate  = "-rotate"
 	suffixBackup  = "-backup"
 
-	upgradeModeAutomatic  = "Automatic"
-	upgradeModeSupervised = "Supervised"
-
-	lifecyclePhaseSeeding          = "Seeding"
-	lifecyclePhaseDraining         = "Draining"
-	lifecyclePhaseBackingUp        = "BackingUp"
-	lifecyclePhaseMigrating        = "Migrating"
-	lifecyclePhaseRotating         = "Rotating"
-	lifecyclePhaseInitializing     = "Initializing"
-	lifecyclePhaseComplete         = "Complete"
-	lifecyclePhaseRestoring        = "Restoring"
-	lifecyclePhaseBlocked          = "Blocked"
-	lifecyclePhaseAwaitingApproval = "AwaitingApproval"
-
 	annotationApproveUpgrade = "superset.apache.org/approve-upgrade"
 
-	dbTypePostgresql = "PostgreSQL"
-	dbTypeMySQL      = "MySQL"
-
 	defaultImageTag = "latest"
-
-	phaseUpgrading        = "Upgrading"
-	phaseBlocked          = "Blocked"
-	phaseAwaitingApproval = "AwaitingApproval"
 )
 
 // lifecycleResult carries the outcome of a lifecycle reconcile step.
@@ -222,7 +201,7 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	// changes when the user has disabled every task. Backup alone has nothing
 	// to guard, so it does not count.
 	if !r.anyCascadeTaskEnabled(superset) {
-		superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
+		superset.Status.Lifecycle.Phase = supersetv1alpha1.LifecyclePhaseComplete
 		r.settleLifecycle(superset, currentImage, "NoLifecycleTasks", "No lifecycle tasks configured")
 		return lifecycleComplete(), nil
 	}
@@ -231,8 +210,8 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	// skip drain and pipeline entirely. This prevents unnecessary component
 	// disruption on steady-state reconciles.
 	if r.allTasksStillComplete(superset, configChecksum) {
-		if superset.Status.Lifecycle.Phase != lifecyclePhaseRestoring {
-			superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
+		if superset.Status.Lifecycle.Phase != supersetv1alpha1.LifecyclePhaseRestoring {
+			superset.Status.Lifecycle.Phase = supersetv1alpha1.LifecyclePhaseComplete
 		}
 		recordSettledChecksum(superset)
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
@@ -309,7 +288,7 @@ func (r *SupersetReconciler) prepareMaintenancePage(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
 	configChecksum string,
-	parentPhase string,
+	parentPhase supersetv1alpha1.SupersetPhase,
 ) (lifecycleResult, error) {
 	if !isMaintenancePageEnabled(superset) ||
 		webServerDesiredReplicas(superset) == 0 ||
@@ -328,7 +307,7 @@ func (r *SupersetReconciler) prepareMaintenancePage(
 		return lifecycleResult{}, fmt.Errorf("reconciling maintenance page: %w", err)
 	}
 	if !ready {
-		superset.Status.Lifecycle.Phase = lifecyclePhaseDraining
+		superset.Status.Lifecycle.Phase = supersetv1alpha1.LifecyclePhaseDraining
 		superset.Status.Phase = parentPhase
 		return lifecycleWait(), nil
 	}
@@ -338,11 +317,11 @@ func (r *SupersetReconciler) prepareMaintenancePage(
 	return lifecycleComplete(), nil
 }
 
-func lifecycleParentPhase(upgradeInProgress bool) string {
+func lifecycleParentPhase(upgradeInProgress bool) supersetv1alpha1.SupersetPhase {
 	if upgradeInProgress {
-		return phaseUpgrading
+		return supersetv1alpha1.SupersetPhaseUpgrading
 	}
-	return phaseInitializing
+	return supersetv1alpha1.SupersetPhaseInitializing
 }
 
 // gateOnInvalidSeedSchedule returns a terminal result when the user
@@ -368,8 +347,8 @@ func (r *SupersetReconciler) gateOnInvalidSeedSchedule(superset *supersetv1alpha
 		expr = *seed.CronSchedule
 	}
 	message := fmt.Sprintf("seed cronSchedule %q is invalid; downstream lifecycle tasks blocked until corrected", expr)
-	superset.Status.Lifecycle.Phase = lifecyclePhaseBlocked
-	superset.Status.Phase = phaseBlocked
+	superset.Status.Lifecycle.Phase = supersetv1alpha1.LifecyclePhaseBlocked
+	superset.Status.Phase = supersetv1alpha1.SupersetPhaseBlocked
 	setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 		metav1.ConditionFalse, "InvalidCronSchedule", message, superset.Generation)
 	r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "InvalidCronSchedule", "Lifecycle",
@@ -391,12 +370,12 @@ func (r *SupersetReconciler) gateOnSeedEnvironment(superset *supersetv1alpha1.Su
 		return lifecycleResult{}, false
 	}
 	env := superset.Spec.Environment
-	if env != nil && (*env == naming.EnvironmentDev || *env == naming.EnvironmentStaging) {
+	if env != nil && (*env == supersetv1alpha1.EnvironmentDevelopment || *env == supersetv1alpha1.EnvironmentStaging) {
 		return lifecycleResult{}, false
 	}
 	message := "seed is only allowed when environment is Development or Staging; refusing to run the destructive seed"
-	superset.Status.Lifecycle.Phase = lifecyclePhaseBlocked
-	superset.Status.Phase = phaseBlocked
+	superset.Status.Lifecycle.Phase = supersetv1alpha1.LifecyclePhaseBlocked
+	superset.Status.Phase = supersetv1alpha1.SupersetPhaseBlocked
 	setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 		metav1.ConditionFalse, "SeedEnvironmentNotAllowed", message, superset.Generation)
 	r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "SeedEnvironmentNotAllowed", "Lifecycle",
@@ -412,8 +391,8 @@ func (r *SupersetReconciler) gateOnBackupWithSeed(superset *supersetv1alpha1.Sup
 		return lifecycleResult{}, false
 	}
 	message := "lifecycle.backup and lifecycle.seed are mutually exclusive; disable one of them"
-	superset.Status.Lifecycle.Phase = lifecyclePhaseBlocked
-	superset.Status.Phase = phaseBlocked
+	superset.Status.Lifecycle.Phase = supersetv1alpha1.LifecyclePhaseBlocked
+	superset.Status.Phase = supersetv1alpha1.SupersetPhaseBlocked
 	setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 		metav1.ConditionFalse, "BackupWithSeedNotAllowed", message, superset.Generation)
 	r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "BackupWithSeedNotAllowed", "Lifecycle",
@@ -429,9 +408,9 @@ func (r *SupersetReconciler) gateOnBackupWithSeed(superset *supersetv1alpha1.Sup
 // upgrades on the next reconcile while LastLifecycleImage was stale).
 func (r *SupersetReconciler) finalizeLifecycle(superset *supersetv1alpha1.Superset, currentImage string) {
 	if anyComponentEnabled(superset) {
-		superset.Status.Lifecycle.Phase = lifecyclePhaseRestoring
+		superset.Status.Lifecycle.Phase = supersetv1alpha1.LifecyclePhaseRestoring
 	} else {
-		superset.Status.Lifecycle.Phase = lifecyclePhaseComplete
+		superset.Status.Lifecycle.Phase = supersetv1alpha1.LifecyclePhaseComplete
 	}
 	r.settleLifecycle(superset, currentImage, "LifecycleComplete", "Lifecycle tasks completed successfully")
 }
@@ -524,7 +503,7 @@ func (r *SupersetReconciler) runLifecyclePipeline(
 func (r *SupersetReconciler) backupBeforeDrain(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
-	parentPhase string,
+	parentPhase supersetv1alpha1.SupersetPhase,
 	configChecksum string,
 	topLevel *resolution.SharedInput,
 	saName string,
@@ -554,7 +533,7 @@ func (r *SupersetReconciler) backupBeforeDrain(
 func (r *SupersetReconciler) runBackupTask(
 	ctx context.Context,
 	superset *supersetv1alpha1.Superset,
-	parentPhase string,
+	parentPhase supersetv1alpha1.SupersetPhase,
 	configChecksum string,
 	topLevel *resolution.SharedInput,
 	saName string,
@@ -610,7 +589,7 @@ func (r *SupersetReconciler) checkUpgradeGates(
 	}
 
 	// Supervised mode: check for approval annotation.
-	if getUpgradeMode(superset) == upgradeModeSupervised {
+	if getUpgradeMode(superset) == supersetv1alpha1.UpgradeModeSupervised {
 		annotations := superset.GetAnnotations()
 		if !contextMatches || annotations == nil || annotations[annotationApproveUpgrade] != approvalToken {
 			log.Info("Upgrade awaiting approval")
@@ -621,8 +600,8 @@ func (r *SupersetReconciler) checkUpgradeGates(
 					superset.Status.Lifecycle.Upgrade.ToTag,
 					superset.Name, annotationApproveUpgrade, approvalToken),
 				superset.Generation)
-			superset.Status.Phase = phaseAwaitingApproval
-			superset.Status.Lifecycle.Phase = lifecyclePhaseAwaitingApproval
+			superset.Status.Phase = supersetv1alpha1.SupersetPhaseAwaitingApproval
+			superset.Status.Lifecycle.Phase = supersetv1alpha1.LifecyclePhaseAwaitingApproval
 			return true
 		}
 	}
@@ -688,13 +667,13 @@ func (r *SupersetReconciler) reconcileLifecycleTask(
 	taskRef.MaxRetries = r.taskMaxRetriesValue(superset, taskType)
 	r.projectScheduleStatus(superset, taskType, taskRef)
 
-	if taskRef.State == taskStateComplete && taskRef.CompletedChecksum == taskChecksum {
+	if taskRef.State == supersetv1alpha1.TaskStateComplete && taskRef.CompletedChecksum == taskChecksum {
 		rememberCompletedTaskChecksum(superset, taskType, taskChecksum)
 		log.V(1).Info("Task complete (checksum match, skipping)", "task", taskType)
 		return lifecycleComplete(), nil
 	}
 
-	if taskRef.State == taskStateFailed && taskRef.CompletedChecksum == taskChecksum && taskRef.Attempts >= taskRef.MaxRetries {
+	if taskRef.State == supersetv1alpha1.TaskStateFailed && taskRef.CompletedChecksum == taskChecksum && taskRef.Attempts >= taskRef.MaxRetries {
 		// A terminally failed task is normally not retried. But if the user has
 		// since changed the task's pod spec (e.g. fixed a securityContext or
 		// bumped resources), that change may be exactly what fixes the failure —
@@ -714,7 +693,7 @@ func (r *SupersetReconciler) reconcileLifecycleTask(
 		log.Info("Task previously failed but pod spec changed; retrying", "task", taskType)
 	}
 
-	if taskRef.State == taskStateComplete || taskRef.State == taskStateFailed || (taskRef.CompletedChecksum != "" && taskRef.CompletedChecksum != taskChecksum) {
+	if taskRef.State == supersetv1alpha1.TaskStateComplete || taskRef.State == supersetv1alpha1.TaskStateFailed || (taskRef.CompletedChecksum != "" && taskRef.CompletedChecksum != taskChecksum) {
 		log.Info("Task status is stale, resetting to re-run", "task", taskType,
 			"completedChecksum", taskRef.CompletedChecksum, "expectedChecksum", taskChecksum)
 		if err := r.deleteTaskJobs(ctx, superset, taskName); err != nil {
@@ -830,18 +809,18 @@ func (r *SupersetReconciler) taskTimeoutValue(superset *supersetv1alpha1.Superse
 	return defaultInitTimeout
 }
 
-func (r *SupersetReconciler) taskRetentionPolicyValue(superset *supersetv1alpha1.Superset, taskType string) string {
+func (r *SupersetReconciler) taskRetentionPolicyValue(superset *supersetv1alpha1.Superset, taskType string) supersetv1alpha1.PodRetentionPolicy {
 	if retention := r.taskPodRetention(superset, taskType); retention != nil && retention.Policy != nil {
 		return *retention.Policy
 	}
 	return defaultRetentionPolicy
 }
 
-func getUpgradeMode(superset *supersetv1alpha1.Superset) string {
+func getUpgradeMode(superset *supersetv1alpha1.Superset) supersetv1alpha1.UpgradeMode {
 	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.UpgradeMode != nil {
 		return *superset.Spec.Lifecycle.UpgradeMode
 	}
-	return upgradeModeAutomatic
+	return supersetv1alpha1.UpgradeModeAutomatic
 }
 
 // taskRequiresDrain returns whether a task requires components to be drained.

@@ -218,7 +218,7 @@ func TestDrainedComponentStatusUsesValidResourceStatus(t *testing.T) {
 	}
 
 	status := drainedComponentStatus(superset, webServerDescriptor)
-	if status.Phase != componentPhaseDrained {
+	if status.Phase != "Drained" {
 		t.Fatalf("expected drained phase, got %q", status.Phase)
 	}
 	if status.Replicas != 1 {
@@ -281,8 +281,8 @@ func TestUpdateStatusKeepsRestoringLifecycleUntilComponentsReady(t *testing.T) {
 			CeleryWorker: &supersetv1alpha1.CeleryWorkerComponentSpec{},
 		},
 		Status: supersetv1alpha1.SupersetStatus{
-			Phase:     phaseUpgrading,
-			Lifecycle: &supersetv1alpha1.LifecycleStatus{Phase: lifecyclePhaseRestoring},
+			Phase:     supersetv1alpha1.SupersetPhaseUpgrading,
+			Lifecycle: &supersetv1alpha1.LifecycleStatus{Phase: supersetv1alpha1.LifecyclePhaseRestoring},
 		},
 	}
 	webDeploy := readyDeployment("test-web-server")
@@ -298,10 +298,10 @@ func TestUpdateStatusKeepsRestoringLifecycleUntilComponentsReady(t *testing.T) {
 		t.Fatalf("updateStatus: %v", err)
 	}
 
-	if superset.Status.Phase != phaseUpgrading {
+	if superset.Status.Phase != "Upgrading" {
 		t.Fatalf("expected parent phase to remain Upgrading, got %q", superset.Status.Phase)
 	}
-	if superset.Status.Lifecycle.Phase != lifecyclePhaseRestoring {
+	if superset.Status.Lifecycle.Phase != "Restoring" {
 		t.Fatalf("expected lifecycle phase Restoring, got %q", superset.Status.Lifecycle.Phase)
 	}
 	if superset.Status.Ready != "1/2" {
@@ -324,8 +324,8 @@ func TestUpdateStatusCompletesRestoringLifecycleWhenComponentsReady(t *testing.T
 			CeleryWorker: &supersetv1alpha1.CeleryWorkerComponentSpec{},
 		},
 		Status: supersetv1alpha1.SupersetStatus{
-			Phase:     phaseUpgrading,
-			Lifecycle: &supersetv1alpha1.LifecycleStatus{Phase: lifecyclePhaseRestoring},
+			Phase:     supersetv1alpha1.SupersetPhaseUpgrading,
+			Lifecycle: &supersetv1alpha1.LifecycleStatus{Phase: supersetv1alpha1.LifecyclePhaseRestoring},
 		},
 	}
 	webDeploy := readyDeployment("test-web-server")
@@ -341,10 +341,10 @@ func TestUpdateStatusCompletesRestoringLifecycleWhenComponentsReady(t *testing.T
 		t.Fatalf("updateStatus: %v", err)
 	}
 
-	if superset.Status.Phase != phaseRunning {
+	if superset.Status.Phase != "Running" {
 		t.Fatalf("expected parent phase Running, got %q", superset.Status.Phase)
 	}
-	if superset.Status.Lifecycle.Phase != lifecyclePhaseComplete {
+	if superset.Status.Lifecycle.Phase != "Complete" {
 		t.Fatalf("expected lifecycle phase Complete, got %q", superset.Status.Lifecycle.Phase)
 	}
 	if superset.Status.Ready != "2/2" {
@@ -402,7 +402,7 @@ func hasConditionReason(conditions []metav1.Condition, conditionType, reason str
 	return false
 }
 
-func hasComponentResource(resources []supersetv1alpha1.ComponentResourceStatus, kind, name, status string) bool {
+func hasComponentResource(resources []supersetv1alpha1.ComponentResourceStatus, kind, name string, status supersetv1alpha1.ComponentResourceState) bool {
 	for _, r := range resources {
 		if r.Kind == kind && r.Name == name && r.Status == status {
 			return true
@@ -429,6 +429,19 @@ func TestEffectiveAutoscalingForStatus(t *testing.T) {
 
 	t.Run("nil when neither set", func(t *testing.T) {
 		assert.Nil(t, effectiveAutoscalingForStatus(&supersetv1alpha1.Superset{}, nil))
+	})
+
+	t.Run("nil when externally scaled, ignoring top-level", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{Autoscaling: topAS}}
+		accessor := &componentAccessor{scalingMode: new(supersetv1alpha1.ScalingModeExternal)}
+		assert.Nil(t, effectiveAutoscalingForStatus(superset, accessor))
+	})
+
+	t.Run("top-level External is inherited unless the component opts out", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{ScalingMode: new(supersetv1alpha1.ScalingModeExternal)}}
+		assert.Nil(t, effectiveAutoscalingForStatus(superset, &componentAccessor{}))
+		optOut := &componentAccessor{scalingMode: new(supersetv1alpha1.ScalingModeOperator), autoscaling: componentAS}
+		assert.Same(t, componentAS, effectiveAutoscalingForStatus(superset, optOut))
 	})
 }
 
@@ -485,12 +498,26 @@ func TestDesiredReplicasForStatus(t *testing.T) {
 	t.Run("defaults to 1 when nothing is set", func(t *testing.T) {
 		assert.Equal(t, int32(1), desiredReplicasForStatus(&supersetv1alpha1.Superset{}, webDesc, &componentAccessor{}))
 	})
+
+	t.Run("externally scaled starts at 1, ignoring top-level replicas and autoscaling", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
+			Replicas:    new(int32(5)),
+			Autoscaling: &supersetv1alpha1.AutoscalingSpec{MinReplicas: new(int32(3))},
+		}}
+		accessor := &componentAccessor{scalingMode: new(supersetv1alpha1.ScalingModeExternal)}
+		assert.Equal(t, int32(1), desiredReplicasForStatus(superset, webDesc, accessor))
+	})
+
+	t.Run("inherited top-level External starts at 1", func(t *testing.T) {
+		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{ScalingMode: new(supersetv1alpha1.ScalingModeExternal)}}
+		assert.Equal(t, int32(1), desiredReplicasForStatus(superset, webDesc, &componentAccessor{}))
+	})
 }
 
 func TestComponentPhaseAndMessage(t *testing.T) {
 	t.Run("scaled to zero is Ready", func(t *testing.T) {
 		phase, msg := componentPhaseAndMessage(&appsv1.Deployment{}, 0)
-		assert.Equal(t, componentPhaseReady, phase)
+		assert.EqualValues(t, "Ready", phase)
 		assert.Equal(t, "Scaled to zero", msg)
 	})
 
@@ -499,7 +526,7 @@ func TestComponentPhaseAndMessage(t *testing.T) {
 			ReadyReplicas: 2, UpdatedReplicas: 2, AvailableReplicas: 2,
 		}}
 		phase, msg := componentPhaseAndMessage(deploy, 2)
-		assert.Equal(t, componentPhaseReady, phase)
+		assert.EqualValues(t, "Ready", phase)
 		assert.Empty(t, msg)
 	})
 
@@ -509,7 +536,7 @@ func TestComponentPhaseAndMessage(t *testing.T) {
 			Status:     appsv1.DeploymentStatus{ObservedGeneration: 1},
 		}
 		phase, msg := componentPhaseAndMessage(deploy, 2)
-		assert.Equal(t, componentPhaseProgressing, phase)
+		assert.EqualValues(t, "Progressing", phase)
 		assert.Equal(t, "Deployment has not observed the latest generation", msg)
 	})
 
@@ -523,21 +550,21 @@ func TestComponentPhaseAndMessage(t *testing.T) {
 			}},
 		}}
 		phase, msg := componentPhaseAndMessage(deploy, 2)
-		assert.Equal(t, componentPhaseUnavailable, phase)
+		assert.EqualValues(t, "Unavailable", phase)
 		assert.Equal(t, "deadline exceeded", msg)
 	})
 
 	t.Run("partially ready is Progressing", func(t *testing.T) {
 		deploy := &appsv1.Deployment{Status: appsv1.DeploymentStatus{ReadyReplicas: 1}}
 		phase, msg := componentPhaseAndMessage(deploy, 3)
-		assert.Equal(t, componentPhaseProgressing, phase)
+		assert.EqualValues(t, "Progressing", phase)
 		assert.Equal(t, "1 of 3 replicas are ready", msg)
 	})
 
 	t.Run("no replicas ready is Unavailable", func(t *testing.T) {
 		deploy := &appsv1.Deployment{Status: appsv1.DeploymentStatus{ReadyReplicas: 0}}
 		phase, msg := componentPhaseAndMessage(deploy, 3)
-		assert.Equal(t, componentPhaseUnavailable, phase)
+		assert.EqualValues(t, "Unavailable", phase)
 		assert.Equal(t, "0 of 3 replicas are ready", msg)
 	})
 }

@@ -89,7 +89,7 @@ During lifecycle and maintenance return, status still reflects observed componen
 
 The parent controller reconciles each component through table-driven component descriptors and shared resource helpers. This keeps per-component variation explicit while avoiding intermediate CRDs in the public API.
 
-**Scalable components** (WebServer, CeleryWorker, CeleryFlower, WebsocketServer, McpServer) manage a Deployment and support replicas, HPA, and PDB. Their specs embed `ScalableComponentSpec`, which has `DeploymentTemplate`, `PodTemplate`, and scaling fields.
+**Scalable components** (WebServer, CeleryWorker, CeleryFlower, WebsocketServer, McpServer) manage a Deployment and support replicas, HPA, external scaling (`scalingMode`), and PDB. Their specs embed `ScalableComponentSpec`, which has `DeploymentTemplate`, `PodTemplate`, and scaling fields.
 
 **Singleton components** (lifecycle tasks and CeleryBeat) run exactly one instance. Lifecycle tasks are Jobs with operator-managed retry logic (uses `PodTemplate` only). CeleryBeat uses a Deployment but forces `replicas: 1` (has both `DeploymentTemplate` and `PodTemplate` but no scaling fields).
 
@@ -150,7 +150,10 @@ type DeploymentConfig struct {
 
 1. `ForceReplicas` (beat singleton) — always wins
 2. `nil` if HPA is configured — HPA manages scaling
-3. `spec.Replicas` otherwise
+3. `nil` if the effective `scalingMode` is `External` — an external controller such as KEDA manages scaling
+4. `spec.Replicas` otherwise
+
+When replicas resolve to `nil`, the operator keeps the Deployment's live replica count on update instead of resetting it.
 
 ### Idempotent Reconciliation
 

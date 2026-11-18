@@ -20,6 +20,8 @@ site_description = "Kubernetes operator for deploying and managing Apache Supers
 repo_url = "https://github.com/apache/superset-kubernetes-operator"
 repo_name = "apache/superset-kubernetes-operator"
 
+extra = { scope = "/superset-kubernetes-operator/" }
+
 nav = [
   { Home = "index.md" },
   { "Getting Started" = "getting-started.md" },

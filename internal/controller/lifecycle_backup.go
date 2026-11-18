@@ -230,7 +230,7 @@ func buildBackupCommand(superset *supersetv1alpha1.Superset) []string {
 		return b.Command
 	}
 	script := backupPostgresScript
-	if metastoreType(superset.Spec.Metastore) == dbTypeMySQL {
+	if metastoreType(superset.Spec.Metastore) == supersetv1alpha1.DatabaseTypeMySQL {
 		script = backupMySQLScript
 	}
 	return []string{bootstrapShell, "-c", script}
@@ -314,7 +314,7 @@ func guardedTaskStarted(superset *supersetv1alpha1.Superset, taskType, taskCheck
 	if ref == nil || ref.DesiredChecksum != taskChecksum {
 		return false
 	}
-	return ref.StartedAt != nil || ref.Attempts > 0 || ref.State == taskStateRunning
+	return ref.StartedAt != nil || ref.Attempts > 0 || ref.State == supersetv1alpha1.TaskStateRunning
 }
 
 // backupGatesStep reports whether the backup task must run (or confirm
@@ -426,7 +426,7 @@ func backupManifestMetadata(superset *supersetv1alpha1.Superset) string {
 		Name:      superset.Name,
 		Namespace: superset.Namespace,
 		UID:       string(superset.UID),
-		DBType:    metastoreType(superset.Spec.Metastore),
+		DBType:    string(metastoreType(superset.Spec.Metastore)),
 		FromImage: superset.Status.LastLifecycleImage,
 		ToImage:   resolveLifecycleImage(&superset.Spec.Image, lifecycleImageOverride(superset)),
 	})
@@ -441,7 +441,7 @@ func backupManifestMetadata(superset *supersetv1alpha1.Superset) string {
 // by metastore type like the seed and create-database helpers.
 func resolveBackupImage(superset *supersetv1alpha1.Superset) supersetv1alpha1.ImageSpec {
 	defaultRef := naming.SeedImagePostgres
-	if metastoreType(superset.Spec.Metastore) == dbTypeMySQL {
+	if metastoreType(superset.Spec.Metastore) == supersetv1alpha1.DatabaseTypeMySQL {
 		defaultRef = naming.SeedImageMySQL
 	}
 	defRepo, defTag := splitImageRef(defaultRef)

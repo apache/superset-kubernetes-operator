@@ -273,7 +273,7 @@ func TestBackupPipeline_FailureBlocksMutatingTasks(t *testing.T) {
 	res := h.drive("c")
 	require.True(t, res.TerminalFailure)
 	assert.Equal(t, []string{"test-backup"}, h.ran)
-	assert.Equal(t, taskStateComplete, h.s.Status.Lifecycle.Migrate.State, "migrate must not start after a failed backup")
+	assert.Equal(t, supersetv1alpha1.TaskStateComplete, h.s.Status.Lifecycle.Migrate.State, "migrate must not start after a failed backup")
 	assert.Equal(t, installedMigrate, h.s.Status.Lifecycle.Migrate.DesiredChecksum)
 
 	t.Run("reverting the image restores without a backup", func(t *testing.T) {
@@ -337,7 +337,7 @@ func TestBackupPipeline_NotStartedWhileGuardedTaskRuns(t *testing.T) {
 	installedMigrate := h.s.Status.Lifecycle.Migrate.CompletedChecksum
 	migrateRunning := func() bool {
 		m := h.s.Status.Lifecycle.Migrate
-		return m.DesiredChecksum != installedMigrate && m.State == taskStateRunning
+		return m.DesiredChecksum != installedMigrate && m.State == supersetv1alpha1.TaskStateRunning
 	}
 	h.s.Spec.Image.Tag = "6.1.0"
 	for range 5 {
@@ -363,7 +363,11 @@ func TestBackupPipeline_NotStartedWhileGuardedTaskRuns(t *testing.T) {
 func TestBackupPipeline_DrainsBeforeBackupByDefault(t *testing.T) {
 	ctx := context.Background()
 	webServer := func() *appsv1.Deployment {
-		return &appsv1.Deployment{Name: "test-web-server", Namespace: "default"}
+		return &appsv1.Deployment{
+			Name: "test-web-server", Namespace: "default",
+			Labels:          podOperatorLabels("web-server", "test", "test"),
+			OwnerReferences: controllerRefTo(newBackupSuperset()),
+		}
 	}
 	webServerExists := func(h *backupHarness) bool {
 		err := h.c.Get(ctx, client.ObjectKeyFromObject(webServer()), &appsv1.Deployment{})
@@ -398,7 +402,7 @@ func TestBackupPipeline_DrainsBeforeBackupByDefault(t *testing.T) {
 	t.Run("default: drains before the backup, then migrates", func(t *testing.T) {
 		h := upgradeUntilBackupJob(t, nil)
 		assert.False(t, webServerExists(h), "components are drained before the backup starts")
-		assert.Equal(t, lifecyclePhaseBackingUp, h.s.Status.Lifecycle.Phase)
+		assert.Equal(t, supersetv1alpha1.LifecyclePhaseBackingUp, h.s.Status.Lifecycle.Phase)
 
 		res := h.drive("c")
 		require.True(t, res.Complete)
@@ -413,7 +417,7 @@ func TestBackupPipeline_DrainsBeforeBackupByDefault(t *testing.T) {
 		require.True(t, res.TerminalFailure)
 		assert.False(t, webServerExists(h), "components stay drained until the user retries, fixes, or disables the backup")
 		assert.Equal(t, installedMigrate, h.s.Status.Lifecycle.Migrate.DesiredChecksum, "migrate must not start")
-		assert.Equal(t, lifecyclePhaseBackingUp, h.s.Status.Lifecycle.Phase)
+		assert.Equal(t, supersetv1alpha1.LifecyclePhaseBackingUp, h.s.Status.Lifecycle.Phase)
 	})
 
 	t.Run("default: a drained instance recovers when the failed backup is retried", func(t *testing.T) {
@@ -570,7 +574,7 @@ func TestParseBackupResult(t *testing.T) {
 
 func TestBackupPipeline_BlockedWithSeed(t *testing.T) {
 	s := newBackupSuperset()
-	s.Spec.Environment = new("Staging")
+	s.Spec.Environment = new(supersetv1alpha1.EnvironmentStaging)
 	s.Spec.Lifecycle.Seed = &supersetv1alpha1.SeedTaskSpec{
 		Source: supersetv1alpha1.SeedSourceSpec{Host: "src", Database: "superset", Username: "ro"},
 	}
@@ -660,7 +664,7 @@ func TestPendingLifecycleTasksStopsAtFailedBackup(t *testing.T) {
 	s := newBackupSuperset()
 	s.Status.Lifecycle = &supersetv1alpha1.LifecycleStatus{}
 	s.Status.Lifecycle.Backup = &supersetv1alpha1.TaskRefStatus{
-		State:             taskStateFailed,
+		State:             supersetv1alpha1.TaskStateFailed,
 		CompletedChecksum: backupTaskChecksum(s),
 		Attempts:          1,
 		MaxRetries:        1,
@@ -719,7 +723,7 @@ func TestCollectBackupEnvVarsInlineURI(t *testing.T) {
 	_, ok := envValue()
 	assert.False(t, ok, "an inline URI is never passed outside Development")
 
-	s.Spec.Environment = new(naming.EnvironmentDev)
+	s.Spec.Environment = new(supersetv1alpha1.EnvironmentDevelopment)
 	v, ok := envValue()
 	require.True(t, ok)
 	assert.Equal(t, "postgresql://u:p@db/superset", v)
@@ -742,12 +746,12 @@ func TestBackupTaskWiring(t *testing.T) {
 	assert.Same(t, s.Status.Lifecycle.Backup, ref, "backup has its own status slot")
 	assert.Nil(t, s.Status.Lifecycle.Init)
 
-	lifecyclePolicy := retentionRetain
-	backupPolicy := retentionDelete
+	lifecyclePolicy := supersetv1alpha1.PodRetentionPolicyRetain
+	backupPolicy := supersetv1alpha1.PodRetentionPolicyDelete
 	s.Spec.Lifecycle.PodRetention = &supersetv1alpha1.PodRetentionSpec{Policy: &lifecyclePolicy}
-	assert.Equal(t, retentionRetain, r.taskRetentionPolicyValue(s, taskTypeBackup))
+	assert.Equal(t, supersetv1alpha1.PodRetentionPolicyRetain, r.taskRetentionPolicyValue(s, taskTypeBackup))
 	s.Spec.Lifecycle.Backup.PodRetention = &supersetv1alpha1.PodRetentionSpec{Policy: &backupPolicy}
-	assert.Equal(t, retentionDelete, r.taskRetentionPolicyValue(s, taskTypeBackup))
+	assert.Equal(t, supersetv1alpha1.PodRetentionPolicyDelete, r.taskRetentionPolicyValue(s, taskTypeBackup))
 }
 
 func TestBuildBackupTaskFlatSpec(t *testing.T) {
@@ -785,7 +789,7 @@ func TestBuildBackupTaskFlatSpec(t *testing.T) {
 		var meta map[string]string
 		require.NoError(t, json.Unmarshal([]byte(env[naming.EnvBackupMetadata].Value), &meta))
 		assert.Equal(t, map[string]string{
-			"name": "test", "namespace": "default", "uid": "uid-1", "dbType": dbTypePostgresql,
+			"name": "test", "namespace": "default", "uid": "uid-1", "dbType": "PostgreSQL",
 			"fromImage": "", "toImage": "apache/superset:6.0.1",
 		}, meta)
 
@@ -821,7 +825,7 @@ func TestBuildBackupTaskFlatSpec(t *testing.T) {
 
 	t.Run("mysql defaults", func(t *testing.T) {
 		s := newBackupSuperset()
-		s.Spec.Metastore.Type = new(dbTypeMySQL)
+		s.Spec.Metastore.Type = new(supersetv1alpha1.DatabaseTypeMySQL)
 		flat, _ := r.buildTaskFlatSpec(s, taskTypeBackup, nil, "", nil, "sa")
 		assert.Equal(t, "mysql", flat.Image.Repository)
 		pod := buildInitPod(&flat)
@@ -875,7 +879,7 @@ func TestBuildBackupCommand(t *testing.T) {
 		}
 	}
 
-	s.Spec.Metastore.Type = new(dbTypeMySQL)
+	s.Spec.Metastore.Type = new(supersetv1alpha1.DatabaseTypeMySQL)
 	mysql := buildBackupCommand(s)[2]
 	assert.True(t, strings.HasPrefix(mysql, "set -eu\numask 077\n"))
 	for _, want := range []string{"run mysqldump mysqldump", "--single-transaction", "--no-tablespaces", "-- Dump completed", `SUM_COMMITTED=$(sha256sum "$OUT"`, `mv "$BASE.json.partial" "$BASE.json"`} {

@@ -27,7 +27,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
-	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
 // goldenCascadeSupersets returns representative Superset shapes whose
@@ -66,7 +65,7 @@ func goldenCascadeSupersets() map[string]*supersetv1alpha1.Superset {
 
 	seeded := minimalSupersetSpec()
 	seeded.Image.Tag = "6.0.0"
-	seeded.Environment = new(common.EnvironmentStaging)
+	seeded.Environment = new(supersetv1alpha1.EnvironmentStaging)
 	seeded.Metastore = structured()
 	seeded.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 		Seed: &supersetv1alpha1.SeedTaskSpec{

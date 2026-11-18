@@ -43,7 +43,7 @@ import (
 // propagation will fail this test.
 func TestLifecyclePipeline_FullSuccess(t *testing.T) {
 	scheme := testScheme(t)
-	devMode := "Development"
+	devMode := supersetv1alpha1.EnvironmentDevelopment
 	previousSecretKey := "old-key"
 	metastoreHost := "postgres.default.svc"
 	metastoreDB := "superset"
@@ -134,7 +134,7 @@ func TestLifecyclePipeline_FullSuccess(t *testing.T) {
 	if !res.Complete {
 		t.Fatalf("expected lifecycle Complete=true after all tasks, got %#v (status=%#v)", res, superset.Status)
 	}
-	if got := superset.Status.Lifecycle.Phase; got != lifecyclePhaseComplete && got != lifecyclePhaseRestoring {
+	if got := superset.Status.Lifecycle.Phase; got != "Complete" && got != "Restoring" {
 		t.Fatalf("expected final phase Complete or Restoring, got %q", got)
 	}
 	if !hasConditionReason(superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete, "LifecycleComplete") {
@@ -239,7 +239,7 @@ func TestDeleteLifecycleTaskResources(t *testing.T) {
 		Name: "test", Namespace: "default", UID: "uid-1",
 		Status: supersetv1alpha1.SupersetStatus{
 			Lifecycle: &supersetv1alpha1.LifecycleStatus{
-				Migrate:                &supersetv1alpha1.TaskRefStatus{State: taskStateComplete},
+				Migrate:                &supersetv1alpha1.TaskRefStatus{State: supersetv1alpha1.TaskStateComplete},
 				LastCompletedChecksums: map[string]string{taskTypeMigrate: "sum"},
 			},
 		},
@@ -272,7 +272,7 @@ func TestFinalizeLifecycle(t *testing.T) {
 		}
 		r := &SupersetReconciler{Recorder: events.NewFakeRecorder(10)}
 		r.finalizeLifecycle(superset, "apache/superset:2")
-		assert.Equal(t, lifecyclePhaseRestoring, superset.Status.Lifecycle.Phase)
+		assert.EqualValues(t, "Restoring", superset.Status.Lifecycle.Phase)
 		assert.Equal(t, "apache/superset:2", superset.Status.LastLifecycleImage)
 		assert.Nil(t, superset.Status.Lifecycle.Upgrade, "settle clears the upgrade context")
 		assert.True(t, hasConditionReason(superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete, "LifecycleComplete"))
@@ -284,7 +284,7 @@ func TestFinalizeLifecycle(t *testing.T) {
 		}
 		r := &SupersetReconciler{Recorder: events.NewFakeRecorder(10)}
 		r.finalizeLifecycle(superset, "apache/superset:2")
-		assert.Equal(t, lifecyclePhaseComplete, superset.Status.Lifecycle.Phase)
+		assert.EqualValues(t, "Complete", superset.Status.Lifecycle.Phase)
 	})
 }
 
@@ -305,7 +305,7 @@ func TestCheckUpgradeGates(t *testing.T) {
 	})
 
 	t.Run("supervised upgrade awaits approval", func(t *testing.T) {
-		mode := upgradeModeSupervised
+		mode := supersetv1alpha1.UpgradeModeSupervised
 		s := &supersetv1alpha1.Superset{
 			Name: "test",
 			Spec: supersetv1alpha1.SupersetSpec{
@@ -315,8 +315,8 @@ func TestCheckUpgradeGates(t *testing.T) {
 		}
 		gated := r.checkUpgradeGates(ctx, s, true, "apache/superset:2.0.0", "apache/superset:3.0.0")
 		assert.True(t, gated)
-		assert.Equal(t, lifecyclePhaseAwaitingApproval, s.Status.Lifecycle.Phase)
-		assert.Equal(t, phaseAwaitingApproval, s.Status.Phase)
+		assert.EqualValues(t, "AwaitingApproval", s.Status.Lifecycle.Phase)
+		assert.EqualValues(t, "AwaitingApproval", s.Status.Phase)
 	})
 
 	t.Run("automatic upgrade proceeds past the gate", func(t *testing.T) {

@@ -100,6 +100,17 @@ type ContainerImageSpec struct {
 
 // --- Metastore types ---
 
+// DatabaseType selects the database engine for a SQLAlchemy connection.
+// +kubebuilder:validation:Enum=PostgreSQL;MySQL
+type DatabaseType string
+
+const (
+	// DatabaseTypePostgreSQL selects PostgreSQL.
+	DatabaseTypePostgreSQL DatabaseType = "PostgreSQL"
+	// DatabaseTypeMySQL selects MySQL.
+	DatabaseTypeMySQL DatabaseType = "MySQL"
+)
+
 // MetastoreSpec defines the database connection for Superset's metastore.
 // Either a URI (passthrough) or structured fields (host, database, etc.) can be used.
 // They are mutually exclusive.
@@ -127,9 +138,8 @@ type MetastoreSpec struct {
 
 	// Database type. Determines the SQLAlchemy dialect and default driver.
 	// +optional
-	// +kubebuilder:validation:Enum=PostgreSQL;MySQL
 	// +kubebuilder:default=PostgreSQL
-	Type *string `json:"type,omitempty"`
+	Type *DatabaseType `json:"type,omitempty"`
 
 	// SQLAlchemy driver name for structured mode. When omitted, PostgreSQL uses
 	// psycopg2 and MySQL uses mysqldb. Set this to a driver installed in the
@@ -295,9 +305,8 @@ type ValkeySpec struct {
 
 // ValkeySSLSpec configures TLS for the Valkey connection.
 type ValkeySSLSpec struct {
-	// Certificate verification mode.
+	// Certificate verification mode, passed to the Valkey client as ssl_cert_reqs (e.g. required, optional, none).
 	// +optional
-	// +kubebuilder:validation:Enum=required;optional;none
 	// +kubebuilder:default=required
 	CertRequired *string `json:"certRequired,omitempty"`
 
@@ -366,6 +375,23 @@ type ValkeyResultsBackendSpec struct {
 
 // --- Process configuration types ---
 
+// Preset selects a sizing profile for Gunicorn, Celery worker, or SQLAlchemy pool settings.
+// +kubebuilder:validation:Enum=disabled;conservative;balanced;performance;aggressive
+type Preset string
+
+const (
+	// PresetDisabled suppresses operator-computed settings.
+	PresetDisabled Preset = "disabled"
+	// PresetConservative minimizes resource usage.
+	PresetConservative Preset = "conservative"
+	// PresetBalanced is the default sizing profile.
+	PresetBalanced Preset = "balanced"
+	// PresetPerformance favors throughput over resource usage.
+	PresetPerformance Preset = "performance"
+	// PresetAggressive maximizes throughput.
+	PresetAggressive Preset = "aggressive"
+)
+
 // GunicornSpec configures Gunicorn worker parameters for the web server.
 // Fields controlled by presets: workers, threads, workerClass.
 // All other fields have static defaults independent of preset.
@@ -374,8 +400,7 @@ type GunicornSpec struct {
 	// Preset controlling workers, threads, and workerClass defaults.
 	// Individual fields override preset-computed values.
 	// +optional
-	// +kubebuilder:validation:Enum=disabled;conservative;balanced;performance;aggressive
-	Preset *string `json:"preset,omitempty"`
+	Preset *Preset `json:"preset,omitempty"`
 
 	// Number of Gunicorn worker processes.
 	// +optional
@@ -387,9 +412,8 @@ type GunicornSpec struct {
 	// +kubebuilder:validation:Minimum=1
 	Threads *int32 `json:"threads,omitempty"`
 
-	// Gunicorn worker class.
+	// Gunicorn worker class (e.g. gthread, sync, gevent), passed to Gunicorn as-is. Defaults to gthread.
 	// +optional
-	// +kubebuilder:validation:Enum=sync;gthread;gevent;eventlet
 	WorkerClass *string `json:"workerClass,omitempty"`
 
 	// Request timeout in seconds.
@@ -422,9 +446,8 @@ type GunicornSpec struct {
 	// +kubebuilder:validation:Minimum=0
 	LimitRequestFieldSize *int32 `json:"limitRequestFieldSize,omitempty"`
 
-	// Gunicorn log level.
+	// Gunicorn log level (e.g. debug, info, warning), passed to Gunicorn as-is. Defaults to info.
 	// +optional
-	// +kubebuilder:validation:Enum=debug;info;warning;error;critical
 	LogLevel *string `json:"logLevel,omitempty"`
 }
 
@@ -437,22 +460,19 @@ type CeleryWorkerProcessSpec struct {
 	// Preset controlling concurrency and pool defaults.
 	// Individual fields override preset-computed values.
 	// +optional
-	// +kubebuilder:validation:Enum=disabled;conservative;balanced;performance;aggressive
-	Preset *string `json:"preset,omitempty"`
+	Preset *Preset `json:"preset,omitempty"`
 
 	// Number of concurrent task workers (maps to celery -c flag).
 	// +optional
 	// +kubebuilder:validation:Minimum=1
 	Concurrency *int32 `json:"concurrency,omitempty"`
 
-	// Celery pool implementation.
+	// Celery pool implementation (e.g. prefork, threads, gevent), passed to celery worker --pool as-is. Defaults to prefork.
 	// +optional
-	// +kubebuilder:validation:Enum=prefork;threads;gevent;eventlet;solo
 	Pool *string `json:"pool,omitempty"`
 
-	// Task distribution optimization strategy.
+	// Task distribution optimization strategy (e.g. fair, default), passed to celery worker -O as-is. Defaults to fair.
 	// +optional
-	// +kubebuilder:validation:Enum=default;fair
 	Optimization *string `json:"optimization,omitempty"`
 
 	// Maximum tasks a worker process handles before being replaced (prefork only; 0 = unlimited).
@@ -490,8 +510,7 @@ type SQLAlchemyEngineOptionsSpec struct {
 	// "balanced" through "aggressive" use QueuePool with increasing pool sizes.
 	// Individual fields override preset-computed values.
 	// +optional
-	// +kubebuilder:validation:Enum=disabled;conservative;balanced;performance;aggressive
-	Preset *string `json:"preset,omitempty"`
+	Preset *Preset `json:"preset,omitempty"`
 
 	// Number of persistent connections in the pool. Overrides preset calculation.
 	// +optional
@@ -657,6 +676,24 @@ type ContainerTemplate struct {
 
 // --- Scaling and component types ---
 
+// ScalingMode selects who manages a component Deployment's replica count.
+// +kubebuilder:validation:Enum=Operator;External
+type ScalingMode string
+
+const (
+	// ScalingModeOperator sets the replica count from replicas or autoscaling.
+	ScalingModeOperator ScalingMode = "Operator"
+	// ScalingModeExternal leaves the replica count to an external controller,
+	// such as a KEDA ScaledObject or a user-managed HorizontalPodAutoscaler.
+	ScalingModeExternal ScalingMode = "External"
+)
+
+// IsExternal reports whether an external controller owns the replica count.
+// A nil mode is the default, Operator.
+func (m *ScalingMode) IsExternal() bool {
+	return m != nil && *m == ScalingModeExternal
+}
+
 // ScalableComponentSpec provides deployment template and scaling fields.
 // Embedded by scalable components (WebServer, CeleryWorker, CeleryFlower,
 // WebsocketServer, McpServer). Non-scalable components (CeleryBeat, Init)
@@ -674,6 +711,12 @@ type ScalableComponentSpec struct {
 	// HorizontalPodAutoscaler configuration. When set, the HPA manages replica count. Overrides spec.autoscaling.
 	// +optional
 	Autoscaling *AutoscalingSpec `json:"autoscaling,omitempty"`
+	// Who manages the Deployment replica count. Operator (default) applies replicas or autoscaling.
+	// External hands it to an external controller such as a KEDA ScaledObject: the operator keeps the
+	// live replica count, creates no HorizontalPodAutoscaler, and ignores spec.replicas and spec.autoscaling.
+	// Overrides spec.scalingMode; set Operator to opt one component out of a top-level External.
+	// +optional
+	ScalingMode *ScalingMode `json:"scalingMode,omitempty"`
 	// PodDisruptionBudget for protecting availability during voluntary disruptions. Overrides spec.podDisruptionBudget.
 	// +optional
 	PodDisruptionBudget *PDBSpec `json:"podDisruptionBudget,omitempty"`

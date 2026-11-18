@@ -35,7 +35,7 @@ import (
 type lifecycleTaskDescriptor struct {
 	TaskType        string
 	Suffix          string
-	Phase           string
+	Phase           supersetv1alpha1.LifecyclePhase
 	DrainsByDefault bool
 
 	// OutOfCascade excludes the task from the checksum cascade. The backup
@@ -108,7 +108,7 @@ var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 	{
 		TaskType:        taskTypeSeed,
 		Suffix:          suffixSeed,
-		Phase:           lifecyclePhaseSeeding,
+		Phase:           supersetv1alpha1.LifecyclePhaseSeeding,
 		DrainsByDefault: true,
 		BuildCommand: func(r *SupersetReconciler, s *supersetv1alpha1.Superset) []string {
 			return r.buildSeedCommand(s)
@@ -147,7 +147,7 @@ var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 	{
 		TaskType:        taskTypeBackup,
 		Suffix:          suffixBackup,
-		Phase:           lifecyclePhaseBackingUp,
+		Phase:           supersetv1alpha1.LifecyclePhaseBackingUp,
 		DrainsByDefault: true,
 		OutOfCascade:    true,
 		DefaultTimeout:  defaultBackupTimeout,
@@ -185,7 +185,7 @@ var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 	{
 		TaskType:        taskTypeMigrate,
 		Suffix:          suffixMigrate,
-		Phase:           lifecyclePhaseMigrating,
+		Phase:           supersetv1alpha1.LifecyclePhaseMigrating,
 		DrainsByDefault: true,
 		GuardedByBackup: true,
 		BuildCommand: func(_ *SupersetReconciler, s *supersetv1alpha1.Superset) []string {
@@ -213,7 +213,7 @@ var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 	{
 		TaskType:        taskTypeRotate,
 		Suffix:          suffixRotate,
-		Phase:           lifecyclePhaseRotating,
+		Phase:           supersetv1alpha1.LifecyclePhaseRotating,
 		DrainsByDefault: true,
 		GuardedByBackup: true,
 		BuildCommand: func(_ *SupersetReconciler, s *supersetv1alpha1.Superset) []string {
@@ -241,7 +241,7 @@ var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 	{
 		TaskType:        taskTypeInit,
 		Suffix:          suffixInit,
-		Phase:           lifecyclePhaseInitializing,
+		Phase:           supersetv1alpha1.LifecyclePhaseInitializing,
 		DrainsByDefault: false,
 		BuildCommand: func(_ *SupersetReconciler, s *supersetv1alpha1.Superset) []string {
 			return defaultInitCommand(s)

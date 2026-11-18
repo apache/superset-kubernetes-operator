@@ -26,6 +26,19 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 )
 
+// Environment selects how strictly a Superset instance is validated.
+// +kubebuilder:validation:Enum=Development;Staging;Production
+type Environment string
+
+const (
+	// EnvironmentDevelopment permits plain text secrets, seeding, admin user, and load examples.
+	EnvironmentDevelopment Environment = "Development"
+	// EnvironmentStaging enforces Secret references like Production but allows seeding.
+	EnvironmentStaging Environment = "Staging"
+	// EnvironmentProduction rejects plain text secrets and disallows seeding.
+	EnvironmentProduction Environment = "Production"
+)
+
 // SupersetSpec defines the desired state of a Superset deployment.
 // +kubebuilder:validation:XValidation:rule="has(self.secretKey) != has(self.secretKeyFrom)",message="exactly one of secretKey (dev only) or secretKeyFrom must be set"
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.secretKey)",message="secretKey is only allowed when environment is Development; use secretKeyFrom in Staging or Production"
@@ -44,6 +57,12 @@ import (
 // +kubebuilder:validation:XValidation:rule="(has(self.environment) && self.environment == 'Development') || !has(self.previousSecretKey)",message="previousSecretKey is only allowed when environment is Development; use previousSecretKeyFrom in Staging or Production"
 // +kubebuilder:validation:XValidation:rule="!has(self.previousSecretKey) || !has(self.previousSecretKeyFrom)",message="previousSecretKey and previousSecretKeyFrom are mutually exclusive"
 // +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.rotate) || (has(self.lifecycle.rotate.disabled) && self.lifecycle.rotate.disabled) || has(self.previousSecretKey) || has(self.previousSecretKeyFrom)",message="lifecycle.rotate requires previousSecretKey (dev) or previousSecretKeyFrom to be set"
+// +kubebuilder:validation:XValidation:rule="!has(self.scalingMode) || self.scalingMode != 'External' || (!has(self.replicas) && !has(self.autoscaling))",message="replicas and autoscaling cannot be set when scalingMode is External"
+// +kubebuilder:validation:XValidation:rule="!has(self.webServer) || (has(self.webServer.scalingMode) ? self.webServer.scalingMode : (has(self.scalingMode) ? self.scalingMode : 'Operator')) != 'External' || (!has(self.webServer.replicas) && !has(self.webServer.autoscaling))",message="webServer.replicas and webServer.autoscaling cannot be set when its effective scalingMode is External; set webServer.scalingMode: Operator to opt out of a top-level External"
+// +kubebuilder:validation:XValidation:rule="!has(self.celeryWorker) || (has(self.celeryWorker.scalingMode) ? self.celeryWorker.scalingMode : (has(self.scalingMode) ? self.scalingMode : 'Operator')) != 'External' || (!has(self.celeryWorker.replicas) && !has(self.celeryWorker.autoscaling))",message="celeryWorker.replicas and celeryWorker.autoscaling cannot be set when its effective scalingMode is External; set celeryWorker.scalingMode: Operator to opt out of a top-level External"
+// +kubebuilder:validation:XValidation:rule="!has(self.celeryFlower) || (has(self.celeryFlower.scalingMode) ? self.celeryFlower.scalingMode : (has(self.scalingMode) ? self.scalingMode : 'Operator')) != 'External' || (!has(self.celeryFlower.replicas) && !has(self.celeryFlower.autoscaling))",message="celeryFlower.replicas and celeryFlower.autoscaling cannot be set when its effective scalingMode is External; set celeryFlower.scalingMode: Operator to opt out of a top-level External"
+// +kubebuilder:validation:XValidation:rule="!has(self.websocketServer) || (has(self.websocketServer.scalingMode) ? self.websocketServer.scalingMode : (has(self.scalingMode) ? self.scalingMode : 'Operator')) != 'External' || (!has(self.websocketServer.replicas) && !has(self.websocketServer.autoscaling))",message="websocketServer.replicas and websocketServer.autoscaling cannot be set when its effective scalingMode is External; set websocketServer.scalingMode: Operator to opt out of a top-level External"
+// +kubebuilder:validation:XValidation:rule="!has(self.mcpServer) || (has(self.mcpServer.scalingMode) ? self.mcpServer.scalingMode : (has(self.scalingMode) ? self.scalingMode : 'Operator')) != 'External' || (!has(self.mcpServer.replicas) && !has(self.mcpServer.autoscaling))",message="mcpServer.replicas and mcpServer.autoscaling cannot be set when its effective scalingMode is External; set mcpServer.scalingMode: Operator to opt out of a top-level External"
 // +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.backup) || (has(self.lifecycle.backup.disabled) && self.lifecycle.backup.disabled) || (has(self.lifecycle.backup.command) && size(self.lifecycle.backup.command) > 0) || (has(self.metastore) && (has(self.metastore.host) || has(self.metastore.hostFrom)))",message="lifecycle.backup with the default command requires structured metastore configuration (host or hostFrom must be set); set lifecycle.backup.command to back up a uri/uriFrom metastore"
 // +kubebuilder:validation:XValidation:rule="!has(self.lifecycle) || !has(self.lifecycle.backup) || (has(self.lifecycle.backup.disabled) && self.lifecycle.backup.disabled) || !has(self.lifecycle.seed) || (has(self.lifecycle.seed.disabled) && self.lifecycle.seed.disabled)",message="lifecycle.backup and lifecycle.seed are mutually exclusive; a seeded database is reproducible from the seed source"
 type SupersetSpec struct {
@@ -62,6 +81,10 @@ type SupersetSpec struct {
 	// Default autoscaling for all scalable components (component-level overrides this).
 	// +optional
 	Autoscaling *AutoscalingSpec `json:"autoscaling,omitempty"`
+	// Default scaling mode for all scalable components (component-level overrides this).
+	// External leaves replica counts to an external controller such as KEDA; see the component field.
+	// +optional
+	ScalingMode *ScalingMode `json:"scalingMode,omitempty"`
 	// Default pod disruption budget for all scalable components (component-level overrides this).
 	// +optional
 	PodDisruptionBudget *PDBSpec `json:"podDisruptionBudget,omitempty"`
@@ -71,9 +94,8 @@ type SupersetSpec struct {
 	// In Staging mode, secrets are enforced (like Production) but seeding is allowed.
 	// In Development mode, plain text secrets, seeding, admin user, and load examples are all permitted.
 	// +optional
-	// +kubebuilder:validation:Enum=Development;Staging;Production
 	// +kubebuilder:default=Production
-	Environment *string `json:"environment,omitempty"`
+	Environment *Environment `json:"environment,omitempty"`
 
 	// Plain text secret key for session signing. Only allowed in Development mode.
 	// In Staging or Production, use secretKeyFrom to reference a Kubernetes Secret.
@@ -385,6 +407,17 @@ type SchedulableBaseTaskSpec struct {
 	CronSchedule *string `json:"cronSchedule,omitempty"`
 }
 
+// UpgradeMode controls whether lifecycle upgrades require manual approval.
+// +kubebuilder:validation:Enum=Automatic;Supervised
+type UpgradeMode string
+
+const (
+	// UpgradeModeAutomatic runs lifecycle tasks immediately on image change.
+	UpgradeModeAutomatic UpgradeMode = "Automatic"
+	// UpgradeModeSupervised waits for an approval annotation before running lifecycle tasks.
+	UpgradeModeSupervised UpgradeMode = "Supervised"
+)
+
 // LifecycleSpec defines lifecycle management configuration for database migrations
 // and application initialization tasks.
 // +kubebuilder:validation:XValidation:rule="!has(self.init) || !has(self.init.command) || size(self.init.command) == 0 || (!has(self.init.adminUser) && !has(self.init.loadExamples))",message="init.command is mutually exclusive with init.adminUser and init.loadExamples"
@@ -393,9 +426,8 @@ type LifecycleSpec struct {
 	// Automatic runs immediately on image change; Supervised waits for an
 	// approval annotation matching the recorded upgrade token before proceeding.
 	// +optional
-	// +kubebuilder:validation:Enum=Automatic;Supervised
 	// +kubebuilder:default=Automatic
-	UpgradeMode *string `json:"upgradeMode,omitempty"`
+	UpgradeMode *UpgradeMode `json:"upgradeMode,omitempty"`
 
 	// Set to true to skip all lifecycle tasks entirely.
 	// +optional
@@ -596,6 +628,19 @@ type AdminUserSpec struct {
 	Email *string `json:"email,omitempty"`
 }
 
+// PodRetentionPolicy selects which lifecycle task Jobs and Pods are kept after completion.
+// +kubebuilder:validation:Enum=Delete;Retain;RetainOnFailure
+type PodRetentionPolicy string
+
+const (
+	// PodRetentionPolicyDelete removes Jobs and Pods after completion.
+	PodRetentionPolicyDelete PodRetentionPolicy = "Delete"
+	// PodRetentionPolicyRetain keeps all Jobs and Pods.
+	PodRetentionPolicyRetain PodRetentionPolicy = "Retain"
+	// PodRetentionPolicyRetainOnFailure keeps only failed Jobs and Pods.
+	PodRetentionPolicyRetainOnFailure PodRetentionPolicy = "RetainOnFailure"
+)
+
 // PodRetentionSpec defines retention behavior for lifecycle task Jobs and their Pods.
 type PodRetentionSpec struct {
 	// Retention policy: Delete removes Jobs and Pods after completion, Retain keeps all,
@@ -604,9 +649,8 @@ type PodRetentionSpec struct {
 	// deleted when the task is reset or disabled, and garbage-collected when the
 	// parent Superset CR is deleted.
 	// +optional
-	// +kubebuilder:validation:Enum=Delete;Retain;RetainOnFailure
 	// +kubebuilder:default=RetainOnFailure
-	Policy *string `json:"policy,omitempty"`
+	Policy *PodRetentionPolicy `json:"policy,omitempty"`
 }
 
 // MaintenancePageSpec configures a lightweight maintenance page served while
@@ -711,9 +755,8 @@ type SeedTaskSpec struct {
 type SeedSourceSpec struct {
 	// Database type: PostgreSQL (default) or MySQL.
 	// +optional
-	// +kubebuilder:validation:Enum=PostgreSQL;MySQL
 	// +kubebuilder:default=PostgreSQL
-	Type *string `json:"type,omitempty"`
+	Type *DatabaseType `json:"type,omitempty"`
 
 	// Source database hostname.
 	// Mutually exclusive with hostFrom.
@@ -885,6 +928,27 @@ type ServiceAccountSpec struct {
 
 // --- Parent status ---
 
+// SupersetPhase is the high-level phase of a Superset instance.
+// +kubebuilder:validation:Enum=Initializing;Upgrading;Running;Degraded;Suspended;Blocked;AwaitingApproval
+type SupersetPhase string
+
+const (
+	// SupersetPhaseInitializing means lifecycle tasks are running for a new instance.
+	SupersetPhaseInitializing SupersetPhase = "Initializing"
+	// SupersetPhaseUpgrading means lifecycle tasks are running for an image change.
+	SupersetPhaseUpgrading SupersetPhase = "Upgrading"
+	// SupersetPhaseRunning means all enabled components are ready.
+	SupersetPhaseRunning SupersetPhase = "Running"
+	// SupersetPhaseDegraded means one or more components are not ready.
+	SupersetPhaseDegraded SupersetPhase = "Degraded"
+	// SupersetPhaseSuspended means reconciliation is suspended.
+	SupersetPhaseSuspended SupersetPhase = "Suspended"
+	// SupersetPhaseBlocked means a lifecycle task failed and blocks progress.
+	SupersetPhaseBlocked SupersetPhase = "Blocked"
+	// SupersetPhaseAwaitingApproval means a supervised upgrade is waiting for approval.
+	SupersetPhaseAwaitingApproval SupersetPhase = "AwaitingApproval"
+)
+
 // SupersetStatus defines the observed state of Superset.
 type SupersetStatus struct {
 	// +optional
@@ -911,15 +975,41 @@ type SupersetStatus struct {
 	ConfigChecksum string `json:"configChecksum,omitempty"`
 	// High-level phase.
 	// +optional
-	// +kubebuilder:validation:Enum=Initializing;Upgrading;Running;Degraded;Suspended;Blocked;AwaitingApproval
-	Phase string `json:"phase,omitempty"`
+	Phase SupersetPhase `json:"phase,omitempty"`
 }
+
+// LifecyclePhase is the current step of the lifecycle pipeline.
+// +kubebuilder:validation:Enum=Seeding;Draining;BackingUp;Migrating;Rotating;Initializing;Restoring;Complete;Blocked;AwaitingApproval
+type LifecyclePhase string
+
+const (
+	// LifecyclePhaseSeeding means the seed task is running.
+	LifecyclePhaseSeeding LifecyclePhase = "Seeding"
+	// LifecyclePhaseDraining means components are being scaled down before lifecycle tasks.
+	LifecyclePhaseDraining LifecyclePhase = "Draining"
+	// LifecyclePhaseBackingUp means the pre-upgrade backup task is running.
+	LifecyclePhaseBackingUp LifecyclePhase = "BackingUp"
+	// LifecyclePhaseMigrating means the migrate task is running.
+	LifecyclePhaseMigrating LifecyclePhase = "Migrating"
+	// LifecyclePhaseRotating means the rotate task is running.
+	LifecyclePhaseRotating LifecyclePhase = "Rotating"
+	// LifecyclePhaseInitializing means the init task is running.
+	LifecyclePhaseInitializing LifecyclePhase = "Initializing"
+	// LifecyclePhaseRestoring means lifecycle tasks finished and components are being brought back up.
+	LifecyclePhaseRestoring LifecyclePhase = "Restoring"
+	// LifecyclePhaseComplete means all enabled lifecycle tasks have completed.
+	LifecyclePhaseComplete LifecyclePhase = "Complete"
+	// LifecyclePhaseBlocked means a lifecycle task failed and blocks progress.
+	LifecyclePhaseBlocked LifecyclePhase = "Blocked"
+	// LifecyclePhaseAwaitingApproval means a supervised upgrade is waiting for approval.
+	LifecyclePhaseAwaitingApproval LifecyclePhase = "AwaitingApproval"
+)
 
 // LifecycleStatus tracks the current lifecycle task execution state.
 type LifecycleStatus struct {
 	// Phase of the lifecycle: Seeding, Draining, BackingUp, Migrating, Rotating, Initializing, Restoring, Complete, Blocked, AwaitingApproval.
 	// +optional
-	Phase string `json:"phase,omitempty"`
+	Phase LifecyclePhase `json:"phase,omitempty"`
 	// MaintenanceActive indicates the maintenance page is currently serving traffic
 	// via the web-server Service.
 	// +optional
@@ -987,11 +1077,25 @@ type BackupRecord struct {
 	CreatedAt metav1.Time `json:"createdAt"`
 }
 
+// TaskState is the execution state of a lifecycle task.
+// +kubebuilder:validation:Enum=Pending;Running;Complete;Failed
+type TaskState string
+
+const (
+	// TaskStatePending means the task has not started yet.
+	TaskStatePending TaskState = "Pending"
+	// TaskStateRunning means the task Job is running.
+	TaskStateRunning TaskState = "Running"
+	// TaskStateComplete means the task Job succeeded.
+	TaskStateComplete TaskState = "Complete"
+	// TaskStateFailed means the task Job failed.
+	TaskStateFailed TaskState = "Failed"
+)
+
 // TaskRefStatus holds the projected status summary of a lifecycle task.
 type TaskRefStatus struct {
 	// +optional
-	// +kubebuilder:validation:Enum=Pending;Running;Complete;Failed
-	State string `json:"state,omitempty"`
+	State TaskState `json:"state,omitempty"`
 	// +optional
 	StartedAt *metav1.Time `json:"startedAt,omitempty"`
 	// +optional
@@ -1058,12 +1162,28 @@ type ComponentStatusMap struct {
 	McpServer *ComponentRefStatus `json:"mcpServer,omitempty"`
 }
 
+// ComponentPhase summarizes the workload state of a component.
+// +kubebuilder:validation:Enum=Pending;Progressing;Ready;Unavailable;Drained
+type ComponentPhase string
+
+const (
+	// ComponentPhasePending means the component Deployment does not exist yet.
+	ComponentPhasePending ComponentPhase = "Pending"
+	// ComponentPhaseProgressing means the component Deployment is rolling out.
+	ComponentPhaseProgressing ComponentPhase = "Progressing"
+	// ComponentPhaseReady means all desired replicas are ready.
+	ComponentPhaseReady ComponentPhase = "Ready"
+	// ComponentPhaseUnavailable means the component has no ready replicas.
+	ComponentPhaseUnavailable ComponentPhase = "Unavailable"
+	// ComponentPhaseDrained means the component is scaled down while lifecycle tasks run.
+	ComponentPhaseDrained ComponentPhase = "Drained"
+)
+
 // ComponentRefStatus holds the status summary of a managed component.
 type ComponentRefStatus struct {
 	// Phase summarizes the component workload state.
 	// +optional
-	// +kubebuilder:validation:Enum=Pending;Progressing;Ready;Unavailable;Drained
-	Phase string `json:"phase,omitempty"`
+	Phase ComponentPhase `json:"phase,omitempty"`
 	// Resources lists the Kubernetes resources currently expected for this
 	// component and whether the operator can observe them.
 	// +optional
@@ -1096,6 +1216,17 @@ type ComponentRefStatus struct {
 	Message string `json:"message,omitempty"`
 }
 
+// ComponentResourceState reports whether an expected component resource exists.
+// +kubebuilder:validation:Enum=Present;Missing
+type ComponentResourceState string
+
+const (
+	// ComponentResourcePresent means the resource exists.
+	ComponentResourcePresent ComponentResourceState = "Present"
+	// ComponentResourceMissing means the resource does not exist.
+	ComponentResourceMissing ComponentResourceState = "Missing"
+)
+
 // ComponentResourceStatus describes one Kubernetes resource managed for a
 // component.
 type ComponentResourceStatus struct {
@@ -1104,8 +1235,7 @@ type ComponentResourceStatus struct {
 	// Resource name.
 	Name string `json:"name"`
 	// Observed status: Present or Missing.
-	// +kubebuilder:validation:Enum=Present;Missing
-	Status string `json:"status"`
+	Status ComponentResourceState `json:"status"`
 }
 
 // +kubebuilder:object:root=true

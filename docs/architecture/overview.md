@@ -69,7 +69,7 @@ spec:
 
 Components fall into two runtime categories:
 
-**Scalable components** support replicas, HPA, and PodDisruptionBudgets:
+**Scalable components** support replicas, HPA, external scaling (`scalingMode`), and PodDisruptionBudgets:
 
 | Parent field | Suffix | Creates |
 |---|---|---|
@@ -100,7 +100,7 @@ podTemplate                            → PodSpec-level (affinity, tolerations,
 └── container                          → Container-level (resources, env, probes, ...)
 ```
 
-**Top-level `deploymentTemplate` and `podTemplate`** provide defaults inherited by all components. **Per-component** values are field-level merged with the top-level — only specify what's different. Scaling fields (`replicas`, `autoscaling`, `podDisruptionBudget`) are outside the templates since they interact with operator logic (HPA, Beat singleton).
+**Top-level `deploymentTemplate` and `podTemplate`** provide defaults inherited by all components. **Per-component** values are field-level merged with the top-level — only specify what's different. Scaling fields (`replicas`, `autoscaling`, `scalingMode`, `podDisruptionBudget`) are outside the templates since they interact with operator logic (HPA, Beat singleton).
 
 Merge semantics per field type:
 

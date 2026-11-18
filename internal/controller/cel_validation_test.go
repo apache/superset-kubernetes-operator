@@ -36,7 +36,6 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
-	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
 // These specs exhaustively exercise the CRD's CEL (x-kubernetes-validations)
@@ -69,7 +68,7 @@ func toUnstructuredSuperset(s *supersetv1alpha1.Superset) *unstructured.Unstruct
 // are permitted, lifecycle tasks disabled, no components. A clean baseline that
 // satisfies every CEL rule.
 func validDevSuperset(name string) *supersetv1alpha1.Superset {
-	env := common.EnvironmentDev
+	env := supersetv1alpha1.EnvironmentDevelopment
 	return &supersetv1alpha1.Superset{
 		Name: name, Namespace: celValidationNS,
 		Spec: supersetv1alpha1.SupersetSpec{
@@ -85,7 +84,7 @@ func validDevSuperset(name string) *supersetv1alpha1.Superset {
 // validProdSuperset returns a minimal valid Production-mode CR: all secrets are
 // referenced from Secrets (no inline), lifecycle disabled, no components.
 func validProdSuperset(name string) *supersetv1alpha1.Superset {
-	env := common.EnvironmentProd
+	env := supersetv1alpha1.EnvironmentProduction
 	return &supersetv1alpha1.Superset{
 		Name: name, Namespace: celValidationNS,
 		Spec: supersetv1alpha1.SupersetSpec{
@@ -406,6 +405,64 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("mutually exclusive"))
 		})
+
+		DescribeTable("rejects replicas or autoscaling when the effective scalingMode is External",
+			func(name, message string, mutate func(*supersetv1alpha1.SupersetSpec)) {
+				cr := validDevSuperset(name)
+				mutate(&cr.Spec)
+				err := k8sClient.Create(ctx, cr)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring(message))
+			},
+			Entry("top-level replicas", "external-tl-replicas", "replicas and autoscaling cannot be set when scalingMode is External",
+				func(s *supersetv1alpha1.SupersetSpec) {
+					s.ScalingMode = new(supersetv1alpha1.ScalingModeExternal)
+					s.Replicas = new(int32(2))
+				}),
+			Entry("top-level autoscaling", "external-tl-autoscaling", "replicas and autoscaling cannot be set when scalingMode is External",
+				func(s *supersetv1alpha1.SupersetSpec) {
+					s.ScalingMode = new(supersetv1alpha1.ScalingModeExternal)
+					s.Autoscaling = &supersetv1alpha1.AutoscalingSpec{MaxReplicas: 4}
+				}),
+			Entry("component replicas", "external-replicas", "celeryWorker.replicas and celeryWorker.autoscaling cannot be set",
+				func(s *supersetv1alpha1.SupersetSpec) {
+					s.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{
+						ScalingMode: new(supersetv1alpha1.ScalingModeExternal),
+						Replicas:    new(int32(2)),
+					}
+				}),
+			Entry("component autoscaling", "external-autoscaling", "celeryWorker.replicas and celeryWorker.autoscaling cannot be set",
+				func(s *supersetv1alpha1.SupersetSpec) {
+					s.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{
+						ScalingMode: new(supersetv1alpha1.ScalingModeExternal),
+						Autoscaling: &supersetv1alpha1.AutoscalingSpec{MaxReplicas: 4},
+					}
+				}),
+			Entry("component replicas under an inherited External", "external-inherited-replicas", "set webServer.scalingMode: Operator",
+				func(s *supersetv1alpha1.SupersetSpec) {
+					s.ScalingMode = new(supersetv1alpha1.ScalingModeExternal)
+					s.WebServer = &supersetv1alpha1.WebServerComponentSpec{Replicas: new(int32(3))}
+				}),
+		)
+
+		It("accepts a component opting out of a top-level External", func() {
+			cr := validDevSuperset("external-opt-out")
+			cr.Spec.ScalingMode = new(supersetv1alpha1.ScalingModeExternal)
+			cr.Spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{
+				ScalingMode: new(supersetv1alpha1.ScalingModeOperator),
+				Replicas:    new(int32(3)),
+			}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
+
+		It("accepts scalingMode External alongside top-level autoscaling", func() {
+			cr := validDevSuperset("external-top-level-hpa")
+			cr.Spec.Autoscaling = &supersetv1alpha1.AutoscalingSpec{MaxReplicas: 5}
+			cr.Spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{
+				ScalingMode: new(supersetv1alpha1.ScalingModeExternal),
+			}
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		})
 	})
 
 	// --- Networking / Monitoring component requirements ---
@@ -463,7 +520,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 	Describe("Seed", func() {
 		It("accepts a fully Secret-backed source connection", func() {
 			cr := validProdSuperset("seed-secret-source")
-			staging := common.EnvironmentStaging
+			staging := supersetv1alpha1.EnvironmentStaging
 			cr.Spec.Environment = &staging
 			cr.Spec.Metastore = structuredProdMetastore()
 			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
@@ -536,7 +593,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		})
 
 		It("rejects inline seed source password outside Development", func() {
-			staging := common.EnvironmentStaging
+			staging := supersetv1alpha1.EnvironmentStaging
 			cr := validProdSuperset("seed-staging-pw")
 			cr.Spec.Environment = &staging
 			cr.Spec.Metastore = structuredProdMetastore()
@@ -757,7 +814,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		})
 
 		It("rejects backup together with seed", func() {
-			staging := common.EnvironmentStaging
+			staging := supersetv1alpha1.EnvironmentStaging
 			cr := validProdSuperset("backup-with-seed")
 			cr.Spec.Environment = &staging
 			cr.Spec.Metastore = structuredProdMetastore()
@@ -902,7 +959,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			Eventually(func(g Gomega) {
 				fetched := &supersetv1alpha1.Superset{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cr), fetched)).To(Succeed())
-				dev := common.EnvironmentDev
+				dev := supersetv1alpha1.EnvironmentDevelopment
 				fetched.Spec.Environment = &dev
 				err := k8sClient.Update(ctx, fetched)
 				g.Expect(err).To(HaveOccurred())
@@ -912,7 +969,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 
 		It("allows upgrade from Staging to Production", func() {
 			cr := validProdSuperset("env-upgrade-prod")
-			staging := common.EnvironmentStaging
+			staging := supersetv1alpha1.EnvironmentStaging
 			cr.Spec.Environment = &staging
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 
@@ -920,7 +977,7 @@ var _ = Describe("CEL Validation", Ordered, func() {
 			Eventually(func(g Gomega) {
 				fetched := &supersetv1alpha1.Superset{}
 				g.Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(cr), fetched)).To(Succeed())
-				prod := common.EnvironmentProd
+				prod := supersetv1alpha1.EnvironmentProduction
 				fetched.Spec.Environment = &prod
 				g.Expect(k8sClient.Update(ctx, fetched)).To(Succeed())
 			}).Should(Succeed())

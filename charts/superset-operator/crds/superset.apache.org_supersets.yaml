@@ -8087,6 +8087,11 @@ spec:
                   replicas:
                     format: int32
                     type: integer
+                  scalingMode:
+                    enum:
+                    - Operator
+                    - External
+                    type: string
                   service:
                     properties:
                       annotations:
@@ -8425,17 +8430,8 @@ spec:
                         minimum: 0
                         type: integer
                       optimization:
-                        enum:
-                        - default
-                        - fair
                         type: string
                       pool:
-                        enum:
-                        - prefork
-                        - threads
-                        - gevent
-                        - eventlet
-                        - solo
                         type: string
                       prefetchMultiplier:
                         format: int32
@@ -12190,6 +12186,11 @@ spec:
                   replicas:
                     format: int32
                     type: integer
+                  scalingMode:
+                    enum:
+                    - Operator
+                    - External
+                    type: string
                   sqlaEngineOptions:
                     properties:
                       maxOverflow:
@@ -31408,6 +31409,11 @@ spec:
                   replicas:
                     format: int32
                     type: integer
+                  scalingMode:
+                    enum:
+                    - Operator
+                    - External
+                    type: string
                   service:
                     properties:
                       annotations:
@@ -35608,6 +35614,11 @@ spec:
               replicas:
                 format: int32
                 type: integer
+              scalingMode:
+                enum:
+                - Operator
+                - External
+                type: string
               secretKey:
                 type: string
               secretKeyFrom:
@@ -35830,10 +35841,6 @@ spec:
                         type: string
                       certRequired:
                         default: required
-                        enum:
-                        - required
-                        - optional
-                        - none
                         type: string
                       keyFile:
                         type: string
@@ -36222,12 +36229,6 @@ spec:
                         minimum: 0
                         type: integer
                       logLevel:
-                        enum:
-                        - debug
-                        - info
-                        - warning
-                        - error
-                        - critical
                         type: string
                       maxRequests:
                         format: int32
@@ -36254,11 +36255,6 @@ spec:
                         minimum: 1
                         type: integer
                       workerClass:
-                        enum:
-                        - sync
-                        - gthread
-                        - gevent
-                        - eventlet
                         type: string
                       workers:
                         format: int32
@@ -39954,6 +39950,11 @@ spec:
                   replicas:
                     format: int32
                     type: integer
+                  scalingMode:
+                    enum:
+                    - Operator
+                    - External
+                    type: string
                   service:
                     properties:
                       annotations:
@@ -44042,6 +44043,11 @@ spec:
                   replicas:
                     format: int32
                     type: integer
+                  scalingMode:
+                    enum:
+                    - Operator
+                    - External
+                    type: string
                   service:
                     properties:
                       annotations:
@@ -44158,6 +44164,43 @@ spec:
               rule: '!has(self.lifecycle) || !has(self.lifecycle.rotate) || (has(self.lifecycle.rotate.disabled)
                 && self.lifecycle.rotate.disabled) || has(self.previousSecretKey)
                 || has(self.previousSecretKeyFrom)'
+            - message: replicas and autoscaling cannot be set when scalingMode is
+                External
+              rule: '!has(self.scalingMode) || self.scalingMode != ''External'' ||
+                (!has(self.replicas) && !has(self.autoscaling))'
+            - message: 'webServer.replicas and webServer.autoscaling cannot be set
+                when its effective scalingMode is External; set webServer.scalingMode:
+                Operator to opt out of a top-level External'
+              rule: '!has(self.webServer) || (has(self.webServer.scalingMode) ? self.webServer.scalingMode
+                : (has(self.scalingMode) ? self.scalingMode : ''Operator'')) != ''External''
+                || (!has(self.webServer.replicas) && !has(self.webServer.autoscaling))'
+            - message: 'celeryWorker.replicas and celeryWorker.autoscaling cannot
+                be set when its effective scalingMode is External; set celeryWorker.scalingMode:
+                Operator to opt out of a top-level External'
+              rule: '!has(self.celeryWorker) || (has(self.celeryWorker.scalingMode)
+                ? self.celeryWorker.scalingMode : (has(self.scalingMode) ? self.scalingMode
+                : ''Operator'')) != ''External'' || (!has(self.celeryWorker.replicas)
+                && !has(self.celeryWorker.autoscaling))'
+            - message: 'celeryFlower.replicas and celeryFlower.autoscaling cannot
+                be set when its effective scalingMode is External; set celeryFlower.scalingMode:
+                Operator to opt out of a top-level External'
+              rule: '!has(self.celeryFlower) || (has(self.celeryFlower.scalingMode)
+                ? self.celeryFlower.scalingMode : (has(self.scalingMode) ? self.scalingMode
+                : ''Operator'')) != ''External'' || (!has(self.celeryFlower.replicas)
+                && !has(self.celeryFlower.autoscaling))'
+            - message: 'websocketServer.replicas and websocketServer.autoscaling cannot
+                be set when its effective scalingMode is External; set websocketServer.scalingMode:
+                Operator to opt out of a top-level External'
+              rule: '!has(self.websocketServer) || (has(self.websocketServer.scalingMode)
+                ? self.websocketServer.scalingMode : (has(self.scalingMode) ? self.scalingMode
+                : ''Operator'')) != ''External'' || (!has(self.websocketServer.replicas)
+                && !has(self.websocketServer.autoscaling))'
+            - message: 'mcpServer.replicas and mcpServer.autoscaling cannot be set
+                when its effective scalingMode is External; set mcpServer.scalingMode:
+                Operator to opt out of a top-level External'
+              rule: '!has(self.mcpServer) || (has(self.mcpServer.scalingMode) ? self.mcpServer.scalingMode
+                : (has(self.scalingMode) ? self.scalingMode : ''Operator'')) != ''External''
+                || (!has(self.mcpServer.replicas) && !has(self.mcpServer.autoscaling))'
             - message: lifecycle.backup with the default command requires structured
                 metastore configuration (host or hostFrom must be set); set lifecycle.backup.command
                 to back up a uri/uriFrom metastore
@@ -44783,6 +44826,17 @@ spec:
                         type: string
                     type: object
                   phase:
+                    enum:
+                    - Seeding
+                    - Draining
+                    - BackingUp
+                    - Migrating
+                    - Rotating
+                    - Initializing
+                    - Restoring
+                    - Complete
+                    - Blocked
+                    - AwaitingApproval
                     type: string
                   rotate:
                     properties:

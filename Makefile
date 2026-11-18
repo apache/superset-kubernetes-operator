@@ -126,8 +126,17 @@ docs-serve: ## Serve documentation locally with live reload.
 	$(ZENSICAL) serve
 
 .PHONY: docs-build
-docs-build: ## Build documentation site.
+docs-build: ## Build the standalone documentation preview.
 	$(ZENSICAL) build --strict
+
+.PHONY: docs-build-ci
+docs-build-ci: ## Assemble the root and versioned docs like CI; set DOCS_SERVE=true to serve.
+	./scripts/build-docs-local.sh $(if $(filter true 1 yes,$(DOCS_SERVE)),--serve,)
+
+.PHONY: docs-build-versioned
+docs-build-versioned: ## Assemble docs under a minor version path; set DOCS_VERSION=X.Y and DOCS_SERVE=true to serve.
+	@test -n "$(DOCS_VERSION)" || { echo "Usage: make docs-build-versioned DOCS_VERSION=0.3" >&2; exit 2; }
+	./scripts/build-docs-local.sh --version-path "$(DOCS_VERSION)" $(if $(filter true 1 yes,$(DOCS_SERVE)),--serve,)
 
 .PHONY: docs-api
 docs-api: crd-ref-docs ## Generate API reference documentation from Go types.
@@ -411,7 +420,7 @@ CRD_REF_DOCS_VERSION ?= v0.3.0
 # renovate: datasource=go depName=golang.org/x/vuln
 GOVULNCHECK_VERSION ?= v1.9.0
 # renovate: datasource=github-releases depName=rvben/rumdl
-RUMDL_VERSION ?= v0.2.64
+RUMDL_VERSION ?= v0.3.0
 # renovate: datasource=go depName=github.com/norwoodj/helm-docs
 HELM_DOCS_VERSION ?= v1.14.2
 
