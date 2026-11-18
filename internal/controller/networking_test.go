@@ -195,8 +195,8 @@ func TestReconcileNetworking_StripsReservedLabelsOnHTTPRoute(t *testing.T) {
 	if _, ok := route.Labels["superset.apache.org/instance"]; ok {
 		t.Errorf("forged reserved label survived on HTTPRoute: %v", route.Labels)
 	}
-	if route.Labels[common.LabelKeyParent] != "test" {
-		t.Errorf("operator parent label must be forced, got %q", route.Labels[common.LabelKeyParent])
+	if route.Labels["superset.apache.org/parent"] != "test" {
+		t.Errorf("operator parent label must be forced, got %q", route.Labels["superset.apache.org/parent"])
 	}
 	if route.Labels["team"] != "data" {
 		t.Errorf("non-reserved user label should survive, got %q", route.Labels["team"])
@@ -241,8 +241,8 @@ func TestReconcileNetworking_StripsReservedLabelsOnIngress(t *testing.T) {
 	if _, ok := ing.Labels["superset.apache.org/instance"]; ok {
 		t.Errorf("forged reserved label survived on Ingress: %v", ing.Labels)
 	}
-	if ing.Labels[common.LabelKeyParent] != "test" {
-		t.Errorf("operator parent label must be forced, got %q", ing.Labels[common.LabelKeyParent])
+	if ing.Labels["superset.apache.org/parent"] != "test" {
+		t.Errorf("operator parent label must be forced, got %q", ing.Labels["superset.apache.org/parent"])
 	}
 	if ing.Labels["team"] != "data" {
 		t.Errorf("non-reserved user label should survive, got %q", ing.Labels["team"])
@@ -395,8 +395,8 @@ func TestReconcileHTTPRoute_WithCeleryFlower(t *testing.T) {
 	if flowerRule.BackendRefs[0].Name != expectedFlowerSvc {
 		t.Errorf("expected flower backend test-celery-flower, got %s", flowerRule.BackendRefs[0].Name)
 	}
-	if *flowerRule.BackendRefs[0].Port != common.PortCeleryFlower {
-		t.Errorf("expected port %d, got %d", common.PortCeleryFlower, *flowerRule.BackendRefs[0].Port)
+	if *flowerRule.BackendRefs[0].Port != 5555 {
+		t.Errorf("expected port 5555, got %d", *flowerRule.BackendRefs[0].Port)
 	}
 }
 
@@ -519,9 +519,9 @@ func TestComponentRoutes(t *testing.T) {
 		},
 	}
 	want := []componentRoute{
-		{svcName: "test-mcp-server", port: common.PortMcpServer, path: "/mcp"},
-		{svcName: "test-celery-flower", port: common.PortCeleryFlower, path: "/flower"},
-		{svcName: "test-web-server", port: common.PortWebServer, path: "/"},
+		{svcName: "test-mcp-server", port: 8088, path: "/mcp"},
+		{svcName: "test-celery-flower", port: 5555, path: "/flower"},
+		{svcName: "test-web-server", port: 8088, path: "/"},
 	}
 	if got := componentRoutes(superset); !reflect.DeepEqual(got, want) {
 		t.Errorf("componentRoutes() = %+v, want %+v", got, want)
@@ -672,8 +672,8 @@ func TestReconcileIngress_CreatesIngress(t *testing.T) {
 	if paths[0].Backend.Service.Name != "test-web-server" {
 		t.Errorf("expected backend test-web-server, got %s", paths[0].Backend.Service.Name)
 	}
-	if paths[0].Backend.Service.Port.Number != common.PortWebServer {
-		t.Errorf("expected port %d, got %d", common.PortWebServer, paths[0].Backend.Service.Port.Number)
+	if paths[0].Backend.Service.Port.Number != 8088 {
+		t.Errorf("expected port 8088, got %d", paths[0].Backend.Service.Port.Number)
 	}
 }
 
@@ -938,7 +938,7 @@ func TestReconcileWebServerService_CreatesAndSwitchesSelector(t *testing.T) {
 	if err := c.Get(ctx, client.ObjectKey{Name: svcName, Namespace: "default"}, svc); err != nil {
 		t.Fatalf("get service: %v", err)
 	}
-	if svc.Spec.Selector[common.LabelKeyComponent] != string(common.ComponentWebServer) {
+	if svc.Spec.Selector["app.kubernetes.io/component"] != "web-server" {
 		t.Errorf("expected web-server selector, got %v", svc.Spec.Selector)
 	}
 	if !isOwnedBy(svc, superset) {
@@ -953,7 +953,7 @@ func TestReconcileWebServerService_CreatesAndSwitchesSelector(t *testing.T) {
 	if err := c.Get(ctx, client.ObjectKey{Name: svcName, Namespace: "default"}, svc); err != nil {
 		t.Fatalf("get service: %v", err)
 	}
-	if svc.Spec.Selector[common.LabelKeyComponent] != string(common.ComponentMaintenancePage) {
+	if svc.Spec.Selector["app.kubernetes.io/component"] != "maintenance-page" {
 		t.Errorf("expected maintenance-page selector during maintenance, got %v", svc.Spec.Selector)
 	}
 }

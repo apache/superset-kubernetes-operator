@@ -29,7 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
-	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
 func TestReconcileMonitoring_GracefulSkipWhenCRDAbsent(t *testing.T) {
@@ -112,8 +111,8 @@ func TestReconcileMonitoring_ServiceMonitorShape(t *testing.T) {
 	// Verify selector targets web-server component.
 	selector, _ := spec["selector"].(map[string]any)
 	matchLabels, _ := selector["matchLabels"].(map[string]any)
-	if matchLabels["app.kubernetes.io/component"] != string(common.ComponentWebServer) {
-		t.Errorf("selector component should be %q, got %v", common.ComponentWebServer, matchLabels["app.kubernetes.io/component"])
+	if matchLabels["app.kubernetes.io/component"] != "web-server" {
+		t.Errorf("selector component should be \"web-server\", got %v", matchLabels["app.kubernetes.io/component"])
 	}
 	if matchLabels["app.kubernetes.io/instance"] != "test" {
 		t.Errorf("selector instance should be test, got %v", matchLabels["app.kubernetes.io/instance"])
@@ -128,8 +127,8 @@ func TestReconcileMonitoring_ServiceMonitorShape(t *testing.T) {
 		t.Fatalf("expected 1 endpoint, got %d", len(endpoints))
 	}
 	ep, _ := endpoints[0].(map[string]any)
-	if ep["port"] != common.PortNameHTTP {
-		t.Errorf("endpoint port should be %q, got %v", common.PortNameHTTP, ep["port"])
+	if ep["port"] != "http" {
+		t.Errorf("endpoint port should be \"http\", got %v", ep["port"])
 	}
 	if ep["interval"] != "60s" {
 		t.Errorf("endpoint interval should be 60s, got %v", ep["interval"])
@@ -150,10 +149,10 @@ func TestReconcileMonitoring_ServiceMonitorShape(t *testing.T) {
 	if labels["release"] != "prometheus" {
 		t.Error("expected user label release=prometheus")
 	}
-	if labels[common.LabelKeyName] != common.LabelValueApp {
+	if labels["app.kubernetes.io/name"] != "superset" {
 		t.Error("expected operator label app.kubernetes.io/name=superset")
 	}
-	if labels[common.LabelKeyParent] != "test" {
+	if labels["superset.apache.org/parent"] != "test" {
 		t.Error("expected operator label superset.apache.org/parent=test")
 	}
 }
@@ -201,8 +200,8 @@ func TestReconcileMonitoring_StripsReservedLabels(t *testing.T) {
 	if labels["release"] != "prometheus" {
 		t.Errorf("non-reserved user label should survive, got %q", labels["release"])
 	}
-	if labels[common.LabelKeyParent] != "test" {
-		t.Errorf("operator parent label must be forced, got %q", labels[common.LabelKeyParent])
+	if labels["superset.apache.org/parent"] != "test" {
+		t.Errorf("operator parent label must be forced, got %q", labels["superset.apache.org/parent"])
 	}
 }
 

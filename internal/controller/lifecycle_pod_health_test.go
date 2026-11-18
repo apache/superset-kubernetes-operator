@@ -216,7 +216,7 @@ func TestHandleStuckTaskPod_SurfacesWhenSpecUnchanged(t *testing.T) {
 	if err := c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, &batchv1.Job{}); err != nil {
 		t.Errorf("expected Job to be kept when spec is unchanged, got %v", err)
 	}
-	if !conditionHasReason(superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete, reasonTaskCannotStart) {
+	if !conditionHasReason(superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete, "TaskCannotStart") {
 		t.Error("expected parent LifecycleComplete condition with reason TaskCannotStart")
 	}
 	if taskRef.Message == "" {

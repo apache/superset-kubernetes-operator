@@ -93,7 +93,7 @@ func TestReconcileHPA_CreatesHPA(t *testing.T) {
 	if len(hpa.Spec.Metrics) != 1 || hpa.Spec.Metrics[0].Type != autoscalingv2.ResourceMetricSourceType {
 		t.Error("expected 1 Resource metric")
 	}
-	if hpa.Labels[common.LabelKeyComponent] != string(common.ComponentWebServer) {
+	if hpa.Labels["app.kubernetes.io/component"] != "web-server" {
 		t.Errorf("expected component label on HPA, got %v", hpa.Labels)
 	}
 }

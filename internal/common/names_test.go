@@ -115,7 +115,7 @@ func TestConfigMapName(t *testing.T) {
 
 func TestComponentLabels(t *testing.T) {
 	tests := []struct {
-		name      string
+		name      string // also the expected app.kubernetes.io/component value
 		component ComponentType
 		instance  string
 	}{
@@ -136,19 +136,14 @@ func TestComponentLabels(t *testing.T) {
 				t.Fatalf("expected 3 labels, got %d", len(labels))
 			}
 
-			// Verify name label.
-			if labels[LabelKeyName] != LabelValueApp {
-				t.Errorf("expected %s=%s, got %s", LabelKeyName, LabelValueApp, labels[LabelKeyName])
+			if got := labels["app.kubernetes.io/name"]; got != "superset" {
+				t.Errorf("expected app.kubernetes.io/name=superset, got %s", got)
 			}
-
-			// Verify component label.
-			if labels[LabelKeyComponent] != string(tt.component) {
-				t.Errorf("expected %s=%s, got %s", LabelKeyComponent, string(tt.component), labels[LabelKeyComponent])
+			if got := labels["app.kubernetes.io/component"]; got != tt.name {
+				t.Errorf("expected app.kubernetes.io/component=%s, got %s", tt.name, got)
 			}
-
-			// Verify instance label.
-			if labels[LabelKeyInstance] != tt.instance {
-				t.Errorf("expected %s=%s, got %s", LabelKeyInstance, tt.instance, labels[LabelKeyInstance])
+			if got := labels["app.kubernetes.io/instance"]; got != tt.instance {
+				t.Errorf("expected app.kubernetes.io/instance=%s, got %s", tt.instance, got)
 			}
 		})
 	}

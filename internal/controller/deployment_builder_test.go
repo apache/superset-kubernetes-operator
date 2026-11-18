@@ -64,8 +64,8 @@ func TestBuildDeploymentSpec(t *testing.T) {
 		}
 
 		container := result.Template.Spec.Containers[0]
-		if container.Name != common.Container {
-			t.Errorf("expected container name %s, got %s", common.Container, container.Name)
+		if container.Name != "superset" {
+			t.Errorf("expected container name superset, got %s", container.Name)
 		}
 		if container.Image != "apache/superset:latest" {
 			t.Errorf("expected image apache/superset:latest, got %s", container.Image)
@@ -73,8 +73,8 @@ func TestBuildDeploymentSpec(t *testing.T) {
 		if len(container.Command) != 1 || container.Command[0] != "/usr/bin/run-server.sh" {
 			t.Errorf("expected default command, got %v", container.Command)
 		}
-		if len(container.Ports) != 1 || container.Ports[0].ContainerPort != common.PortWebServer {
-			t.Errorf("expected default port %d, got %v", common.PortWebServer, container.Ports)
+		if len(container.Ports) != 1 || container.Ports[0].ContainerPort != 8088 {
+			t.Errorf("expected default port 8088, got %v", container.Ports)
 		}
 		assertHardenedDefaults(t, container.SecurityContext)
 	})
@@ -261,13 +261,13 @@ func TestBuildDeploymentSpec(t *testing.T) {
 		result := buildDeploymentSpec(spec, cfg, nil, selectorLabels)
 
 		podLabels := result.Template.Labels
-		if podLabels[common.LabelKeyComponent] != string(common.ComponentWebServer) {
-			t.Errorf("operator label %s was overridden: got %q, want %q",
-				common.LabelKeyComponent, podLabels[common.LabelKeyComponent], string(common.ComponentWebServer))
+		if podLabels["app.kubernetes.io/component"] != "web-server" {
+			t.Errorf("operator label app.kubernetes.io/component was overridden: got %q, want \"web-server\"",
+				podLabels["app.kubernetes.io/component"])
 		}
-		if podLabels[common.LabelKeyName] != common.LabelValueApp {
-			t.Errorf("operator label %s was overridden: got %q, want %q",
-				common.LabelKeyName, podLabels[common.LabelKeyName], common.LabelValueApp)
+		if podLabels["app.kubernetes.io/name"] != "superset" {
+			t.Errorf("operator label app.kubernetes.io/name was overridden: got %q, want \"superset\"",
+				podLabels["app.kubernetes.io/name"])
 		}
 		if podLabels["custom-label"] != "allowed" {
 			t.Errorf("user custom label should be preserved, got %q", podLabels["custom-label"])
@@ -352,8 +352,8 @@ func TestBuildDeploymentSpec(t *testing.T) {
 
 		result := buildDeploymentSpec(spec, cfg, operatorAnnotations, map[string]string{})
 		got := result.Template.Annotations
-		if got[common.AnnotationConfigChecksum] != "sha256:real" {
-			t.Errorf("operator config-checksum must win over a forged user annotation, got %q", got[common.AnnotationConfigChecksum])
+		if got["superset.apache.org/config-checksum"] != "sha256:real" {
+			t.Errorf("operator config-checksum must win over a forged user annotation, got %q", got["superset.apache.org/config-checksum"])
 		}
 		if got["user/other"] != "keep" {
 			t.Errorf("non-reserved user pod annotations should be preserved, got %q", got["user/other"])

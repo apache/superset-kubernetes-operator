@@ -36,14 +36,14 @@ import (
 func TestComponentLabels(t *testing.T) {
 	labels := componentLabels(string(common.ComponentWebServer), "my-superset-web-server")
 
-	if labels[common.LabelKeyName] != common.LabelValueApp {
-		t.Errorf("expected name=%s, got %s", common.LabelValueApp, labels[common.LabelKeyName])
+	if labels["app.kubernetes.io/name"] != "superset" {
+		t.Errorf("expected name=superset, got %s", labels["app.kubernetes.io/name"])
 	}
-	if labels[common.LabelKeyComponent] != string(common.ComponentWebServer) {
-		t.Errorf("expected component=%s, got %s", string(common.ComponentWebServer), labels[common.LabelKeyComponent])
+	if labels["app.kubernetes.io/component"] != "web-server" {
+		t.Errorf("expected component=web-server, got %s", labels["app.kubernetes.io/component"])
 	}
-	if labels[common.LabelKeyInstance] != "my-superset-web-server" {
-		t.Errorf("expected instance=my-superset-web-server, got %s", labels[common.LabelKeyInstance])
+	if labels["app.kubernetes.io/instance"] != "my-superset-web-server" {
+		t.Errorf("expected instance=my-superset-web-server, got %s", labels["app.kubernetes.io/instance"])
 	}
 }
 
@@ -106,7 +106,7 @@ func TestDeleteIfControlledBy(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{Name: "test", Namespace: "default", UID: "uid-1"}
-	name := common.ResourceBaseName("test", common.ComponentCeleryWorker)
+	name := "test-celery-worker"
 
 	tests := []struct {
 		name        string
@@ -149,7 +149,7 @@ func TestDeleteIfNotForeignOwned(t *testing.T) {
 	superset := &supersetv1alpha1.Superset{
 		Name: "test", Namespace: "default", UID: "uid-1",
 	}
-	name := common.ResourceBaseName("test", common.ComponentWebServer)
+	name := "test-web-server"
 
 	newDeploy := func(refs []metav1.OwnerReference) *appsv1.Deployment {
 		return &appsv1.Deployment{

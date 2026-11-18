@@ -148,13 +148,13 @@ func TestLifecyclePipeline_FullSuccess(t *testing.T) {
 func taskJobName(parent, taskType string) string {
 	switch taskType {
 	case taskTypeSeed:
-		return parent + suffixSeed
+		return parent + "-seed"
 	case taskTypeMigrate:
-		return parent + suffixMigrate
+		return parent + "-migrate"
 	case taskTypeRotate:
-		return parent + suffixRotate
+		return parent + "-rotate"
 	case taskTypeInit:
-		return parent + suffixInit
+		return parent + "-init"
 	}
 	return ""
 }
@@ -216,7 +216,7 @@ func TestClearUpgradeApprovalAnnotation(t *testing.T) {
 
 		got := &supersetv1alpha1.Superset{}
 		require.NoError(t, c.Get(ctx, types.NamespacedName{Name: "test", Namespace: "default"}, got))
-		_, present := got.Annotations[annotationApproveUpgrade]
+		_, present := got.Annotations["superset.apache.org/approve-upgrade"]
 		assert.False(t, present, "approval annotation should be removed")
 		assert.Equal(t, "me", got.Annotations["keep"], "other annotations are preserved")
 	})

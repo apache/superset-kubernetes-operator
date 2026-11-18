@@ -338,7 +338,7 @@ func TestBuildOperatorInjected(t *testing.T) {
 	configEnvVars := []corev1.EnvVar{{Name: "SUPERSET_OPERATOR__SECRET_KEY", Value: "test"}}
 	injected := buildOperatorInjected("import os\n", "", "my-web-server", "v2", configEnvVars)
 
-	if len(injected.Volumes) != 1 || injected.Volumes[0].Name != configVolumeName {
+	if len(injected.Volumes) != 1 || injected.Volumes[0].Name != "superset-config" {
 		t.Errorf("expected 1 config volume, got %d", len(injected.Volumes))
 	}
 	if len(injected.VolumeMounts) != 1 {
