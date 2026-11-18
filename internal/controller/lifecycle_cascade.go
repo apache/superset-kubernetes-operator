@@ -52,13 +52,14 @@ func (r *SupersetReconciler) computeStepChecksum(incomingChecksum, taskType stri
 
 // walkLifecycleCascade computes the cascade steps for the enabled tasks.
 // Tasks whose IsEnabled returns false are skipped and their absence still
-// preserves the cascade chain for the remaining enabled tasks. The returned
-// slice is in pipeline order.
+// preserves the cascade chain for the remaining enabled tasks. OutOfCascade
+// tasks (backup) are never part of the chain. The returned slice is in
+// pipeline order.
 func (r *SupersetReconciler) walkLifecycleCascade(superset *supersetv1alpha1.Superset, configChecksum string) []lifecycleCascadeStep {
 	steps := make([]lifecycleCascadeStep, 0, len(lifecycleTaskDescriptors))
 	incomingChecksum := string(superset.UID)
 	for _, desc := range lifecycleTaskDescriptors {
-		if !desc.IsEnabled(superset) {
+		if desc.OutOfCascade || !desc.IsEnabled(superset) {
 			continue
 		}
 		command := desc.BuildCommand(r, superset)
@@ -90,11 +91,25 @@ func (r *SupersetReconciler) allTasksStillComplete(superset *supersetv1alpha1.Su
 
 // pendingLifecycleTasks returns the list of tasks that still need to run for
 // the current cascade. Stops at the first task whose terminal failure matches
-// the current checksum — downstream tasks would be blocked by it anyway.
+// the current checksum — downstream tasks would be blocked by it anyway. When
+// backup is enabled and still needs to run, it is listed in front of the
+// first guarded task it gates, so drain and maintenance decisions account for
+// it.
 func (r *SupersetReconciler) pendingLifecycleTasks(superset *supersetv1alpha1.Superset, configChecksum string) []string {
 	steps := r.walkLifecycleCascade(superset, configChecksum)
 	var pending []string
+	backupConsidered := false
 	for _, step := range steps {
+		if !backupConsidered && r.backupGatesStep(superset, step) {
+			backupConsidered = true
+			backupChecksum := backupTaskChecksum(superset)
+			if r.taskNeedsRun(superset, taskTypeBackup, backupChecksum) {
+				pending = append(pending, taskTypeBackup)
+			}
+			if r.taskTerminalFailedForChecksum(superset, taskTypeBackup, backupChecksum) {
+				return pending
+			}
+		}
 		if r.taskNeedsRun(superset, step.Desc.TaskType, step.TaskChecksum) {
 			pending = append(pending, step.Desc.TaskType)
 		}

@@ -37,8 +37,8 @@ func (r *SupersetReconciler) buildTaskFlatSpec(
 	topLevel *resolution.SharedInput,
 	saName string,
 ) (supersetv1alpha1.FlatComponentSpec, string) {
-	if taskType == taskTypeSeed {
-		return r.buildSeedTaskFlatSpec(superset, saName, topLevel), ""
+	if desc := lifecycleTaskDescriptorByType(taskType); desc != nil && desc.BuildToolFlatSpec != nil {
+		return desc.BuildToolFlatSpec(r, superset, saName, topLevel), ""
 	}
 	return r.buildStandardTaskFlatSpec(superset, taskType, command, topLevel, saName)
 }
