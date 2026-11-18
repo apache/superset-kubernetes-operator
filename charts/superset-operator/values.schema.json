@@ -7,8 +7,8 @@
       "type": "object",
       "description": "Helm-injected global values (present when installed as a dependency)."
     },
-    "nameOverride": { "type": "string" },
-    "fullnameOverride": { "type": "string" },
+    "nameOverride": { "type": ["string", "null"] },
+    "fullnameOverride": { "type": ["string", "null"] },
     "image": {
       "type": "object",
       "additionalProperties": false,
@@ -16,8 +16,8 @@
         "repository": { "type": "string" },
         "tag": { "type": ["string", "null"] },
         "pullPolicy": {
-          "type": "string",
-          "enum": ["Always", "IfNotPresent", "Never"]
+          "type": ["string", "null"],
+          "enum": ["Always", "IfNotPresent", "Never", null]
         }
       }
     },
