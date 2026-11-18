@@ -67,8 +67,6 @@ renders the default install manifests:
           - delete
           - get
           - list
-          - patch
-          - update
           - watch
       - apiGroups:
           - events.k8s.io

@@ -131,7 +131,7 @@ desired indentation.
   verbs: [create, delete, get, list, patch, update, watch]
 - apiGroups: [batch]
   resources: [jobs]
-  verbs: [create, delete, get, list, patch, update, watch]
+  verbs: [create, delete, get, list, watch]
 - apiGroups: [events.k8s.io]
   resources: [events]
   verbs: [create, patch, update]
