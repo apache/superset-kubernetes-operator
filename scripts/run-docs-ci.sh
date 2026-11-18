@@ -19,6 +19,8 @@
 #   run-docs-ci.sh env            print DOC_REF and DRY_RUN for >> "$GITHUB_ENV"
 #   run-docs-ci.sh prepare        prepare current docs links or load backfill docs
 #   run-docs-ci.sh publish DIR    build the right slice(s) of the site into DIR
+#   run-docs-ci.sh build SITE_DIR build once and save slices under SITE_DIR
+#   run-docs-ci.sh assemble SITE_DIR PUBLISH_DIR merge saved slices into PUBLISH_DIR
 #
 # `prepare` and `publish` read GITHUB_EVENT_NAME, GITHUB_REF_TYPE and DOC_REF
 # (the release tag for tag pushes and backfills, otherwise the branch name).
@@ -83,36 +85,83 @@ prepare() (
   fi
 )
 
+target_pairs() {
+  if is_release; then
+    release_vars
+    printf 'zensical-versioned.toml\t%s\n' "$MINOR"
+  else
+    printf 'zensical-unversioned.toml\troot\n'
+    printf 'zensical-versioned.toml\tmain\n'
+  fi
+}
+
 publish() {
-  local dir="$1"
+  local dir="$1" config target
+  local release_args=() force_args=()
   mkdir -p "$dir"
   if is_release; then
     release_vars
-    local force_args=()
+    release_args=(--release "$VERSION")
     if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "${DOCS_FORCE:-false}" == true ]]; then
       force_args+=(--force)
     fi
-    bash scripts/publish-docs.sh \
-      --config zensical-versioned.toml \
-      --target "$MINOR" \
-      --publish-dir "$dir" \
-      --release "$VERSION" \
-      "${force_args[@]+"${force_args[@]}"}"
-  else
-    bash scripts/publish-docs.sh \
-      --config zensical-unversioned.toml \
-      --target root \
-      --publish-dir "$dir"
-    bash scripts/publish-docs.sh \
-      --config zensical-versioned.toml \
-      --target main \
-      --publish-dir "$dir"
   fi
+  while IFS=$'\t' read -r config target; do
+    bash scripts/publish-docs.sh \
+      --config "$config" \
+      --target "$target" \
+      --publish-dir "$dir" \
+      "${release_args[@]+"${release_args[@]}"}" \
+      "${force_args[@]+"${force_args[@]}"}"
+  done <<< "$(target_pairs)"
+}
+
+build() {
+  local site_dir="$1" config target
+  mkdir -p "$site_dir"
+  local release_args=()
+  if is_release; then
+    release_vars
+    release_args=(--release "$VERSION")
+  fi
+  while IFS=$'\t' read -r config target; do
+    bash scripts/publish-docs.sh \
+      --config "$config" \
+      --target "$target" \
+      "${release_args[@]+"${release_args[@]}"}" \
+      --build-only \
+      --artifact-dir "$site_dir/$target"
+  done <<< "$(target_pairs)"
+}
+
+assemble() {
+  local site_dir="$1" publish_dir="$2" config target
+  local release_args=() force_args=()
+  mkdir -p "$publish_dir"
+  if is_release; then
+    release_vars
+    release_args=(--release "$VERSION")
+    if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "${DOCS_FORCE:-false}" == true ]]; then
+      force_args+=(--force)
+    fi
+  fi
+  while IFS=$'\t' read -r config target; do
+    bash scripts/publish-docs.sh \
+      --config "$config" \
+      --target "$target" \
+      --publish-dir "$publish_dir" \
+      "${release_args[@]+"${release_args[@]}"}" \
+      --assemble-only \
+      --artifact-dir "$site_dir/$target" \
+      "${force_args[@]+"${force_args[@]}"}"
+  done <<< "$(target_pairs)"
 }
 
 case "${1:-}" in
   env) emit_env ;;
   prepare) prepare ;;
   publish) [[ $# -eq 2 ]] || { echo "usage: $0 publish DIR" >&2; exit 2; }; publish "$2" ;;
-  *) echo "usage: $0 env | prepare | publish DIR" >&2; exit 2 ;;
+  build) [[ $# -eq 2 ]] || { echo "usage: $0 build SITE_DIR" >&2; exit 2; }; build "$2" ;;
+  assemble) [[ $# -eq 3 ]] || { echo "usage: $0 assemble SITE_DIR PUBLISH_DIR" >&2; exit 2; }; assemble "$2" "$3" ;;
+  *) echo "usage: $0 env | prepare | publish DIR | build SITE_DIR | assemble SITE_DIR PUBLISH_DIR" >&2; exit 2 ;;
 esac
