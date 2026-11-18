@@ -206,6 +206,28 @@ class DocumentationLinkPreparationTest(unittest.TestCase):
         scopes = {self.project_config(name)["extra"]["scope"] for name in configs}
         self.assertEqual(scopes, {f"{phd.SITE_PATH_PREFIX}/"})
 
+    def test_navigation_trees_agree_across_configs(self):
+        configs = ("zensical.toml", "zensical-unversioned.toml", "zensical-versioned.toml")
+
+        def navigation_shape(items):
+            return tuple(
+                (
+                    label,
+                    navigation_shape(value) if isinstance(value, list) else None,
+                )
+                for item in items
+                for label, value in item.items()
+            )
+
+        shapes = {
+            name: navigation_shape(self.project_config(name)["nav"])
+            for name in configs
+        }
+        expected = shapes[configs[0]]
+        for name in configs[1:]:
+            with self.subTest(config=name):
+                self.assertEqual(shapes[name], expected)
+
     def test_unsupported_link_syntax_does_not_cross_sections(self):
         # The rewriter only handles inline markdown links. Reference-style definitions and
         # raw HTML links would silently break if they point into the other section.
