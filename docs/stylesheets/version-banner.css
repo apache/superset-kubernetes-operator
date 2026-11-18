@@ -26,6 +26,11 @@
 
 .docs-version-switcher .md-version__current {
   top: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
 }
 
 .docs-version-switcher .md-version__list {

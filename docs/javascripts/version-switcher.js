@@ -207,9 +207,9 @@
     nav.className = `md-version ${SWITCHER_CLASS}`;
     nav.setAttribute("aria-label", "Documentation version");
 
-    const toggle = document.createElement("a");
+    const toggle = document.createElement("button");
+    toggle.type = "button";
     toggle.className = "md-version__current";
-    toggle.href = "#";
     toggle.setAttribute("aria-label", "Select documentation version");
     const label = document.createElement("span");
     label.className = `${SWITCHER_CLASS}__label`;
