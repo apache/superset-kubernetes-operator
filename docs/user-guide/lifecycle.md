@@ -534,9 +534,9 @@ Changing a selector's Secret name or key changes the seed task checksum. Updatin
 
 ### Seed Image
 
-The seed pod uses a database-tool image (not the Superset image):
+The seed pod uses a database-tool image (not the Superset image). The source database always has the same type as the metastore (`metastore.type`), which selects the dump and restore tools, the default source port, and the default image:
 
-| Source type | Default image |
+| Metastore type | Default image |
 |---|---|
 | `PostgreSQL` | `postgres:17-alpine` |
 | `MySQL` | `mysql:8.4` |

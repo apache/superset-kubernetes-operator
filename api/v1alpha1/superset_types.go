@@ -643,7 +643,7 @@ type SeedTaskSpec struct {
 	PostSeedSQL []string `json:"postSeedSQL,omitempty"`
 
 	// Image for the seed Job. Defaults to postgres:17-alpine (PostgreSQL)
-	// or mysql:8.4 (MySQL) based on source.type. Partial specs (e.g.,
+	// or mysql:8.4 (MySQL) based on metastore.type. Partial specs (e.g.,
 	// only `tag` set) inherit the type-appropriate default for omitted fields.
 	// +optional
 	Image *ContainerImageSpec `json:"image,omitempty"`
@@ -657,7 +657,8 @@ type SeedTaskSpec struct {
 	PodRetention *PodRetentionSpec `json:"podRetention,omitempty"`
 }
 
-// SeedSourceSpec defines the source database connection for seeding.
+// SeedSourceSpec defines the source database connection for seeding. The
+// source uses the same database type as the target (metastore.type).
 // +kubebuilder:validation:XValidation:rule="has(self.host) != has(self.hostFrom)",message="exactly one of host or hostFrom must be set"
 // +kubebuilder:validation:XValidation:rule="!(has(self.port) && has(self.portFrom))",message="port and portFrom are mutually exclusive"
 // +kubebuilder:validation:XValidation:rule="has(self.database) != has(self.databaseFrom)",message="exactly one of database or databaseFrom must be set"
@@ -665,11 +666,6 @@ type SeedTaskSpec struct {
 // +kubebuilder:validation:XValidation:rule="has(self.password) || has(self.passwordFrom)",message="one of password or passwordFrom must be set"
 // +kubebuilder:validation:XValidation:rule="!has(self.password) || !has(self.passwordFrom)",message="password and passwordFrom are mutually exclusive"
 type SeedSourceSpec struct {
-	// Database type: PostgreSQL (default) or MySQL.
-	// +optional
-	// +kubebuilder:default=PostgreSQL
-	Type *DatabaseType `json:"type,omitempty"`
-
 	// Source database hostname.
 	// Mutually exclusive with hostFrom.
 	// +optional
@@ -681,7 +677,7 @@ type SeedSourceSpec struct {
 	// +optional
 	HostFrom *corev1.SecretKeySelector `json:"hostFrom,omitempty"`
 
-	// Source database port. Defaults to 5432 (postgresql) or 3306 (mysql).
+	// Source database port. Defaults to 5432 (PostgreSQL) or 3306 (MySQL) based on metastore.type.
 	// +optional
 	Port *int32 `json:"port,omitempty"`
 
