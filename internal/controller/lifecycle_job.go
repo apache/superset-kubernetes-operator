@@ -127,7 +127,7 @@ func (r *SupersetReconciler) reconcileLifecycleTaskJob(
 		}
 
 		if !r.taskJobMatchesChecksum(existingJob, taskChecksum) {
-			log.Info("Deleting stale lifecycle task job", "task", taskType, "job", existingJob.Name)
+			log.Info("Deleting stale lifecycle task job", "task", taskType, "name", existingJob.Name)
 			if err := r.deleteLifecycleJob(ctx, superset, existingJob); err != nil {
 				return lifecycleResult{}, err
 			}
@@ -354,9 +354,9 @@ func (r *SupersetReconciler) handleStuckTaskPod(
 // first un-startable one's reason, if any.
 //
 // The label list is only a discovery pre-filter: the
-// superset.apache.org/instance label is forced on lifecycle task pods but can
-// be forged by any pod author in the namespace (e.g. via another Superset
-// CR's component podTemplate.labels). A pod's state is attributed to the task
+// superset.apache.org/instance label is forced on lifecycle task pods, and the
+// operator strips it from Superset pod templates, but any other pod author in
+// the namespace can still set it. A pod's state is attributed to the task
 // only when the pod is controller-owned by that task's Job, so a foreign pod
 // carrying a spoofed label can never pollute this CR's status, conditions, or
 // events.
@@ -478,7 +478,7 @@ func (r *SupersetReconciler) reconcileTaskJobImage(
 	existingImage := lifecycleJobMainImage(existingJob)
 	if existingImage != "" && existingImage != image {
 		log := logf.FromContext(ctx)
-		log.Info("Lifecycle task job image changed, deleting stale job", "task", taskType, "old", existingImage, "new", image)
+		log.Info("Lifecycle task job image changed, deleting stale job", "task", taskType, "from", existingImage, "to", image)
 		if err := r.deleteLifecycleJob(ctx, superset, existingJob); err != nil {
 			return lifecycleResult{}, false, err
 		}

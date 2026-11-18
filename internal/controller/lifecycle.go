@@ -173,7 +173,8 @@ func (r *SupersetReconciler) reconcileLifecycle(
 	parentLifecyclePhase := lifecycleParentPhase(upgradeInProgress)
 
 	// Enforce supervised upgrade approval. A gated change waits for the approval
-	// annotation (which re-triggers reconcile), so no timed requeue is needed.
+	// annotation, whose update re-triggers reconcile; the caller's periodic
+	// requeue is only a fallback.
 	if r.checkUpgradeGates(ctx, superset, imageChanged, lastImage, currentImage) {
 		return lifecycleResult{}, nil
 	}
@@ -455,8 +456,8 @@ func (r *SupersetReconciler) checkUpgradeGates(
 	// not attempt to run them — pinning back to an older image just re-runs the
 	// forward migration. Blocking the change instead strands deployments that
 	// need to pin back after a failed upgrade. The operator runs the migration
-	// on every change and relies on the (optional) pre-upgrade backup as the
-	// safety net.
+	// on every change; users take a database backup before upgrading if they
+	// may need to revert.
 	contextMatches := upgradeContextMatches(superset.Status.Lifecycle.Upgrade, oldTag, newTag, approvalToken)
 
 	if !contextMatches {
@@ -472,7 +473,11 @@ func (r *SupersetReconciler) checkUpgradeGates(
 	if getUpgradeMode(superset) == supersetv1alpha1.UpgradeModeSupervised {
 		annotations := superset.GetAnnotations()
 		if !contextMatches || annotations == nil || annotations[annotationApproveUpgrade] != approvalToken {
-			log.Info("Upgrade awaiting approval")
+			if !hasLifecycleConditionReason(superset, "AwaitingApproval") {
+				log.Info("Upgrade awaiting approval", "name", superset.Name, "from", oldTag, "to", newTag)
+			} else {
+				log.V(1).Info("Upgrade still awaiting approval", "name", superset.Name, "from", oldTag, "to", newTag)
+			}
 			setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
 				metav1.ConditionFalse, "AwaitingApproval",
 				fmt.Sprintf("Upgrade from %s to %s detected. Approve with: kubectl annotate superset %s %s=%s",

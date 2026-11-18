@@ -72,7 +72,7 @@ func deleteIfNotForeignOwned(ctx context.Context, c client.Client, owner client.
 		return client.IgnoreNotFound(err)
 	}
 	if ref := metav1.GetControllerOf(obj); ref != nil && ref.UID != owner.GetUID() {
-		logf.FromContext(ctx).Info("Skipping cleanup of resource controller-owned by a foreign owner",
+		logf.FromContext(ctx).V(1).Info("Skipping cleanup of resource controller-owned by a foreign owner",
 			"name", obj.GetName(), "namespace", obj.GetNamespace(),
 			"ownerKind", ref.Kind, "ownerName", ref.Name)
 		return nil
