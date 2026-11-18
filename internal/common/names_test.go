@@ -117,19 +117,18 @@ func TestComponentLabels(t *testing.T) {
 	tests := []struct {
 		name      string // also the expected app.kubernetes.io/component value
 		component ComponentType
-		instance  string
 	}{
-		{"web-server", ComponentWebServer, "my-superset"},
-		{"celery-worker", ComponentCeleryWorker, "my-superset"},
-		{"celery-beat", ComponentCeleryBeat, "my-superset"},
-		{"celery-flower", ComponentCeleryFlower, "my-superset"},
-		{"websocket-server", ComponentWebsocketServer, "my-superset"},
-		{"mcp-server", ComponentMcpServer, "my-superset"},
+		{"web-server", ComponentWebServer},
+		{"celery-worker", ComponentCeleryWorker},
+		{"celery-beat", ComponentCeleryBeat},
+		{"celery-flower", ComponentCeleryFlower},
+		{"websocket-server", ComponentWebsocketServer},
+		{"mcp-server", ComponentMcpServer},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			labels := ComponentLabels(tt.component, tt.instance)
+			labels := ComponentLabels(tt.component, "my-superset")
 
 			// Verify all 3 label keys are present.
 			if len(labels) != 3 {
@@ -142,8 +141,8 @@ func TestComponentLabels(t *testing.T) {
 			if got := labels["app.kubernetes.io/component"]; got != tt.name {
 				t.Errorf("expected app.kubernetes.io/component=%s, got %s", tt.name, got)
 			}
-			if got := labels["app.kubernetes.io/instance"]; got != tt.instance {
-				t.Errorf("expected app.kubernetes.io/instance=%s, got %s", tt.instance, got)
+			if got := labels["app.kubernetes.io/instance"]; got != "my-superset" {
+				t.Errorf("expected app.kubernetes.io/instance=my-superset, got %s", got)
 			}
 		})
 	}

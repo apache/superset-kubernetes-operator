@@ -36,7 +36,6 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
-	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
 func TestWebServerServiceRef(t *testing.T) {
@@ -44,7 +43,6 @@ func TestWebServerServiceRef(t *testing.T) {
 	tests := []struct {
 		name     string
 		superset *supersetv1alpha1.Superset
-		wantName string
 		wantPort int32
 	}{
 		{
@@ -53,7 +51,7 @@ func TestWebServerServiceRef(t *testing.T) {
 				Name: "my-superset",
 				Spec: supersetv1alpha1.SupersetSpec{WebServer: &supersetv1alpha1.WebServerComponentSpec{}},
 			},
-			"my-superset-web-server", common.PortWebServer,
+			8088,
 		},
 		{
 			"custom port",
@@ -63,7 +61,7 @@ func TestWebServerServiceRef(t *testing.T) {
 					Service: &supersetv1alpha1.ComponentServiceSpec{Port: &customPort},
 				}},
 			},
-			"my-superset-web-server", 9090,
+			9090,
 		},
 		{
 			"nil webServer",
@@ -71,15 +69,15 @@ func TestWebServerServiceRef(t *testing.T) {
 				Name: "my-superset",
 				Spec: supersetv1alpha1.SupersetSpec{},
 			},
-			"my-superset-web-server", common.PortWebServer,
+			8088,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			name, port := webServerServiceRef(tt.superset)
-			if name != tt.wantName {
-				t.Errorf("expected name %s, got %s", tt.wantName, name)
+			if name != "my-superset-web-server" {
+				t.Errorf("expected name my-superset-web-server, got %s", name)
 			}
 			if port != tt.wantPort {
 				t.Errorf("expected port %d, got %d", tt.wantPort, port)
@@ -459,18 +457,17 @@ func TestReconcileHTTPRoute_CustomGatewayPaths(t *testing.T) {
 func TestResolveGatewayPath(t *testing.T) {
 	custom := "/custom"
 	tests := []struct {
-		name        string
-		svc         *supersetv1alpha1.ComponentServiceSpec
-		defaultPath string
-		want        string
+		name string
+		svc  *supersetv1alpha1.ComponentServiceSpec
+		want string
 	}{
-		{"nil service", nil, "/ws", "/ws"},
-		{"nil gatewayPath", &supersetv1alpha1.ComponentServiceSpec{}, "/ws", "/ws"},
-		{"custom path", &supersetv1alpha1.ComponentServiceSpec{GatewayPath: &custom}, "/ws", "/custom"},
+		{"nil service", nil, "/ws"},
+		{"nil gatewayPath", &supersetv1alpha1.ComponentServiceSpec{}, "/ws"},
+		{"custom path", &supersetv1alpha1.ComponentServiceSpec{GatewayPath: &custom}, "/custom"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := resolveGatewayPath(tt.svc, tt.defaultPath)
+			got := resolveGatewayPath(tt.svc, "/ws")
 			if got != tt.want {
 				t.Errorf("resolveGatewayPath() = %s, want %s", got, tt.want)
 			}
@@ -896,18 +893,17 @@ func TestDeleteByLabels_SkipsUnlabeledResource(t *testing.T) {
 func TestResolveServicePort(t *testing.T) {
 	custom := int32(9000)
 	tests := []struct {
-		name        string
-		svc         *supersetv1alpha1.ComponentServiceSpec
-		defaultPort int32
-		want        gatewayv1.PortNumber
+		name string
+		svc  *supersetv1alpha1.ComponentServiceSpec
+		want gatewayv1.PortNumber
 	}{
-		{"nil service", nil, 8088, 8088},
-		{"nil port", &supersetv1alpha1.ComponentServiceSpec{}, 8088, 8088},
-		{"custom port", &supersetv1alpha1.ComponentServiceSpec{Port: &custom}, 8088, 9000},
+		{"nil service", nil, 8088},
+		{"nil port", &supersetv1alpha1.ComponentServiceSpec{}, 8088},
+		{"custom port", &supersetv1alpha1.ComponentServiceSpec{Port: &custom}, 9000},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := resolveServicePort(tt.svc, tt.defaultPort)
+			got := resolveServicePort(tt.svc, 8088)
 			if got != tt.want {
 				t.Errorf("resolveServicePort() = %d, want %d", got, tt.want)
 			}
