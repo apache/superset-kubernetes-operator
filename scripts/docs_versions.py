@@ -59,6 +59,8 @@ import posixpath
 import re
 import shutil
 import sys
+import tempfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from prepare_docs_links import SHARED_PAGES, SITE_PATH_PREFIX
@@ -109,9 +111,38 @@ def load_manifest(publish_dir: Path) -> list[dict]:
         raise DocsVersionError(f"{path} is not valid JSON: {exc}") from exc
     if not isinstance(data, list):
         raise DocsVersionError(f"{path} must contain a JSON array")
+    seen_versions: set[str] = set()
+    latest_count = 0
     for index, entry in enumerate(data):
         if not isinstance(entry, dict) or not isinstance(entry.get("version"), str):
             raise DocsVersionError(f"{path} entry {index} must be an object with a string 'version'")
+        version = entry["version"]
+        if version != MAIN and not MINOR_RE.fullmatch(version):
+            raise DocsVersionError(f"{path} entry {index} has invalid version {version!r}")
+        if version in seen_versions:
+            raise DocsVersionError(f"{path} contains duplicate version {version!r}")
+        seen_versions.add(version)
+
+        if not isinstance(entry.get("title"), str):
+            raise DocsVersionError(f"{path} entry {index} must have a string 'title'")
+        aliases = entry.get("aliases")
+        if not isinstance(aliases, list) or any(not isinstance(alias, str) for alias in aliases):
+            raise DocsVersionError(f"{path} entry {index} must have an array of string 'aliases'")
+        if len(aliases) != len(set(aliases)) or any(alias != LATEST for alias in aliases):
+            raise DocsVersionError(f"{path} entry {index} has invalid aliases; only unique 'latest' is supported")
+        latest_count += aliases.count(LATEST)
+
+        if "release" in entry:
+            release = entry["release"]
+            if version == MAIN or not isinstance(release, str) or not FINAL_RELEASE_RE.fullmatch(release):
+                raise DocsVersionError(f"{path} entry {index} has invalid 'release' for version {version!r}")
+            if release.rsplit(".", 1)[0] != version:
+                raise DocsVersionError(f"{path} entry {index} release {release!r} does not belong to {version}")
+
+    if data and MAIN not in seen_versions:
+        raise DocsVersionError(f"{path} must contain the 'main' version entry")
+    if latest_count > 1:
+        raise DocsVersionError(f"{path} may assign the 'latest' alias to only one version")
     return data
 
 
@@ -147,6 +178,76 @@ def build_manifest(entries: list[dict], target: str, release: str | None = None)
 
 def write_manifest(publish_dir: Path, entries: list[dict]) -> None:
     (publish_dir / MANIFEST).write_text(json.dumps(entries, indent=2) + "\n", encoding="utf-8")
+
+
+def write_sitemap_index(publish_dir: Path, entries: list[dict], *, root_build: bool = False) -> None:
+    """Preserve the shared-page sitemap and index it with each published version map."""
+    root_map = publish_dir / "sitemap-root.xml"
+    generated_map = publish_dir / "sitemap.xml"
+    if root_build and generated_map.is_file():
+        try:
+            generated_root = ET.parse(generated_map).getroot()
+        except ET.ParseError:
+            generated_root = None
+        if generated_root is not None and generated_root.tag.rsplit("}", 1)[-1] == "urlset":
+            generated_map.replace(root_map)
+    if not root_map.is_file():
+        return
+
+    namespace = "http://www.sitemaps.org/schemas/sitemap/0.9"
+    ET.register_namespace("", namespace)
+    index = ET.Element(f"{{{namespace}}}sitemapindex")
+    sitemap_paths = ["sitemap-root.xml"]
+    sitemap_paths.extend(
+        f"{entry['version']}/sitemap.xml"
+        for entry in entries
+        if (entry["version"] == MAIN or MINOR_RE.fullmatch(entry["version"]))
+        and (publish_dir / entry["version"] / "sitemap.xml").is_file()
+    )
+    for path in sitemap_paths:
+        sitemap = ET.SubElement(index, f"{{{namespace}}}sitemap")
+        location = ET.SubElement(sitemap, f"{{{namespace}}}loc")
+        location.text = f"https://apache.github.io{SITE_PATH_PREFIX}/{path}"
+    content = ET.tostring(index, encoding="unicode")
+    write_text_atomic(
+        publish_dir / "sitemap.xml",
+        '<?xml version="1.0" encoding="utf-8"?>\n' + content + "\n",
+    )
+
+
+def write_sitemap_index(publish_dir: Path, entries: list[dict], *, root_build: bool = False) -> None:
+    """Preserve the shared-page sitemap and index it with each published version map."""
+    root_map = publish_dir / "sitemap-root.xml"
+    generated_map = publish_dir / "sitemap.xml"
+    if root_build and generated_map.is_file():
+        try:
+            generated_root = ET.parse(generated_map).getroot()
+        except ET.ParseError:
+            generated_root = None
+        if generated_root is not None and generated_root.tag.rsplit("}", 1)[-1] == "urlset":
+            generated_map.replace(root_map)
+    if not root_map.is_file():
+        return
+
+    namespace = "http://www.sitemaps.org/schemas/sitemap/0.9"
+    ET.register_namespace("", namespace)
+    index = ET.Element(f"{{{namespace}}}sitemapindex")
+    sitemap_paths = ["sitemap-root.xml"]
+    sitemap_paths.extend(
+        f"{entry['version']}/sitemap.xml"
+        for entry in entries
+        if (entry["version"] == MAIN or MINOR_RE.fullmatch(entry["version"]))
+        and (publish_dir / entry["version"] / "sitemap.xml").is_file()
+    )
+    for path in sitemap_paths:
+        sitemap = ET.SubElement(index, f"{{{namespace}}}sitemap")
+        location = ET.SubElement(sitemap, f"{{{namespace}}}loc")
+        location.text = f"https://apache.github.io{SITE_PATH_PREFIX}/{path}"
+    content = ET.tostring(index, encoding="unicode")
+    write_text_atomic(
+        publish_dir / "sitemap.xml",
+        '<?xml version="1.0" encoding="utf-8"?>\n' + content + "\n",
+    )
 
 
 def latest_version(entries: list[dict]) -> str | None:
@@ -278,7 +379,12 @@ def cmd_finalize(args: argparse.Namespace) -> None:
     publish_dir: Path = args.publish_dir
 
     if args.target == ROOT:
-        latest = latest_version(load_manifest(publish_dir))
+        entries = load_manifest(publish_dir)
+        write_sitemap_index(publish_dir, entries, root_build=True)
+        latest = latest_version(entries)
+        search_outputs = prepare_combined_search_indexes(
+            publish_dir, entries, latest, require_root=latest is not None
+        )
         if latest and (publish_dir / LATEST).is_dir():
             legacy_pages = write_legacy_redirects(publish_dir)
             print(f"==> root legacy URLs -> latest ({legacy_pages} redirect pages)")
@@ -292,7 +398,7 @@ def cmd_finalize(args: argparse.Namespace) -> None:
     write_version_landing(publish_dir, args.target)
     entries = build_manifest(load_manifest(publish_dir), args.target, args.release)
     write_manifest(publish_dir, entries)
-    latest = latest_version(entries)
+    write_sitemap_index(publish_dir, entries)
     if latest and (publish_dir / latest).is_dir():
         pages = write_latest_redirects(publish_dir, latest)
         print(f"==> latest -> {latest} ({pages} redirect pages)")

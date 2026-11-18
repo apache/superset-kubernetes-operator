@@ -148,10 +148,54 @@ class DocsVersionsTest(unittest.TestCase):
     def test_load_manifest_rejects_malformed_entries(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / dv.MANIFEST).write_text(json.dumps([{"version": "0.3"}, None]))
+            (root / dv.MANIFEST).write_text(
+                json.dumps([{"version": "0.3", "title": "0.3", "aliases": []}, None])
+            )
 
             with self.assertRaisesRegex(dv.DocsVersionError, "entry 1"):
                 dv.load_manifest(root)
+
+    def test_load_manifest_rejects_invalid_fields_and_duplicate_versions(self):
+        invalid_manifests = [
+            ([{"version": "0.3", "title": "0.3", "aliases": None}], "aliases"),
+            (
+                [
+                    {"version": "0.3", "title": "0.3", "aliases": ["latest"]},
+                    {"version": "0.4", "title": "0.4", "aliases": ["latest"]},
+                    {"version": "main", "title": "main", "aliases": []},
+                ],
+                "only one version",
+            ),
+            (
+                [
+                    {"version": "0.3", "title": "0.3", "aliases": [], "release": "0.4.0"},
+                    {"version": "main", "title": "main", "aliases": []},
+                ],
+                "does not belong",
+            ),
+            (
+                [
+                    {"version": "0.3", "title": "0.3", "aliases": [], "release": None},
+                    {"version": "main", "title": "main", "aliases": []},
+                ],
+                "invalid 'release'",
+            ),
+            (
+                [
+                    {"version": "0.3", "title": "0.3", "aliases": []},
+                    {"version": "0.3", "title": "duplicate", "aliases": []},
+                ],
+                "duplicate version",
+            ),
+            ([{"version": "0.3", "title": "0.3", "aliases": []}], "main.*entry"),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for manifest, message in invalid_manifests:
+                with self.subTest(message=message):
+                    (root / dv.MANIFEST).write_text(json.dumps(manifest))
+                    with self.assertRaisesRegex(dv.DocsVersionError, message):
+                        dv.load_manifest(root)
 
 
 class DocumentationLinkPreparationTest(unittest.TestCase):
