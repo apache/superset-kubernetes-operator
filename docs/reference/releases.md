@@ -44,6 +44,7 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 
 - **User-managed HPAs and PDBs are no longer deleted.** The operator used to delete an unowned HPA or PDB named after a component Deployment, such as one created with `kubectl autoscale`, whenever that component had no `autoscaling` or `podDisruptionBudget` and again on every lifecycle drain. Component cleanup now finds resources by the operator's labels, and by name only for resources the Superset owns ([#507](https://github.com/apache/superset-kubernetes-operator/pull/507), [@villebro](https://github.com/villebro)).
 - At the default log level, the operator no longer repeats drain progress, "upgrade awaiting approval", env var override warnings, or foreign-owner cleanup skips on every reconcile. These messages are logged once when the state changes, or at debug level ([#528](https://github.com/apache/superset-kubernetes-operator/pull/528), [@villebro](https://github.com/villebro)).
+- Setting `webServer.gunicorn.workerClass` to a class other than `gthread` (for example `sync` or `gevent`) without setting `threads` no longer runs the web server as gthread. The preset's thread count used to apply anyway, and Gunicorn switches to gthread whenever threads is greater than 1. Such web servers now use 1 thread and roll once on upgrade; set `threads` explicitly to keep the old behavior ([#522](https://github.com/apache/superset-kubernetes-operator/pull/522), [@villebro](https://github.com/villebro)).
 
 ### Removed
 
