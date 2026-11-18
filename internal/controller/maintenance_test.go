@@ -554,11 +554,14 @@ func TestReconcileMaintenancePageUp(t *testing.T) {
 	require.NoError(t, c.Get(ctx, client.ObjectKey{Name: maintenanceConfigMapName("test"), Namespace: "default"}, cm))
 	assert.Contains(t, cm.Data, "index.html")
 	assert.Contains(t, cm.Data, "nginx.conf")
+	assert.Equal(t, "test", cm.Labels["superset.apache.org/parent"])
+	assert.Equal(t, "maintenance-page", cm.Labels["app.kubernetes.io/component"])
 
 	// Deployment created and parent-owned.
 	deploy := &appsv1.Deployment{}
 	require.NoError(t, c.Get(ctx, client.ObjectKey{Name: maintenanceDeploymentName("test"), Namespace: "default"}, deploy))
 	assert.True(t, isOwnedBy(deploy, superset))
+	assert.Equal(t, "test", deploy.Labels["superset.apache.org/parent"])
 
 	// Mark the Deployment ready, then the page is up and MaintenanceActive flips.
 	deploy.Status.ReadyReplicas = 1
