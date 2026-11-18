@@ -231,7 +231,7 @@ git push upstream v0.2.0
 
 The release workflow pushes the `0.2.0` and `latest` images to GHCR.
 
-After the final tag is pushed, open a PR against `main` (the docs site builds from `main`) that carries the release's changelog section with the final date. For the first RC of a minor release the reviewed `## <version>` section was committed on the release branch only, so cherry-pick that commit onto `main` and change the heading to `## <version> - <date>`. Entries that reached `main`'s `## Unreleased` after the release branch was cut belong to the next release: keep them under `## Unreleased` when resolving the cherry-pick conflict, and confirm the `## <version>` section body matches the release branch exactly:
+After the final tag is pushed, open a PR against `main` (the Releases page is part of the unversioned docs, which are built from `main`) that carries the release's changelog section with the final date. For the first RC of a minor release the reviewed `## <version>` section was committed on the release branch only, so cherry-pick that commit onto `main` and change the heading to `## <version> - <date>`. Entries that reached `main`'s `## Unreleased` after the release branch was cut belong to the next release: keep them under `## Unreleased` when resolving the cherry-pick conflict, and confirm the `## <version>` section body matches the release branch exactly:
 
 ```sh
 section() { awk '/^## 0\.2\.0/{f=1;next} /^## /{f=0} f'; }

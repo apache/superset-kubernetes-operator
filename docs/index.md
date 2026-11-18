@@ -36,7 +36,7 @@ The operator manages the full Superset lifecycle: database migrations, configura
 - **Lifecycle automation** — database seeding, schema migrations, secret key rotation, and application init run as sequenced tasks with automatic change detection and checksum-based re-execution
 - **Networking** — Gateway API (HTTPRoute) and Ingress support with per-component routing
 - **Scaling and resilience** — HPA with custom metrics, PodDisruptionBudgets, NetworkPolicies, Prometheus ServiceMonitor
-- **Flexible install scope** — cluster-scoped (default) or namespace-scoped; the namespace-scoped Helm install renders no manager `ClusterRole`. CRD installation and, unless metrics are disabled, secure metrics auth still require cluster-scoped RBAC — see [installation](user-guide/installation.md#namespace-scoped-install) for the exact constraints
+- **Flexible install scope** — cluster-scoped (default) or namespace-scoped installs; see [installation](user-guide/installation.md#namespace-scoped-install)
 
 ## Supported Kubernetes versions
 
@@ -58,7 +58,7 @@ metadata:
   name: my-superset
 spec:
   image:
-    tag: "6.1.0"
+    tag: "6.1.0-dev"
   environment: Development
   secretKey: thisIsNotSecure_changeInProduction!
   metastore:
@@ -78,7 +78,7 @@ spec:
       loadExamples: true
 ```
 
-For production, use `secretKeyFrom` and `metastore.uriFrom` to reference Kubernetes Secrets instead of inline values:
+For production, use `secretKeyFrom` and `metastore.uriFrom` to reference Kubernetes Secrets instead of inline values. The lean `6.1.0` image has no database drivers, so use an image that includes the driver for your metastore (see [Metastore](user-guide/configuration.md#metastore)):
 
 ```yaml
 apiVersion: superset.apache.org/v1alpha1
