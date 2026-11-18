@@ -182,8 +182,11 @@ jobs:
           echo "digest=${DIGEST}" >> "${GITHUB_OUTPUT}"
 
       - name: Push Artifact Hub repository metadata
+        env:
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | oras login ghcr.io --username "${{ github.actor }}" --password-stdin
+          echo "${REGISTRY_TOKEN}" | oras login ghcr.io --username "${REGISTRY_USER}" --password-stdin
           oras push ghcr.io/apache/superset-kubernetes-operator/charts/superset-operator:artifacthub.io \
             --config /dev/null:application/vnd.cncf.artifacthub.config.v1+yaml \
             charts/superset-operator/artifacthub-repo.yml:application/vnd.cncf.artifacthub.repository-metadata.layer.v1.yaml
