@@ -83,13 +83,14 @@ var renderConfigComponents = []ComponentType{
 // arbitrary user-controlled string fields. It asserts that rendering never
 // panics and is deterministic (identical input yields byte-identical output).
 func FuzzRenderConfig(f *testing.F) {
-	f.Add("FEATURE_FLAGS = {}", "WEBSERVER_THREADS = 16", "PostgreSQL", "psycopg2", "ALERT_REPORTS", true, "superset_", uint8(2), true)
-	f.Add("", "", "MySQL", "", "", false, "", uint8(0), false)
-	f.Add(`x = "quoted \n value"`, "", "MySQL", "mysqldb", "DASHBOARD_RBAC", false, `pre"fix`, uint8(1), true)
+	f.Add("FEATURE_FLAGS = {}", "WEBSERVER_THREADS = 16", "PostgreSQL", "psycopg2", "ALERT_REPORTS", true, "superset_", uint8(2), true, "wss://superset.example.com/ws")
+	f.Add("", "", "MySQL", "", "", false, "", uint8(0), false, "")
+	f.Add(`x = "quoted \n value"`, "", "MySQL", "mysqldb", "DASHBOARD_RBAC", false, `pre"fix`, uint8(1), true, `/ws"{x}`)
+	f.Add("", "", "PostgreSQL", "", "", false, "superset_", uint8(4|2<<3), true, "my\"master")
 
 	f.Fuzz(func(t *testing.T,
 		config, componentConfig, dbType, dbDriver, flagKey string,
-		flagVal bool, keyPrefix string, modeSel uint8, withValkey bool,
+		flagVal bool, keyPrefix string, modeSel uint8, withValkey bool, realtime string,
 	) {
 		input := &ConfigInput{
 			MetastoreMode:   MetastoreMode(int(modeSel) % 3),
@@ -103,10 +104,21 @@ func FuzzRenderConfig(f *testing.F) {
 		}
 		if withValkey {
 			input.Valkey = &ValkeyInput{
-				Cache:          ValkeyCacheInput{KeyPrefix: keyPrefix},
-				DataCache:      ValkeyCacheInput{KeyPrefix: keyPrefix},
-				ResultsBackend: ValkeyResultsInput{KeyPrefix: keyPrefix},
+				Cache:                   ValkeyCacheInput{KeyPrefix: keyPrefix},
+				DataCache:               ValkeyCacheInput{KeyPrefix: keyPrefix},
+				DistributedCoordination: ValkeyCacheInput{KeyPrefix: keyPrefix},
+				ResultsBackend:          ValkeyResultsInput{KeyPrefix: keyPrefix},
 			}
+			// Sentinel mode renders the master name and one entry per node.
+			if modeSel&4 != 0 {
+				input.Valkey.Sentinel = &ValkeySentinelInput{MasterName: realtime, Nodes: int(modeSel>>3) % 4}
+			}
+			// Realtime requires Valkey; drive its user-controlled strings too.
+			input.AsyncQueriesEnabled = true
+			input.WebSocketEnabled = true
+			input.WebSocketURL = realtime
+			input.WebSocketCookieName = realtime
+			input.BaseURL = realtime
 		}
 
 		for _, ct := range renderConfigComponents {

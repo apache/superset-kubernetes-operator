@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
 	"regexp"
 	"slices"
@@ -49,37 +50,43 @@ import (
 // as container env vars.
 //
 // Development mode is the strict case to test: inline secrets are permitted, so
-// the sentinel values are actually present in the spec and *could* leak if a
+// the marker values are actually present in the spec and *could* leak if a
 // future change rendered them into superset_config.py instead of referencing
 // the env var. Each case drives the lifecycle pipeline to completion so the
-// task ConfigMaps are rendered alongside the component ones. websocketServer is
-// deliberately excluded — its inline config is written to a ConfigMap by design
-// (the documented dev-only exception), so it would invalidate this invariant.
-// See TestReconcile_WebsocketInlineConfig*.
+// task ConfigMaps are rendered alongside the component ones. The realtime cases
+// include the websocket JWT secret, which reaches both the app and the Node.js
+// websocket server through env vars only. Valkey connects either to a fixed host
+// or through Sentinel, which are mutually exclusive, so each mode runs
+// separately; Sentinel adds its own password.
 func TestReconcile_SecretsNeverLeakIntoConfigMaps(t *testing.T) {
-	t.Run("structured metastore with all lifecycle tasks", func(t *testing.T) {
-		// Distinctive sentinels unlikely to collide with any non-secret config text.
-		const (
-			sentinelSecretKey = "SENTINEL0SECRET0KEY"
-			sentinelPrevKey   = "SENTINEL0PREVIOUS0KEY"
-			sentinelDBPass    = "SENTINEL0DATABASE0PASSWORD"
-			sentinelValkey    = "SENTINEL0VALKEY0PASSWORD"
-			sentinelSeedPass  = "SENTINEL0SEED0SOURCE0PASSWORD"
-			sentinelAdminPass = "SENTINEL0ADMIN0PASSWORD"
-		)
-		sentinels := []string{sentinelSecretKey, sentinelPrevKey, sentinelDBPass, sentinelValkey, sentinelSeedPass, sentinelAdminPass}
+	// Distinctive markers unlikely to collide with any non-secret config text.
+	const (
+		markerSecretKey    = "MARKER0SECRET0KEY"
+		markerPrevKey      = "MARKER0PREVIOUS0KEY"
+		markerDBPass       = "MARKER0DATABASE0PASSWORD"
+		markerValkey       = "MARKER0VALKEY0PASSWORD"
+		markerSentinelPass = "MARKER0VALKEY0SENTINEL0PASSWORD"
+		markerWSJWT        = "MARKER0WEBSOCKET0JWT0SECRET"
+	)
 
-		spec := devLeakTestSpec(sentinelSecretKey)
-		spec.PreviousSecretKey = new(sentinelPrevKey)
+	t.Run("structured metastore with all lifecycle tasks", func(t *testing.T) {
+		const (
+			markerSeedPass  = "MARKER0SEED0SOURCE0PASSWORD"
+			markerAdminPass = "MARKER0ADMIN0PASSWORD"
+		)
+		markers := []string{markerSecretKey, markerPrevKey, markerDBPass, markerValkey, markerSeedPass, markerAdminPass}
+
+		spec := devLeakTestSpec(markerSecretKey)
+		spec.PreviousSecretKey = new(markerPrevKey)
 		spec.Metastore = &supersetv1alpha1.MetastoreSpec{
 			Host:     new("postgres"),
 			Database: new("superset"),
 			Username: new("superset"),
-			Password: new(sentinelDBPass),
+			Password: new(markerDBPass),
 		}
 		spec.Valkey = &supersetv1alpha1.ValkeySpec{
 			Host:     "valkey",
-			Password: new(sentinelValkey),
+			Password: new(markerValkey),
 		}
 		spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 			Seed: &supersetv1alpha1.SeedTaskSpec{
@@ -87,12 +94,12 @@ func TestReconcile_SecretsNeverLeakIntoConfigMaps(t *testing.T) {
 					Host:     "source-postgres",
 					Database: "superset_src",
 					Username: "reader",
-					Password: new(sentinelSeedPass),
+					Password: new(markerSeedPass),
 				},
 			},
 			Rotate: &supersetv1alpha1.RotateTaskSpec{},
 			Init: &supersetv1alpha1.InitTaskSpec{
-				AdminUser: &supersetv1alpha1.AdminUserSpec{Password: new(sentinelAdminPass)},
+				AdminUser: &supersetv1alpha1.AdminUserSpec{Password: new(markerAdminPass)},
 			},
 		}
 
@@ -106,7 +113,7 @@ func TestReconcile_SecretsNeverLeakIntoConfigMaps(t *testing.T) {
 				t.Errorf("expected %s task state Complete, got %q", task, ref.State)
 			}
 		}
-		assertNoSentinelLeak(t, c, superset, recorded, sentinels,
+		assertNoMarkerLeak(t, c, superset, recorded, markers,
 			[]string{"test-web-server-config", "test-migrate-config", "test-rotate-config", "test-init-config"})
 
 		// Positive control: the rendered config references the secrets via env
@@ -124,9 +131,9 @@ func TestReconcile_SecretsNeverLeakIntoConfigMaps(t *testing.T) {
 		// them — not the ConfigMap.
 		env := deploymentEnv(t, c, "test-web-server")
 		for name, want := range map[string]string{
-			"SUPERSET_OPERATOR__SECRET_KEY":  sentinelSecretKey,
-			"SUPERSET_OPERATOR__DB_PASS":     sentinelDBPass,
-			"SUPERSET_OPERATOR__VALKEY_PASS": sentinelValkey,
+			"SUPERSET_OPERATOR__SECRET_KEY":  markerSecretKey,
+			"SUPERSET_OPERATOR__DB_PASS":     markerDBPass,
+			"SUPERSET_OPERATOR__VALKEY_PASS": markerValkey,
 		} {
 			if got := env[name].Value; got != want {
 				t.Errorf("expected %s env Value %q, got %q", name, want, got)
@@ -135,29 +142,107 @@ func TestReconcile_SecretsNeverLeakIntoConfigMaps(t *testing.T) {
 	})
 
 	t.Run("passthrough metastore uri", func(t *testing.T) {
-		const (
-			sentinelSecretKey = "SENTINEL0SECRET0KEY"
-			sentinelURIPass   = "SENTINEL0URI0PASSWORD"
-		)
-		sentinelURI := "postgresql+psycopg2://superset:" + sentinelURIPass + "@postgres:5432/superset"
+		const markerURIPass = "MARKER0URI0PASSWORD"
+		markerURI := "postgresql+psycopg2://superset:" + markerURIPass + "@postgres:5432/superset"
 
-		spec := devLeakTestSpec(sentinelSecretKey)
-		spec.Metastore = &supersetv1alpha1.MetastoreSpec{URI: new(sentinelURI)}
+		spec := devLeakTestSpec(markerSecretKey)
+		spec.Metastore = &supersetv1alpha1.MetastoreSpec{URI: new(markerURI)}
 		spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{}
 
 		c, superset, recorded := reconcileLeakTestToCompletion(t, spec)
-		assertNoSentinelLeak(t, c, superset, recorded,
-			[]string{sentinelSecretKey, sentinelURIPass},
+		assertNoMarkerLeak(t, c, superset, recorded,
+			[]string{markerSecretKey, markerURIPass},
 			[]string{"test-web-server-config", "test-migrate-config", "test-init-config"})
 
 		assertConfigReferencesEnv(t, c, "test-web-server-config", "SUPERSET_OPERATOR__DB_URI")
 		assertConfigReferencesEnv(t, c, "test-migrate-config", "SUPERSET_OPERATOR__DB_URI")
 
 		env := deploymentEnv(t, c, "test-web-server")
-		if got := env["SUPERSET_OPERATOR__DB_URI"].Value; got != sentinelURI {
-			t.Errorf("expected SUPERSET_OPERATOR__DB_URI env Value %q, got %q", sentinelURI, got)
+		if got := env["SUPERSET_OPERATOR__DB_URI"].Value; got != markerURI {
+			t.Errorf("expected SUPERSET_OPERATOR__DB_URI env Value %q, got %q", markerURI, got)
 		}
 	})
+
+	realtimeCases := []struct {
+		name   string
+		valkey *supersetv1alpha1.ValkeySpec
+		// Markers and env vars carried in addition to those both modes share.
+		markers   []string
+		pyEnvVars []string
+		webEnv    map[string]string
+		wsEnv     map[string]string
+	}{
+		{
+			name:   "realtime websocket with valkey host",
+			valkey: &supersetv1alpha1.ValkeySpec{Host: "valkey", Password: new(markerValkey)},
+		},
+		{
+			name: "realtime websocket with valkey sentinel",
+			valkey: &supersetv1alpha1.ValkeySpec{
+				Password: new(markerValkey),
+				Sentinel: &supersetv1alpha1.ValkeySentinelSpec{
+					MasterName: "mymaster",
+					Nodes:      []supersetv1alpha1.ValkeySentinelNode{{Host: "sentinel-0"}},
+					Password:   new(markerSentinelPass),
+				},
+			},
+			markers:   []string{markerSentinelPass},
+			pyEnvVars: []string{"SUPERSET_OPERATOR__VALKEY_SENTINEL_PASS"},
+			webEnv:    map[string]string{"SUPERSET_OPERATOR__VALKEY_SENTINEL_PASS": markerSentinelPass},
+			wsEnv:     map[string]string{"REDIS_SENTINEL_PASSWORD": markerSentinelPass},
+		},
+	}
+	for _, tt := range realtimeCases {
+		t.Run(tt.name, func(t *testing.T) {
+			markers := append([]string{markerSecretKey, markerPrevKey, markerDBPass, markerValkey, markerWSJWT}, tt.markers...)
+
+			spec := devLeakTestSpec(markerSecretKey)
+			spec.PreviousSecretKey = new(markerPrevKey)
+			spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+				Host:     new("postgres"),
+				Database: new("superset"),
+				Username: new("superset"),
+				Password: new(markerDBPass),
+			}
+			spec.Valkey = tt.valkey
+			spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
+			spec.Realtime = &supersetv1alpha1.RealtimeSpec{
+				WebSocket: &supersetv1alpha1.WebSocketTransportSpec{JWTSecret: new(markerWSJWT), URL: new("ws://superset.example.com/ws")},
+			}
+			spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{}
+
+			c, superset, recorded := reconcileLeakTestToCompletion(t, spec)
+			assertNoMarkerLeak(t, c, superset, recorded, markers, []string{"test-web-server-config"})
+
+			// Positive control: the rendered config references the secrets via env
+			// vars, so a regression that dropped them cannot pass vacuously.
+			pyEnvVars := append([]string{
+				"SUPERSET_OPERATOR__SECRET_KEY", "SUPERSET_OPERATOR__PREVIOUS_SECRET_KEY",
+				"SUPERSET_OPERATOR__DB_PASS", "SUPERSET_OPERATOR__VALKEY_PASS", "SUPERSET_OPERATOR__WS_JWT_SECRET",
+			}, tt.pyEnvVars...)
+			assertConfigReferencesEnv(t, c, "test-web-server-config", pyEnvVars...)
+
+			// Cross-check: the secrets DO flow through the pod environment of both
+			// the app and the Node.js websocket server.
+			webEnv := map[string]string{
+				"SUPERSET_OPERATOR__SECRET_KEY":    markerSecretKey,
+				"SUPERSET_OPERATOR__DB_PASS":       markerDBPass,
+				"SUPERSET_OPERATOR__VALKEY_PASS":   markerValkey,
+				"SUPERSET_OPERATOR__WS_JWT_SECRET": markerWSJWT,
+			}
+			maps.Copy(webEnv, tt.webEnv)
+			wsEnv := map[string]string{"JWT_SECRET": markerWSJWT}
+			maps.Copy(wsEnv, tt.wsEnv)
+			for deployment, want := range map[string]map[string]string{"test-web-server": webEnv, "test-websocket-server": wsEnv} {
+				env := deploymentEnv(t, c, deployment)
+				for name, value := range want {
+					if got := env[name].Value; got != value {
+						t.Errorf("Deployment %s: expected %s env Value %q, got %q", deployment, name, value, got)
+					}
+				}
+			}
+		})
+	}
 }
 
 // TestReconcile_ProductionSecretRefsUseSecretKeyRef guards the Staging/Production
@@ -285,10 +370,10 @@ func reconcileLeakTestToCompletion(t *testing.T, spec supersetv1alpha1.SupersetS
 	return c, got, recorded
 }
 
-// assertNoSentinelLeak fails if any sentinel appears in an owned ConfigMap, the
+// assertNoMarkerLeak fails if any marker appears in an owned ConfigMap, the
 // JSON-marshalled parent status, or a recorded Event. wantConfigMaps names
 // ConfigMaps that must exist so the ConfigMap scan is not vacuous.
-func assertNoSentinelLeak(t *testing.T, c client.Client, superset *supersetv1alpha1.Superset, recorded, sentinels, wantConfigMaps []string) {
+func assertNoMarkerLeak(t *testing.T, c client.Client, superset *supersetv1alpha1.Superset, recorded, markers, wantConfigMaps []string) {
 	t.Helper()
 
 	cms := &corev1.ConfigMapList{}
@@ -299,9 +384,9 @@ func assertNoSentinelLeak(t *testing.T, c client.Client, superset *supersetv1alp
 	for _, cm := range cms.Items {
 		names[cm.Name] = true
 		for key, val := range cm.Data {
-			for _, s := range sentinels {
+			for _, s := range markers {
 				if strings.Contains(val, s) {
-					t.Errorf("secret leak: ConfigMap %s data[%s] contains sentinel %q", cm.Name, key, s)
+					t.Errorf("secret leak: ConfigMap %s data[%s] contains marker %q", cm.Name, key, s)
 				}
 			}
 		}
@@ -319,9 +404,9 @@ func assertNoSentinelLeak(t *testing.T, c client.Client, superset *supersetv1alp
 	if err != nil {
 		t.Fatalf("marshal status: %v", err)
 	}
-	for _, s := range sentinels {
+	for _, s := range markers {
 		if strings.Contains(string(status), s) {
-			t.Errorf("secret leak: Superset status contains sentinel %q: %s", s, status)
+			t.Errorf("secret leak: Superset status contains marker %q: %s", s, status)
 		}
 	}
 
@@ -329,9 +414,9 @@ func assertNoSentinelLeak(t *testing.T, c client.Client, superset *supersetv1alp
 		t.Error("expected reconciliation to record at least one Event")
 	}
 	for _, e := range recorded {
-		for _, s := range sentinels {
+		for _, s := range markers {
 			if strings.Contains(e, s) {
-				t.Errorf("secret leak: Event %q contains sentinel %q", e, s)
+				t.Errorf("secret leak: Event %q contains marker %q", e, s)
 			}
 		}
 	}

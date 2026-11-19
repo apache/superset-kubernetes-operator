@@ -23,7 +23,6 @@ import (
 	"fmt"
 
 	corev1 "k8s.io/api/core/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
@@ -35,21 +34,19 @@ import (
 // componentAccessor holds the common fields extracted from any parent component spec.
 // Nil accessor means the component is absent (disabled).
 type componentAccessor struct {
-	deploymentTemplate  *supersetv1alpha1.DeploymentTemplate
-	podTemplate         *supersetv1alpha1.PodTemplate
-	replicas            *int32
-	autoscaling         *supersetv1alpha1.AutoscalingSpec
-	scalingMode         *supersetv1alpha1.ScalingMode
-	pdb                 *supersetv1alpha1.PDBSpec
-	config              *string
-	bootstrapScript     *string
-	image               *supersetv1alpha1.ImageOverrideSpec
-	service             *supersetv1alpha1.ComponentServiceSpec
-	gunicorn            *supersetv1alpha1.GunicornSpec
-	celery              *supersetv1alpha1.CeleryWorkerProcessSpec
-	sqlaEngineOptions   *supersetv1alpha1.SQLAlchemyEngineOptionsSpec
-	websocketConfig     *apiextensionsv1.JSON
-	websocketConfigFrom *corev1.SecretKeySelector
+	deploymentTemplate *supersetv1alpha1.DeploymentTemplate
+	podTemplate        *supersetv1alpha1.PodTemplate
+	replicas           *int32
+	autoscaling        *supersetv1alpha1.AutoscalingSpec
+	scalingMode        *supersetv1alpha1.ScalingMode
+	pdb                *supersetv1alpha1.PDBSpec
+	config             *string
+	bootstrapScript    *string
+	image              *supersetv1alpha1.ImageOverrideSpec
+	service            *supersetv1alpha1.ComponentServiceSpec
+	gunicorn           *supersetv1alpha1.GunicornSpec
+	celery             *supersetv1alpha1.CeleryWorkerProcessSpec
+	sqlaEngineOptions  *supersetv1alpha1.SQLAlchemyEngineOptionsSpec
 }
 
 // componentDescriptor captures all per-component variation needed to reconcile
@@ -168,6 +165,7 @@ func (r *SupersetReconciler) reconcileComponent(
 	if desc.hasPythonConfig {
 		bootstrapScript := effectiveBootstrapScript(superset.Spec.BootstrapScript, accessor.bootstrapScript)
 		compConfigInput := buildConfigInput(&superset.Spec)
+		compConfigInput.WebDriverBaseURL = webDriverBaseURL(superset)
 		if accessor.config != nil {
 			compConfigInput.ComponentConfig = *accessor.config
 		}
@@ -195,7 +193,7 @@ func (r *SupersetReconciler) reconcileComponent(
 		)
 
 		renderedConfig = supersetconfig.RenderConfig(desc.componentType, compConfigInput)
-		secretEnvVars = collectSecretEnvVars(&superset.Spec, superset.Name)
+		secretEnvVars = collectSecretEnvVars(&superset.Spec, defaultInstanceName(superset))
 		operatorInjected = buildOperatorInjected(renderedConfig, bootstrapScript, resourceBaseName, superset.Spec.ForceReload, secretEnvVars)
 		logf.FromContext(ctx).V(2).Info("Rendered component config",
 			"component", desc.componentType, "configBytes", len(renderedConfig), "envVars", len(secretEnvVars))
@@ -231,33 +229,15 @@ func (r *SupersetReconciler) reconcileComponent(
 	}
 
 	if desc.componentType == naming.ComponentWebsocketServer {
-		var websocketConfigChecksumInput string
-		labels := componentLabels(string(desc.componentType), superset.Name)
-		switch {
-		case accessor.websocketConfig != nil:
-			configJSON, err := renderWebsocketConfig(accessor.websocketConfig)
-			if err != nil {
-				return err
-			}
-			if err := reconcileParentOwnedWebsocketConfigMap(ctx, r.Client, r.Scheme, superset, configJSON, resourceBaseName, labels); err != nil {
-				return fmt.Errorf("reconciling websocket config ConfigMap: %w", err)
-			}
-			injectWebsocketConfigMap(operatorInjected, resourceBaseName)
-			websocketConfigChecksumInput = configJSON
-		case accessor.websocketConfigFrom != nil:
-			if err := reconcileParentOwnedWebsocketConfigMap(ctx, r.Client, r.Scheme, superset, "", resourceBaseName, nil); err != nil {
-				return fmt.Errorf("deleting stale websocket config ConfigMap: %w", err)
-			}
-			injectWebsocketConfigSecret(operatorInjected, accessor.websocketConfigFrom)
-			websocketConfigChecksumInput = websocketConfigRefChecksumInput(accessor.websocketConfigFrom)
-		default:
-			if err := reconcileParentOwnedWebsocketConfigMap(ctx, r.Client, r.Scheme, superset, "", resourceBaseName, nil); err != nil {
-				return fmt.Errorf("deleting stale websocket config ConfigMap: %w", err)
-			}
+		// The GA websocket server is configured via env vars, not a ConfigMap.
+		// Delete any legacy <name>-websocket-server-config left by the removed
+		// config.json model so an in-place upgrade doesn't strand it.
+		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, "", "", resourceBaseName, nil); err != nil {
+			return fmt.Errorf("deleting legacy websocket ConfigMap: %w", err)
 		}
-		if websocketConfigChecksumInput != "" {
-			workloadChecksum = computeChecksum(websocketConfigChecksumInput)
-		}
+		wsEnv := collectWebsocketEnvVars(superset)
+		operatorInjected.Env = append(operatorInjected.Env, wsEnv...)
+		workloadChecksum = computeChecksum(wsEnv)
 	}
 
 	if desc.componentType == naming.ComponentCeleryFlower {
@@ -275,8 +255,7 @@ func (r *SupersetReconciler) reconcileComponent(
 	)
 
 	// Python components roll on rendered superset_config.py changes. The
-	// websocket component has no Python config, so its optional config.json
-	// checksum is computed above from either inline config or the Secret ref.
+	// websocket component checksums its injected env instead (computed above).
 	if desc.hasPythonConfig {
 		workloadChecksum = computeChecksum(configChecksum + renderedConfig + effectiveBootstrapScript(superset.Spec.BootstrapScript, accessor.bootstrapScript))
 	}
@@ -329,14 +308,12 @@ func (r *SupersetReconciler) deleteComponentResources(ctx context.Context, super
 		return fmt.Errorf("deleting resources for disabled %s: %w", desc.componentType, err)
 	}
 
-	if desc.hasPythonConfig {
+	if desc.hasPythonConfig || desc.componentType == naming.ComponentWebsocketServer {
+		// Python components own a rendered config ConfigMap; the websocket
+		// component may have a legacy config.json ConfigMap from before the GA
+		// env-var model. Both are named <base>-config and deleted the same way.
 		if err := reconcileParentOwnedConfigMap(ctx, r.Client, r.Scheme, superset, "", "", resourceBaseName, nil); err != nil {
 			return fmt.Errorf("deleting ConfigMap for disabled %s: %w", desc.componentType, err)
-		}
-	}
-	if desc.componentType == naming.ComponentWebsocketServer {
-		if err := reconcileParentOwnedWebsocketConfigMap(ctx, r.Client, r.Scheme, superset, "", resourceBaseName, nil); err != nil {
-			return fmt.Errorf("deleting websocket config ConfigMap for disabled %s: %w", desc.componentType, err)
 		}
 	}
 	return nil
@@ -479,10 +456,7 @@ var websocketServerDescriptor = &componentDescriptor{
 		if c == nil {
 			return nil
 		}
-		a := extractScalable(&c.ScalableComponentSpec, nil, nil, c.Image, c.Service)
-		a.websocketConfig = c.Config
-		a.websocketConfigFrom = c.ConfigFrom
-		return a
+		return extractScalable(&c.ScalableComponentSpec, nil, nil, c.Image, c.Service)
 	},
 	statusAccessor: func(m *supersetv1alpha1.ComponentStatusMap) **supersetv1alpha1.ComponentRefStatus {
 		return &m.WebsocketServer

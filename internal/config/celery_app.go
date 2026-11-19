@@ -23,10 +23,15 @@ import (
 	"strings"
 )
 
-// renderCeleryClass writes only the CeleryConfig fields derived from structured
-// Valkey settings. Application-level Celery behavior such as imports, task
-// annotations, and beat schedules belongs in spec.config.
-func renderCeleryClass(b *strings.Builder, v *ValkeyInput) {
+// renderCeleryClass writes a CeleryConfig that subclasses Superset's default
+// CeleryConfig and overrides only the connection fields derived from structured
+// Valkey settings. Superset's default task imports, worker settings, and beat
+// schedule (reports, log pruning, version-history and soft-delete retention)
+// therefore stay in effect; spec.config can extend or replace them. Global Async
+// Queries extends the inherited imports and beat schedule. Importing
+// superset.config here is safe: superset_config is loaded from the end of that
+// module, after its CeleryConfig is defined.
+func renderCeleryClass(b *strings.Builder, v *ValkeyInput, asyncQueries bool) {
 	brokerEnabled := !v.CeleryBroker.Disabled
 	resultEnabled := !v.CeleryResultBackend.Disabled
 	if !brokerEnabled && !resultEnabled {
@@ -34,12 +39,26 @@ func renderCeleryClass(b *strings.Builder, v *ValkeyInput) {
 	}
 
 	b.WriteString("\n")
-	b.WriteString("class CeleryConfig:\n")
-	if brokerEnabled {
-		fmt.Fprintf(b, "    broker_url = f\"{_vk_base}/%d\"\n", v.CeleryBroker.Database)
-	}
-	if resultEnabled {
-		fmt.Fprintf(b, "    result_backend = f\"{_vk_base}/%d\"\n", v.CeleryResultBackend.Database)
+	b.WriteString("from superset.config import CeleryConfig as _SupersetCeleryConfig\n")
+	b.WriteString("\n")
+	b.WriteString("\n")
+	b.WriteString("class CeleryConfig(_SupersetCeleryConfig):\n")
+	if v.Sentinel != nil {
+		if brokerEnabled {
+			fmt.Fprintf(b, "    broker_url = _vk_sentinel_url(%d)\n", v.CeleryBroker.Database)
+			b.WriteString("    broker_transport_options = _vk_sentinel_transport\n")
+		}
+		if resultEnabled {
+			fmt.Fprintf(b, "    result_backend = _vk_sentinel_url(%d)\n", v.CeleryResultBackend.Database)
+			b.WriteString("    result_backend_transport_options = _vk_sentinel_transport\n")
+		}
+	} else {
+		if brokerEnabled {
+			fmt.Fprintf(b, "    broker_url = f\"{_vk_base}/%d\"\n", v.CeleryBroker.Database)
+		}
+		if resultEnabled {
+			fmt.Fprintf(b, "    result_backend = f\"{_vk_base}/%d\"\n", v.CeleryResultBackend.Database)
+		}
 	}
 	if v.SSL {
 		if brokerEnabled {
@@ -48,6 +67,20 @@ func renderCeleryClass(b *strings.Builder, v *ValkeyInput) {
 		if resultEnabled {
 			b.WriteString("    redis_backend_use_ssl = _vk_ssl_opts\n")
 		}
+	}
+
+	// The Celery app auto-imports superset.tasks.scheduler (reap_orphaned_tasks,
+	// tasks.execute) but not async_queries, where the chart-data task lives; the
+	// reaper only runs when it has a short beat schedule.
+	if asyncQueries {
+		b.WriteString("    imports = (*_SupersetCeleryConfig.imports, \"superset.tasks.async_queries\")\n")
+		b.WriteString("    beat_schedule = {\n")
+		b.WriteString("        **_SupersetCeleryConfig.beat_schedule,\n")
+		b.WriteString("        \"reap_orphaned_tasks\": {\n")
+		b.WriteString("            \"task\": \"reap_orphaned_tasks\",\n")
+		b.WriteString("            \"schedule\": 60.0,\n")
+		b.WriteString("        },\n")
+		b.WriteString("    }\n")
 	}
 
 	b.WriteString("CELERY_CONFIG = CeleryConfig\n")

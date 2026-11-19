@@ -18,6 +18,8 @@ limitations under the License.
 
 package common
 
+import "strconv"
+
 // Label keys.
 const (
 	LabelKeyName      = "app.kubernetes.io/name"
@@ -122,8 +124,17 @@ const (
 	EnvValkeyUser = "SUPERSET_OPERATOR__VALKEY_USER"
 	EnvValkeyPass = "SUPERSET_OPERATOR__VALKEY_PASS"
 
+	// Sentinel mode: the sentinel password; each node's address is in
+	// EnvValkeySentinelHost(i)/EnvValkeySentinelPort(i).
+	EnvValkeySentinelPass = "SUPERSET_OPERATOR__VALKEY_SENTINEL_PASS"
+
 	// Celery Flower env vars.
 	EnvFlowerURLPrefix = "SUPERSET_OPERATOR__FLOWER_URL_PREFIX"
+
+	// Realtime websocket JWT secret, shared by the Flask app (mints the cookie)
+	// and the websocket server (validates it). Rendered into superset_config.py
+	// as WEBSOCKET_JWT_SECRET for Python components.
+	EnvWSJWTSecret = "SUPERSET_OPERATOR__WS_JWT_SECRET"
 
 	// Admin user operator-internal transport vars (used by init command construction).
 	EnvAdminUsername  = "SUPERSET_OPERATOR__ADMIN_USERNAME"
@@ -144,6 +155,16 @@ const (
 	EnvMaintenanceMessage = "SUPERSET_OPERATOR__MAINTENANCE_MESSAGE"
 	EnvMaintenanceBody    = "SUPERSET_OPERATOR__MAINTENANCE_BODY"
 )
+
+// EnvValkeySentinelHost names the env var holding the host of sentinel node i.
+func EnvValkeySentinelHost(i int) string {
+	return "SUPERSET_OPERATOR__VALKEY_SENTINEL_" + strconv.Itoa(i) + "_HOST"
+}
+
+// EnvValkeySentinelPort names the env var holding the port of sentinel node i.
+func EnvValkeySentinelPort(i int) string {
+	return "SUPERSET_OPERATOR__VALKEY_SENTINEL_" + strconv.Itoa(i) + "_PORT"
+}
 
 // DerivedName constructs a derived resource name from parent name and suffix.
 func DerivedName(parentName string, suffix string) string {

@@ -92,7 +92,7 @@ spec:
 
 Without `host` or `hosts`, the operator emits a single rule with no host. It matches every hostname and carries the same per-component fan-out.
 
-A host **with** explicit `paths` is treated as a user-controlled override and those paths route to the web server only — use this when you want full control of the path rules for a host:
+A host **with** explicit `paths` routes those paths to the web server in place of the default `/` catch-all. The component routes (`/ws`, `/mcp`, `/flower`) are still added for that host, except for any path you list yourself:
 
 ```yaml
 spec:
