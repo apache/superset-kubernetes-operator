@@ -23,6 +23,7 @@ Layout under the publish directory::
     /0.3/, /0.4/ ...  one directory per minor release; patches overwrite their minor
     /latest/          redirect pages into the newest minor (into ``main`` before the first release)
     /versions.json    manifest read by docs/javascripts/version-switcher.js
+    /sitemap-root.xml preserved shared-page sitemap included in the sitemap index
 
 Versioned builds have no Home page, so each version root redirects to ``LANDING_PAGE``.
 
@@ -42,7 +43,7 @@ Usage (normally run by publish-docs.sh, not by hand)::
 
     check     validate target/release and refuse patch downgrades; run before building
     finalize  update versions.json, write the version landing page, regenerate latest/
-              redirects; run after the site is synced into DIR
+              redirects, and write the sitemap index after sync
 
 TARGET is ``root``, ``main`` or a minor such as ``0.3``; ``--release`` is only valid
 for a minor and must be a final X.Y.Z of that minor. Example::
@@ -63,7 +64,7 @@ import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-from prepare_docs_links import SHARED_PAGES, SITE_PATH_PREFIX
+from prepare_docs_links import SHARED_PAGES, site_urls
 
 ROOT = "root"
 MAIN = "main"
@@ -73,8 +74,8 @@ MANIFEST = "versions.json"
 LANDING_PAGE = "getting-started"
 LEGACY_REDIRECT_MARKER = "<!-- superset-operator-generated-legacy-redirect -->"
 
-MINOR_RE = re.compile(r"^[0-9]+\.[0-9]+$")
-FINAL_RELEASE_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")  # no pre-release suffix: RCs are never published
+MINOR_RE = re.compile(r"[0-9]+\.[0-9]+")
+FINAL_RELEASE_RE = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")  # RCs are never published
 
 
 class DocsVersionError(Exception):
@@ -167,6 +168,8 @@ def build_manifest(entries: list[dict], target: str, release: str | None = None)
         entry.update(version=target, title=target, aliases=[])
         if release:
             entry["release"] = release
+        else:
+            entry.pop("release", None)
         by_version[target] = entry
 
     minors = sorted((v for v in by_version if MINOR_RE.fullmatch(v)), key=version_key, reverse=True)
@@ -204,50 +207,22 @@ def write_sitemap_index(publish_dir: Path, entries: list[dict], *, root_build: b
         if (entry["version"] == MAIN or MINOR_RE.fullmatch(entry["version"]))
         and (publish_dir / entry["version"] / "sitemap.xml").is_file()
     )
+    site_origin, site_path_prefix = site_urls()
     for path in sitemap_paths:
         sitemap = ET.SubElement(index, f"{{{namespace}}}sitemap")
         location = ET.SubElement(sitemap, f"{{{namespace}}}loc")
-        location.text = f"https://apache.github.io{SITE_PATH_PREFIX}/{path}"
+        location.text = f"{site_origin}{site_path_prefix}/{path}"
     content = ET.tostring(index, encoding="unicode")
-    write_text_atomic(
-        publish_dir / "sitemap.xml",
-        '<?xml version="1.0" encoding="utf-8"?>\n' + content + "\n",
-    )
+    write_text_atomic(publish_dir / "sitemap.xml", '<?xml version="1.0" encoding="utf-8"?>\n' + content + "\n")
 
 
-def write_sitemap_index(publish_dir: Path, entries: list[dict], *, root_build: bool = False) -> None:
-    """Preserve the shared-page sitemap and index it with each published version map."""
-    root_map = publish_dir / "sitemap-root.xml"
-    generated_map = publish_dir / "sitemap.xml"
-    if root_build and generated_map.is_file():
-        try:
-            generated_root = ET.parse(generated_map).getroot()
-        except ET.ParseError:
-            generated_root = None
-        if generated_root is not None and generated_root.tag.rsplit("}", 1)[-1] == "urlset":
-            generated_map.replace(root_map)
-    if not root_map.is_file():
-        return
-
-    namespace = "http://www.sitemaps.org/schemas/sitemap/0.9"
-    ET.register_namespace("", namespace)
-    index = ET.Element(f"{{{namespace}}}sitemapindex")
-    sitemap_paths = ["sitemap-root.xml"]
-    sitemap_paths.extend(
-        f"{entry['version']}/sitemap.xml"
-        for entry in entries
-        if (entry["version"] == MAIN or MINOR_RE.fullmatch(entry["version"]))
-        and (publish_dir / entry["version"] / "sitemap.xml").is_file()
-    )
-    for path in sitemap_paths:
-        sitemap = ET.SubElement(index, f"{{{namespace}}}sitemap")
-        location = ET.SubElement(sitemap, f"{{{namespace}}}loc")
-        location.text = f"https://apache.github.io{SITE_PATH_PREFIX}/{path}"
-    content = ET.tostring(index, encoding="unicode")
-    write_text_atomic(
-        publish_dir / "sitemap.xml",
-        '<?xml version="1.0" encoding="utf-8"?>\n' + content + "\n",
-    )
+def write_text_atomic(path: Path, content: str) -> None:
+    """Write generated site files atomically so interrupted publishes leave no partial output."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=path.parent, delete=False) as temporary:
+        temporary.write(content)
+        temporary_path = Path(temporary.name)
+    temporary_path.replace(path)
 
 
 def latest_version(entries: list[dict]) -> str | None:
@@ -265,12 +240,14 @@ def redirect_page(relative_url: str, label: str) -> str:
     """
     rel_attr = html.escape(relative_url, quote=True)
     label_html = html.escape(label)
+    script_url = json.dumps(relative_url).replace("<", "\\u003c")
     return (
         "<!doctype html>\n"
         '<meta charset="utf-8">\n'
         f"<title>Redirecting to {label_html}</title>\n"
+        f'<link rel="canonical" href="{rel_attr}">\n'
         f'<noscript><meta http-equiv="refresh" content="0; url={rel_attr}"></noscript>\n'
-        f"<script>location.replace(new URL({json.dumps(relative_url)}, location.href).href"
+        f"<script>location.replace(new URL({script_url}, location.href).href"
         " + location.search + location.hash)</script>\n"
         f'<p>Redirecting to <a href="{rel_attr}">{label_html}</a>…</p>\n'
     )
@@ -285,17 +262,34 @@ def write_version_landing(publish_dir: Path, version: str) -> None:
     )
 
 
+def markdown_page_output(page: str) -> Path:
+    """Map a docs Markdown source path to its generated HTML page path."""
+    if page == "index.md":
+        return Path("index.html")
+    if page.endswith("/index.md"):
+        return Path(page[: -len("index.md")]) / "index.html"
+    return Path(page.removesuffix(".md")) / "index.html"
+
+
+def redirectable_pages(source_root: Path) -> list[Path]:
+    """List generated pages eligible for version and legacy redirects."""
+    return [
+        source
+        for source in sorted(source_root.rglob("*.html"))
+        if source.relative_to(source_root).as_posix() != "404.html"
+    ]
+
+
 def write_latest_redirects(publish_dir: Path, latest: str) -> int:
     """Mirror ``<latest>/`` as redirect pages under ``latest/``; returns the page count."""
     alias_root = publish_dir / LATEST
     source_root = publish_dir / latest
-    shutil.rmtree(alias_root, ignore_errors=True)
+    if alias_root.exists():
+        shutil.rmtree(alias_root)
 
     count = 0
     for source in redirectable_pages(source_root):
         relative = source.relative_to(source_root)
-        if relative.as_posix() == "404.html":
-            continue
         parent = relative.parent.as_posix()
         if relative.as_posix() == "index.html":
             # The version root is itself a redirect; skip that hop.
@@ -309,7 +303,7 @@ def write_latest_redirects(publish_dir: Path, latest: str) -> int:
 
         out = alias_root / relative
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(redirect_page(relative_url, "the latest documentation"), encoding="utf-8")
+        write_text_atomic(out, redirect_page(relative_url, "the latest documentation"))
         count += 1
     return count
 
@@ -320,6 +314,7 @@ def write_legacy_redirects(publish_dir: Path) -> int:
     if not alias_root.is_dir():
         return 0
     shared = {markdown_page_output(page) for page in SHARED_PAGES}
+    _, site_path_prefix = site_urls()
     count = 0
     for source in redirectable_pages(alias_root):
         relative = source.relative_to(alias_root)
@@ -330,12 +325,12 @@ def write_legacy_redirects(publish_dir: Path) -> int:
             print(f"warning: not overwriting real page {destination}", file=sys.stderr)
             continue
         destination.parent.mkdir(parents=True, exist_ok=True)
-        target = f"{SITE_PATH_PREFIX}/{LATEST}/{relative.as_posix()}"
+        target = f"{site_path_prefix}/{LATEST}/{relative.as_posix()}"
         if relative.name == "index.html":
             target = target.removesuffix("index.html")
-        destination.write_text(
+        write_text_atomic(
+            destination,
             redirect_page(target, "the latest documentation") + f"{LEGACY_REDIRECT_MARKER}\n",
-            encoding="utf-8",
         )
         count += 1
     return count
@@ -347,26 +342,9 @@ def is_legacy_redirect(path: Path) -> bool:
         content = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return False
-    legacy_target = f'new URL("{SITE_PATH_PREFIX}/{LATEST}/'
+    _, site_path_prefix = site_urls()
+    legacy_target = f'new URL("{site_path_prefix}/{LATEST}/'
     return LEGACY_REDIRECT_MARKER in content or legacy_target in content
-
-
-def markdown_page_output(page: str) -> Path:
-    """Map a docs Markdown source path to its generated HTML page path."""
-    if page == "index.md":
-        return Path("index.html")
-    if page.endswith("/index.md"):
-        return Path(page[: -len("index.md")]) / "index.html"
-    return Path(page.removesuffix(".md")) / "index.html"
-
-
-def redirectable_pages(source_root: Path) -> list[Path]:
-    """List generated pages eligible for version/legacy redirects."""
-    return [
-        source
-        for source in sorted(source_root.rglob("*.html"))
-        if source.relative_to(source_root).as_posix() != "404.html"
-    ]
 
 
 def cmd_check(args: argparse.Namespace) -> None:
@@ -380,11 +358,8 @@ def cmd_finalize(args: argparse.Namespace) -> None:
 
     if args.target == ROOT:
         entries = load_manifest(publish_dir)
-        write_sitemap_index(publish_dir, entries, root_build=True)
         latest = latest_version(entries)
-        search_outputs = prepare_combined_search_indexes(
-            publish_dir, entries, latest, require_root=latest is not None
-        )
+        write_sitemap_index(publish_dir, entries, root_build=True)
         if latest and (publish_dir / LATEST).is_dir():
             legacy_pages = write_legacy_redirects(publish_dir)
             print(f"==> root legacy URLs -> latest ({legacy_pages} redirect pages)")
@@ -398,6 +373,7 @@ def cmd_finalize(args: argparse.Namespace) -> None:
     write_version_landing(publish_dir, args.target)
     entries = build_manifest(load_manifest(publish_dir), args.target, args.release)
     write_manifest(publish_dir, entries)
+    latest = latest_version(entries)
     write_sitemap_index(publish_dir, entries)
     if latest and (publish_dir / latest).is_dir():
         pages = write_latest_redirects(publish_dir, latest)
@@ -405,7 +381,9 @@ def cmd_finalize(args: argparse.Namespace) -> None:
         legacy_pages = write_legacy_redirects(publish_dir)
         print(f"==> root legacy URLs -> latest ({legacy_pages} redirect pages)")
     else:
-        shutil.rmtree(publish_dir / LATEST, ignore_errors=True)
+        latest_dir = publish_dir / LATEST
+        if latest_dir.exists():
+            shutil.rmtree(latest_dir)
 
 
 def build_parser() -> argparse.ArgumentParser:

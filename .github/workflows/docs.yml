@@ -22,14 +22,14 @@ on:
     tags: ["v*"]
     paths: &docs_paths
       - "docs/**"
+      - "zensical.toml"
+      - "zensical-unversioned.toml"
+      - "zensical-versioned.toml"
       - "scripts/publish-docs.sh"
       - "scripts/run-docs-ci.sh"
       - "scripts/docs_versions.py"
       - "scripts/prepare_docs_links.py"
       - "scripts/test_docs_scripts.py"
-      - "zensical.toml"
-      - "zensical-unversioned.toml"
-      - "zensical-versioned.toml"
       - "docs-requirements.in"
       - "docs-requirements.txt"
       - "Makefile"
@@ -95,7 +95,7 @@ jobs:
     runs-on: ubuntu-latest
     # Keep refs on separate queues so one pending deploy cannot replace another.
     concurrency:
-      group: docs-deploy-${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.ref) || github.ref }}
+      group: docs-deploy-${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.ref) || github.ref }}${{ inputs.dry_run && '-dry' || '' }}
       cancel-in-progress: false
     permissions:
       contents: write
@@ -113,7 +113,10 @@ jobs:
       - name: Prepare gh-pages worktree
         run: |
           set -euo pipefail
-          # Create gh-pages with an initial commit before enabling the first automated deploy.
+          if ! git ls-remote --exit-code --heads origin gh-pages >/dev/null; then
+            echo "error: origin/gh-pages does not exist; create the gh-pages branch with an initial commit before deploying docs" >&2
+            exit 1
+          fi
           git fetch origin gh-pages
           git worktree add --detach "$PUBLISH_DIR" origin/gh-pages
       - name: Configure git
@@ -129,6 +132,13 @@ jobs:
       - name: Commit and push docs
         run: |
           set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch || "$GITHUB_REF_TYPE" == tag ]]; then
+            tag_ref="refs/tags/$DOC_REF"
+            tag_sha="$(git ls-remote origin "$tag_ref^{}" "$tag_ref" | awk '$2 == tag "^{}" { peeled=$1 } $2 == tag { direct=$1 } END { print peeled ? peeled : direct }' tag="$tag_ref")"
+            [[ -n "$tag_sha" ]] || { echo "error: could not resolve $tag_ref on origin" >&2; exit 1; }
+          else
+            tag_sha="$GITHUB_SHA"
+          fi
           git -C "$PUBLISH_DIR" add -A
           if [[ "$DRY_RUN" == "true" ]]; then
             echo "Dry run: assembled the backfill against the existing gh-pages tree; no commit or push will be made."
@@ -145,7 +155,7 @@ jobs:
               exit 0
             fi
             base="$(git -C "$PUBLISH_DIR" rev-parse HEAD)"
-            git -C "$PUBLISH_DIR" commit -q -m "docs: deploy ${DOC_REF} (${GITHUB_SHA})"
+            git -C "$PUBLISH_DIR" commit -q -m "docs: deploy ${DOC_REF} (${tag_sha})"
             if git -C "$PUBLISH_DIR" push origin HEAD:gh-pages; then
               exit 0
             fi

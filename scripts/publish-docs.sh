@@ -29,6 +29,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$ROOT_DIR"
 VERSIONS_PY="$SCRIPT_DIR/docs_versions.py"
 
 usage() {
@@ -49,12 +50,19 @@ EOF
 
 die() { echo "error: $*" >&2; exit 2; }
 log() { echo "==> $*"; }
+reject_site_symlinks() {
+  local site_dir="$1"
+  if [[ -n "$(find "$site_dir" -type l -print -quit)" ]]; then
+    find "$site_dir" -type l -print >&2
+    die "site output contains symlinks: $site_dir"
+  fi
+}
 
 CONFIG="" TARGET="" PUBLISH_DIR="" RELEASE="" FORCE=""
-BUILD_ONLY="" ASSEMBLE_ONLY="" ARTIFACT_DIR="" BUILD_CONFIG="" check_dir=""
+BUILD_ONLY="" ASSEMBLE_ONLY="" ARTIFACT_DIR="" TEMP_CONFIG="" check_dir=""
 SITE_DIR="${SITE_DIR:-$ROOT_DIR/site}"
 cleanup() {
-  [[ -z "$BUILD_CONFIG" ]] || rm -f "$BUILD_CONFIG"
+  [[ -z "$TEMP_CONFIG" ]] || rm -f "$TEMP_CONFIG"
   [[ -z "$check_dir" ]] || rm -rf "$check_dir"
 }
 trap cleanup EXIT
@@ -134,14 +142,18 @@ fi
 BUILD_CONFIG="$CONFIG"
 if [[ "$TARGET" != root && -z "$ASSEMBLE_ONLY" ]]; then
   # Canonical URLs and sitemap entries must include the output version directory.
-  base_site_url='site_url = "https://apache.github.io/superset-kubernetes-operator/"'
-  [[ "$(grep -Fxc "$base_site_url" "$CONFIG" || true)" == 1 ]] || \
-    die "expected exactly one canonical site_url in $CONFIG before rewriting target $TARGET"
-  BUILD_CONFIG="$(mktemp "$(dirname "$CONFIG")/.zensical-versioned.XXXXXX.toml")"
-  sed "s|^site_url = \"https://apache.github.io/superset-kubernetes-operator/\"|site_url = \"https://apache.github.io/superset-kubernetes-operator/$TARGET/\"|" \
+  site_url="$(sed -n 's/^site_url = "\(.*\)"$/\1/p' "$CONFIG")"
+  [[ "$(grep -Ec '^site_url = "' "$CONFIG" || true)" == 1 && "$site_url" == */ ]] || \
+    die "expected exactly one site_url ending in / in $CONFIG before rewriting target $TARGET"
+  versioned_site_url="${site_url%/}/$TARGET/"
+  TEMP_CONFIG="$(mktemp "$(dirname "$CONFIG")/.zensical-versioned.XXXXXX")"
+  mv "$TEMP_CONFIG" "$TEMP_CONFIG.toml"
+  TEMP_CONFIG="$TEMP_CONFIG.toml"
+  BUILD_CONFIG="$TEMP_CONFIG"
+  sed "s|^site_url = \"$site_url\"|site_url = \"$versioned_site_url\"|" \
     "$CONFIG" > "$BUILD_CONFIG"
-  expected_site_url="site_url = \"https://apache.github.io/superset-kubernetes-operator/$TARGET/\""
-  grep -Fq "$expected_site_url" "$BUILD_CONFIG" || die "could not set the versioned site_url in $CONFIG"
+  expected_site_url="site_url = \"$versioned_site_url\""
+  [[ "$(grep -Fxc "$expected_site_url" "$BUILD_CONFIG" || true)" == 1 ]] || die "could not set exactly one versioned site_url in $CONFIG"
 fi
 
 if [[ -z "$ASSEMBLE_ONLY" ]]; then
@@ -149,6 +161,7 @@ if [[ -z "$ASSEMBLE_ONLY" ]]; then
   "$ZENSICAL" build --clean --strict --config-file "$BUILD_CONFIG"
   [[ -d "$SITE_DIR" ]] || die "build output not found: $SITE_DIR (does site_dir in the config match --site-dir?)"
   [[ -f "$SITE_DIR/search.json" ]] || die "build produced no search.json (is search enabled in the config?)"
+  reject_site_symlinks "$SITE_DIR"
   if [[ -n "$BUILD_ONLY" ]]; then
     mkdir -p "$ARTIFACT_DIR"
     rsync -a --delete "$SITE_DIR/" "$ARTIFACT_DIR/"
@@ -159,6 +172,7 @@ else
   SITE_DIR="$ARTIFACT_DIR"
   [[ -d "$SITE_DIR" ]] || die "built site not found: $SITE_DIR"
   [[ -f "$SITE_DIR/search.json" ]] || die "built site has no search.json: $SITE_DIR"
+  reject_site_symlinks "$SITE_DIR"
 fi
 
 if [[ "$TARGET" == root ]]; then
@@ -171,7 +185,6 @@ if [[ "$TARGET" == root ]]; then
     --exclude='/[0-9]*.[0-9]*/' \
     --exclude='/latest/' \
     --exclude='/versions.json' \
-    --exclude='/search-unversioned.json' \
     "$SITE_DIR/" "$PUBLISH_DIR/"
 else
   log "Syncing into $PUBLISH_DIR/$TARGET/"
