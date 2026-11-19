@@ -1319,11 +1319,11 @@ under the License.
 </tr>
 <tr>
 <td><code>jobs</code></td>
-<td>CRUD</td>
-<td>Manages deterministic lifecycle task Jobs</td>
+<td>get, list, watch, create, delete</td>
+<td>Manages deterministic lifecycle task Jobs; re-runs delete and recreate a Job instead of updating it</td>
 </tr>
 <tr>
-<td><code>events</code></td>
+<td><code>events</code> (<code>events.k8s.io</code>)</td>
 <td>create, patch, update</td>
 <td>Records reconciliation events</td>
 </tr>

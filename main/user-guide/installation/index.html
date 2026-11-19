@@ -550,6 +550,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#upgrading-the-operator" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Upgrading the operator
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#debugging-the-operator" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1307,6 +1318,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#upgrading-the-operator" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Upgrading the operator
+      </span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#debugging-the-operator" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1559,15 +1581,28 @@ for details.</p>
 <a id="__codelineno-10-32" name="__codelineno-10-32" href="#__codelineno-10-32"></a><span class="s">EOF</span>
 </code></pre></div>
 <p>The operator will create the CeleryWorker and CeleryBeat Deployments and their ConfigMaps automatically.</p>
+<h2 id="upgrading-the-operator">Upgrading the operator<a class="headerlink" href="#upgrading-the-operator" title="Permanent link">&para;</a></h2>
+<p>Helm installs the <code>Superset</code> CRD from the chart's <code>crds/</code> directory on first install, but <a href="https://helm.sh/docs/chart_best_practices/custom_resource_definitions/#some-caveats-and-explanations"><code>helm upgrade</code> never updates it</a>. Apply the new version's CRD before upgrading the chart:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>helm<span class="w"> </span>show<span class="w"> </span>crds<span class="w"> </span>oci://ghcr.io/apache/superset-kubernetes-operator/charts/superset-operator<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span>--version<span class="w"> </span>&lt;version&gt;<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>kubectl<span class="w"> </span>apply<span class="w"> </span>--server-side<span class="w"> </span>--force-conflicts<span class="w"> </span>-f<span class="w"> </span>-
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>
+<a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>helm<span class="w"> </span>upgrade<span class="w"> </span>superset-operator<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="w">  </span>oci://ghcr.io/apache/superset-kubernetes-operator/charts/superset-operator<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a><span class="w">  </span>--version<span class="w"> </span>&lt;version&gt;<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="w">  </span>--namespace<span class="w"> </span>superset-operator-system
+</code></pre></div>
+<p>The CRD is too large for client-side <code>kubectl apply</code>, so use <code>--server-side</code>. <code>--force-conflicts</code> takes over the fields Helm set when it created the CRD. If you skip this step, the cluster keeps the old schema: the API server silently drops fields it doesn't know, and new validation rules don't apply. Applying the CRD requires cluster-admin.</p>
+<p>Read the <a href="/superset-kubernetes-operator/reference/releases/">release notes</a> before upgrading; breaking changes list the steps to take first.</p>
 <h2 id="debugging-the-operator">Debugging the operator<a class="headerlink" href="#debugging-the-operator" title="Permanent link">&para;</a></h2>
 <p>If a Superset isn't reconciling as expected, raise the operator's log verbosity. The chart exposes a <code>logLevel</code> value mapped to the manager's <code>--zap-log-level</code> flag: <code>debug</code> (or <code>1</code>) adds V(1) per-reconcile progress logs, and <code>2</code> adds V(2) trace-level internals. See the <a href="/superset-kubernetes-operator/contributing/development-guidelines/#logging">logging policy</a> for what each level emits.</p>
 <p>Set it at install/upgrade time:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>superset-operator<span class="w"> </span>&lt;chart&gt;<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span>--namespace<span class="w"> </span>superset-operator-system<span class="w"> </span><span class="se">\</span>
-<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span>--set<span class="w"> </span><span class="nv">logLevel</span><span class="o">=</span>debug
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>helm<span class="w"> </span>upgrade<span class="w"> </span>--install<span class="w"> </span>superset-operator<span class="w"> </span>&lt;chart&gt;<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span>--namespace<span class="w"> </span>superset-operator-system<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">  </span>--set<span class="w"> </span><span class="nv">logLevel</span><span class="o">=</span>debug
 </code></pre></div>
 <p>or in a values file:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nt">logLevel</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">debug</span><span class="w">   </span><span class="c1"># "1" for V(1), "2" for V(2) trace</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nt">logLevel</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">debug</span><span class="w">   </span><span class="c1"># "1" for V(1), "2" for V(2) trace</span>
 </code></pre></div>
 <p>Revert to the default once you're done — V(2) is verbose.</p>
 <h2 id="next-steps">Next steps<a class="headerlink" href="#next-steps" title="Permanent link">&para;</a></h2>
