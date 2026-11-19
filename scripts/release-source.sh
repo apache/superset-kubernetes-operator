@@ -36,7 +36,7 @@
 #      + .asc (detached signatures verify file contents, not the filename, so
 #      the same signature stays valid) and regenerates the .sha512 file (since
 #      shasum embeds the filename).
-#   2. Verifies the result before exiting.
+#   3. Verifies the result before exiting.
 #
 # Run from the repository root.
 

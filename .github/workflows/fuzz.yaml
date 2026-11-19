@@ -16,7 +16,8 @@
 # Scheduled deep fuzzing. Fuzz targets (*_fuzz_test.go) also replay their seed
 # corpus during the regular test job on every PR; this workflow runs them for a
 # longer bounded duration to explore new inputs. A crash fails the job and
-# prints the testdata/fuzz reproducer, which we commit as a regression seed.
+# prints the testdata/fuzz reproducer; add its input as an f.Add(...) seed in the
+# target and delete the reproducer file (see the development guidelines).
 name: Fuzz
 
 on:
