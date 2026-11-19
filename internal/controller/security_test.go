@@ -20,6 +20,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"regexp"
@@ -29,6 +30,7 @@ import (
 	"testing"
 
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -37,74 +39,265 @@ import (
 	"sigs.k8s.io/yaml"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
-	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
 // TestReconcile_SecretsNeverLeakIntoConfigMaps guards the flagship threat-model
 // guarantee (docs/reference/security.md, "Secret Handling"): secret values are
 // resolved at runtime from environment variables and never appear in a
-// ConfigMap. The renderer emits `os.environ[...]` references rather than
-// literals, and config_builder injects the real values as container env vars.
+// ConfigMap, the parent status, or Events. The renderer emits `os.environ[...]`
+// references rather than literals, and config_builder injects the real values
+// as container env vars.
 //
 // Development mode is the strict case to test: inline secrets are permitted, so
 // the sentinel values are actually present in the spec and *could* leak if a
 // future change rendered them into superset_config.py instead of referencing
-// the env var. websocketServer is deliberately excluded — its inline config is
-// written to a ConfigMap by design (the documented dev-only exception), so it
-// would invalidate this invariant. See TestReconcile_WebsocketInlineConfig*.
+// the env var. Each case drives the lifecycle pipeline to completion so the
+// task ConfigMaps are rendered alongside the component ones. websocketServer is
+// deliberately excluded — its inline config is written to a ConfigMap by design
+// (the documented dev-only exception), so it would invalidate this invariant.
+// See TestReconcile_WebsocketInlineConfig*.
 func TestReconcile_SecretsNeverLeakIntoConfigMaps(t *testing.T) {
+	t.Run("structured metastore with all lifecycle tasks", func(t *testing.T) {
+		// Distinctive sentinels unlikely to collide with any non-secret config text.
+		const (
+			sentinelSecretKey = "SENTINEL0SECRET0KEY"
+			sentinelPrevKey   = "SENTINEL0PREVIOUS0KEY"
+			sentinelDBPass    = "SENTINEL0DATABASE0PASSWORD"
+			sentinelValkey    = "SENTINEL0VALKEY0PASSWORD"
+			sentinelSeedPass  = "SENTINEL0SEED0SOURCE0PASSWORD"
+			sentinelAdminPass = "SENTINEL0ADMIN0PASSWORD"
+		)
+		sentinels := []string{sentinelSecretKey, sentinelPrevKey, sentinelDBPass, sentinelValkey, sentinelSeedPass, sentinelAdminPass}
+
+		spec := devLeakTestSpec(sentinelSecretKey)
+		spec.PreviousSecretKey = new(sentinelPrevKey)
+		spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+			Host:     new("postgres"),
+			Database: new("superset"),
+			Username: new("superset"),
+			Password: new(sentinelDBPass),
+		}
+		spec.Valkey = &supersetv1alpha1.ValkeySpec{
+			Host:     "valkey",
+			Password: new(sentinelValkey),
+		}
+		spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+			Seed: &supersetv1alpha1.SeedTaskSpec{
+				Source: supersetv1alpha1.SeedSourceSpec{
+					Host:     "source-postgres",
+					Database: "superset_src",
+					Username: "reader",
+					Password: new(sentinelSeedPass),
+				},
+			},
+			Rotate: &supersetv1alpha1.RotateTaskSpec{},
+			Init: &supersetv1alpha1.InitTaskSpec{
+				AdminUser: &supersetv1alpha1.AdminUserSpec{Password: new(sentinelAdminPass)},
+			},
+		}
+
+		c, superset, recorded := reconcileLeakTestToCompletion(t, spec)
+		lc := superset.Status.Lifecycle
+		if lc == nil || lc.Seed == nil || lc.Migrate == nil || lc.Rotate == nil || lc.Init == nil {
+			t.Fatalf("expected seed, migrate, rotate, and init to have run; status.lifecycle=%+v", lc)
+		}
+		for task, ref := range map[string]*supersetv1alpha1.TaskRefStatus{"seed": lc.Seed, "migrate": lc.Migrate, "rotate": lc.Rotate, "init": lc.Init} {
+			if ref.State != "Complete" {
+				t.Errorf("expected %s task state Complete, got %q", task, ref.State)
+			}
+		}
+		assertNoSentinelLeak(t, c, superset, recorded, sentinels,
+			[]string{"test-web-server-config", "test-migrate-config", "test-rotate-config", "test-init-config"})
+
+		// Positive control: the rendered config references the secrets via env
+		// vars. Without this, a regression that simply dropped the secrets would
+		// pass the leak assertions vacuously.
+		assertConfigReferencesEnv(t, c, "test-web-server-config",
+			"SUPERSET_OPERATOR__SECRET_KEY", "SUPERSET_OPERATOR__PREVIOUS_SECRET_KEY",
+			"SUPERSET_OPERATOR__DB_PASS", "SUPERSET_OPERATOR__VALKEY_PASS")
+		assertConfigReferencesEnv(t, c, "test-rotate-config",
+			"SUPERSET_OPERATOR__SECRET_KEY", "SUPERSET_OPERATOR__PREVIOUS_SECRET_KEY",
+			"SUPERSET_OPERATOR__DB_PASS")
+
+		// Cross-check: the secrets DO flow through the pod environment (inline
+		// Values in dev mode), confirming the env-var transport is what carries
+		// them — not the ConfigMap.
+		env := deploymentEnv(t, c, "test-web-server")
+		for name, want := range map[string]string{
+			"SUPERSET_OPERATOR__SECRET_KEY":  sentinelSecretKey,
+			"SUPERSET_OPERATOR__DB_PASS":     sentinelDBPass,
+			"SUPERSET_OPERATOR__VALKEY_PASS": sentinelValkey,
+		} {
+			if got := env[name].Value; got != want {
+				t.Errorf("expected %s env Value %q, got %q", name, want, got)
+			}
+		}
+	})
+
+	t.Run("passthrough metastore uri", func(t *testing.T) {
+		const (
+			sentinelSecretKey = "SENTINEL0SECRET0KEY"
+			sentinelURIPass   = "SENTINEL0URI0PASSWORD"
+		)
+		sentinelURI := "postgresql+psycopg2://superset:" + sentinelURIPass + "@postgres:5432/superset"
+
+		spec := devLeakTestSpec(sentinelSecretKey)
+		spec.Metastore = &supersetv1alpha1.MetastoreSpec{URI: new(sentinelURI)}
+		spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{}
+
+		c, superset, recorded := reconcileLeakTestToCompletion(t, spec)
+		assertNoSentinelLeak(t, c, superset, recorded,
+			[]string{sentinelSecretKey, sentinelURIPass},
+			[]string{"test-web-server-config", "test-migrate-config", "test-init-config"})
+
+		assertConfigReferencesEnv(t, c, "test-web-server-config", "SUPERSET_OPERATOR__DB_URI")
+		assertConfigReferencesEnv(t, c, "test-migrate-config", "SUPERSET_OPERATOR__DB_URI")
+
+		env := deploymentEnv(t, c, "test-web-server")
+		if got := env["SUPERSET_OPERATOR__DB_URI"].Value; got != sentinelURI {
+			t.Errorf("expected SUPERSET_OPERATOR__DB_URI env Value %q, got %q", sentinelURI, got)
+		}
+	})
+}
+
+// TestReconcile_ProductionSecretRefsUseSecretKeyRef guards the Staging/Production
+// half of "Secret Handling": each operator-managed *From reference becomes a
+// valueFrom.secretKeyRef env var, so the value is resolved by the kubelet and
+// never copied by the operator.
+func TestReconcile_ProductionSecretRefsUseSecretKeyRef(t *testing.T) {
 	scheme := testScheme(t)
-
-	// Distinctive sentinels unlikely to collide with any non-secret config text.
-	const (
-		sentinelSecretKey = "SENTINEL0SECRET0KEY"
-		sentinelPrevKey   = "SENTINEL0PREVIOUS0KEY"
-		sentinelDBPass    = "SENTINEL0DATABASE0PASSWORD"
-		sentinelValkey    = "SENTINEL0VALKEY0PASSWORD"
-	)
-	sentinels := []string{sentinelSecretKey, sentinelPrevKey, sentinelDBPass, sentinelValkey}
-
 	spec := minimalSupersetSpec()
-	spec.Environment = new(supersetv1alpha1.EnvironmentDevelopment)
-	// Inline secrets (dev-mode) so the values are present in the spec.
-	spec.SecretKeyFrom = nil
-	spec.SecretKey = new(sentinelSecretKey)
-	spec.PreviousSecretKey = new(sentinelPrevKey)
+	spec.Environment = new(supersetv1alpha1.EnvironmentProduction)
+	spec.SecretKeyFrom = &corev1.SecretKeySelector{Name: "app-secret", Key: "secret-key"}
+	spec.PreviousSecretKeyFrom = &corev1.SecretKeySelector{Name: "app-secret", Key: "previous-secret-key"}
 	spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-		Host:     new("postgres"),
-		Database: new("superset"),
-		Username: new("superset"),
-		Password: new(sentinelDBPass),
+		Host:         new("postgres"),
+		Database:     new("superset"),
+		Username:     new("superset"),
+		PasswordFrom: &corev1.SecretKeySelector{Name: "db-secret", Key: "password"},
 	}
 	spec.Valkey = &supersetv1alpha1.ValkeySpec{
-		Host:     "valkey",
-		Password: new(sentinelValkey),
+		Host:         "valkey",
+		PasswordFrom: &corev1.SecretKeySelector{Name: "valkey-secret", Key: "password"},
 	}
-	// Exercise every Python config consumer (web-server is already set).
-	spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{}
-	spec.CeleryBeat = &supersetv1alpha1.CeleryBeatComponentSpec{}
-	spec.McpServer = &supersetv1alpha1.McpServerComponentSpec{}
 
 	superset := &supersetv1alpha1.Superset{
 		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: spec,
 	}
-
 	c := reconcileOnce(t, scheme, superset).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 	doReconcile(t, r)
 
-	ctx := context.Background()
+	env := deploymentEnv(t, c, "test-web-server")
+	for name, want := range map[string]corev1.SecretKeySelector{
+		"SUPERSET_OPERATOR__SECRET_KEY":          {Name: "app-secret", Key: "secret-key"},
+		"SUPERSET_OPERATOR__PREVIOUS_SECRET_KEY": {Name: "app-secret", Key: "previous-secret-key"},
+		"SUPERSET_OPERATOR__DB_PASS":             {Name: "db-secret", Key: "password"},
+		"SUPERSET_OPERATOR__VALKEY_PASS":         {Name: "valkey-secret", Key: "password"},
+	} {
+		e, ok := env[name]
+		if !ok {
+			t.Errorf("expected env var %s on the web-server container", name)
+			continue
+		}
+		if e.Value != "" {
+			t.Errorf("expected %s to carry no literal Value, got %q", name, e.Value)
+		}
+		if e.ValueFrom == nil || e.ValueFrom.SecretKeyRef == nil {
+			t.Errorf("expected %s to use valueFrom.secretKeyRef, got %+v", name, e.ValueFrom)
+			continue
+		}
+		if got := e.ValueFrom.SecretKeyRef; got.Name != want.Name || got.Key != want.Key {
+			t.Errorf("expected %s secretKeyRef %s/%s, got %s/%s", name, want.Name, want.Key, got.Name, got.Key)
+		}
+	}
+}
 
-	// 1. No sentinel secret value may appear in ANY owned ConfigMap.
+// devLeakTestSpec returns a Development-mode spec with an inline secret key and
+// every Python config consumer enabled.
+func devLeakTestSpec(secretKey string) supersetv1alpha1.SupersetSpec {
+	spec := minimalSupersetSpec()
+	spec.Environment = new(supersetv1alpha1.EnvironmentDevelopment)
+	spec.SecretKeyFrom = nil
+	spec.SecretKey = new(secretKey)
+	spec.CeleryWorker = &supersetv1alpha1.CeleryWorkerComponentSpec{}
+	spec.CeleryBeat = &supersetv1alpha1.CeleryBeatComponentSpec{}
+	spec.McpServer = &supersetv1alpha1.McpServerComponentSpec{}
+	return spec
+}
+
+// reconcileLeakTestToCompletion reconciles a Superset built from spec, marking
+// each lifecycle task Job succeeded as it appears, until the web-server
+// Deployment exists. It returns the client, the latest parent, and every Event
+// recorded along the way.
+func reconcileLeakTestToCompletion(t *testing.T, spec supersetv1alpha1.SupersetSpec) (client.Client, *supersetv1alpha1.Superset, []string) {
+	t.Helper()
+	ctx := context.Background()
+	scheme := testScheme(t)
+	superset := &supersetv1alpha1.Superset{
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: spec,
+	}
+	c := reconcileOnce(t, scheme, superset).Build()
+	recorder := events.NewFakeRecorder(100)
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: recorder}
+
+	var recorded []string
+	drainEvents := func() {
+		for {
+			select {
+			case e := <-recorder.Events:
+				recorded = append(recorded, e)
+			default:
+				return
+			}
+		}
+	}
+
+	deployed := false
+	for range 20 {
+		doReconcile(t, r)
+		drainEvents()
+
+		if err := c.Get(ctx, types.NamespacedName{Name: "test-web-server", Namespace: "default"}, &appsv1.Deployment{}); err == nil {
+			deployed = true
+			break
+		}
+		jobs := &batchv1.JobList{}
+		if err := c.List(ctx, jobs, client.InNamespace("default")); err != nil {
+			t.Fatalf("list Jobs: %v", err)
+		}
+		for i := range jobs.Items {
+			if !jobComplete(&jobs.Items[i]) {
+				markJobSucceeded(t, c, &jobs.Items[i])
+			}
+		}
+	}
+	if !deployed {
+		t.Fatal("web-server Deployment was not created; lifecycle did not complete within the reconcile budget")
+	}
+
+	got := &supersetv1alpha1.Superset{}
+	if err := c.Get(ctx, types.NamespacedName{Name: "test", Namespace: "default"}, got); err != nil {
+		t.Fatalf("get Superset: %v", err)
+	}
+	return c, got, recorded
+}
+
+// assertNoSentinelLeak fails if any sentinel appears in an owned ConfigMap, the
+// JSON-marshalled parent status, or a recorded Event. wantConfigMaps names
+// ConfigMaps that must exist so the ConfigMap scan is not vacuous.
+func assertNoSentinelLeak(t *testing.T, c client.Client, superset *supersetv1alpha1.Superset, recorded, sentinels, wantConfigMaps []string) {
+	t.Helper()
+
 	cms := &corev1.ConfigMapList{}
-	if err := c.List(ctx, cms, client.InNamespace("default")); err != nil {
+	if err := c.List(context.Background(), cms, client.InNamespace("default")); err != nil {
 		t.Fatalf("list ConfigMaps: %v", err)
 	}
-	if len(cms.Items) == 0 {
-		t.Fatal("expected at least one ConfigMap to be reconciled")
-	}
+	names := map[string]bool{}
 	for _, cm := range cms.Items {
+		names[cm.Name] = true
 		for key, val := range cm.Data {
 			for _, s := range sentinels {
 				if strings.Contains(val, s) {
@@ -113,51 +306,76 @@ func TestReconcile_SecretsNeverLeakIntoConfigMaps(t *testing.T) {
 			}
 		}
 	}
-
-	// 2. Positive control: the rendered config references the secrets via env
-	//    vars. Without this, a regression that simply dropped the secrets would
-	//    pass assertion (1) vacuously.
-	webCM := &corev1.ConfigMap{}
-	if err := c.Get(ctx, types.NamespacedName{Name: "test-web-server-config", Namespace: "default"}, webCM); err != nil {
-		t.Fatalf("get web-server ConfigMap: %v", err)
+	for _, name := range wantConfigMaps {
+		if !names[name] {
+			t.Errorf("expected ConfigMap %s to be reconciled; got %v", name, names)
+		}
 	}
-	pyConfig := webCM.Data["superset_config.py"]
-	for _, want := range []string{common.EnvSecretKey, common.EnvPreviousSecretKey, common.EnvDBPass, common.EnvValkeyPass} {
+
+	if superset.Status.Lifecycle == nil {
+		t.Error("expected status.lifecycle to be populated")
+	}
+	status, err := json.Marshal(superset.Status)
+	if err != nil {
+		t.Fatalf("marshal status: %v", err)
+	}
+	for _, s := range sentinels {
+		if strings.Contains(string(status), s) {
+			t.Errorf("secret leak: Superset status contains sentinel %q: %s", s, status)
+		}
+	}
+
+	if len(recorded) == 0 {
+		t.Error("expected reconciliation to record at least one Event")
+	}
+	for _, e := range recorded {
+		for _, s := range sentinels {
+			if strings.Contains(e, s) {
+				t.Errorf("secret leak: Event %q contains sentinel %q", e, s)
+			}
+		}
+	}
+}
+
+// assertConfigReferencesEnv asserts the named ConfigMap's superset_config.py
+// references each env var.
+func assertConfigReferencesEnv(t *testing.T, c client.Client, cmName string, envNames ...string) {
+	t.Helper()
+	cm := &corev1.ConfigMap{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: cmName, Namespace: "default"}, cm); err != nil {
+		t.Fatalf("get ConfigMap %s: %v", cmName, err)
+	}
+	pyConfig := cm.Data["superset_config.py"]
+	for _, want := range envNames {
 		if !strings.Contains(pyConfig, want) {
-			t.Errorf("expected superset_config.py to reference env var %q (os.environ), got:\n%s", want, pyConfig)
+			t.Errorf("expected %s superset_config.py to reference env var %q (os.environ), got:\n%s", cmName, want, pyConfig)
 		}
 	}
+}
 
-	// 3. Cross-check: the secrets DO flow through the pod environment (inline
-	//    Values in dev mode), confirming the env-var transport is what carries
-	//    them — not the ConfigMap.
-	webDeploy := &appsv1.Deployment{}
-	if err := c.Get(ctx, types.NamespacedName{Name: "test-web-server", Namespace: "default"}, webDeploy); err != nil {
-		t.Fatalf("get web-server Deployment: %v", err)
+// deploymentEnv returns the env vars of the named Deployment's containers, keyed by name.
+func deploymentEnv(t *testing.T, c client.Client, name string) map[string]corev1.EnvVar {
+	t.Helper()
+	deploy := &appsv1.Deployment{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: name, Namespace: "default"}, deploy); err != nil {
+		t.Fatalf("get Deployment %s: %v", name, err)
 	}
-	envValues := map[string]string{}
-	for _, container := range webDeploy.Spec.Template.Spec.Containers {
+	env := map[string]corev1.EnvVar{}
+	for _, container := range deploy.Spec.Template.Spec.Containers {
 		for _, e := range container.Env {
-			envValues[e.Name] = e.Value
+			env[e.Name] = e
 		}
 	}
-	if got := envValues[common.EnvSecretKey]; got != sentinelSecretKey {
-		t.Errorf("expected %s env Value %q, got %q", common.EnvSecretKey, sentinelSecretKey, got)
-	}
-	if got := envValues[common.EnvDBPass]; got != sentinelDBPass {
-		t.Errorf("expected %s env Value %q, got %q", common.EnvDBPass, sentinelDBPass, got)
-	}
-	if got := envValues[common.EnvValkeyPass]; got != sentinelValkey {
-		t.Errorf("expected %s env Value %q, got %q", common.EnvValkeyPass, sentinelValkey, got)
-	}
+	return env
 }
 
 // TestManagerRole_GrantsNoSecretsAccessOrWildcards guards the RBAC least-
 // privilege claims in docs/reference/security.md ("The operator does not
-// request: `*` (wildcard) on any resource or verb ... Kubernetes Secret read or
-// write permissions"). It reads the generated ClusterRole — the source-of-truth
-// artifact that is actually deployed — so an accidental `+kubebuilder:rbac`
-// marker that broadens scope is caught by `make codegen` + this test.
+// request: `*` (wildcard) on any resource or verb; `impersonate` or RBAC
+// management permissions; ... Kubernetes Secret read or write permissions").
+// It reads the generated ClusterRole — the source-of-truth artifact that is
+// actually deployed — so an accidental `+kubebuilder:rbac` marker that broadens
+// scope is caught by `make codegen` + this test.
 func TestManagerRole_GrantsNoSecretsAccessOrWildcards(t *testing.T) {
 	role := loadManagerClusterRole(t)
 
@@ -171,15 +389,34 @@ func TestManagerRole_GrantsNoSecretsAccessOrWildcards(t *testing.T) {
 			}
 		}
 		for _, verb := range rule.Verbs {
-			if verb == "*" {
+			switch verb {
+			case "*":
 				t.Errorf("rule[%d] uses a wildcard verb '*'; the operator must request explicit verbs only", i)
+			case "impersonate", "escalate", "bind":
+				t.Errorf("rule[%d] grants the privilege-escalation verb %q; the operator must not request it", i, verb)
 			}
 		}
 		for _, group := range rule.APIGroups {
-			if group == "*" {
+			switch group {
+			case "*":
 				t.Errorf("rule[%d] uses a wildcard apiGroup '*'; the operator must request explicit API groups only", i)
+			case "rbac.authorization.k8s.io":
+				t.Errorf("rule[%d] grants access to rbac.authorization.k8s.io %v; the operator must not manage RBAC", i, rule.Resources)
 			}
 		}
+	}
+
+	// supersets is pinned exactly: patch exists only to consume the supervised
+	// upgrade approval annotation, and create/update/delete are never needed.
+	var supersetVerbs []string
+	for _, rule := range role.Rules {
+		if slices.Contains(rule.APIGroups, "superset.apache.org") && slices.Contains(rule.Resources, "supersets") {
+			supersetVerbs = append(supersetVerbs, rule.Verbs...)
+		}
+	}
+	sort.Strings(supersetVerbs)
+	if want := []string{"get", "list", "patch", "watch"}; !slices.Equal(supersetVerbs, want) {
+		t.Errorf("expected supersets verbs %v, got %v", want, supersetVerbs)
 	}
 }
 

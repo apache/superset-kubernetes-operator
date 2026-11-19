@@ -28,7 +28,6 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -117,66 +116,6 @@ var _ = Describe("Integration", Ordered, func() {
 
 		BeforeAll(func() {
 			createNamespace(ns)
-		})
-
-		It("should reject prod-mode CR with inline secretKey", func() {
-			cr := newSuperset("prod-reject", ns)
-			cr.Spec.Environment = nil // defaults to prod via kubebuilder default
-			err := k8sClient.Create(ctx, cr)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("secretKey"))
-		})
-
-		It("should reject prod-mode CR with inline metastore.uri", func() {
-			cr := newSuperset("prod-reject-uri", ns)
-			cr.Spec.Environment = nil
-			cr.Spec.SecretKey = nil
-			cr.Spec.SecretKeyFrom = &corev1.SecretKeySelector{
-				Name: "s",
-				Key:  "k",
-			}
-			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-				URI: new("postgresql+psycopg2://u:p@host/db"),
-			}
-			err := k8sClient.Create(ctx, cr)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("metastore.uri"))
-		})
-
-		It("should reject prod-mode CR with inline metastore.password", func() {
-			cr := newSuperset("prod-reject-pw", ns)
-			cr.Spec.Environment = nil
-			cr.Spec.SecretKey = nil
-			cr.Spec.SecretKeyFrom = &corev1.SecretKeySelector{
-				Name: "s",
-				Key:  "k",
-			}
-			cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-				Host:     new("db.example.com"),
-				Database: new("superset"),
-				Username: new("admin"),
-				Password: new("secret"),
-			}
-			err := k8sClient.Create(ctx, cr)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("metastore.password"))
-		})
-
-		It("should reject prod-mode CR with inline valkey.password", func() {
-			cr := newSuperset("prod-reject-vk", ns)
-			cr.Spec.Environment = nil
-			cr.Spec.SecretKey = nil
-			cr.Spec.SecretKeyFrom = &corev1.SecretKeySelector{
-				Name: "s",
-				Key:  "k",
-			}
-			cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
-				Host:     "valkey",
-				Password: new("secret"),
-			}
-			err := k8sClient.Create(ctx, cr)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("valkey.password"))
 		})
 
 		It("should allow dev-mode CR with all inline secrets", func() {
@@ -299,44 +238,6 @@ var _ = Describe("Integration", Ordered, func() {
 			}
 			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
 			Expect(k8sClient.Delete(ctx, cr)).To(Succeed())
-		})
-
-		It("should reject websocketServer config and configFrom together", func() {
-			cr := newSuperset("ws-config-both", ns)
-			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
-				Image: &supersetv1alpha1.ImageOverrideSpec{
-					Repository: new("example.com/superset-websocket"),
-				},
-				Config: &apiextensionsv1.JSON{Raw: []byte(`{"port":8080}`)},
-				ConfigFrom: &corev1.SecretKeySelector{
-					Name: "ws-config",
-					Key:  "config.json",
-				},
-			}
-			err := k8sClient.Create(ctx, cr)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("websocketServer.config"))
-		})
-
-		It("should reject inline websocketServer config outside Development", func() {
-			prodEnv := supersetv1alpha1.EnvironmentProduction
-			cr := newSuperset("ws-config-prod", ns)
-			cr.Spec.Environment = &prodEnv
-			cr.Spec.SecretKey = nil
-			cr.Spec.SecretKeyFrom = &corev1.SecretKeySelector{
-				Name: "app-secret",
-				Key:  "secret-key",
-			}
-			cr.Spec.Metastore = nil
-			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
-				Image: &supersetv1alpha1.ImageOverrideSpec{
-					Repository: new("example.com/superset-websocket"),
-				},
-				Config: &apiextensionsv1.JSON{Raw: []byte(`{"port":8080}`)},
-			}
-			err := k8sClient.Create(ctx, cr)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("websocketServer.config"))
 		})
 
 		It("should accept websocketServer configFrom outside Development", func() {

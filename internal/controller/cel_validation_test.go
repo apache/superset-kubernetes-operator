@@ -108,6 +108,94 @@ func structuredProdMetastore() *supersetv1alpha1.MetastoreSpec {
 	}
 }
 
+// inlineSecretCase is one inline-secret field that CEL must reject outside
+// Development.
+type inlineSecretCase struct {
+	field  string
+	slug   string
+	mutate func(*supersetv1alpha1.Superset)
+	want   string
+}
+
+var inlineSecretCases = []inlineSecretCase{
+	{"secretKey", "secretkey", func(s *supersetv1alpha1.Superset) {
+		s.Spec.SecretKey = new("plain-text-key")
+		s.Spec.SecretKeyFrom = nil
+	}, "secretKey is only allowed when environment is Development"},
+	{"previousSecretKey", "prevkey", func(s *supersetv1alpha1.Superset) {
+		s.Spec.PreviousSecretKey = new("old-key")
+	}, "previousSecretKey is only allowed when environment is Development"},
+	{"metastore.uri", "db-uri", func(s *supersetv1alpha1.Superset) {
+		s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+			URI: new("postgresql+psycopg2://u:p@postgres:5432/superset"),
+		}
+	}, "metastore.uri is only allowed when environment is Development"},
+	{"metastore.password", "db-pw", func(s *supersetv1alpha1.Superset) {
+		s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+			Host:     new("postgres"),
+			Database: new("superset"),
+			Username: new("superset"),
+			Password: new("plain-text-password"),
+		}
+	}, "metastore.password is only allowed when environment is Development"},
+	{"valkey.password", "valkey-pw", func(s *supersetv1alpha1.Superset) {
+		s.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
+			Host:     "valkey",
+			Password: new("plain-text-password"),
+		}
+	}, "valkey.password is only allowed when environment is Development"},
+	{"websocketServer.config", "ws-config", func(s *supersetv1alpha1.Superset) {
+		// The image override satisfies the image-required rule, isolating the
+		// rule under test.
+		s.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
+			Image:  &supersetv1alpha1.ImageOverrideSpec{Repository: new("example.com/superset-websocket")},
+			Config: &apiextensionsv1.JSON{Raw: []byte(`{"port":8080,"jwtSecret":"plain"}`)},
+		}
+	}, "websocketServer.config is only allowed when environment is Development"},
+	{"lifecycle.init.adminUser", "admin", func(s *supersetv1alpha1.Superset) {
+		s.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+			Init: &supersetv1alpha1.InitTaskSpec{AdminUser: &supersetv1alpha1.AdminUserSpec{}},
+		}
+	}, "lifecycle.init.adminUser is only allowed when environment is Development"},
+	{"lifecycle.init.loadExamples", "examples", func(s *supersetv1alpha1.Superset) {
+		s.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
+			Init: &supersetv1alpha1.InitTaskSpec{LoadExamples: new(true)},
+		}
+	}, "lifecycle.init.loadExamples is only allowed when environment is Development"},
+}
+
+// inlineSecretEntries expands inlineSecretCases across Production and Staging,
+// and across an omitted environment (which defaults to Production).
+func inlineSecretEntries() []TableEntry {
+	environments := []string{"Production", "Staging", ""}
+	entries := make([]TableEntry, 0, len(environments)*len(inlineSecretCases))
+	for _, env := range environments {
+		label, suffix := env, strings.ToLower(env)
+		if env == "" {
+			label, suffix = "omitted environment", "default"
+		}
+		for _, c := range inlineSecretCases {
+			entries = append(entries, Entry(c.field+" with "+label, "inline-"+c.slug+"-"+suffix, env, c.mutate, c.want))
+		}
+	}
+	return entries
+}
+
+func withFlowerGatewayPath(path string) func(*supersetv1alpha1.Superset) {
+	return func(s *supersetv1alpha1.Superset) {
+		s.Spec.CeleryFlower = &supersetv1alpha1.CeleryFlowerComponentSpec{
+			Service: &supersetv1alpha1.ComponentServiceSpec{GatewayPath: new(path)},
+		}
+	}
+}
+
+func withMetastoreDriver(driver string) func(*supersetv1alpha1.Superset) {
+	return func(s *supersetv1alpha1.Superset) {
+		s.Spec.Metastore = structuredProdMetastore()
+		s.Spec.Metastore.Driver = new(driver)
+	}
+}
+
 var _ = Describe("CEL Validation", Ordered, func() {
 	BeforeAll(func() {
 		nsObj := &corev1.Namespace{Name: celValidationNS}
@@ -125,40 +213,88 @@ var _ = Describe("CEL Validation", Ordered, func() {
 	// representative smoke case to confirm the rules ship in the installed CRD.
 
 	DescribeTable("rejects inline secrets outside Development",
-		func(name string, mutate func(*supersetv1alpha1.Superset), want string) {
+		func(name, env string, mutate func(*supersetv1alpha1.Superset), want string) {
 			cr := validProdSuperset(name)
+			if env == "" {
+				cr.Spec.Environment = nil
+			} else {
+				cr.Spec.Environment = new(supersetv1alpha1.Environment(env))
+			}
 			mutate(cr)
 			err := k8sClient.Create(ctx, cr)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring(want))
 		},
-		Entry("secretKey", "inline-secretkey-prod",
-			func(s *supersetv1alpha1.Superset) {
-				s.Spec.SecretKey = new("plain-text-key")
-				s.Spec.SecretKeyFrom = nil
-			}, "secretKey is only allowed"),
-		Entry("metastore.uri", "inline-db-uri-prod",
-			func(s *supersetv1alpha1.Superset) {
-				s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-					URI: new("postgresql+psycopg2://u:p@postgres:5432/superset"),
-				}
-			}, "metastore.uri is only allowed"),
-		Entry("metastore.password", "inline-db-pw-prod",
-			func(s *supersetv1alpha1.Superset) {
-				s.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
-					Host:     new("postgres"),
-					Database: new("superset"),
-					Username: new("superset"),
-					Password: new("plain-text-password"),
-				}
-			}, "metastore.password is only allowed"),
-		Entry("valkey.password", "inline-valkey-pw-prod",
+		inlineSecretEntries(),
+	)
+
+	It("rejects secretKey together with secretKeyFrom", func() {
+		cr := validDevSuperset("secretkey-both")
+		cr.Spec.SecretKeyFrom = secretRef("app-secret", "secret-key")
+		err := k8sClient.Create(ctx, cr)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("exactly one of secretKey (dev only) or secretKeyFrom must be set"))
+	})
+
+	// --- Pattern-restricted fields (values reach a shell or rendered Python) ---
+
+	DescribeTable("rejects values outside the allowed pattern",
+		func(name string, mutate func(*supersetv1alpha1.Superset), field string) {
+			cr := validDevSuperset(name)
+			mutate(cr)
+			err := k8sClient.Create(ctx, cr)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring(field))
+			Expect(err.Error()).To(ContainSubstring("should match"))
+		},
+		Entry("celeryFlower.service.gatewayPath with a command separator", "pattern-gwpath-semicolon",
+			withFlowerGatewayPath("/x;rm -rf /"), "spec.celeryFlower.service.gatewayPath"),
+		Entry("celeryFlower.service.gatewayPath with command substitution", "pattern-gwpath-subst",
+			withFlowerGatewayPath("/$(id)"), "spec.celeryFlower.service.gatewayPath"),
+		Entry("celeryFlower.service.gatewayPath with a space", "pattern-gwpath-space",
+			withFlowerGatewayPath("/a b"), "spec.celeryFlower.service.gatewayPath"),
+		Entry("metastore.driver with a statement separator", "pattern-driver-semicolon",
+			withMetastoreDriver("psycopg2;import os"), "spec.metastore.driver"),
+		Entry("metastore.driver with a quote", "pattern-driver-quote",
+			withMetastoreDriver("psycopg2'"), "spec.metastore.driver"),
+		Entry("valkey.cache.keyPrefix with a brace", "pattern-cache-prefix-brace",
 			func(s *supersetv1alpha1.Superset) {
 				s.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
-					Host:     "valkey",
-					Password: new("plain-text-password"),
+					Host:  "valkey",
+					Cache: &supersetv1alpha1.ValkeyCacheSpec{KeyPrefix: new("superset_{x}")},
 				}
-			}, "valkey.password is only allowed"),
+			}, "spec.valkey.cache.keyPrefix"),
+		Entry("valkey.resultsBackend.keyPrefix with a quote", "pattern-results-prefix-quote",
+			func(s *supersetv1alpha1.Superset) {
+				s.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
+					Host:           "valkey",
+					ResultsBackend: &supersetv1alpha1.ValkeyResultsBackendSpec{KeyPrefix: new("results'")},
+				}
+			}, "spec.valkey.resultsBackend.keyPrefix"),
+	)
+
+	DescribeTable("accepts values matching the allowed pattern",
+		func(name string, mutate func(*supersetv1alpha1.Superset)) {
+			cr := validDevSuperset(name)
+			mutate(cr)
+			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
+		},
+		Entry("celeryFlower.service.gatewayPath", "pattern-gwpath-ok", withFlowerGatewayPath("/flower/v1_a.b-c")),
+		Entry("metastore.driver", "pattern-driver-ok", withMetastoreDriver("psycopg")),
+		Entry("valkey.cache.keyPrefix", "pattern-cache-prefix-ok",
+			func(s *supersetv1alpha1.Superset) {
+				s.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
+					Host:  "valkey",
+					Cache: &supersetv1alpha1.ValkeyCacheSpec{KeyPrefix: new("superset_cache:v1.a-b")},
+				}
+			}),
+		Entry("valkey.resultsBackend.keyPrefix", "pattern-results-prefix-ok",
+			func(s *supersetv1alpha1.Superset) {
+				s.Spec.Valkey = &supersetv1alpha1.ValkeySpec{
+					Host:           "valkey",
+					ResultsBackend: &supersetv1alpha1.ValkeyResultsBackendSpec{KeyPrefix: new("superset_results:")},
+				}
+			}),
 	)
 
 	// --- Metastore field constraints ---
@@ -678,14 +814,6 @@ var _ = Describe("CEL Validation", Ordered, func() {
 	// --- Secret-key rotation constraints ---
 
 	Describe("Rotation", func() {
-		It("rejects inline previousSecretKey outside Development", func() {
-			cr := validProdSuperset("rotate-prevkey-prod")
-			cr.Spec.PreviousSecretKey = new("old-key")
-			err := k8sClient.Create(ctx, cr)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("previousSecretKey is only allowed when environment is Development"))
-		})
-
 		It("rejects previousSecretKey together with previousSecretKeyFrom", func() {
 			cr := validDevSuperset("rotate-prevkey-both")
 			cr.Spec.PreviousSecretKey = new("old-key")
@@ -706,33 +834,9 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		})
 	})
 
-	// --- Init task (dev-only fields) ---
+	// --- Init task ---
 
 	Describe("Init", func() {
-		It("rejects adminUser outside Development", func() {
-			cr := validProdSuperset("init-admin-prod")
-			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-				Init: &supersetv1alpha1.InitTaskSpec{
-					AdminUser: &supersetv1alpha1.AdminUserSpec{},
-				},
-			}
-			err := k8sClient.Create(ctx, cr)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("lifecycle.init.adminUser is only allowed when environment is Development"))
-		})
-
-		It("rejects loadExamples outside Development", func() {
-			cr := validProdSuperset("init-examples-prod")
-			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
-				Init: &supersetv1alpha1.InitTaskSpec{
-					LoadExamples: new(true),
-				},
-			}
-			err := k8sClient.Create(ctx, cr)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("lifecycle.init.loadExamples is only allowed when environment is Development"))
-		})
-
 		It("rejects init.command together with adminUser", func() {
 			cr := validDevSuperset("init-cmd-admin")
 			cr.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
@@ -839,17 +943,6 @@ var _ = Describe("CEL Validation", Ordered, func() {
 				Image: &supersetv1alpha1.ImageOverrideSpec{Repository: new("example.com/superset-websocket")},
 			}
 		}
-
-		It("rejects inline websocketServer.config outside Development", func() {
-			cr := validProdSuperset("ws-config-prod")
-			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
-				ComponentSpec: wsImage(),
-				Config:        &apiextensionsv1.JSON{Raw: []byte(`{"port":8080,"jwtSecret":"plain"}`)},
-			}
-			err := k8sClient.Create(ctx, cr)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("websocketServer.config is only allowed"))
-		})
 
 		It("rejects websocketServer.config together with configFrom", func() {
 			cr := validDevSuperset("ws-config-both")

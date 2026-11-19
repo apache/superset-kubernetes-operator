@@ -19,7 +19,6 @@ limitations under the License.
 package controller
 
 import (
-	"reflect"
 	"testing"
 	"time"
 
@@ -223,10 +222,13 @@ func TestDefaultInitCommand(t *testing.T) {
 			}},
 		}}
 		got := defaultInitCommand(s)
-		// No bootstrap, so identical to buildInitCommand output.
-		want := buildInitCommand(s.Spec.Lifecycle.Init)
-		if !reflect.DeepEqual(got, want) {
-			t.Errorf("defaultInitCommand() = %#v, want %#v", got, want)
-		}
+		want := []string{"/bin/sh", "-c", `superset init && (superset fab create-admin` +
+			` --username "$SUPERSET_OPERATOR__ADMIN_USERNAME"` +
+			` --password "$SUPERSET_OPERATOR__ADMIN_PASSWORD"` +
+			` --firstname "$SUPERSET_OPERATOR__ADMIN_FIRST_NAME"` +
+			` --lastname "$SUPERSET_OPERATOR__ADMIN_LAST_NAME"` +
+			` --email "$SUPERSET_OPERATOR__ADMIN_EMAIL"` +
+			` || true)`}
+		assert.Equal(t, want, got)
 	})
 }

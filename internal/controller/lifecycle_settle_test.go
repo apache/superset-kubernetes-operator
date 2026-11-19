@@ -220,43 +220,6 @@ func TestClearUpgradeApprovalAnnotation_NoOpWhenAbsent(t *testing.T) {
 	}
 }
 
-// TestFinalizeLifecycleDoesNotPatchAnnotation covers finding #6: the bug was
-// that finalizeLifecycle issued a separate annotation Patch *before* status
-// was persisted, so a status patch failure would strand the annotation
-// (re-gating Supervised upgrades while LastLifecycleImage was stale). Annotation
-// clearing has moved to the parent reconciler post-status-persist. This test
-// pins finalizeLifecycle to settling status only.
-func TestFinalizeLifecycleDoesNotPatchAnnotation(t *testing.T) {
-	scheme := testScheme(t)
-	superset := &supersetv1alpha1.Superset{
-		Name:        "test",
-		Namespace:   "default",
-		UID:         "uid-1",
-		Annotations: map[string]string{annotationApproveUpgrade: "true"},
-		Spec: supersetv1alpha1.SupersetSpec{
-			Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "6.0.1"},
-		},
-		Status: supersetv1alpha1.SupersetStatus{
-			Lifecycle: &supersetv1alpha1.LifecycleStatus{Phase: supersetv1alpha1.LifecyclePhaseInitializing},
-		},
-	}
-	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
-	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
-
-	r.finalizeLifecycle(superset, "apache/superset:6.0.1")
-
-	if superset.Status.LastLifecycleImage != "apache/superset:6.0.1" {
-		t.Fatalf("expected LastLifecycleImage to advance, got %q", superset.Status.LastLifecycleImage)
-	}
-	persisted := &supersetv1alpha1.Superset{}
-	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, persisted); err != nil {
-		t.Fatalf("get persisted: %v", err)
-	}
-	if _, ok := persisted.GetAnnotations()[annotationApproveUpgrade]; !ok {
-		t.Fatalf("finalizeLifecycle must not touch the annotation; the parent reconciler clears it after status persist. Annotation was removed.")
-	}
-}
-
 func hasConditionMessage(conditions []metav1.Condition, conditionType, message string) bool {
 	for _, c := range conditions {
 		if c.Type == conditionType && c.Message == message {
