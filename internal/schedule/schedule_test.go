@@ -177,3 +177,13 @@ func TestNextTick_YearField(t *testing.T) {
 	expected := time.Date(2027, 1, 1, 2, 0, 0, 0, time.UTC)
 	assert.Equal(t, expected, next)
 }
+
+func TestCurrentTick_MidMinuteReturnsMinuteBoundary(t *testing.T) {
+	now := time.Date(2026, 5, 11, 2, 0, 59, 0, time.UTC)
+	assert.Equal(t, "2026-05-11T02:00:00Z", CurrentTick("0 2 * * *", now))
+}
+
+func TestCurrentTick_SecondPrecisionKeepsSeconds(t *testing.T) {
+	now := time.Date(2026, 5, 11, 14, 30, 45, 0, time.UTC)
+	assert.Equal(t, "2026-05-11T14:30:40Z", CurrentTick("*/10 * * * * *", now))
+}

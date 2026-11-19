@@ -29,6 +29,12 @@ import (
 // at or before now, formatted as RFC3339 UTC (e.g., "2026-05-12T02:00:00Z").
 // Returns "" if the expression is invalid or no matching tick exists.
 func CurrentTick(expr string, now time.Time) string {
+	// gronx short-circuits with the reference time itself when it is due, and
+	// since v1.20.7 a minute-precision expression is due for the whole minute.
+	// Truncate to the minute so the tick is the minute boundary, not now.
+	if segs, err := gronx.Segments(expr); err == nil && segs[0] == "0" {
+		now = time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), 0, 0, now.Location())
+	}
 	prev, err := gronx.PrevTickBefore(expr, now, true)
 	if err != nil {
 		return ""
