@@ -265,6 +265,25 @@ EOF
 
 The operator will create the CeleryWorker and CeleryBeat Deployments and their ConfigMaps automatically.
 
+## Upgrading the operator
+
+Helm installs the `Superset` CRD from the chart's `crds/` directory on first install, but [`helm upgrade` never updates it](https://helm.sh/docs/chart_best_practices/custom_resource_definitions/#some-caveats-and-explanations). Apply the new version's CRD before upgrading the chart:
+
+```bash
+helm show crds oci://ghcr.io/apache/superset-kubernetes-operator/charts/superset-operator \
+  --version <version> \
+  | kubectl apply --server-side --force-conflicts -f -
+
+helm upgrade superset-operator \
+  oci://ghcr.io/apache/superset-kubernetes-operator/charts/superset-operator \
+  --version <version> \
+  --namespace superset-operator-system
+```
+
+The CRD is too large for client-side `kubectl apply`, so use `--server-side`. `--force-conflicts` takes over the fields Helm set when it created the CRD. If you skip this step, the cluster keeps the old schema: the API server silently drops fields it doesn't know, and new validation rules don't apply. Applying the CRD requires cluster-admin.
+
+Read the [release notes](../reference/releases.md) before upgrading; breaking changes list the steps to take first.
+
 ## Debugging the operator
 
 If a Superset isn't reconciling as expected, raise the operator's log verbosity. The chart exposes a `logLevel` value mapped to the manager's `--zap-log-level` flag: `debug` (or `1`) adds V(1) per-reconcile progress logs, and `2` adds V(2) trace-level internals. See the [logging policy](../contributing/development-guidelines.md#logging) for what each level emits.
