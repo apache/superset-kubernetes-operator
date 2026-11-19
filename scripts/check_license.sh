@@ -112,13 +112,18 @@ trap "rm -rf $RAT_WORKDIR" EXIT
 
 git archive HEAD | tar -x -C "$RAT_WORKDIR"
 
-# Remove directories that should not be checked:
-# - config/ is entirely generated (controller-gen) or scaffolded (Operator SDK)
+# Remove generated files that carry no license header:
+# - config/crd/bases/ and config/rbac/role.yaml are controller-gen output
+#   (`make manifests`)
 # - charts/superset-operator/crds/ are copies of the generated CRDs
-rm -rf "$RAT_WORKDIR"/config
+#   (`make helm-sync-crds`)
+rm -rf "$RAT_WORKDIR"/config/crd/bases
+rm -f "$RAT_WORKDIR"/config/rbac/role.yaml
 rm -rf "$RAT_WORKDIR"/charts/superset-operator/crds
 
-$java_cmd -jar "$rat_jar" -E "$FWDIR"/.rat-excludes -d "$RAT_WORKDIR" > rat-results.txt
+# Rat skips hidden directories by default; scan them so .github/ and
+# .devcontainer/ are checked too.
+$java_cmd -jar "$rat_jar" --scan-hidden-directories -E "$FWDIR"/.rat-excludes -d "$RAT_WORKDIR" > rat-results.txt
 
 if [ $? -ne 0 ]; then
    echo "RAT exited abnormally"

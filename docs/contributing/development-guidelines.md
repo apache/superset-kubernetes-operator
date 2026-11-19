@@ -280,7 +280,7 @@ To check locally (requires Java):
 make check-license
 ```
 
-The script downloads the Rat jar to `${XDG_CACHE_HOME:-$HOME/.cache}/superset-kubernetes-operator/lib/` on first run. Files that are generated, scaffolded by Operator SDK, or not user-authored are excluded via `.rat-excludes`.
+The script downloads the Rat jar to `${XDG_CACHE_HOME:-$HOME/.cache}/superset-kubernetes-operator/lib/` on first run. Rat checks every git-tracked file, including hidden directories such as `.github/` and `.devcontainer/`. Generated files (`config/crd/bases/`, `config/rbac/role.yaml`, and the Helm chart's CRD copies) are removed before the scan, and other files that can't carry a header are excluded by name via `.rat-excludes`. Files under `config/` other than those generated ones, including Operator SDK scaffolding, need the header.
 
 When adding new source files (`.go`, `.yaml`, `.sh`, `Dockerfile`, etc.), include the appropriate license header. Go files get this automatically from `hack/boilerplate.go.txt` when using `make generate`. For other file types, use the `#`-comment form:
 
