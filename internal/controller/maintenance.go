@@ -286,7 +286,7 @@ func (r *SupersetReconciler) reconcileMaintenanceDeployment(
 			return err
 		}
 		deploy.Spec = buildDeploymentSpec(&flat, maintenanceDeployConfig, podAnnotations, selectorLabels)
-		deploy.Labels = mergeLabels(nil, componentLabels(string(naming.ComponentMaintenancePage), superset.Name))
+		deploy.Labels = podOperatorLabels(string(naming.ComponentMaintenancePage), superset.Name, superset.Name)
 		return nil
 	})
 	return err
@@ -309,6 +309,7 @@ func (r *SupersetReconciler) reconcileMaintenanceConfigMap(
 		if err := controllerutil.SetControllerReference(superset, cm, r.Scheme); err != nil {
 			return err
 		}
+		cm.Labels = mergeLabels(cm.Labels, podOperatorLabels(string(naming.ComponentMaintenancePage), superset.Name, superset.Name))
 		cm.Data = map[string]string{
 			"nginx.conf":   renderMaintenanceNginxMainConf(),
 			"default.conf": renderNginxConf(),
