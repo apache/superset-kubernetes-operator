@@ -1056,7 +1056,7 @@ under the License.
 <li><strong>Lifecycle automation</strong> — database seeding, schema migrations, secret key rotation, and application init run as sequenced tasks with automatic change detection and checksum-based re-execution</li>
 <li><strong>Networking</strong> — Gateway API (HTTPRoute) and Ingress support with per-component routing</li>
 <li><strong>Scaling and resilience</strong> — HPA with custom metrics, PodDisruptionBudgets, NetworkPolicies, Prometheus ServiceMonitor</li>
-<li><strong>Flexible install scope</strong> — cluster-scoped (default) or namespace-scoped; the namespace-scoped Helm install renders no manager <code>ClusterRole</code>. CRD installation and, unless metrics are disabled, secure metrics auth still require cluster-scoped RBAC — see <a href="/superset-kubernetes-operator/latest/user-guide/installation/#namespace-scoped-install">installation</a> for the exact constraints</li>
+<li><strong>Flexible install scope</strong> — cluster-scoped (default) or namespace-scoped installs; see <a href="/superset-kubernetes-operator/latest/user-guide/installation/#namespace-scoped-install">installation</a></li>
 </ul>
 <h2 id="supported-kubernetes-versions">Supported Kubernetes versions<a class="headerlink" href="#supported-kubernetes-versions" title="Permanent link">&para;</a></h2>
 <!-- BEGIN SUPPORTED-K8S -->
@@ -1075,7 +1075,7 @@ under the License.
 <a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-superset</span>
 <a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="nt">spec</span><span class="p">:</span>
 <a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="nt">image</span><span class="p">:</span>
-<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="s">"6.1.0"</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="s">"6.1.0-dev"</span>
 <a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">  </span><span class="nt">environment</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Development</span>
 <a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="w">  </span><span class="nt">secretKey</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">thisIsNotSecure_changeInProduction!</span>
 <a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">  </span><span class="nt">metastore</span><span class="p">:</span>
@@ -1094,7 +1094,7 @@ under the License.
 <a id="__codelineno-0-23" name="__codelineno-0-23" href="#__codelineno-0-23"></a><span class="w">      </span><span class="nt">adminUser</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
 <a id="__codelineno-0-24" name="__codelineno-0-24" href="#__codelineno-0-24"></a><span class="w">      </span><span class="nt">loadExamples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </code></pre></div>
-<p>For production, use <code>secretKeyFrom</code> and <code>metastore.uriFrom</code> to reference Kubernetes Secrets instead of inline values:</p>
+<p>For production, use <code>secretKeyFrom</code> and <code>metastore.uriFrom</code> to reference Kubernetes Secrets instead of inline values. The lean <code>6.1.0</code> image has no database drivers, so use an image that includes the driver for your metastore (see <a href="/superset-kubernetes-operator/latest/user-guide/configuration/#metastore">Metastore</a>):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">superset.apache.org/v1alpha1</span>
 <a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Superset</span>
 <a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="nt">metadata</span><span class="p">:</span>

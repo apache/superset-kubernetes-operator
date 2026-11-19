@@ -1527,7 +1527,7 @@ at chart version <code>0.15.5</code> / <code>appVersion: 5.0.0</code>. Older Hel
 </tr>
 </tbody>
 </table>
-<p>The operator's intentional gaps each have a straightforward workaround: provision PostgreSQL and Redis/Valkey separately and point <code>spec.metastore</code> / <code>spec.valkey</code> at them; move inline secrets into Kubernetes Secrets referenced by <code>secretKeyFrom</code> and the <code>*From</code> fields; influence Celery Beat scheduling with <code>priorityClassName</code> and affinity (a PDB on a 1-replica singleton is advisory only); and pin a load-balancer address with a cloud-provider Service annotation. The <a href="#value-mapping">Value Mapping</a> section below translates every field in detail.</p>
+<p>The operator's intentional gaps each have a straightforward workaround: provision PostgreSQL and Redis/Valkey separately and point <code>spec.metastore</code> / <code>spec.valkey</code> at them; move inline secrets into Kubernetes Secrets referenced by <code>secretKeyFrom</code> and the <code>*From</code> fields; influence Celery Beat scheduling with <code>priorityClassName</code> and affinity (a PDB on a 1-replica singleton is advisory only); and pin a load-balancer address with a cloud-provider Service annotation. The <a href="#value-mapping">Value Mapping</a> section below maps Helm chart values to their operator equivalents.</p>
 <h2 id="migration-workflow">Migration Workflow<a class="headerlink" href="#migration-workflow" title="Permanent link">&para;</a></h2>
 <ol>
 <li>

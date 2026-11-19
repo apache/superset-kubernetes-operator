@@ -1446,7 +1446,7 @@ under the License.
 <p>Creates per-component NetworkPolicies that:</p>
 <ul>
 <li>Allow ingress from other pods of the same Superset instance on <strong>any port</strong> (matched by <code>app.kubernetes.io/name: superset</code> + <code>superset.apache.org/parent</code> labels — multiple Superset instances in the same namespace are isolated from each other). The same-instance rule is intentionally port-unrestricted so internal traffic between components (sidecar metrics scraping, the websocket server fanning out to web pods, etc.) is not silently blocked.</li>
-<li>Allow ingress on the service port from any source for externally-facing components (web server, websocket server, MCP server, and Celery Flower once it is published — see the Flower note above) — this is necessary because ingress controllers and load balancers typically reside outside the namespace and cannot be matched with a pod selector.</li>
+<li>Allow ingress on the component's container port from any source for externally-facing components (web server, websocket server, MCP server, and Celery Flower once it is published — see the Flower note above) — this is necessary because ingress controllers and load balancers typically reside outside the namespace and cannot be matched with a pod selector.</li>
 <li>Allow all egress (for database/cache access)</li>
 <li>Support custom <code>extraIngress</code> and <code>extraEgress</code> rules</li>
 </ul>

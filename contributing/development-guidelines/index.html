@@ -1600,7 +1600,7 @@ under the License.
 <a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w">        </span><span class="nx">Namespace</span><span class="p">:</span><span class="w"> </span><span class="s">"default"</span><span class="p">,</span>
 <a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="w">        </span><span class="nx">Spec</span><span class="p">:</span><span class="w"> </span><span class="nx">supersetv1alpha1</span><span class="p">.</span><span class="nx">SupersetSpec</span><span class="p">{</span>
 <a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="w">            </span><span class="nx">Image</span><span class="p">:</span><span class="w">       </span><span class="nx">supersetv1alpha1</span><span class="p">.</span><span class="nx">ImageSpec</span><span class="p">{</span><span class="nx">Repository</span><span class="p">:</span><span class="w"> </span><span class="s">"apache/superset"</span><span class="p">,</span><span class="w"> </span><span class="nx">Tag</span><span class="p">:</span><span class="w"> </span><span class="s">"6.1.0"</span><span class="p">},</span>
-<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">            </span><span class="nx">Environment</span><span class="p">:</span><span class="w"> </span><span class="nb">new</span><span class="p">(</span><span class="nx">common</span><span class="p">.</span><span class="nx">EnvironmentDev</span><span class="p">),</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="w">            </span><span class="nx">Environment</span><span class="p">:</span><span class="w"> </span><span class="nb">new</span><span class="p">(</span><span class="nx">supersetv1alpha1</span><span class="p">.</span><span class="nx">EnvironmentDevelopment</span><span class="p">),</span>
 <a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="w">            </span><span class="nx">SecretKey</span><span class="p">:</span><span class="w">   </span><span class="nb">new</span><span class="p">(</span><span class="s">"test-secret-key"</span><span class="p">),</span>
 <a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">            </span><span class="nx">Lifecycle</span><span class="p">:</span><span class="w"> </span><span class="o">&amp;</span><span class="nx">supersetv1alpha1</span><span class="p">.</span><span class="nx">LifecycleSpec</span><span class="p">{</span>
 <a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">                </span><span class="nx">Disabled</span><span class="p">:</span><span class="w"> </span><span class="nb">new</span><span class="p">(</span><span class="kc">true</span><span class="p">),</span>
@@ -1733,7 +1733,7 @@ under the License.
 <h3 id="dont">Don't<a class="headerlink" href="#dont" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>Don't hardcode resource names</strong> — use <code>componentDescriptor.resourceBaseName()</code> and naming helpers. Component resources are named <code>{parentName}-{componentType}</code>.</li>
-<li><strong>Don't fetch resources by name for cleanup</strong> — use <code>deleteByLabels</code> with parent/component labels to discover and clean up. Name-based <code>CreateOrUpdate</code> and status reads are fine — those address resources whose names the operator controls. Users and other tools pick the same names by convention (<code>kubectl autoscale</code> names its HPA after the Deployment), so a name alone doesn't prove the operator created a resource. When an upgrade needs a name-based fallback for resources created before a label existed, delete through <code>deleteIfControlledBy</code>, which only removes resources this Superset controls, and mark the fallback with a <code>TODO(&lt;version&gt;)</code> for removal.</li>
+<li><strong>Don't fetch resources by name for cleanup</strong> — use <code>deleteByLabels</code> with parent/component labels to discover and clean up. Name-based <code>CreateOrUpdate</code> and status reads are fine — those address resources whose names the operator controls. Users and other tools pick the same names by convention (<code>kubectl autoscale</code> names its HPA after the Deployment), so a name alone doesn't prove the operator created a resource. When a cleanup path must delete by name, choose the helper by how the name is chosen. For names that users or other tools also pick by convention (component HPAs and PDBs, and upgrade fallbacks for resources created before a label existed), use <code>deleteIfControlledBy</code>, which only removes resources this Superset controls; mark upgrade fallbacks with a <code>TODO(&lt;version&gt;)</code> for removal. For names reserved to the operator (lifecycle task Jobs, maintenance-page resources, parent-owned ConfigMaps, the web-server Service), <code>deleteIfNotForeignOwned</code> may also remove unowned resources but skips ones controlled by another owner; see <a href="/superset-kubernetes-operator/reference/security/#design-decisions">Managed resource adoption and cleanup</a>.</li>
 <li><strong>Don't hardcode commands/ports</strong> — use <code>DeploymentConfig</code> defaults</li>
 <li><strong>Don't duplicate controller logic</strong> — use <code>component_reconciler.go</code> helpers</li>
 <li><strong>Don't copy derived facts between docs</strong> — values defined in code or in one canonical doc (e.g. the per-component routing paths in <a href="/superset-kubernetes-operator/latest/user-guide/networking-and-monitoring/"><code>networking-and-monitoring.md</code></a>) should be stated once and cross-linked from elsewhere, not re-listed on other pages where they silently go stale. Same spirit as the <a href="#automation-principle">Automation Principle</a>: one source of truth.</li>
@@ -1771,19 +1771,36 @@ under the License.
 <li>Add sample CR coverage, focused unit tests, and e2e assertions for the parent-owned resources.</li>
 </ol>
 <h2 id="package-structure">Package Structure<a class="headerlink" href="#package-structure" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>internal/
-<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>├── resolution/       # Pure Go — spec flattening engine
-<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a>│                     # Zero controller-runtime deps, fully unit-testable
-<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a>│                     # MergeMaps, MergeEnvVars, ResolveComponentSpec(), etc.
-<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>├── config/           # Pure Go — Python config renderer
-<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a>│                     # Per-component rendering, metastore URI,
-<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a>│                     # config appending
-<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a>├── common/           # Shared types (ComponentType, environment constants)
-<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>├── schedule/         # Pure Go — cron tick computation
-<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>└── controller/       # controller-runtime — reconcilers
-<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a>                      # Parent controller, component resources,
-<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a>                      # task job lifecycle, status, scaling, networking
-</code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Package</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>internal/resolution/</code></td>
+<td>Pure Go spec flattening engine (<code>MergeMaps</code>, <code>MergeEnvVars</code>, <code>ResolveComponentSpec()</code>, etc.); no controller-runtime dependency</td>
+</tr>
+<tr>
+<td><code>internal/config/</code></td>
+<td>Pure Go <code>superset_config.py</code> renderer: per-component rendering, metastore URI, Valkey, presets, raw config appending</td>
+</tr>
+<tr>
+<td><code>internal/common/</code></td>
+<td>Shared <code>ComponentType</code>, naming helpers, label keys, suffixes, and ports</td>
+</tr>
+<tr>
+<td><code>internal/schedule/</code></td>
+<td>Pure Go cron tick computation</td>
+</tr>
+<tr>
+<td><code>internal/controller/</code></td>
+<td>controller-runtime reconciler: parent controller, component resources, lifecycle task Jobs, status, scaling, networking</td>
+</tr>
+</tbody>
+</table>
 <hr />
 <h2 id="key-files-reference">Key Files Reference<a class="headerlink" href="#key-files-reference" title="Permanent link">&para;</a></h2>
 <table>
@@ -1804,7 +1821,7 @@ under the License.
 </tr>
 <tr>
 <td><code>internal/common/types.go</code></td>
-<td>Shared ComponentType, environment constants</td>
+<td>Shared ComponentType</td>
 </tr>
 <tr>
 <td><code>internal/resolution/resolver.go</code></td>
@@ -1833,6 +1850,18 @@ under the License.
 <tr>
 <td><code>internal/controller/deployment_builder.go</code></td>
 <td>Deployment construction from flat spec</td>
+</tr>
+<tr>
+<td><code>internal/controller/lifecycle.go</code></td>
+<td>Lifecycle pipeline orchestration: task sequencing, upgrade gates</td>
+</tr>
+<tr>
+<td><code>internal/controller/lifecycle_taskdescriptor.go</code></td>
+<td>Per-task descriptors (ordering and wiring for seed/migrate/rotate/init)</td>
+</tr>
+<tr>
+<td><code>internal/controller/lifecycle_cascade.go</code></td>
+<td>Lifecycle task checksum cascade</td>
 </tr>
 <tr>
 <td><code>internal/controller/initpod.go</code></td>
@@ -1887,7 +1916,7 @@ under the License.
 <p>The Helm chart enables metrics by default (<code>metrics.enabled: true</code>, port 8443).</p>
 <p><strong>No custom metrics.</strong> Controller-runtime defaults are sufficient for operator health. Don't add custom metrics unless there's a concrete alerting or dashboarding need that can't be met by the defaults.</p>
 <h3 id="superset-instance-monitoring">Superset instance monitoring<a class="headerlink" href="#superset-instance-monitoring" title="Permanent link">&para;</a></h3>
-<p>When <code>spec.monitoring.serviceMonitor</code> is set on a Superset CR, the parent controller creates a Prometheus ServiceMonitor targeting the web-server component (port 8088). This uses unstructured objects because the ServiceMonitor CRD is external (<code>monitoring.coreos.com/v1</code>). If the CRD is not installed, the controller logs an info message and continues.</p>
+<p>When <code>spec.monitoring.serviceMonitor</code> is set on a Superset CR, the parent controller creates a Prometheus ServiceMonitor targeting the web-server component (port 8088). This uses unstructured objects because the ServiceMonitor CRD is external (<code>monitoring.coreos.com/v1</code>). If the CRD is not installed, the controller skips the ServiceMonitor, logs at V(1), and continues.</p>
 <p>See <code>internal/controller/monitoring.go</code> for the implementation.</p>
 <hr />
 <h2 id="logging">Logging<a class="headerlink" href="#logging" title="Permanent link">&para;</a></h2>
@@ -1935,25 +1964,25 @@ under the License.
 <li>Pure packages (<code>internal/resolution/</code>, <code>internal/config/</code>, <code>internal/common/</code>, <code>internal/schedule/</code>) do <strong>zero</strong> logging by design — they have no controller-runtime dependency and return errors only. Keep it that way.</li>
 </ul>
 <h3 id="enabling-verbose-logs-when-debugging">Enabling verbose logs when debugging<a class="headerlink" href="#enabling-verbose-logs-when-debugging" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>make<span class="w"> </span>run<span class="w"> </span><span class="nv">ARGS</span><span class="o">=</span><span class="s2">"--zap-log-level=debug"</span><span class="w">   </span><span class="c1"># V(1)</span>
-<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>make<span class="w"> </span>run<span class="w"> </span><span class="nv">ARGS</span><span class="o">=</span><span class="s2">"--zap-log-level=2"</span><span class="w">        </span><span class="c1"># V(1)+V(2)</span>
-<a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="c1"># in-cluster (Helm): --set logLevel=debug (or 2) — see Installation › Debugging the operator</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>make<span class="w"> </span>run<span class="w"> </span><span class="nv">ARGS</span><span class="o">=</span><span class="s2">"--zap-log-level=debug"</span><span class="w">   </span><span class="c1"># V(1)</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a>make<span class="w"> </span>run<span class="w"> </span><span class="nv">ARGS</span><span class="o">=</span><span class="s2">"--zap-log-level=2"</span><span class="w">        </span><span class="c1"># V(1)+V(2)</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="c1"># in-cluster (Helm): --set logLevel=debug (or 2) — see Installation › Debugging the operator</span>
 </code></pre></div>
 <hr />
 <h2 id="pull-requests">Pull Requests<a class="headerlink" href="#pull-requests" title="Permanent link">&para;</a></h2>
 <h3 id="title-format">Title format<a class="headerlink" href="#title-format" title="Permanent link">&para;</a></h3>
 <p>PR titles must follow the conventional commits format:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>type(scope): description
-<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>type: description
+<div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a>type(scope): description
+<a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>type: description
 </code></pre></div>
 <p>Scope is optional but encouraged when the change is scoped to a single area. Any scope is accepted, but prefer short, recognizable repository areas such as <code>api</code>, <code>controller</code>, <code>helm</code>, <code>ci</code>, <code>docs</code>, or <code>deps</code>. Keep titles concise: aim for 50 characters when practical, and avoid exceeding 72 characters because GitHub wraps longer titles in common views.</p>
 <p>CI validates this on every PR via the <code>PR / Validate PR title</code> check.</p>
 <p><strong>Allowed types</strong> are defined in <a href="https://github.com/apache/superset-kubernetes-operator/blob/main/.github/workflows/pr.yaml"><code>.github/workflows/pr.yaml</code></a> (the <code>types</code> input to the semantic-PR action) and follow the conventional-commit set. Check that file rather than copying the list, which would go stale.</p>
 <p><strong>Examples:</strong></p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a>feat(api): add tolerations field to PodTemplate
-<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>fix(controller): handle nil deployment template in scaling reconciler
-<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>docs: add valkey configuration examples to user guide
-<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a>chore(deps): bump controller-runtime to v0.20.0
+<div class="highlight"><pre><span></span><code><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a>feat(api): add tolerations field to PodTemplate
+<a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>fix(controller): handle nil deployment template in scaling reconciler
+<a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a>docs: add valkey configuration examples to user guide
+<a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a>chore(deps): bump controller-runtime to v0.20.0
 </code></pre></div>
 <h3 id="description">Description<a class="headerlink" href="#description" title="Permanent link">&para;</a></h3>
 <p>Every PR must include a <strong>Summary</strong> section with at least one paragraph explaining what the change does and why. A reviewer should understand the motivation and scope from the summary alone, without reading the diff.</p>
@@ -1965,18 +1994,18 @@ under the License.
 for noteworthy changes — new features, new CRD fields, behavior changes, breaking changes, deprecations, and critical bug fixes. Skip the entry for routine work that a user wouldn't care about: dependency bumps, CI tweaks, internal refactors, test-only changes, and documentation-only updates.</p>
 <p>Group entries under <code>Added</code>, <code>Changed</code>, <code>Deprecated</code>, <code>Removed</code>, <code>Fixed</code>, or <code>Security</code> (per <a href="https://keepachangelog.com/en/1.1.0/">Keep a Changelog</a>); create the subheading on first use. These are the only subheadings — Keep a Changelog has no dedicated "Breaking" section. Lead each bullet with the user-facing effect, not the implementation.</p>
 <p>Mark a breaking change with a bold <code>**Breaking:**</code> prefix under the most fitting category (usually <code>Changed</code> or <code>Removed</code>) and state the required migration in the same bullet. The <code>Added</code> section and the <code>**Breaking:**</code> markers are what operators scan first when deciding whether — and how carefully — to upgrade, so keep both accurate:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="gu">## Unreleased</span>
-<a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a>
-<a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="gu">### Added</span>
-<a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="k">-</span><span class="w"> </span>New <span class="sb">`webServer.gunicorn.keepAlive`</span> field for tuning Gunicorn keepalive timeouts.
-<a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a>
-<a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="gu">### Changed</span>
-<a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="k">-</span><span class="w"> </span><span class="gs">**Breaking:**</span> renamed <span class="sb">`spec.oldField`</span> to <span class="sb">`spec.newField`</span>; rename it in
-<a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a>  existing Superset resources before upgrading.
-<a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a>
-<a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="gu">### Fixed</span>
-<a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="k">-</span><span class="w"> </span>Lifecycle <span class="sb">`migrate`</span> task no longer retries indefinitely when the metastore
-<a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a>  rejects credentials; the parent surfaces an <span class="sb">`AuthenticationFailed`</span> reason.
+<div class="highlight"><pre><span></span><code><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="gu">## Unreleased</span>
+<a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a>
+<a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="gu">### Added</span>
+<a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="k">-</span><span class="w"> </span>New <span class="sb">`webServer.gunicorn.keepAlive`</span> field for tuning Gunicorn keepalive timeouts.
+<a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a>
+<a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="gu">### Changed</span>
+<a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="k">-</span><span class="w"> </span><span class="gs">**Breaking:**</span> renamed <span class="sb">`spec.oldField`</span> to <span class="sb">`spec.newField`</span>; rename it in
+<a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>  existing Superset resources before upgrading.
+<a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a>
+<a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="gu">### Fixed</span>
+<a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="k">-</span><span class="w"> </span>Lifecycle <span class="sb">`migrate`</span> task no longer retries indefinitely when the metastore
+<a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a>  rejects credentials; the parent surfaces an <span class="sb">`AuthenticationFailed`</span> reason.
 </code></pre></div>
 <p>The release manager does a final review pass over <code>## Unreleased</code> before tagging — see <a href="/superset-kubernetes-operator/contributing/releasing/#reviewing-the-changelog">Releasing</a> — so it's fine to err on the side of including an entry; missing or duplicate ones can be cleaned up there.</p>
 <h3 id="code-coverage">Code coverage<a class="headerlink" href="#code-coverage" title="Permanent link">&para;</a></h3>

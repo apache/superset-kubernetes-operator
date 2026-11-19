@@ -1942,27 +1942,27 @@ under the License.
 <tbody>
 <tr>
 <td>Seed</td>
-<td><code>trigger</code> field, <code>cronSchedule</code> tick, source config, excludes, target Superset image</td>
-<td>Trigger value changes, schedule tick boundary crossed, source DB config changes, or the target image changes (so the data set is re-seeded before migrate runs against it)</td>
+<td><code>trigger</code>, <code>cronSchedule</code> tick, <code>source</code>, <code>excludeTables</code>, <code>excludeTableData</code>, <code>postSeedSQL</code>, seed (database-tool) image, target Superset image</td>
+<td>Trigger value changes, schedule tick boundary crossed, source or seed settings change, or the target image changes (so the data set is re-seeded before migrate runs against it)</td>
 </tr>
 <tr>
 <td>Migrate</td>
-<td>Image (resolved lifecycle image), <code>metastore.createDatabase</code> flag</td>
-<td>Image tag or repository changes, or <code>createDatabase</code> is toggled</td>
+<td><code>trigger</code>, lifecycle image, bootstrap script, <code>metastore.createDatabase</code>; when <code>createDatabase</code> is set, also the target metastore type, host, port, database, username (literal values or Secret selector references), and the create-database init-container script</td>
+<td>Trigger value changes, image tag or repository changes, bootstrap script changes, <code>createDatabase</code> is toggled, or the create-database target changes</td>
 </tr>
 <tr>
 <td>Rotate</td>
-<td><code>trigger</code> field, <code>secretKeyFrom</code> ref, <code>previousSecretKeyFrom</code> ref</td>
-<td>Secret key references change or trigger value changes</td>
+<td><code>trigger</code>, lifecycle image, bootstrap script, <code>secretKey</code>/<code>secretKeyFrom</code>, <code>previousSecretKey</code>/<code>previousSecretKeyFrom</code></td>
+<td>Trigger value changes, image changes, bootstrap script changes, or the current or previous secret key (or its Secret reference) changes</td>
 </tr>
 <tr>
 <td>Init</td>
-<td>Config checksum (rendered Python config)</td>
-<td>Any config-affecting field changes</td>
+<td><code>trigger</code>, lifecycle image, bootstrap script, rendered lifecycle <code>superset_config.py</code>, injected env vars (secret key, metastore, Valkey, and admin user settings)</td>
+<td>Trigger value changes, image changes, bootstrap script changes, or any change to the rendered config or injected env vars</td>
 </tr>
 </tbody>
 </table>
-<p>All tasks also re-run when an upstream task re-executes (automatic propagation).</p>
+<p>Every task also hashes its command, so changing a custom <code>command</code> re-runs it. All tasks re-run when an upstream task re-executes (automatic propagation). The operator does not read Secret values: changing the data behind an unchanged Secret reference does not re-run a task; change its <code>trigger</code> instead.</p>
 <h3 id="manual-trigger">Manual Trigger<a class="headerlink" href="#manual-trigger" title="Permanent link">&para;</a></h3>
 <p>Every task has a <code>trigger</code> field (on <code>BaseTaskSpec</code>) — an opaque string that forces a re-run when changed. Changing a trigger also cascades to all downstream tasks:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">spec</span><span class="p">:</span>
@@ -2101,7 +2101,7 @@ under the License.
 <a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">        </span><span class="no">&lt;/html&gt;</span>
 </code></pre></div>
 <h4 id="custom-image">Custom image<a class="headerlink" href="#custom-image" title="Permanent link">&para;</a></h4>
-<p>For advanced use cases (custom branding, dynamic status pages, HA), provide your own image. It must serve HTTP on the web-server port (default 8088):</p>
+<p>For advanced use cases (custom branding, dynamic status pages, HA), provide your own image. It must serve HTTP on the web-server container port (8088):</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">spec</span><span class="p">:</span>
 <a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">lifecycle</span><span class="p">:</span>
 <a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">    </span><span class="nt">maintenancePage</span><span class="p">:</span>
@@ -2395,17 +2395,11 @@ flowchart TD
 </ul>
 <h2 id="how-it-works-under-the-hood">How It Works Under the Hood<a class="headerlink" href="#how-it-works-under-the-hood" title="Permanent link">&para;</a></h2>
 <h3 id="pipeline-checksum-model">Pipeline Checksum Model<a class="headerlink" href="#pipeline-checksum-model" title="Permanent link">&para;</a></h3>
-<p>The lifecycle uses a <strong>checksum chain</strong> to determine which tasks execute and which skip. Each task receives an incoming checksum from the previous stage, adds its own unique inputs, and produces a task checksum. On completion, that checksum is stored in the parent <code>status.lifecycle</code> field and becomes the incoming checksum for the next task.</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a>                     parentUID (stable anchor)
-<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a>                         ↓
-<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a>seed.checksum   = hash(parentUID, "Seed", command, trigger, scheduleTick, source, excludes, postSeedSQL, seedImage, targetImage)
-<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a>                         ↓ (stored in parent status on completion)
-<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>migrate.checksum = hash(seed.status.checksum, "Migrate", command, trigger, image, createDatabase)
-<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a>                         ↓ (stored in parent status on completion)
-<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a>rotate.checksum  = hash(migrate.status.checksum, "Rotate", command, trigger, image, secretKey, secretKeyFrom, previousSecretKey, previousSecretKeyFrom)
-<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a>                         ↓ (stored in parent status on completion)
-<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a>init.checksum    = hash(rotate.status.checksum, "Init", command, trigger, image, configChecksum)
-</code></pre></div>
+<p>The lifecycle uses a <strong>checksum chain</strong> to determine which tasks execute and which skip. Each enabled task hashes an incoming checksum, its task type, its command, and its own inputs (listed in <a href="#task-triggers">Task Triggers</a>) into a task checksum:</p>
+<ul>
+<li>The first enabled task uses the parent's UID as its incoming checksum, a stable anchor for the life of the resource.</li>
+<li>On completion, the task's checksum is stored in the parent <code>status.lifecycle</code> field and becomes the incoming checksum for the next enabled task, in the order seed, migrate, rotate, init.</li>
+</ul>
 <p><strong>The universal rule:</strong> a task executes when its computed checksum differs from the completed checksum stored in parent status. If they match, the task skips.</p>
 <p><strong>Upstream propagation is automatic:</strong> when seed re-runs (e.g., trigger changed), its status checksum changes. That new value flows into migrate's checksum computation, making it differ from its stored value — so migrate re-runs too. The chain continues transitively through rotate to init.</p>
 <p><strong>Isolation by design:</strong> each task watches only its own relevant inputs. Migrate is image/schema-version driven and intentionally ignores feature/config changes — a config tweak does not re-run migrations. Init is the config-sensitive task: rendered <code>superset_config.py</code> changes propagate here. Seed tracks both the source connection identity and the <em>target</em> Superset image, so a staging image change triggers a fresh seed before migrations re-run. Rotate fires on secret-key transitions.</p>
@@ -2439,24 +2433,24 @@ flowchart TD
 </ul>
 <h2 id="status-reporting">Status Reporting<a class="headerlink" href="#status-reporting" title="Permanent link">&para;</a></h2>
 <p>Lifecycle task progress is tracked per-task in the parent status:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="nt">status</span><span class="p">:</span>
-<a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">  </span><span class="nt">lifecycle</span><span class="p">:</span>
-<a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="w">    </span><span class="nt">phase</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Complete</span><span class="w">        </span><span class="c1"># Seeding | Draining | Migrating | Rotating | Initializing | Restoring | Complete | Blocked | AwaitingApproval</span>
-<a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="w">    </span><span class="nt">seed</span><span class="p">:</span>
-<a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="w">      </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Complete</span><span class="w">      </span><span class="c1"># Pending | Running | Complete | Failed (only present when seed is enabled)</span>
-<a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="w">      </span><span class="nt">attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
-<a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="w">    </span><span class="nt">migrate</span><span class="p">:</span>
-<a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a><span class="w">      </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Complete</span><span class="w">      </span><span class="c1"># Pending | Running | Complete | Failed</span>
-<a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a><span class="w">      </span><span class="nt">startedAt</span><span class="p">:</span><span class="w"> </span><span class="s">"2026-03-16T10:00:00Z"</span>
-<a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a><span class="w">      </span><span class="nt">completedAt</span><span class="p">:</span><span class="w"> </span><span class="s">"2026-03-16T10:00:12Z"</span>
-<a id="__codelineno-21-11" name="__codelineno-21-11" href="#__codelineno-21-11"></a><span class="w">      </span><span class="nt">attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
-<a id="__codelineno-21-12" name="__codelineno-21-12" href="#__codelineno-21-12"></a><span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apache/superset:6.1.0</span>
-<a id="__codelineno-21-13" name="__codelineno-21-13" href="#__codelineno-21-13"></a><span class="w">    </span><span class="nt">init</span><span class="p">:</span>
-<a id="__codelineno-21-14" name="__codelineno-21-14" href="#__codelineno-21-14"></a><span class="w">      </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Complete</span>
-<a id="__codelineno-21-15" name="__codelineno-21-15" href="#__codelineno-21-15"></a><span class="w">      </span><span class="nt">startedAt</span><span class="p">:</span><span class="w"> </span><span class="s">"2026-03-16T10:00:13Z"</span>
-<a id="__codelineno-21-16" name="__codelineno-21-16" href="#__codelineno-21-16"></a><span class="w">      </span><span class="nt">completedAt</span><span class="p">:</span><span class="w"> </span><span class="s">"2026-03-16T10:00:22Z"</span>
-<a id="__codelineno-21-17" name="__codelineno-21-17" href="#__codelineno-21-17"></a><span class="w">      </span><span class="nt">attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
-<a id="__codelineno-21-18" name="__codelineno-21-18" href="#__codelineno-21-18"></a><span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apache/superset:6.1.0</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="nt">status</span><span class="p">:</span>
+<a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span><span class="nt">lifecycle</span><span class="p">:</span>
+<a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="w">    </span><span class="nt">phase</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Complete</span><span class="w">        </span><span class="c1"># Seeding | Draining | Migrating | Rotating | Initializing | Restoring | Complete | Blocked | AwaitingApproval</span>
+<a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="w">    </span><span class="nt">seed</span><span class="p">:</span>
+<a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="w">      </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Complete</span><span class="w">      </span><span class="c1"># Pending | Running | Complete | Failed (only present when seed is enabled)</span>
+<a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="w">      </span><span class="nt">attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="w">    </span><span class="nt">migrate</span><span class="p">:</span>
+<a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a><span class="w">      </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Complete</span><span class="w">      </span><span class="c1"># Pending | Running | Complete | Failed</span>
+<a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="w">      </span><span class="nt">startedAt</span><span class="p">:</span><span class="w"> </span><span class="s">"2026-03-16T10:00:00Z"</span>
+<a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="w">      </span><span class="nt">completedAt</span><span class="p">:</span><span class="w"> </span><span class="s">"2026-03-16T10:00:12Z"</span>
+<a id="__codelineno-20-11" name="__codelineno-20-11" href="#__codelineno-20-11"></a><span class="w">      </span><span class="nt">attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-20-12" name="__codelineno-20-12" href="#__codelineno-20-12"></a><span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apache/superset:6.1.0</span>
+<a id="__codelineno-20-13" name="__codelineno-20-13" href="#__codelineno-20-13"></a><span class="w">    </span><span class="nt">init</span><span class="p">:</span>
+<a id="__codelineno-20-14" name="__codelineno-20-14" href="#__codelineno-20-14"></a><span class="w">      </span><span class="nt">state</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Complete</span>
+<a id="__codelineno-20-15" name="__codelineno-20-15" href="#__codelineno-20-15"></a><span class="w">      </span><span class="nt">startedAt</span><span class="p">:</span><span class="w"> </span><span class="s">"2026-03-16T10:00:13Z"</span>
+<a id="__codelineno-20-16" name="__codelineno-20-16" href="#__codelineno-20-16"></a><span class="w">      </span><span class="nt">completedAt</span><span class="p">:</span><span class="w"> </span><span class="s">"2026-03-16T10:00:22Z"</span>
+<a id="__codelineno-20-17" name="__codelineno-20-17" href="#__codelineno-20-17"></a><span class="w">      </span><span class="nt">attempts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-20-18" name="__codelineno-20-18" href="#__codelineno-20-18"></a><span class="w">      </span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apache/superset:6.1.0</span>
 </code></pre></div>
 <p>Task Job names are deterministic: <code>{parentName}-{taskType}</code> (e.g. <code>my-superset-migrate</code>). Inspect the Job directly with <code>kubectl get job my-superset-migrate</code>.</p>
 <p><strong>Parent phase values related to lifecycle:</strong></p>

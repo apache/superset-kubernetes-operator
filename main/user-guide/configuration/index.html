@@ -2891,7 +2891,7 @@ for up-to-date guidance on deploying extensions.</p>
 </tr>
 </tbody>
 </table>
-<p>CeleryBeat and lifecycle tasks always use NullPool regardless of preset (singleton/short-lived components with minimal DB interaction). CeleryFlower uses standard pool sizing (defaults to 1 for performance/aggressive since it has no worker configuration).</p>
+<p>CeleryBeat and lifecycle tasks use NullPool under every preset except <code>disabled</code> (which renders nothing), since they are singleton or short-lived components with minimal DB interaction. CeleryFlower uses standard pool sizing (defaults to 1 for performance/aggressive since it has no worker configuration).</p>
 <p><code>spec.sqlaEngineOptions</code> sets the baseline for all Python components. Per-component <code>sqlaEngineOptions</code> on <code>webServer</code>, <code>celeryWorker</code>, <code>celeryBeat</code>, <code>mcpServer</code>, or <code>lifecycle</code> replaces the top-level entirely (override semantics, not merge).</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="nt">spec</span><span class="p">:</span>
 <a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="w">  </span><span class="nt">sqlaEngineOptions</span><span class="p">:</span>
@@ -2909,7 +2909,7 @@ for up-to-date guidance on deploying extensions.</p>
 <a id="__codelineno-27-14" name="__codelineno-27-14" href="#__codelineno-27-14"></a><span class="w">      </span><span class="nt">preset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">aggressive</span><span class="w">         </span><span class="c1"># pool_size=12 (celery concurrency)</span>
 <a id="__codelineno-27-15" name="__codelineno-27-15" href="#__codelineno-27-15"></a><span class="w">  </span><span class="nt">celeryBeat</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span><span class="w">                 </span><span class="c1"># always NullPool</span>
 </code></pre></div>
-<p>Static defaults (same regardless of preset, overridable per-field): <code>poolRecycle</code> (3600), <code>poolPrePing</code> (false), <code>poolTimeout</code> (omitted — SQLAlchemy default 30s).</p>
+<p>Static defaults for QueuePool presets (overridable per-field): <code>poolRecycle</code> (3600), <code>poolPrePing</code> (false), <code>poolTimeout</code> (omitted, so SQLAlchemy's default applies). Under NullPool (the <code>conservative</code> preset, CeleryBeat, and lifecycle tasks) only <code>poolclass</code> is rendered, so the pool fields are ignored.</p>
 <p>Individual field overrides take precedence over the preset computation:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="nt">spec</span><span class="p">:</span>
 <a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="w">  </span><span class="nt">sqlaEngineOptions</span><span class="p">:</span>
@@ -3129,7 +3129,7 @@ for up-to-date guidance on deploying extensions.</p>
 <p>A Superset CR with no components enabled is valid — the operator will run initialization (if not disabled) but deploy no workloads. The parent status will report <code>Phase: Running</code> with condition reason <code>NoComponentsEnabled</code>.</p>
 <h3 id="resource-names">Resource Names<a class="headerlink" href="#resource-names" title="Permanent link">&para;</a></h3>
 <p>Component resources are named <code>{parentName}-{componentType}</code>. For example, a parent named <code>my-superset</code> creates resources such as <code>my-superset-web-server</code>, <code>my-superset-celery-worker</code>, and <code>my-superset-mcp-server</code>. ConfigMaps add the <code>-config</code> suffix, for example <code>my-superset-web-server-config</code>. Lifecycle task Jobs use deterministic names based on <code>{parentName}-{taskName}</code>, such as <code>my-superset-migrate</code>.</p>
-<p>The parent name must be a valid DNS label: lowercase alphanumeric and hyphens only (<code>^[a-z0-9]([-a-z0-9]*[a-z0-9])?$</code>), at most 63 characters. Since sub-resource names append a component suffix, the parent name is further constrained by the longest enabled component's suffix. The longest suffix is <code>-websocket-server</code> (17 characters), so parent names must be at most 46 characters when websocket-server is enabled. CRD validation enforces the appropriate limit for each enabled component.</p>
+<p>The parent name must be a valid DNS label: lowercase alphanumeric and hyphens only (<code>^[a-z0-9]([-a-z0-9]*[a-z0-9])?$</code>), at most 63 characters. Since sub-resource names append a component suffix, the parent name is further constrained by the longest enabled component's suffix. The longest suffix is <code>-websocket-server</code> (17 characters), so parent names must be at most 46 characters when websocket-server is enabled. Lifecycle tasks are enabled by default, and their ConfigMaps (<code>{parentName}-migrate-config</code>) cap parent names at 48 characters unless <code>lifecycle.disabled</code> is <code>true</code>. CRD validation enforces the appropriate limit for each enabled component and feature.</p>
 <h2 id="deployment-template">Deployment Template<a class="headerlink" href="#deployment-template" title="Permanent link">&para;</a></h2>
 <p>The <code>deploymentTemplate</code> and <code>podTemplate</code> fields configure the Kubernetes Deployment and Pod for each component. They mirror the Kubernetes hierarchy as siblings:</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-45-1" name="__codelineno-45-1" href="#__codelineno-45-1"></a>deploymentTemplate                  → DeploymentSpec-level
@@ -3268,6 +3268,14 @@ for up-to-date guidance on deploying extensions.</p>
 <tr>
 <td><code>strategy</code></td>
 <td>Update strategy (RollingUpdate or Recreate)</td>
+</tr>
+<tr>
+<td><code>labels</code></td>
+<td>Deployment object labels (merged by key; operator labels cannot be overridden)</td>
+</tr>
+<tr>
+<td><code>annotations</code></td>
+<td>Deployment object annotations (merged by key)</td>
 </tr>
 </tbody>
 </table>

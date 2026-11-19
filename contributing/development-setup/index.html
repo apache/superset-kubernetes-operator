@@ -1286,17 +1286,17 @@ under the License.
 </tr>
 <tr>
 <td>kubectl</td>
-<td>1.27+</td>
+<td>Within one minor version of your cluster (<a href="https://kubernetes.io/releases/version-skew-policy/#kubectl">skew policy</a>)</td>
 <td><a href="https://kubernetes.io/docs/tasks/tools/">kubernetes.io</a></td>
 </tr>
 <tr>
 <td>Kind</td>
-<td>0.30+</td>
+<td>Version in <code>.github/supported-k8s.json</code> (<code>kind_version</code>)</td>
 <td><code>brew install kind</code> or <code>go install sigs.k8s.io/kind@latest</code></td>
 </tr>
 <tr>
 <td>Go</td>
-<td>1.27.4</td>
+<td>Version in <code>go.mod</code></td>
 <td><code>brew install go</code> or <a href="https://go.dev/dl/">go.dev</a></td>
 </tr>
 <tr>
@@ -1327,9 +1327,10 @@ under the License.
 <h2 id="3-run-the-operator">3. Run the operator<a class="headerlink" href="#3-run-the-operator" title="Permanent link">&para;</a></h2>
 <p>There are two ways to run the operator:</p>
 <h3 id="option-a-run-locally-outside-the-cluster">Option A: Run locally (outside the cluster)<a class="headerlink" href="#option-a-run-locally-outside-the-cluster" title="Permanent link">&para;</a></h3>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>make<span class="w"> </span>run
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>make<span class="w"> </span>install
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>make<span class="w"> </span>run
 </code></pre></div>
-<p>This compiles and runs the operator process on your machine, connecting to the Kind cluster via your kubeconfig. Leave this terminal open — it streams reconciliation logs.</p>
+<p><code>make install</code> applies the CRDs to the cluster; <code>make run</code> then compiles and runs the operator process on your machine, connecting to the Kind cluster via your kubeconfig. Leave this terminal open — it streams reconciliation logs.</p>
 <h3 id="option-b-deploy-in-cluster">Option B: Deploy in-cluster<a class="headerlink" href="#option-b-deploy-in-cluster" title="Permanent link">&para;</a></h3>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>make<span class="w"> </span>docker-build<span class="w"> </span><span class="nv">IMG</span><span class="o">=</span>superset-operator:dev
 <a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>kind<span class="w"> </span>load<span class="w"> </span>docker-image<span class="w"> </span>superset-operator:dev<span class="w"> </span>--name<span class="w"> </span>superset
