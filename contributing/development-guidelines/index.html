@@ -1563,6 +1563,7 @@ under the License.
 <li><strong>Every assertion should protect against a plausible regression.</strong> If you can't name the scenario where removing it would let a bug through, it doesn't belong. Avoid adding narrow standalone tests when the assertion fits naturally in an existing comprehensive test.</li>
 <li><strong>When fixing a regression, always add a test that would have caught it.</strong> Regressions that broke silently indicate a gap in test coverage — close the gap as part of the fix.</li>
 <li><strong>Use subtests (<code>t.Run</code>)</strong> to group related scenarios within a single test function instead of creating separate top-level tests.</li>
+<li><strong>Parametrize only what varies.</strong> Every column of a table test should take more than one value across its rows. A value that is the same in every row belongs in the test body as a literal, and a column that always repeats another (for example an expected value identical to the subtest name) should be dropped in favor of the one that remains. If a table would have a single row, write a plain test instead.</li>
 </ul>
 <h3 id="what-goes-where">What goes where<a class="headerlink" href="#what-goes-where" title="Permanent link">&para;</a></h3>
 <p><strong>Unit tests</strong> (<code>*_test.go</code> with <code>testing</code> package + <code>fake.NewClientBuilder</code>):</p>
