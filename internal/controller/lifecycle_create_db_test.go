@@ -28,7 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
-	"github.com/apache/superset-kubernetes-operator/internal/common"
 	"github.com/apache/superset-kubernetes-operator/internal/resolution"
 )
 
@@ -74,7 +73,7 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 		if ctr.Name != createDatabaseContainerName {
 			t.Errorf("expected name %q, got %q", createDatabaseContainerName, ctr.Name)
 		}
-		if want := common.SeedImagePostgres; ctr.Image != want {
+		if want := "postgres:17-alpine"; ctr.Image != want {
 			t.Errorf("expected image %q, got %q", want, ctr.Image)
 		}
 		if len(ctr.Command) != 3 || ctr.Command[0] != "/bin/sh" || ctr.Command[1] != "-c" {
@@ -102,20 +101,20 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 			t.Errorf("psql -v options must appear before -c so they are parsed as options\n--- script ---\n%s", script)
 		}
 		envMap := envSliceToMap(ctr.Env)
-		if envMap[common.EnvDBHost] != "pg.svc" {
-			t.Errorf("expected DB_HOST=pg.svc, got %q", envMap[common.EnvDBHost])
+		if envMap["SUPERSET_OPERATOR__DB_HOST"] != "pg.svc" {
+			t.Errorf("expected DB_HOST=pg.svc, got %q", envMap["SUPERSET_OPERATOR__DB_HOST"])
 		}
-		if envMap[common.EnvDBPort] != "5432" {
-			t.Errorf("expected default DB_PORT=5432, got %q", envMap[common.EnvDBPort])
+		if envMap["SUPERSET_OPERATOR__DB_PORT"] != "5432" {
+			t.Errorf("expected default DB_PORT=5432, got %q", envMap["SUPERSET_OPERATOR__DB_PORT"])
 		}
-		if envMap[common.EnvDBName] != "superset" {
-			t.Errorf("expected DB_NAME=superset, got %q", envMap[common.EnvDBName])
+		if envMap["SUPERSET_OPERATOR__DB_NAME"] != "superset" {
+			t.Errorf("expected DB_NAME=superset, got %q", envMap["SUPERSET_OPERATOR__DB_NAME"])
 		}
-		if envMap[common.EnvDBUser] != "superset" {
-			t.Errorf("expected DB_USER=superset, got %q", envMap[common.EnvDBUser])
+		if envMap["SUPERSET_OPERATOR__DB_USER"] != "superset" {
+			t.Errorf("expected DB_USER=superset, got %q", envMap["SUPERSET_OPERATOR__DB_USER"])
 		}
-		if envMap[common.EnvDBPass] != pw {
-			t.Errorf("expected DB_PASS=%q, got %q", pw, envMap[common.EnvDBPass])
+		if envMap["SUPERSET_OPERATOR__DB_PASS"] != pw {
+			t.Errorf("expected DB_PASS=%q, got %q", pw, envMap["SUPERSET_OPERATOR__DB_PASS"])
 		}
 	})
 
@@ -141,7 +140,7 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 		if ctr == nil {
 			t.Fatal("expected init container, got nil")
 		}
-		if want := common.SeedImageMySQL; ctr.Image != want {
+		if want := "mysql:8.4"; ctr.Image != want {
 			t.Errorf("expected image %q, got %q", want, ctr.Image)
 		}
 		script := ctr.Command[2]
@@ -158,12 +157,12 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 			}
 		}
 		envMap := envSliceToMap(ctr.Env)
-		if envMap[common.EnvDBPort] != "3306" {
-			t.Errorf("expected default mysql DB_PORT=3306, got %q", envMap[common.EnvDBPort])
+		if envMap["SUPERSET_OPERATOR__DB_PORT"] != "3306" {
+			t.Errorf("expected default mysql DB_PORT=3306, got %q", envMap["SUPERSET_OPERATOR__DB_PORT"])
 		}
 		// PasswordFrom must produce a ValueFrom-backed env var, not a Value.
 		for _, e := range ctr.Env {
-			if e.Name != common.EnvDBPass {
+			if e.Name != "SUPERSET_OPERATOR__DB_PASS" {
 				continue
 			}
 			if e.Value != "" {
@@ -192,7 +191,7 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 		if ctr == nil {
 			t.Fatal("expected init container, got nil")
 		}
-		if got := envSliceToMap(ctr.Env)[common.EnvDBPort]; got != "15432" {
+		if got := envSliceToMap(ctr.Env)["SUPERSET_OPERATOR__DB_PORT"]; got != "15432" {
 			t.Errorf("expected custom DB_PORT=15432, got %q", got)
 		}
 	})
@@ -224,14 +223,14 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 			t.Fatal("expected init container, got nil")
 		}
 		envMap := envSliceToMap(ctr.Env)
-		if envMap[common.EnvDBPass] != funky {
-			t.Errorf("password mangled: got %q, want %q", envMap[common.EnvDBPass], funky)
+		if envMap["SUPERSET_OPERATOR__DB_PASS"] != funky {
+			t.Errorf("password mangled: got %q, want %q", envMap["SUPERSET_OPERATOR__DB_PASS"], funky)
 		}
-		if envMap[common.EnvDBUser] != funky {
-			t.Errorf("username mangled: got %q, want %q", envMap[common.EnvDBUser], funky)
+		if envMap["SUPERSET_OPERATOR__DB_USER"] != funky {
+			t.Errorf("username mangled: got %q, want %q", envMap["SUPERSET_OPERATOR__DB_USER"], funky)
 		}
-		if envMap[common.EnvDBName] != weirdName {
-			t.Errorf("database name mangled: got %q, want %q", envMap[common.EnvDBName], weirdName)
+		if envMap["SUPERSET_OPERATOR__DB_NAME"] != weirdName {
+			t.Errorf("database name mangled: got %q, want %q", envMap["SUPERSET_OPERATOR__DB_NAME"], weirdName)
 		}
 	})
 
@@ -263,7 +262,7 @@ func TestBuildCreateDatabaseInitContainer(t *testing.T) {
 					t.Fatal("expected init container, got nil")
 				}
 				for _, e := range ctr.Env {
-					if e.Name == common.EnvDBPass {
+					if e.Name == "SUPERSET_OPERATOR__DB_PASS" {
 						t.Errorf("expected no DB_PASS env var when password is unset, got %+v", e)
 					}
 				}
@@ -412,8 +411,8 @@ func TestBuildStandardTaskFlatSpec(t *testing.T) {
 			t.Errorf("expected AllowPrivilegeEscalation=false to propagate to init container, got %+v", initCtr.SecurityContext)
 		}
 		wantKeys := map[string]string{
-			common.EnvDBHost: "host", common.EnvDBPort: "port", common.EnvDBName: "dbname",
-			common.EnvDBUser: "user", common.EnvDBPass: "password",
+			"SUPERSET_OPERATOR__DB_HOST": "host", "SUPERSET_OPERATOR__DB_PORT": "port", "SUPERSET_OPERATOR__DB_NAME": "dbname",
+			"SUPERSET_OPERATOR__DB_USER": "user", "SUPERSET_OPERATOR__DB_PASS": "password",
 		}
 		assertConnectionRefs := func(container corev1.Container) {
 			t.Helper()
@@ -482,7 +481,7 @@ func TestBuildStandardTaskFlatSpec(t *testing.T) {
 		if count != 1 {
 			t.Fatalf("expected exactly 1 init container named %q, got %d", createDatabaseContainerName, count)
 		}
-		if createDB.Image != common.SeedImagePostgres && createDB.Image != common.SeedImageMySQL {
+		if createDB.Image != "postgres:17-alpine" && createDB.Image != "mysql:8.4" {
 			t.Errorf("operator's create-database container should win; got image %q", createDB.Image)
 		}
 		if !podHasContainer(pod.InitContainers, "user-keeper") {

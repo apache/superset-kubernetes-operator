@@ -31,7 +31,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
-	"github.com/apache/superset-kubernetes-operator/internal/common"
 	"github.com/apache/superset-kubernetes-operator/internal/resolution"
 )
 
@@ -485,7 +484,7 @@ func TestReconcileLifecycleTask_SeedIgnoresBootstrapScript(t *testing.T) {
 	}
 
 	cm := &corev1.ConfigMap{}
-	err := c.Get(ctx, types.NamespacedName{Name: common.ConfigMapName("test-seed"), Namespace: "default"}, cm)
+	err := c.Get(ctx, types.NamespacedName{Name: "test-seed-config", Namespace: "default"}, cm)
 	if !apierrors.IsNotFound(err) {
 		t.Fatalf("expected seed task to skip bootstrap ConfigMap, got %v", err)
 	}
@@ -526,26 +525,26 @@ func TestCollectSeedEnvVars(t *testing.T) {
 		envMap[e.Name] = e.Value
 	}
 
-	if envMap[common.EnvSeedSrcHost] != "pg-prod.svc" {
-		t.Errorf("expected source host pg-prod.svc, got: %s", envMap[common.EnvSeedSrcHost])
+	if envMap["SUPERSET_OPERATOR__SEED_SRC_HOST"] != "pg-prod.svc" {
+		t.Errorf("expected source host pg-prod.svc, got: %s", envMap["SUPERSET_OPERATOR__SEED_SRC_HOST"])
 	}
-	if envMap[common.EnvSeedSrcPort] != "5433" {
-		t.Errorf("expected source port 5433, got: %s", envMap[common.EnvSeedSrcPort])
+	if envMap["SUPERSET_OPERATOR__SEED_SRC_PORT"] != "5433" {
+		t.Errorf("expected source port 5433, got: %s", envMap["SUPERSET_OPERATOR__SEED_SRC_PORT"])
 	}
-	if envMap[common.EnvSeedSrcDB] != "superset_prod" {
-		t.Errorf("expected source db superset_prod, got: %s", envMap[common.EnvSeedSrcDB])
+	if envMap["SUPERSET_OPERATOR__SEED_SRC_DB"] != "superset_prod" {
+		t.Errorf("expected source db superset_prod, got: %s", envMap["SUPERSET_OPERATOR__SEED_SRC_DB"])
 	}
-	if envMap[common.EnvSeedSrcUser] != "reader" {
-		t.Errorf("expected source user reader, got: %s", envMap[common.EnvSeedSrcUser])
+	if envMap["SUPERSET_OPERATOR__SEED_SRC_USER"] != "reader" {
+		t.Errorf("expected source user reader, got: %s", envMap["SUPERSET_OPERATOR__SEED_SRC_USER"])
 	}
-	if envMap[common.EnvSeedSrcPass] != "secret123" {
-		t.Errorf("expected source pass secret123, got: %s", envMap[common.EnvSeedSrcPass])
+	if envMap["SUPERSET_OPERATOR__SEED_SRC_PASS"] != "secret123" {
+		t.Errorf("expected source pass secret123, got: %s", envMap["SUPERSET_OPERATOR__SEED_SRC_PASS"])
 	}
-	if envMap[common.EnvDBHost] != "pg-staging.svc" {
-		t.Errorf("expected target host pg-staging.svc, got: %s", envMap[common.EnvDBHost])
+	if envMap["SUPERSET_OPERATOR__DB_HOST"] != "pg-staging.svc" {
+		t.Errorf("expected target host pg-staging.svc, got: %s", envMap["SUPERSET_OPERATOR__DB_HOST"])
 	}
-	if envMap[common.EnvDBName] != "superset_staging" {
-		t.Errorf("expected target db superset_staging, got: %s", envMap[common.EnvDBName])
+	if envMap["SUPERSET_OPERATOR__DB_NAME"] != "superset_staging" {
+		t.Errorf("expected target db superset_staging, got: %s", envMap["SUPERSET_OPERATOR__DB_NAME"])
 	}
 }
 
@@ -577,9 +576,9 @@ func TestCollectSeedEnvVars_SecretRef(t *testing.T) {
 	envs := collectSeedEnvVars(superset)
 
 	wantKeys := map[string]string{
-		common.EnvSeedSrcHost: "host", common.EnvSeedSrcPort: "port", common.EnvSeedSrcDB: "dbname",
-		common.EnvSeedSrcUser: "user", common.EnvSeedSrcPass: "password", common.EnvDBHost: "host",
-		common.EnvDBPort: "port", common.EnvDBName: "dbname", common.EnvDBUser: "user", common.EnvDBPass: "password",
+		"SUPERSET_OPERATOR__SEED_SRC_HOST": "host", "SUPERSET_OPERATOR__SEED_SRC_PORT": "port", "SUPERSET_OPERATOR__SEED_SRC_DB": "dbname",
+		"SUPERSET_OPERATOR__SEED_SRC_USER": "user", "SUPERSET_OPERATOR__SEED_SRC_PASS": "password", "SUPERSET_OPERATOR__DB_HOST": "host",
+		"SUPERSET_OPERATOR__DB_PORT": "port", "SUPERSET_OPERATOR__DB_NAME": "dbname", "SUPERSET_OPERATOR__DB_USER": "user", "SUPERSET_OPERATOR__DB_PASS": "password",
 	}
 	for _, e := range envs {
 		wantKey, ok := wantKeys[e.Name]
@@ -1527,7 +1526,7 @@ func TestCollectSecretEnvVars_PreviousSecretKey(t *testing.T) {
 		envs := collectSecretEnvVars(spec, "test")
 		found := false
 		for _, e := range envs {
-			if e.Name == common.EnvPreviousSecretKey {
+			if e.Name == "SUPERSET_OPERATOR__PREVIOUS_SECRET_KEY" {
 				found = true
 				if e.Value != "old-key" {
 					t.Errorf("expected plaintext value 'old-key', got %q", e.Value)
@@ -1551,7 +1550,7 @@ func TestCollectSecretEnvVars_PreviousSecretKey(t *testing.T) {
 		envs := collectSecretEnvVars(spec, "test")
 		found := false
 		for _, e := range envs {
-			if e.Name == common.EnvPreviousSecretKey {
+			if e.Name == "SUPERSET_OPERATOR__PREVIOUS_SECRET_KEY" {
 				found = true
 				if e.ValueFrom == nil || e.ValueFrom.SecretKeyRef == nil {
 					t.Fatal("expected secretKeyRef")
@@ -1572,7 +1571,7 @@ func TestCollectSecretEnvVars_PreviousSecretKey(t *testing.T) {
 		}
 		envs := collectSecretEnvVars(spec, "test")
 		for _, e := range envs {
-			if e.Name == common.EnvPreviousSecretKey {
+			if e.Name == "SUPERSET_OPERATOR__PREVIOUS_SECRET_KEY" {
 				t.Error("should not have SUPERSET_OPERATOR__PREVIOUS_SECRET_KEY when not configured")
 			}
 		}
@@ -1611,7 +1610,7 @@ func TestDefaultLifecycleCommandsSourceBootstrap(t *testing.T) {
 		"rotate":  defaultRotateCommand(superset),
 		"init":    defaultInitCommand(superset),
 	} {
-		if len(cmd) < 3 || cmd[0] != "/bin/sh" || cmd[1] != "-c" || !strings.Contains(cmd[2], bootstrapScriptKey) {
+		if len(cmd) < 3 || cmd[0] != "/bin/sh" || cmd[1] != "-c" || !strings.Contains(cmd[2], "superset_bootstrap.sh") {
 			t.Errorf("%s command should source bootstrap script, got %v", name, cmd)
 		}
 	}
@@ -1799,10 +1798,10 @@ func TestCollectSeedEnvVars_ProductionDropsInlinePasswords(t *testing.T) {
 	}
 
 	for _, e := range collectSeedEnvVars(superset) {
-		if e.Name == common.EnvSeedSrcPass && e.Value != "" {
+		if e.Name == "SUPERSET_OPERATOR__SEED_SRC_PASS" && e.Value != "" {
 			t.Errorf("inline seed source password must be dropped outside Development, got %q", e.Value)
 		}
-		if e.Name == common.EnvDBPass && e.Value != "" {
+		if e.Name == "SUPERSET_OPERATOR__DB_PASS" && e.Value != "" {
 			t.Errorf("inline seed target password must be dropped outside Development, got %q", e.Value)
 		}
 	}

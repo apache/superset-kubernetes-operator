@@ -215,8 +215,8 @@ func TestReconcileLifecycleTaskJob_ConcurrentCreateProducesOneJob(t *testing.T) 
 	if len(jobs.Items) != 1 {
 		t.Fatalf("expected exactly one Job under concurrent creation, got %d", len(jobs.Items))
 	}
-	if jobs.Items[0].Annotations[common.AnnotationConfigChecksum] != taskChecksum {
-		t.Fatalf("expected job checksum annotation %q, got %q", taskChecksum, jobs.Items[0].Annotations[common.AnnotationConfigChecksum])
+	if jobs.Items[0].Annotations["superset.apache.org/config-checksum"] != taskChecksum {
+		t.Fatalf("expected job checksum annotation %q, got %q", taskChecksum, jobs.Items[0].Annotations["superset.apache.org/config-checksum"])
 	}
 }
 
@@ -270,8 +270,8 @@ func TestReconcileLifecycleTaskJob_ForeignOwnedJobIsNotDeleted(t *testing.T) {
 	if taskRef.State == "Complete" {
 		t.Fatalf("foreign Job status must not be attributed to this task; got state=%q", taskRef.State)
 	}
-	if !hasLifecycleConditionReason(superset, reasonTaskNameCollision) {
-		t.Fatalf("expected a %s condition on the Superset status", reasonTaskNameCollision)
+	if !hasLifecycleConditionReason(superset, "TaskNameCollision") {
+		t.Fatal("expected a TaskNameCollision condition on the Superset status")
 	}
 }
 

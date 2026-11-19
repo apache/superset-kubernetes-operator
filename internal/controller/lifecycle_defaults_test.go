@@ -26,7 +26,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
-	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
 func TestTaskMaxRetriesValue(t *testing.T) {
@@ -36,12 +35,12 @@ func TestTaskMaxRetriesValue(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{Migrate: &supersetv1alpha1.MigrateTaskSpec{}},
 		}}
-		assert.Equal(t, defaultMaxRetries, r.taskMaxRetriesValue(superset, taskTypeMigrate))
+		assert.Equal(t, int32(3), r.taskMaxRetriesValue(superset, taskTypeMigrate))
 	})
 
 	t.Run("defaults when lifecycle nil", func(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{}
-		assert.Equal(t, defaultMaxRetries, r.taskMaxRetriesValue(superset, taskTypeMigrate))
+		assert.Equal(t, int32(3), r.taskMaxRetriesValue(superset, taskTypeMigrate))
 	})
 
 	t.Run("uses explicit value", func(t *testing.T) {
@@ -55,7 +54,7 @@ func TestTaskMaxRetriesValue(t *testing.T) {
 
 	t.Run("defaults for unknown task type", func(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{}
-		assert.Equal(t, defaultMaxRetries, r.taskMaxRetriesValue(superset, "Bogus"))
+		assert.Equal(t, int32(3), r.taskMaxRetriesValue(superset, "Bogus"))
 	})
 }
 
@@ -66,7 +65,7 @@ func TestTaskTimeoutValue(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{Migrate: &supersetv1alpha1.MigrateTaskSpec{}},
 		}}
-		assert.Equal(t, defaultInitTimeout, r.taskTimeoutValue(superset, taskTypeMigrate))
+		assert.Equal(t, 300*time.Second, r.taskTimeoutValue(superset, taskTypeMigrate))
 	})
 
 	t.Run("uses explicit value", func(t *testing.T) {
@@ -80,7 +79,7 @@ func TestTaskTimeoutValue(t *testing.T) {
 
 	t.Run("defaults for unknown task type", func(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{}
-		assert.Equal(t, defaultInitTimeout, r.taskTimeoutValue(superset, "Bogus"))
+		assert.Equal(t, 300*time.Second, r.taskTimeoutValue(superset, "Bogus"))
 	})
 }
 
@@ -91,7 +90,7 @@ func TestTaskRetentionPolicyValue(t *testing.T) {
 		superset := &supersetv1alpha1.Superset{Spec: supersetv1alpha1.SupersetSpec{
 			Lifecycle: &supersetv1alpha1.LifecycleSpec{},
 		}}
-		assert.Equal(t, defaultRetentionPolicy, r.taskRetentionPolicyValue(superset, taskTypeInit))
+		assert.EqualValues(t, "RetainOnFailure", r.taskRetentionPolicyValue(superset, taskTypeInit))
 	})
 
 	t.Run("uses lifecycle-level policy", func(t *testing.T) {
@@ -145,10 +144,10 @@ func TestSuffixForTaskType(t *testing.T) {
 		taskType string
 		want     string
 	}{
-		{taskTypeSeed, suffixSeed},
-		{taskTypeMigrate, suffixMigrate},
-		{taskTypeRotate, suffixRotate},
-		{taskTypeInit, suffixInit},
+		{taskTypeSeed, "-seed"},
+		{taskTypeMigrate, "-migrate"},
+		{taskTypeRotate, "-rotate"},
+		{taskTypeInit, "-init"},
 		{"Bogus", "-bogus"},
 	}
 	for _, tt := range tests {
@@ -182,7 +181,7 @@ func TestDefaultMigrateCommand(t *testing.T) {
 		}}
 		got := defaultMigrateCommand(s)
 		want := []string{"/bin/sh", "-c",
-			". '" + common.ConfigMountPath + "/" + bootstrapScriptKey + "'; superset db upgrade"}
+			". '/app/pythonpath/superset_bootstrap.sh'; superset db upgrade"}
 		assert.Equal(t, want, got)
 	})
 }
@@ -211,7 +210,7 @@ func TestDefaultInitCommand(t *testing.T) {
 		}}
 		got := defaultInitCommand(s)
 		want := []string{"/bin/sh", "-c",
-			". '" + common.ConfigMountPath + "/" + bootstrapScriptKey + "'; superset init"}
+			". '/app/pythonpath/superset_bootstrap.sh'; superset init"}
 		assert.Equal(t, want, got)
 	})
 

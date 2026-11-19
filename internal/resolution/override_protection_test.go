@@ -84,11 +84,11 @@ func TestMergePodTemplate_OperatorLabelsNotOverridable(t *testing.T) {
 
 	result := MergePodTemplate(comp, nil, operatorLabels, &OperatorInjected{})
 
-	if got := result.Labels[common.LabelKeyParent]; got != "real-parent" {
-		t.Errorf("label %s = %q, want real-parent (operator protected)", common.LabelKeyParent, got)
+	if got := result.Labels["superset.apache.org/parent"]; got != "real-parent" {
+		t.Errorf("label superset.apache.org/parent = %q, want real-parent (operator protected)", got)
 	}
-	if got := result.Labels[common.LabelKeyName]; got != common.LabelValueApp {
-		t.Errorf("label %s = %q, want %q (operator protected)", common.LabelKeyName, got, common.LabelValueApp)
+	if got := result.Labels["app.kubernetes.io/name"]; got != "superset" {
+		t.Errorf("label app.kubernetes.io/name = %q, want superset (operator protected)", got)
 	}
 	// Non-protected user labels still merge through.
 	if got := result.Labels["team"]; got != "data" {
@@ -118,8 +118,8 @@ func TestMergePodTemplate_ReservedLabelPrefixStripped(t *testing.T) {
 
 	result := MergePodTemplate(comp, tl, operatorLabels, &OperatorInjected{})
 
-	if got := result.Labels[common.LabelKeyParent]; got != "real-parent" {
-		t.Errorf("label %s = %q, want real-parent (operator value must win)", common.LabelKeyParent, got)
+	if got := result.Labels["superset.apache.org/parent"]; got != "real-parent" {
+		t.Errorf("label superset.apache.org/parent = %q, want real-parent (operator value must win)", got)
 	}
 	if got, ok := result.Labels["superset.apache.org/instance"]; ok {
 		t.Errorf("reserved label superset.apache.org/instance survived the merge with value %q", got)

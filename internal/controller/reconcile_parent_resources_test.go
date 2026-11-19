@@ -92,15 +92,15 @@ func TestReconcile_CreatesParentOwnedComponentResources(t *testing.T) {
 			continue
 		}
 		wantRefs := map[string]struct{ secret, key string }{
-			common.EnvDBHost:     {"db-endpoint", "host"},
-			common.EnvDBPort:     {"db-endpoint", "port"},
-			common.EnvDBName:     {"db-credentials", "dbname"},
-			common.EnvDBUser:     {"db-credentials", "user"},
-			common.EnvDBPass:     {"db-credentials", "password"},
-			common.EnvValkeyHost: {"valkey-connection", "endpoint"},
-			common.EnvValkeyPort: {"valkey-connection", "port"},
-			common.EnvValkeyUser: {"valkey-connection", "username"},
-			common.EnvValkeyPass: {"valkey-connection", "password"},
+			"SUPERSET_OPERATOR__DB_HOST":     {"db-endpoint", "host"},
+			"SUPERSET_OPERATOR__DB_PORT":     {"db-endpoint", "port"},
+			"SUPERSET_OPERATOR__DB_NAME":     {"db-credentials", "dbname"},
+			"SUPERSET_OPERATOR__DB_USER":     {"db-credentials", "user"},
+			"SUPERSET_OPERATOR__DB_PASS":     {"db-credentials", "password"},
+			"SUPERSET_OPERATOR__VALKEY_HOST": {"valkey-connection", "endpoint"},
+			"SUPERSET_OPERATOR__VALKEY_PORT": {"valkey-connection", "port"},
+			"SUPERSET_OPERATOR__VALKEY_USER": {"valkey-connection", "username"},
+			"SUPERSET_OPERATOR__VALKEY_PASS": {"valkey-connection", "password"},
 		}
 		for _, env := range deploy.Spec.Template.Spec.Containers[0].Env {
 			want, ok := wantRefs[env.Name]
@@ -230,23 +230,23 @@ func TestReconcile_WebsocketInlineConfigCreatesConfigMapAndMount(t *testing.T) {
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server-config", Namespace: "default"}, cm); err != nil {
 		t.Fatalf("expected websocket ConfigMap: %v", err)
 	}
-	if cm.Data[websocketConfigKey] == "" || !containsAll(cm.Data[websocketConfigKey], []string{`"port": 8080`, `"jwtSecret": "dev-secret"`}) {
-		t.Fatalf("unexpected websocket config data: %q", cm.Data[websocketConfigKey])
+	if cm.Data["config.json"] == "" || !containsAll(cm.Data["config.json"], []string{`"port": 8080`, `"jwtSecret": "dev-secret"`}) {
+		t.Fatalf("unexpected websocket config data: %q", cm.Data["config.json"])
 	}
 
 	deploy := &appsv1.Deployment{}
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server", Namespace: "default"}, deploy); err != nil {
 		t.Fatalf("expected websocket Deployment: %v", err)
 	}
-	if deploy.Spec.Template.Annotations[common.AnnotationConfigChecksum] == "" {
+	if deploy.Spec.Template.Annotations["superset.apache.org/config-checksum"] == "" {
 		t.Fatal("expected websocket config checksum annotation")
 	}
-	vol := findVolume(deploy.Spec.Template.Spec.Volumes, websocketConfigVolume)
+	vol := findVolume(deploy.Spec.Template.Spec.Volumes, "websocket-config")
 	if vol == nil || vol.ConfigMap == nil || vol.ConfigMap.Name != "test-websocket-server-config" {
 		t.Fatalf("expected websocket ConfigMap volume, got %#v", vol)
 	}
-	mount := findVolumeMount(deploy.Spec.Template.Spec.Containers[0].VolumeMounts, websocketConfigVolume)
-	if mount == nil || mount.MountPath != websocketConfigMountPath || mount.SubPath != websocketConfigKey {
+	mount := findVolumeMount(deploy.Spec.Template.Spec.Containers[0].VolumeMounts, "websocket-config")
+	if mount == nil || mount.MountPath != "/home/superset-websocket/config.json" || mount.SubPath != "config.json" {
 		t.Fatalf("expected websocket config mount, got %#v", mount)
 	}
 }
@@ -279,14 +279,14 @@ func TestReconcile_WebsocketConfigFromMountsSecret(t *testing.T) {
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server", Namespace: "default"}, deploy); err != nil {
 		t.Fatalf("expected websocket Deployment: %v", err)
 	}
-	if deploy.Spec.Template.Annotations[common.AnnotationConfigChecksum] == "" {
+	if deploy.Spec.Template.Annotations["superset.apache.org/config-checksum"] == "" {
 		t.Fatal("expected websocket config reference checksum annotation")
 	}
-	vol := findVolume(deploy.Spec.Template.Spec.Volumes, websocketConfigVolume)
+	vol := findVolume(deploy.Spec.Template.Spec.Volumes, "websocket-config")
 	if vol == nil || vol.Secret == nil || vol.Secret.SecretName != "ws-config" {
 		t.Fatalf("expected websocket Secret volume, got %#v", vol)
 	}
-	if len(vol.Secret.Items) != 1 || vol.Secret.Items[0].Key != "config.json" || vol.Secret.Items[0].Path != websocketConfigKey {
+	if len(vol.Secret.Items) != 1 || vol.Secret.Items[0].Key != "config.json" || vol.Secret.Items[0].Path != "config.json" {
 		t.Fatalf("expected websocket Secret key mapping, got %#v", vol.Secret.Items)
 	}
 }
@@ -315,16 +315,16 @@ func TestReconcile_BootstrapScriptAppliesToPythonComponentsOnly(t *testing.T) {
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server-config", Namespace: "default"}, webCM); err != nil {
 		t.Fatalf("expected web ConfigMap: %v", err)
 	}
-	if webCM.Data[bootstrapScriptKey] != "echo top-level" {
-		t.Fatalf("expected top-level bootstrap on web, got %q", webCM.Data[bootstrapScriptKey])
+	if webCM.Data["superset_bootstrap.sh"] != "echo top-level" {
+		t.Fatalf("expected top-level bootstrap on web, got %q", webCM.Data["superset_bootstrap.sh"])
 	}
 
 	workerCM := &corev1.ConfigMap{}
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-celery-worker-config", Namespace: "default"}, workerCM); err != nil {
 		t.Fatalf("expected worker ConfigMap: %v", err)
 	}
-	if workerCM.Data[bootstrapScriptKey] != "echo worker" {
-		t.Fatalf("expected worker bootstrap override, got %q", workerCM.Data[bootstrapScriptKey])
+	if workerCM.Data["superset_bootstrap.sh"] != "echo worker" {
+		t.Fatalf("expected worker bootstrap override, got %q", workerCM.Data["superset_bootstrap.sh"])
 	}
 	workerDeploy := &appsv1.Deployment{}
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-celery-worker", Namespace: "default"}, workerDeploy); err != nil {
@@ -377,8 +377,8 @@ func TestReconcile_ComponentResourcesCarryLabels(t *testing.T) {
 		t.Fatalf("get Deployment: %v", err)
 	}
 	assertLabels(t, "Deployment", deploy.Labels)
-	if got := deploy.Spec.Template.Labels[common.LabelKeyParent]; got != "test" {
-		t.Errorf("Deployment pod template missing label %s=test (got %q)", common.LabelKeyParent, got)
+	if got := deploy.Spec.Template.Labels["superset.apache.org/parent"]; got != "test" {
+		t.Errorf("Deployment pod template missing label superset.apache.org/parent=test (got %q)", got)
 	}
 
 	cm := &corev1.ConfigMap{}
@@ -462,17 +462,17 @@ func TestReconcile_LifecycleCreatesParentOwnedTaskJobAndStatus(t *testing.T) {
 
 	jobs := &batchv1.JobList{}
 	if err := c.List(context.Background(), jobs,
-		client.MatchingLabels{labelInitInstance: "test-migrate"},
+		client.MatchingLabels{"superset.apache.org/instance": "test-migrate"},
 	); err != nil {
 		t.Fatalf("list task jobs: %v", err)
 	}
 	if len(jobs.Items) != 1 {
 		t.Fatalf("expected one migrate task job, got %d", len(jobs.Items))
 	}
-	if jobs.Items[0].Labels[common.LabelKeyParent] != "test" {
-		t.Fatalf("expected task job parent label, got %q", jobs.Items[0].Labels[common.LabelKeyParent])
+	if jobs.Items[0].Labels["superset.apache.org/parent"] != "test" {
+		t.Fatalf("expected task job parent label, got %q", jobs.Items[0].Labels["superset.apache.org/parent"])
 	}
-	if got := jobs.Items[0].Spec.Template.Labels[common.LabelKeyParent]; got != "test" {
+	if got := jobs.Items[0].Spec.Template.Labels["superset.apache.org/parent"]; got != "test" {
 		t.Fatalf("expected task pod template parent label, got %q", got)
 	}
 

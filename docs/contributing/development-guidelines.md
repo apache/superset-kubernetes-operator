@@ -128,6 +128,7 @@ We use a **pyramid testing strategy** where the vast majority of logic is covere
 - **Every assertion should protect against a plausible regression.** If you can't name the scenario where removing it would let a bug through, it doesn't belong. Avoid adding narrow standalone tests when the assertion fits naturally in an existing comprehensive test.
 - **When fixing a regression, always add a test that would have caught it.** Regressions that broke silently indicate a gap in test coverage — close the gap as part of the fix.
 - **Use subtests (`t.Run`)** to group related scenarios within a single test function instead of creating separate top-level tests.
+- **Parametrize only what varies.** Every column of a table test should take more than one value across its rows. A value that is the same in every row belongs in the test body as a literal, and a column that always repeats another (for example an expected value identical to the subtest name) should be dropped in favor of the one that remains. If a table would have a single row, write a plain test instead.
 
 ### What goes where
 

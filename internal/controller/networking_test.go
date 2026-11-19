@@ -36,7 +36,6 @@ import (
 	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
-	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
 func TestWebServerServiceRef(t *testing.T) {
@@ -44,7 +43,6 @@ func TestWebServerServiceRef(t *testing.T) {
 	tests := []struct {
 		name     string
 		superset *supersetv1alpha1.Superset
-		wantName string
 		wantPort int32
 	}{
 		{
@@ -53,7 +51,7 @@ func TestWebServerServiceRef(t *testing.T) {
 				Name: "my-superset",
 				Spec: supersetv1alpha1.SupersetSpec{WebServer: &supersetv1alpha1.WebServerComponentSpec{}},
 			},
-			"my-superset-web-server", common.PortWebServer,
+			8088,
 		},
 		{
 			"custom port",
@@ -63,7 +61,7 @@ func TestWebServerServiceRef(t *testing.T) {
 					Service: &supersetv1alpha1.ComponentServiceSpec{Port: &customPort},
 				}},
 			},
-			"my-superset-web-server", 9090,
+			9090,
 		},
 		{
 			"nil webServer",
@@ -71,15 +69,15 @@ func TestWebServerServiceRef(t *testing.T) {
 				Name: "my-superset",
 				Spec: supersetv1alpha1.SupersetSpec{},
 			},
-			"my-superset-web-server", common.PortWebServer,
+			8088,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			name, port := webServerServiceRef(tt.superset)
-			if name != tt.wantName {
-				t.Errorf("expected name %s, got %s", tt.wantName, name)
+			if name != "my-superset-web-server" {
+				t.Errorf("expected name my-superset-web-server, got %s", name)
 			}
 			if port != tt.wantPort {
 				t.Errorf("expected port %d, got %d", tt.wantPort, port)
@@ -195,8 +193,8 @@ func TestReconcileNetworking_StripsReservedLabelsOnHTTPRoute(t *testing.T) {
 	if _, ok := route.Labels["superset.apache.org/instance"]; ok {
 		t.Errorf("forged reserved label survived on HTTPRoute: %v", route.Labels)
 	}
-	if route.Labels[common.LabelKeyParent] != "test" {
-		t.Errorf("operator parent label must be forced, got %q", route.Labels[common.LabelKeyParent])
+	if route.Labels["superset.apache.org/parent"] != "test" {
+		t.Errorf("operator parent label must be forced, got %q", route.Labels["superset.apache.org/parent"])
 	}
 	if route.Labels["team"] != "data" {
 		t.Errorf("non-reserved user label should survive, got %q", route.Labels["team"])
@@ -241,8 +239,8 @@ func TestReconcileNetworking_StripsReservedLabelsOnIngress(t *testing.T) {
 	if _, ok := ing.Labels["superset.apache.org/instance"]; ok {
 		t.Errorf("forged reserved label survived on Ingress: %v", ing.Labels)
 	}
-	if ing.Labels[common.LabelKeyParent] != "test" {
-		t.Errorf("operator parent label must be forced, got %q", ing.Labels[common.LabelKeyParent])
+	if ing.Labels["superset.apache.org/parent"] != "test" {
+		t.Errorf("operator parent label must be forced, got %q", ing.Labels["superset.apache.org/parent"])
 	}
 	if ing.Labels["team"] != "data" {
 		t.Errorf("non-reserved user label should survive, got %q", ing.Labels["team"])
@@ -395,8 +393,8 @@ func TestReconcileHTTPRoute_WithCeleryFlower(t *testing.T) {
 	if flowerRule.BackendRefs[0].Name != expectedFlowerSvc {
 		t.Errorf("expected flower backend test-celery-flower, got %s", flowerRule.BackendRefs[0].Name)
 	}
-	if *flowerRule.BackendRefs[0].Port != common.PortCeleryFlower {
-		t.Errorf("expected port %d, got %d", common.PortCeleryFlower, *flowerRule.BackendRefs[0].Port)
+	if *flowerRule.BackendRefs[0].Port != 5555 {
+		t.Errorf("expected port 5555, got %d", *flowerRule.BackendRefs[0].Port)
 	}
 }
 
@@ -459,18 +457,17 @@ func TestReconcileHTTPRoute_CustomGatewayPaths(t *testing.T) {
 func TestResolveGatewayPath(t *testing.T) {
 	custom := "/custom"
 	tests := []struct {
-		name        string
-		svc         *supersetv1alpha1.ComponentServiceSpec
-		defaultPath string
-		want        string
+		name string
+		svc  *supersetv1alpha1.ComponentServiceSpec
+		want string
 	}{
-		{"nil service", nil, "/ws", "/ws"},
-		{"nil gatewayPath", &supersetv1alpha1.ComponentServiceSpec{}, "/ws", "/ws"},
-		{"custom path", &supersetv1alpha1.ComponentServiceSpec{GatewayPath: &custom}, "/ws", "/custom"},
+		{"nil service", nil, "/ws"},
+		{"nil gatewayPath", &supersetv1alpha1.ComponentServiceSpec{}, "/ws"},
+		{"custom path", &supersetv1alpha1.ComponentServiceSpec{GatewayPath: &custom}, "/custom"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := resolveGatewayPath(tt.svc, tt.defaultPath)
+			got := resolveGatewayPath(tt.svc, "/ws")
 			if got != tt.want {
 				t.Errorf("resolveGatewayPath() = %s, want %s", got, tt.want)
 			}
@@ -519,9 +516,9 @@ func TestComponentRoutes(t *testing.T) {
 		},
 	}
 	want := []componentRoute{
-		{svcName: "test-mcp-server", port: common.PortMcpServer, path: "/mcp"},
-		{svcName: "test-celery-flower", port: common.PortCeleryFlower, path: "/flower"},
-		{svcName: "test-web-server", port: common.PortWebServer, path: "/"},
+		{svcName: "test-mcp-server", port: 8088, path: "/mcp"},
+		{svcName: "test-celery-flower", port: 5555, path: "/flower"},
+		{svcName: "test-web-server", port: 8088, path: "/"},
 	}
 	if got := componentRoutes(superset); !reflect.DeepEqual(got, want) {
 		t.Errorf("componentRoutes() = %+v, want %+v", got, want)
@@ -672,8 +669,8 @@ func TestReconcileIngress_CreatesIngress(t *testing.T) {
 	if paths[0].Backend.Service.Name != "test-web-server" {
 		t.Errorf("expected backend test-web-server, got %s", paths[0].Backend.Service.Name)
 	}
-	if paths[0].Backend.Service.Port.Number != common.PortWebServer {
-		t.Errorf("expected port %d, got %d", common.PortWebServer, paths[0].Backend.Service.Port.Number)
+	if paths[0].Backend.Service.Port.Number != 8088 {
+		t.Errorf("expected port 8088, got %d", paths[0].Backend.Service.Port.Number)
 	}
 }
 
@@ -896,18 +893,17 @@ func TestDeleteByLabels_SkipsUnlabeledResource(t *testing.T) {
 func TestResolveServicePort(t *testing.T) {
 	custom := int32(9000)
 	tests := []struct {
-		name        string
-		svc         *supersetv1alpha1.ComponentServiceSpec
-		defaultPort int32
-		want        gatewayv1.PortNumber
+		name string
+		svc  *supersetv1alpha1.ComponentServiceSpec
+		want gatewayv1.PortNumber
 	}{
-		{"nil service", nil, 8088, 8088},
-		{"nil port", &supersetv1alpha1.ComponentServiceSpec{}, 8088, 8088},
-		{"custom port", &supersetv1alpha1.ComponentServiceSpec{Port: &custom}, 8088, 9000},
+		{"nil service", nil, 8088},
+		{"nil port", &supersetv1alpha1.ComponentServiceSpec{}, 8088},
+		{"custom port", &supersetv1alpha1.ComponentServiceSpec{Port: &custom}, 9000},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := resolveServicePort(tt.svc, tt.defaultPort)
+			got := resolveServicePort(tt.svc, 8088)
 			if got != tt.want {
 				t.Errorf("resolveServicePort() = %d, want %d", got, tt.want)
 			}
@@ -938,7 +934,7 @@ func TestReconcileWebServerService_CreatesAndSwitchesSelector(t *testing.T) {
 	if err := c.Get(ctx, client.ObjectKey{Name: svcName, Namespace: "default"}, svc); err != nil {
 		t.Fatalf("get service: %v", err)
 	}
-	if svc.Spec.Selector[common.LabelKeyComponent] != string(common.ComponentWebServer) {
+	if svc.Spec.Selector["app.kubernetes.io/component"] != "web-server" {
 		t.Errorf("expected web-server selector, got %v", svc.Spec.Selector)
 	}
 	if !isOwnedBy(svc, superset) {
@@ -953,7 +949,7 @@ func TestReconcileWebServerService_CreatesAndSwitchesSelector(t *testing.T) {
 	if err := c.Get(ctx, client.ObjectKey{Name: svcName, Namespace: "default"}, svc); err != nil {
 		t.Fatalf("get service: %v", err)
 	}
-	if svc.Spec.Selector[common.LabelKeyComponent] != string(common.ComponentMaintenancePage) {
+	if svc.Spec.Selector["app.kubernetes.io/component"] != "maintenance-page" {
 		t.Errorf("expected maintenance-page selector during maintenance, got %v", svc.Spec.Selector)
 	}
 }

@@ -71,19 +71,19 @@ func TestReconcileNetworkPolicies_CreatesForEnabledComponents(t *testing.T) {
 
 	// WebServer NP should exist.
 	wsNP := &networkingv1.NetworkPolicy{}
-	wsNPName := common.DerivedName("test", common.SuffixWebServer) + common.SuffixNetworkPolicy
+	wsNPName := "test-web-server-netpol"
 	if err := c.Get(context.Background(), types.NamespacedName{Name: wsNPName, Namespace: "default"}, wsNP); err != nil {
 		t.Fatalf("expected web server NetworkPolicy: %v", err)
 	}
 
 	// CeleryBeat NP should exist.
-	beatNPName := common.DerivedName("test", common.SuffixCeleryBeat) + common.SuffixNetworkPolicy
+	beatNPName := "test-celery-beat-netpol"
 	if err := c.Get(context.Background(), types.NamespacedName{Name: beatNPName, Namespace: "default"}, &networkingv1.NetworkPolicy{}); err != nil {
 		t.Fatalf("expected celery beat NetworkPolicy: %v", err)
 	}
 
 	// CeleryWorker NP should NOT exist (component not enabled).
-	workerNPName := common.DerivedName("test", common.SuffixCeleryWorker) + common.SuffixNetworkPolicy
+	workerNPName := "test-celery-worker-netpol"
 	err := c.Get(context.Background(), types.NamespacedName{Name: workerNPName, Namespace: "default"}, &networkingv1.NetworkPolicy{})
 	if !errors.IsNotFound(err) {
 		t.Fatalf("expected celery worker NetworkPolicy to not exist, got: %v", err)
@@ -105,7 +105,7 @@ func TestReconcileComponentNetworkPolicy_WebServer(t *testing.T) {
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
-	npName := "test-web-server" + common.SuffixNetworkPolicy
+	npName := "test-web-server-netpol"
 	err := r.reconcileComponentNetworkPolicy(
 		context.Background(), superset, npName,
 		string(common.ComponentWebServer), "test", common.PortWebServer,
@@ -121,11 +121,11 @@ func TestReconcileComponentNetworkPolicy_WebServer(t *testing.T) {
 
 	// Verify pod selector uses the component instance name (not resourceBaseName) so it
 	// matches the labels on Deployment pod templates.
-	if np.Spec.PodSelector.MatchLabels[common.LabelKeyComponent] != string(common.ComponentWebServer) {
-		t.Errorf("expected component label %s, got %s", common.ComponentWebServer, np.Spec.PodSelector.MatchLabels[common.LabelKeyComponent])
+	if np.Spec.PodSelector.MatchLabels["app.kubernetes.io/component"] != "web-server" {
+		t.Errorf("expected component label web-server, got %s", np.Spec.PodSelector.MatchLabels["app.kubernetes.io/component"])
 	}
-	if np.Spec.PodSelector.MatchLabels[common.LabelKeyInstance] != "test" {
-		t.Errorf("expected instance label %q (component instance name), got %q", "test", np.Spec.PodSelector.MatchLabels[common.LabelKeyInstance])
+	if np.Spec.PodSelector.MatchLabels["app.kubernetes.io/instance"] != "test" {
+		t.Errorf("expected instance label %q (component instance name), got %q", "test", np.Spec.PodSelector.MatchLabels["app.kubernetes.io/instance"])
 	}
 
 	// Verify policy types.
@@ -156,10 +156,10 @@ func TestReconcileComponentNetworkPolicy_WebServer(t *testing.T) {
 
 	// First rule: from same-instance superset pods.
 	interComponentLabels := np.Spec.Ingress[0].From[0].PodSelector.MatchLabels
-	if interComponentLabels[common.LabelKeyName] != common.LabelValueApp {
+	if interComponentLabels["app.kubernetes.io/name"] != "superset" {
 		t.Errorf("expected inter-component ingress rule with app name label")
 	}
-	if interComponentLabels[common.LabelKeyParent] != "test" {
+	if interComponentLabels["superset.apache.org/parent"] != "test" {
 		t.Errorf("expected inter-component ingress rule scoped to parent, got %v", interComponentLabels)
 	}
 
@@ -167,8 +167,8 @@ func TestReconcileComponentNetworkPolicy_WebServer(t *testing.T) {
 	if len(np.Spec.Ingress[1].Ports) != 1 {
 		t.Fatalf("expected 1 port in external ingress rule, got %d", len(np.Spec.Ingress[1].Ports))
 	}
-	if np.Spec.Ingress[1].Ports[0].Port.IntValue() != int(common.PortWebServer) {
-		t.Errorf("expected port %d, got %d", common.PortWebServer, np.Spec.Ingress[1].Ports[0].Port.IntValue())
+	if np.Spec.Ingress[1].Ports[0].Port.IntValue() != 8088 {
+		t.Errorf("expected port 8088, got %d", np.Spec.Ingress[1].Ports[0].Port.IntValue())
 	}
 	if *np.Spec.Ingress[1].Ports[0].Protocol != corev1.ProtocolTCP {
 		t.Errorf("expected TCP protocol")
@@ -190,7 +190,7 @@ func TestReconcileComponentNetworkPolicy_InternalOnly(t *testing.T) {
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
-	npName := "test-celery-worker" + common.SuffixNetworkPolicy
+	npName := "test-celery-worker-netpol"
 	// Port 0 means internal only — no external ingress rule.
 	err := r.reconcileComponentNetworkPolicy(
 		context.Background(), superset, npName,
@@ -249,7 +249,7 @@ func TestReconcileNetworkPolicies_ExtraRules(t *testing.T) {
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset).Build()
 	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
 
-	npName := "test-web-server" + common.SuffixNetworkPolicy
+	npName := "test-web-server-netpol"
 	err := r.reconcileComponentNetworkPolicy(
 		context.Background(), superset, npName,
 		string(common.ComponentWebServer), "test", common.PortWebServer,
@@ -282,7 +282,7 @@ func TestReconcileNetworkPolicies_DeletesWhenDisabled(t *testing.T) {
 
 	// Pre-create a NetworkPolicy with operator-managed labels.
 	existingNP := &networkingv1.NetworkPolicy{
-		Name:      "test-web-server" + common.SuffixNetworkPolicy,
+		Name:      "test-web-server-netpol",
 		Namespace: "default",
 		Labels: map[string]string{
 			common.LabelKeyName:      common.LabelValueApp,
@@ -300,7 +300,7 @@ func TestReconcileNetworkPolicies_DeletesWhenDisabled(t *testing.T) {
 
 	// NP should be cleaned up.
 	np := &networkingv1.NetworkPolicy{}
-	npName := "test-web-server" + common.SuffixNetworkPolicy
+	npName := "test-web-server-netpol"
 	err := c.Get(context.Background(), types.NamespacedName{Name: npName, Namespace: "default"}, np)
 	if !errors.IsNotFound(err) {
 		t.Fatalf("expected NetworkPolicy to be deleted, got: %v", err)
@@ -327,7 +327,7 @@ func TestNetworkPolicySelectorMatchesDeploymentLabels(t *testing.T) {
 		t.Fatalf("reconcileNetworkPolicies: %v", err)
 	}
 
-	npName := "test-web-server" + common.SuffixNetworkPolicy
+	npName := "test-web-server-netpol"
 	np := &networkingv1.NetworkPolicy{}
 	if err := c.Get(context.Background(), types.NamespacedName{Name: npName, Namespace: "default"}, np); err != nil {
 		t.Fatalf("expected NetworkPolicy: %v", err)
@@ -360,8 +360,8 @@ func TestFlowerExternalPort_GatedByPublish(t *testing.T) {
 			Service: &supersetv1alpha1.ComponentServiceSpec{GatewayPath: new("/flower")},
 		}},
 	}
-	if got := flowerExternalPort(prodOptIn); got != common.PortCeleryFlower {
-		t.Errorf("flowerExternalPort() = %d, want %d after opt-in", got, common.PortCeleryFlower)
+	if got := flowerExternalPort(prodOptIn); got != 5555 {
+		t.Errorf("flowerExternalPort() = %d, want 5555 after opt-in", got)
 	}
 
 	dev := &supersetv1alpha1.Superset{
@@ -370,7 +370,7 @@ func TestFlowerExternalPort_GatedByPublish(t *testing.T) {
 			CeleryFlower: &supersetv1alpha1.CeleryFlowerComponentSpec{},
 		},
 	}
-	if got := flowerExternalPort(dev); got != common.PortCeleryFlower {
-		t.Errorf("flowerExternalPort() = %d, want %d in Development", got, common.PortCeleryFlower)
+	if got := flowerExternalPort(dev); got != 5555 {
+		t.Errorf("flowerExternalPort() = %d, want 5555 in Development", got)
 	}
 }

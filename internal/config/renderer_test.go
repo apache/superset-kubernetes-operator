@@ -118,28 +118,20 @@ func TestRenderConfig_ComponentVariants(t *testing.T) {
 		name      string
 		component ComponentType
 		input     *ConfigInput
-		contains  []string
 	}{
-		{"init", ComponentInit, &ConfigInput{MetastoreMode: MetastoreNone},
-			[]string{"import os", "# Operator-generated configs"}},
-		{"celery-worker", ComponentCeleryWorker, &ConfigInput{MetastoreMode: MetastoreNone},
-			[]string{"import os", "# Operator-generated configs"}},
-		{"celery-beat", ComponentCeleryBeat, &ConfigInput{MetastoreMode: MetastoreNone},
-			[]string{"import os", "# Operator-generated configs"}},
-		{"celery-flower", ComponentCeleryFlower, &ConfigInput{MetastoreMode: MetastoreNone},
-			[]string{"import os", "# Operator-generated configs"}},
-		{"mcp-server", ComponentMcpServer, &ConfigInput{MetastoreMode: MetastoreNone},
-			[]string{"import os", "# Operator-generated configs"}},
-		{"minimal (no metastore)", ComponentCeleryWorker, &ConfigInput{},
-			[]string{"import os", "# Operator-generated configs"}},
+		{"init", ComponentInit, &ConfigInput{MetastoreMode: MetastoreNone}},
+		{"celery-worker", ComponentCeleryWorker, &ConfigInput{MetastoreMode: MetastoreNone}},
+		{"celery-beat", ComponentCeleryBeat, &ConfigInput{MetastoreMode: MetastoreNone}},
+		{"celery-flower", ComponentCeleryFlower, &ConfigInput{MetastoreMode: MetastoreNone}},
+		{"mcp-server", ComponentMcpServer, &ConfigInput{MetastoreMode: MetastoreNone}},
+		{"minimal (no metastore)", ComponentCeleryWorker, &ConfigInput{}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := RenderConfig(tt.component, tt.input)
-			for _, want := range tt.contains {
-				assertContains(t, result, want)
-			}
+			assertContains(t, result, "import os")
+			assertContains(t, result, "# Operator-generated configs")
 		})
 	}
 }

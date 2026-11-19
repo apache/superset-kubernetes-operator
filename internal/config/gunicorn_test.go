@@ -115,9 +115,9 @@ func TestResolveGunicorn_EnvVars(t *testing.T) {
 	for _, e := range envs {
 		envMap[e.Name] = e.Value
 	}
-	assert.Equal(t, "2", envMap[EnvServerWorkerAmount])
-	assert.Equal(t, "8", envMap[EnvServerThreadsAmount])
-	assert.Equal(t, "gthread", envMap[EnvServerWorkerClass])
-	assert.Equal(t, "60", envMap[EnvGunicornTimeout])
-	assert.Equal(t, "info", envMap[EnvGunicornLogLevel])
+	assert.Equal(t, "2", envMap["SERVER_WORKER_AMOUNT"])
+	assert.Equal(t, "8", envMap["SERVER_THREADS_AMOUNT"])
+	assert.Equal(t, "gthread", envMap["SERVER_WORKER_CLASS"])
+	assert.Equal(t, "60", envMap["GUNICORN_TIMEOUT"])
+	assert.Equal(t, "info", envMap["GUNICORN_LOGLEVEL"])
 }

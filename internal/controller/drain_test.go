@@ -281,7 +281,7 @@ func TestPrepareMaintenancePageStartsWhenWebServerDeploymentExists(t *testing.T)
 		},
 	}
 	webDeployment := &appsv1.Deployment{
-		Name:      common.ResourceBaseName("test", common.ComponentWebServer),
+		Name:      "test-web-server",
 		Namespace: "default",
 		Spec:      appsv1.DeploymentSpec{Replicas: &replicas},
 	}
@@ -406,11 +406,11 @@ func TestDrainComponents_DeletesWorkloadsAndReportsDrained(t *testing.T) {
 			CeleryWorker: &supersetv1alpha1.CeleryWorkerComponentSpec{},
 		},
 	}
-	workerName := common.ResourceBaseName("test", common.ComponentCeleryWorker)
+	workerName := "test-celery-worker"
 	workerLabels := podOperatorLabels(string(common.ComponentCeleryWorker), "test", "test")
 
 	webDeploy := &appsv1.Deployment{
-		Name: common.ResourceBaseName("test", common.ComponentWebServer), Namespace: "default",
+		Name: "test-web-server", Namespace: "default",
 		Labels:          podOperatorLabels(string(common.ComponentWebServer), "test", "test"),
 		OwnerReferences: controllerRefTo(superset)}
 	workerDeploy := &appsv1.Deployment{
@@ -437,8 +437,8 @@ func TestDrainComponents_DeletesWorkloadsAndReportsDrained(t *testing.T) {
 
 	// Deployments deleted.
 	for _, name := range []string{
-		common.ResourceBaseName("test", common.ComponentWebServer),
-		common.ResourceBaseName("test", common.ComponentCeleryWorker),
+		"test-web-server",
+		"test-celery-worker",
 	} {
 		err := c.Get(ctx, client.ObjectKey{Name: name, Namespace: "default"}, &appsv1.Deployment{})
 		if err == nil {
@@ -464,7 +464,7 @@ func TestDrainComponents_DeletesOwnedResourcesWithoutLabels(t *testing.T) {
 		Name: "test", Namespace: "default", UID: "uid-1",
 		Spec: supersetv1alpha1.SupersetSpec{CeleryWorker: &supersetv1alpha1.CeleryWorkerComponentSpec{}},
 	}
-	name := common.ResourceBaseName("test", common.ComponentCeleryWorker)
+	name := "test-celery-worker"
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset,
 		&appsv1.Deployment{Name: name, Namespace: "default", OwnerReferences: controllerRefTo(superset)},
 		&autoscalingv2.HorizontalPodAutoscaler{Name: name, Namespace: "default", OwnerReferences: controllerRefTo(superset)},
@@ -542,7 +542,7 @@ func TestHasExistingWebServerWorkload(t *testing.T) {
 	t.Run("deployment with replicas returns true", func(t *testing.T) {
 		one := int32(1)
 		deploy := &appsv1.Deployment{
-			Name: common.ResourceBaseName("test", common.ComponentWebServer), Namespace: "default",
+			Name: "test-web-server", Namespace: "default",
 			Spec: appsv1.DeploymentSpec{Replicas: &one},
 		}
 		c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, deploy).Build()

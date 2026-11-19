@@ -291,7 +291,7 @@ var _ = Describe("Integration", Ordered, func() {
 			cm := &corev1.ConfigMap{}
 			Eventually(func() error {
 				return k8sClient.Get(ctx, types.NamespacedName{
-					Name: common.ConfigMapName("lifecycle-web-server"), Namespace: ns,
+					Name: "lifecycle-web-server-config", Namespace: ns,
 				}, cm)
 			}, timeout, interval).Should(Succeed())
 			Expect(cm.Data["superset_config.py"]).To(ContainSubstring("import os"))
@@ -368,7 +368,7 @@ var _ = Describe("Integration", Ordered, func() {
 			Expect(k8sClient.Get(ctx, types.NamespacedName{
 				Name: "lifecycle-web-server", Namespace: ns,
 			}, webServer)).To(Succeed())
-			oldChecksum := webServer.Spec.Template.Annotations[common.AnnotationConfigChecksum]
+			oldChecksum := webServer.Spec.Template.Annotations["superset.apache.org/config-checksum"]
 
 			By("adding user config to the parent CR")
 			userConfig := "CUSTOM_FLAG = True"
@@ -379,7 +379,7 @@ var _ = Describe("Integration", Ordered, func() {
 			Eventually(func() string {
 				cm := &corev1.ConfigMap{}
 				if err := k8sClient.Get(ctx, types.NamespacedName{
-					Name: common.ConfigMapName("lifecycle-web-server"), Namespace: ns,
+					Name: "lifecycle-web-server-config", Namespace: ns,
 				}, cm); err != nil {
 					return ""
 				}
@@ -394,7 +394,7 @@ var _ = Describe("Integration", Ordered, func() {
 				}, ws); err != nil {
 					return oldChecksum
 				}
-				return ws.Spec.Template.Annotations[common.AnnotationConfigChecksum]
+				return ws.Spec.Template.Annotations["superset.apache.org/config-checksum"]
 			}, timeout, interval).ShouldNot(Equal(oldChecksum))
 		})
 

@@ -80,7 +80,7 @@ func TestRenderMaintenanceHTML(t *testing.T) {
 		spec := &supersetv1alpha1.MaintenancePageSpec{}
 		html := renderMaintenanceHTML(spec)
 
-		if !strings.Contains(html, maintenanceDefaultTitle) {
+		if !strings.Contains(html, "Scheduled Maintenance") {
 			t.Error("expected default title in output")
 		}
 		if !strings.Contains(html, "<!DOCTYPE html>") {
@@ -217,9 +217,9 @@ func TestBuildMaintenanceFlatSpec(t *testing.T) {
 			Body:    &body,
 		})
 		env := maintenanceEnvByName(flat)
-		assert.Equal(t, title, env[common.EnvMaintenanceTitle])
-		assert.Equal(t, message, env[common.EnvMaintenanceMessage])
-		assert.Equal(t, body, env[common.EnvMaintenanceBody])
+		assert.Equal(t, title, env["SUPERSET_OPERATOR__MAINTENANCE_TITLE"])
+		assert.Equal(t, message, env["SUPERSET_OPERATOR__MAINTENANCE_MESSAGE"])
+		assert.Equal(t, body, env["SUPERSET_OPERATOR__MAINTENANCE_BODY"])
 	})
 
 	t.Run("no content fields render no maintenance env vars", func(t *testing.T) {
@@ -229,7 +229,7 @@ func TestBuildMaintenanceFlatSpec(t *testing.T) {
 			Image: &supersetv1alpha1.ContainerImageSpec{Repository: "my/maint", Tag: "v1"},
 		})
 		env := maintenanceEnvByName(flat)
-		for _, name := range []string{common.EnvMaintenanceTitle, common.EnvMaintenanceMessage, common.EnvMaintenanceBody} {
+		for _, name := range []string{"SUPERSET_OPERATOR__MAINTENANCE_TITLE", "SUPERSET_OPERATOR__MAINTENANCE_MESSAGE", "SUPERSET_OPERATOR__MAINTENANCE_BODY"} {
 			if _, ok := env[name]; ok {
 				t.Errorf("expected no %s env var, got one", name)
 			}
@@ -257,9 +257,9 @@ func TestBuildMaintenanceFlatSpec_ForcesReservedLabels(t *testing.T) {
 
 	require.NotNil(t, flat.PodTemplate)
 	labels := flat.PodTemplate.Labels
-	assert.Equal(t, "real-parent", labels[common.LabelKeyParent],
+	assert.Equal(t, "real-parent", labels["superset.apache.org/parent"],
 		"parent label must be forced to the real instance, not the user-supplied value")
-	assert.NotContains(t, labels, common.LabelKeyInitInstance,
+	assert.NotContains(t, labels, "superset.apache.org/instance",
 		"reserved superset.apache.org/instance label must be stripped from user input")
 	assert.NotContains(t, labels, "superset.apache.org/init-task",
 		"reserved superset.apache.org/init-task label must be stripped from user input")
@@ -305,7 +305,11 @@ func TestReconcileWebServerService_SelectorBasedOnMaintenanceActive(t *testing.T
 	}
 
 	// When MaintenanceActive=true, selector should point to maintenance-page component.
-	expectedSelector := common.ComponentLabels(common.ComponentMaintenancePage, "my-superset")
+	expectedSelector := map[string]string{
+		"app.kubernetes.io/name":      "superset",
+		"app.kubernetes.io/component": "maintenance-page",
+		"app.kubernetes.io/instance":  "my-superset",
+	}
 
 	// Verify the selector logic (we test the selector derivation, not the full reconcile
 	// which requires a fake client).
@@ -328,7 +332,11 @@ func TestReconcileWebServerService_SelectorBasedOnMaintenanceActive(t *testing.T
 	} else {
 		selector = common.ComponentLabels(common.ComponentWebServer, superset.Name)
 	}
-	expectedWebServer := common.ComponentLabels(common.ComponentWebServer, "my-superset")
+	expectedWebServer := map[string]string{
+		"app.kubernetes.io/name":      "superset",
+		"app.kubernetes.io/component": "web-server",
+		"app.kubernetes.io/instance":  "my-superset",
+	}
 	for k, v := range expectedWebServer {
 		if selector[k] != v {
 			t.Errorf("expected selector[%s]=%s, got %s", k, v, selector[k])
@@ -410,20 +418,20 @@ func TestResolveMaintenanceImage_PartialOverride(t *testing.T) {
 		{
 			name:         "nil image uses managed defaults",
 			image:        nil,
-			expectedRepo: maintenanceDefaultImage,
-			expectedTag:  maintenanceDefaultTag,
+			expectedRepo: "nginx",
+			expectedTag:  "alpine",
 		},
 		{
 			name:         "tag-only override inherits nginx repo",
 			image:        &supersetv1alpha1.ContainerImageSpec{Tag: "1.27"},
-			expectedRepo: maintenanceDefaultImage,
+			expectedRepo: "nginx",
 			expectedTag:  "1.27",
 		},
 		{
 			name:         "repository-only override inherits default tag",
 			image:        &supersetv1alpha1.ContainerImageSpec{Repository: "my-registry/maintenance"},
 			expectedRepo: "my-registry/maintenance",
-			expectedTag:  maintenanceDefaultTag,
+			expectedTag:  "alpine",
 		},
 		{
 			name:         "full override is used as-is",
@@ -599,7 +607,7 @@ func TestReconcileMaintenanceReturn_WaitsForWebServerReady(t *testing.T) {
 			Lifecycle: &supersetv1alpha1.LifecycleStatus{MaintenanceActive: true},
 		},
 	}
-	webName := common.ResourceBaseName("test", common.ComponentWebServer)
+	webName := "test-web-server"
 	deploy := &appsv1.Deployment{
 		Name: webName, Namespace: "default",
 		Status: appsv1.DeploymentStatus{ReadyReplicas: 0},
