@@ -990,6 +990,17 @@
   
 </li>
         
+          <li class="md-nav__item">
+  <a href="#removed" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Removed
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
       </ul>
     </nav>
   
@@ -1258,10 +1269,16 @@ under the License.
 <li><strong>Breaking:</strong> <code>podTemplate.container.ports</code> is removed. Each component now always listens on its operator default port, and its Service <code>targetPort</code>, default probes, and NetworkPolicy always target that port. Overriding the first port used to move the Service, probes, and NetworkPolicy without changing the port the server listened on, so the pods restarted in a loop. A port set on the top-level <code>podTemplate.container</code> was also merged into every HTTP component. Remove <code>ports</code> from your Superset resources before upgrading: the API server drops the field from stored resources, and <code>kubectl apply</code> with strict field validation rejects it. Instances that set <code>ports</code> go back to the default port and roll once on upgrade. To change the port clients connect to, use <code>service.port</code> (<a href="https://github.com/apache/superset-kubernetes-operator/pull/462">#462</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
 <li><strong>Celery worker liveness probe.</strong> The Celery worker now gets a default liveness probe that runs <code>celery inspect ping</code> against the pod's own worker node, so a worker that stays Running but no longer answers over the broker is restarted. Timings match the upstream Superset Helm chart (120s initial delay, 60s period and timeout, 3 failures). Existing worker Deployments roll once on upgrade, and setting <code>livenessProbe</code> on the worker replaces the default (<a href="https://github.com/apache/superset-kubernetes-operator/pull/427">#427</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
 <li><code>webServer.gunicorn.workerClass</code>, <code>webServer.gunicorn.logLevel</code>, <code>celeryWorker.celery.pool</code>, <code>celeryWorker.celery.optimization</code>, and <code>valkey.ssl.certRequired</code> no longer have a fixed list of allowed values. The operator passes them to Gunicorn, Celery, and the Valkey client unchanged, so values added in newer releases of those projects work without an operator update (<a href="https://github.com/apache/superset-kubernetes-operator/pull/508">#508</a>, <a href="https://github.com/villebro">@villebro</a>).</li>
+<li>The Helm chart now documents its <code>nameOverride</code> and <code>fullnameOverride</code> values, and <code>image.pullPolicy</code> defaults to unset so the Kubernetes default applies. Rendered pull behavior is unchanged for the default image tag (<a href="https://github.com/apache/superset-kubernetes-operator/pull/531">#531</a>, <a href="https://github.com/villebro">@villebro</a>).</li>
 </ul>
 <h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>User-managed HPAs and PDBs are no longer deleted.</strong> The operator used to delete an unowned HPA or PDB named after a component Deployment, such as one created with <code>kubectl autoscale</code>, whenever that component had no <code>autoscaling</code> or <code>podDisruptionBudget</code> and again on every lifecycle drain. Component cleanup now finds resources by the operator's labels, and by name only for resources the Superset owns (<a href="https://github.com/apache/superset-kubernetes-operator/pull/507">#507</a>, <a href="https://github.com/villebro">@villebro</a>).</li>
+<li>At the default log level, the operator no longer repeats drain progress, "upgrade awaiting approval", env var override warnings, or foreign-owner cleanup skips on every reconcile. These messages are logged once when the state changes, or at debug level (<a href="https://github.com/apache/superset-kubernetes-operator/pull/528">#528</a>, <a href="https://github.com/villebro">@villebro</a>).</li>
+</ul>
+<h3 id="removed">Removed<a class="headerlink" href="#removed" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Breaking:</strong> <code>lifecycle.seed.source.type</code> is removed. The seed source now always uses <code>metastore.type</code>, which selects the dump and restore tools, the default source port and the default seed image. A source type that differed from the metastore could only fail at runtime, because the default seed command restores with the source database's tools. Remove <code>source.type</code> from your Superset resources before upgrading; resources where it matched the metastore keep their seed checksum and don't re-seed. For a cross-engine seed, set <code>lifecycle.seed.command</code>, <code>image</code> and <code>source.port</code> explicitly (<a href="https://github.com/apache/superset-kubernetes-operator/pull/523">#523</a>, <a href="https://github.com/villebro">@villebro</a>).</li>
 </ul>
 <h2 id="031-2026-10-21">0.3.1 - 2026-10-21<a class="headerlink" href="#031-2026-10-21" title="Permanent link">&para;</a></h2>
 <h3 id="fixed_1">Fixed<a class="headerlink" href="#fixed_1" title="Permanent link">&para;</a></h3>

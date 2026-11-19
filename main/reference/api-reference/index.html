@@ -3431,8 +3431,7 @@ context-appropriate default at reconcile time when fields are omitted (e.g.,
 <p><em>Validation:</em>
 - Enum: [PostgreSQL MySQL]</p>
 <p><em>Appears in:</em>
-- <a href="#metastorespec">MetastoreSpec</a>
-- <a href="#seedsourcespec">SeedSourceSpec</a></p>
+- <a href="#metastorespec">MetastoreSpec</a></p>
 <table>
 <thead>
 <tr>
@@ -5054,7 +5053,8 @@ triggers. The schedule is additive to the manual trigger field.</p>
 </tbody>
 </table>
 <h4 id="seedsourcespec">SeedSourceSpec<a class="headerlink" href="#seedsourcespec" title="Permanent link">&para;</a></h4>
-<p>SeedSourceSpec defines the source database connection for seeding.</p>
+<p>SeedSourceSpec defines the source database connection for seeding. The
+source uses the same database type as the target (metastore.type).</p>
 <p><em>Appears in:</em>
 - <a href="#seedtaskspec">SeedTaskSpec</a></p>
 <table>
@@ -5067,12 +5067,6 @@ triggers. The schedule is additive to the manual trigger field.</p>
 </tr>
 </thead>
 <tbody>
-<tr>
-<td><code>type</code> <em><a href="#databasetype">DatabaseType</a></em></td>
-<td>Database type: PostgreSQL (default) or MySQL.</td>
-<td>PostgreSQL</td>
-<td>Enum: [PostgreSQL MySQL] <br />Optional: {} <br /></td>
-</tr>
 <tr>
 <td><code>host</code> <em>string</em></td>
 <td>Source database hostname. Mutually exclusive with hostFrom.</td>
@@ -5087,7 +5081,7 @@ triggers. The schedule is additive to the manual trigger field.</p>
 </tr>
 <tr>
 <td><code>port</code> <em>integer</em></td>
-<td>Source database port. Defaults to 5432 (postgresql) or 3306 (mysql).</td>
+<td>Source database port. Defaults to 5432 (PostgreSQL) or 3306 (MySQL) based on metastore.type.</td>
 <td></td>
 <td>Optional: {} <br /></td>
 </tr>
@@ -5221,7 +5215,7 @@ Triggers on source config changes and the trigger field (inherited from BaseTask
 </tr>
 <tr>
 <td><code>image</code> <em><a href="#containerimagespec">ContainerImageSpec</a></em></td>
-<td>Image for the seed Job. Defaults to postgres:17-alpine (PostgreSQL) or mysql:8.4 (MySQL) based on source.type. Partial specs (e.g., only <code>tag</code> set) inherit the type-appropriate default for omitted fields.</td>
+<td>Image for the seed Job. Defaults to postgres:17-alpine (PostgreSQL) or mysql:8.4 (MySQL) based on metastore.type. Partial specs (e.g., only <code>tag</code> set) inherit the type-appropriate default for omitted fields.</td>
 <td></td>
 <td>Optional: {} <br /></td>
 </tr>
