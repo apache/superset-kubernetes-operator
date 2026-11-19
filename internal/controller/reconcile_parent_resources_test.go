@@ -230,6 +230,9 @@ func TestReconcile_WebsocketInlineConfigCreatesConfigMapAndMount(t *testing.T) {
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server-config", Namespace: "default"}, cm); err != nil {
 		t.Fatalf("expected websocket ConfigMap: %v", err)
 	}
+	if got := cm.Labels["superset.apache.org/parent"]; got != "test" {
+		t.Errorf("websocket ConfigMap missing parent label (got %q)", got)
+	}
 	if cm.Data["config.json"] == "" || !containsAll(cm.Data["config.json"], []string{`"port": 8080`, `"jwtSecret": "dev-secret"`}) {
 		t.Fatalf("unexpected websocket config data: %q", cm.Data["config.json"])
 	}
@@ -394,6 +397,7 @@ func TestReconcile_ComponentResourcesCarryLabels(t *testing.T) {
 		"app.kubernetes.io/name":      "superset",
 		"app.kubernetes.io/component": "web-server",
 		"app.kubernetes.io/instance":  "test",
+		"superset.apache.org/parent":  "test",
 	}
 	assertLabels := func(t *testing.T, kind string, labels map[string]string) {
 		t.Helper()
