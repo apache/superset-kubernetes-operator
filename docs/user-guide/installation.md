@@ -53,7 +53,7 @@ helm install superset-operator \
   --create-namespace
 ```
 
-Replace `<version>` with a published chart version (e.g., `0.1.0`). Use `0.0.0-dev` for the latest build from main. When using the `dev` version, set `image.pullPolicy=Always` to ensure you always get the latest image:
+Replace `<version>` with a published chart version (see [Downloads](../reference/downloads.md)). Use `0.0.0-dev` for the latest build from main. When using the `dev` version, set `image.pullPolicy=Always` to ensure you always get the latest image:
 
 ```bash
 helm install superset-operator \
@@ -68,7 +68,22 @@ See `charts/superset-operator/values.yaml` for all available Helm values and [Do
 
 ### Extra manifests
 
-The chart's `extraManifests` value renders additional Kubernetes manifests as part of the release. Each entry is passed through Helm's [`tpl` function](https://helm.sh/docs/howto/charts_tips_and_tricks/#using-the-tpl-function), so template expressions like `{{ .Release.Namespace }}` resolve at install time. Use it for trusted, release-scoped companion resources owned by the operator release — a cert-manager `Certificate` backing `metrics.certSecretName`, a `NetworkPolicy` for the manager pod, or an `ExternalSecret`. Do not use it for shared cluster infrastructure such as Gateway API controllers, CRDs, or shared Gateways — those have their own lifecycle and should not be upgraded or garbage-collected with this release. See the `extraManifests` examples in `charts/superset-operator/values.yaml` for both entry forms (YAML objects and raw strings).
+The chart's `extraManifests` value renders additional Kubernetes manifests as part of the release. Each entry is passed through Helm's [`tpl` function](https://helm.sh/docs/howto/charts_tips_and_tricks/#using-the-tpl-function), so template expressions like `{{ .Release.Namespace }}` resolve at install time. Use it for trusted, release-scoped companion resources owned by the operator release — a cert-manager `Certificate` backing `metrics.certSecretName`, a `NetworkPolicy` for the manager pod, or an `ExternalSecret`. Do not use it for shared cluster infrastructure such as Gateway API controllers, CRDs, or shared Gateways — those have their own lifecycle and should not be upgraded or garbage-collected with this release. Each entry is either a YAML object or a string containing a manifest:
+
+```yaml
+extraManifests:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: example
+      namespace: "{{ .Release.Namespace }}"
+  - |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: example-raw
+      namespace: {{ .Release.Namespace }}
+```
 
 ### Namespace-scoped install
 

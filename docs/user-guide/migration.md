@@ -58,7 +58,7 @@ The operator runs the same core application as the chart — web server, Celery 
 | Celery Beat PDB | ✓ | singleton, no PDB field |
 | `service.loadBalancerIP` | ✓ | use a provider Service annotation |
 
-The operator's intentional gaps each have a straightforward workaround: provision PostgreSQL and Redis/Valkey separately and point `spec.metastore` / `spec.valkey` at them; move inline secrets into Kubernetes Secrets referenced by `secretKeyFrom` and the `*From` fields; influence Celery Beat scheduling with `priorityClassName` and affinity (a PDB on a 1-replica singleton is advisory only); and pin a load-balancer address with a cloud-provider Service annotation. The [Value Mapping](#value-mapping) section below translates every field in detail.
+The operator's intentional gaps each have a straightforward workaround: provision PostgreSQL and Redis/Valkey separately and point `spec.metastore` / `spec.valkey` at them; move inline secrets into Kubernetes Secrets referenced by `secretKeyFrom` and the `*From` fields; influence Celery Beat scheduling with `priorityClassName` and affinity (a PDB on a 1-replica singleton is advisory only); and pin a load-balancer address with a cloud-provider Service annotation. The [Value Mapping](#value-mapping) section below maps Helm chart values to their operator equivalents.
 
 ## Migration Workflow
 

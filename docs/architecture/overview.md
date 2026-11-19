@@ -60,7 +60,7 @@ kind: Superset
 metadata:
   name: my-superset
 spec:
-  image: { tag: "6.1.0" }
+  image: { tag: "6.1.0-dev" }
   environment: Development
   secretKey: thisIsNotSecure_changeInProduction!
   metastore:
@@ -158,7 +158,7 @@ Superset is configured through `superset_config.py` — a Python module that exp
 
 The operator splits the difference:
 
-- **Typed CRD fields** are reserved for settings where the operator adds clear value: anything tied to Kubernetes resources (images, ports, replicas, autoscaling), anything sourced from Secrets (`secretKey`, metastore credentials, Valkey passwords), and managed connectivity that the operator can validate, render uniformly, or wire up across components (metastore URIs, Valkey-backed caches, Celery broker/backend URLs, lifecycle gating). Typed fields earn their place because they can't be expressed as plain Python without re-implementing what the operator already does.
+- **Typed CRD fields** are reserved for settings where the operator adds clear value: anything tied to Kubernetes resources (images, Services, replicas, autoscaling), anything sourced from Secrets (`secretKey`, metastore credentials, Valkey passwords), and managed connectivity that the operator can validate, render uniformly, or wire up across components (metastore URIs, Valkey-backed caches, Celery broker/backend URLs, lifecycle gating). Typed fields earn their place because they can't be expressed as plain Python without re-implementing what the operator already does.
 
 - **Raw Python in `spec.config` and `spec.<component>.config`** is the default home for application behavior: feature flags beyond a curated set, custom security managers, OAuth providers, thumbnail executors, custom Celery imports, routes, beat schedules, task annotations, and anything else that is naturally a Python expression or class. Admins are comfortable writing Python in `superset_config.py`; forcing those settings through YAML schemas tends to obfuscate rather than clarify.
 
@@ -172,13 +172,13 @@ This split is intentionally a moving boundary. As specific knobs prove to be wid
 
 ## Config Rendering Pipeline
 
-The operator generates per-component `superset_config.py` files by **concatenating** three sections in order. Both `spec.config` (base) and `spec.<component>.config` (component) are appended — they are not mutually exclusive. If both are set, the component receives all three sections:
+The operator generates per-component `superset_config.py` files by **concatenating** the sections below in order. Both `spec.config` (base) and `spec.<component>.config` (component) are appended after the operator-generated sections — they are not mutually exclusive.
 
 ### How config is built
 
 1. **Operator-generated configs** — `SECRET_KEY` rendered from the `SUPERSET_OPERATOR__SECRET_KEY` env var, `SQLALCHEMY_DATABASE_URI` rendered from operator-internal env vars (both passthrough and structured metastore modes), plus `SUPERSET_WEBSERVER_PORT` for the web server.
-2. **SQLAlchemy engine options** — `SQLALCHEMY_ENGINE_OPTIONS` dict, computed per component from the resolved `sqlaEngineOptions` preset and the component's worker/thread configuration (Gunicorn workers × threads for the web server, Celery concurrency for workers). Presets range from `conservative` (NullPool) through `balanced` (pool\_size=1, max\_overflow=-1) to `aggressive` (pool\_size=workers×threads). See [SQLAlchemy Engine Options](../user-guide/configuration.md#sqlalchemy-engine-options) for details.
-3. **Valkey cache config** — When `spec.valkey` is set, the operator renders `CACHE_CONFIG`, `DATA_CACHE_CONFIG`, `FILTER_STATE_CACHE_CONFIG`, `EXPLORE_FORM_DATA_CACHE_CONFIG`, `THUMBNAIL_CACHE_CONFIG`, `CeleryConfig`, and `RESULTS_BACKEND` backed by Valkey. Connection details are read from `SUPERSET_OPERATOR__VALKEY_*` env vars at Python runtime. The rendered `CeleryConfig` contains only broker/backend connectivity and SSL settings; users define Celery app behavior in raw Python. SSL/mTLS cert paths are baked directly into the rendered config.
+2. **SQLAlchemy engine options** — `SQLALCHEMY_ENGINE_OPTIONS` dict, computed per component from the resolved `sqlaEngineOptions` preset and the component's worker/thread configuration (Gunicorn workers × threads for the web server, Celery concurrency for workers). See [SQLAlchemy Engine Options](../user-guide/configuration.md#sqlalchemy-engine-options) for the presets.
+3. **Valkey config** — When `spec.valkey` is set, the operator renders the cache configs, `CeleryConfig`, and `RESULTS_BACKEND` backed by Valkey (see [Valkey](../user-guide/configuration.md#valkey) for the full list). Connection details are read from `SUPERSET_OPERATOR__VALKEY_*` env vars at Python runtime. The rendered `CeleryConfig` contains only broker/backend connectivity and SSL settings; users define Celery app behavior in raw Python. SSL/mTLS cert paths are baked directly into the rendered config.
 4. **Base config (`spec.config`)** — Raw Python from the top-level `config` field, shared by all Python components. Appended after operator-generated configs.
 5. **Component config (`spec.<component>.config`)** — Raw Python from the per-component `config` field. Appended last, so it can override anything above.
 
@@ -200,7 +200,7 @@ spec:
       CELERY_ANNOTATIONS = {"tasks.add": {"rate_limit": "10/s"}}
 ```
 
-The celery worker's `superset_config.py` contains all three sections:
+The celery worker's `superset_config.py` contains (abbreviated):
 
 ```python
 # Operator-generated configs
@@ -228,16 +228,7 @@ Note: `SECRET_KEY` and `SQLALCHEMY_DATABASE_URI` are rendered into the config fi
 
 ### Secret Handling
 
-In **dev mode** (`environment: Development`), `secretKey`, `metastore.uri`, and `metastore.password` can be set as plain strings directly in the CR. The operator injects them as environment variables on the container spec.
-
-In **prod mode** (`environment: Production`, the default), CRD validation rejects these inline fields. Instead, use the `*From` fields to reference Kubernetes Secrets:
-
-- `secretKeyFrom` — references a Secret key for the Flask secret key
-- `metastore.uriFrom` — references a Secret key for the full database URI
-- `metastore.hostFrom`, `portFrom`, `databaseFrom`, `usernameFrom`, and `passwordFrom` — reference Secret keys for structured database connection fields
-- `valkey.hostFrom`, `portFrom`, `usernameFrom`, and `passwordFrom` — reference Secret keys for structured Valkey connection fields
-
-The operator injects the corresponding `SUPERSET_OPERATOR__*` env vars with `valueFrom.secretKeyRef` pointing at the referenced Secret. Secret values never appear in ConfigMaps or CRD status fields.
+Secret values are injected as `SUPERSET_OPERATOR__*` env vars on the container spec — inline values only in `Development`, otherwise through `*From` fields as `valueFrom.secretKeyRef` references — and never appear in ConfigMaps or CRD status fields. See [Environment Mode](../user-guide/configuration.md#environment-mode) for which fields each environment allows, and [Secret Handling](../reference/security.md#secret-handling) for the security model.
 
 ### Config Mount Structure
 

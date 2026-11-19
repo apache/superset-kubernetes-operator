@@ -179,9 +179,9 @@ Component resources use the standard `app.kubernetes.io/*` labels with `app.kube
 
 ### Orphan Cleanup
 
-When a component is removed from the parent spec, the parent reconciler invokes the component descriptor's cleanup path, which deletes the component's parent-owned resources (Deployment, Service, ConfigMap, HPA, PDB) by their deterministic `{parent}-{component}` names. The parent CR's owner references also cascade-delete the same resources if the CR itself is deleted.
+When a component is removed from the parent spec, the parent reconciler deletes the component's Deployment, Service, HPA, and PDB by listing resources that carry the operator's parent and component labels, skipping any controlled by another owner. A name-based fallback only deletes resources this Superset controls, so a same-named resource created by a user or another tool (for example a `kubectl autoscale` HPA) is left alone. The component ConfigMap, whose name is reserved to the operator, is deleted by name unless another owner controls it. The parent CR's owner references also cascade-delete these resources if the CR itself is deleted. See [Managed resource adoption and cleanup](../reference/security.md#design-decisions) for the rationale.
 
-Operator-managed labels remain available on parent-owned resources for human discovery — e.g. `kubectl get deploy,svc,cm,hpa,pdb -l app.kubernetes.io/instance=<parent>` lists every parent-owned workload.
+The same labels support discovery — e.g. `kubectl get deploy,svc,cm,hpa,pdb -l app.kubernetes.io/instance=<parent>` lists every parent-owned workload.
 
 ---
 
@@ -330,7 +330,6 @@ status:
   components:
     webServer:
       phase: Progressing
-      ready: "1/3"
       replicas: 3
       readyReplicas: 1
       updatedReplicas: 3
