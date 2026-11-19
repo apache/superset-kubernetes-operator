@@ -20,6 +20,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -98,10 +99,8 @@ func TestBuildSeedScript(t *testing.T) {
 	})
 
 	t.Run("mysql base", func(t *testing.T) {
-		mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 		seed := &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
-				Type:     &mysqlType,
 				Host:     "mysql-prod.svc",
 				Database: "superset_prod",
 				Username: "reader",
@@ -159,10 +158,8 @@ func TestBuildSeedScript(t *testing.T) {
 	})
 
 	t.Run("mysql exclude tables", func(t *testing.T) {
-		mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 		seed := &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
-				Type:     &mysqlType,
 				Host:     "mysql-prod.svc",
 				Database: "superset_prod",
 				Username: "reader",
@@ -181,10 +178,8 @@ func TestBuildSeedScript(t *testing.T) {
 	})
 
 	t.Run("mysql exclude table data", func(t *testing.T) {
-		mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 		seed := &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
-				Type:     &mysqlType,
 				Host:     "mysql-prod.svc",
 				Database: "superset_prod",
 				Username: "reader",
@@ -221,10 +216,8 @@ func TestBuildSeedScript(t *testing.T) {
 	})
 
 	t.Run("mysql no exclude table data keeps single pass", func(t *testing.T) {
-		mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 		seed := &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
-				Type:     &mysqlType,
 				Host:     "mysql-prod.svc",
 				Database: "superset_prod",
 				Username: "reader",
@@ -264,10 +257,9 @@ func TestBuildSeedScript(t *testing.T) {
 		})
 
 		t.Run("mysql", func(t *testing.T) {
-			mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 			seed := &supersetv1alpha1.SeedTaskSpec{
 				Source: supersetv1alpha1.SeedSourceSpec{
-					Type: &mysqlType, Host: "mysql-prod.svc", Database: "superset_prod", Username: "reader",
+					Host: "mysql-prod.svc", Database: "superset_prod", Username: "reader",
 				},
 				PostSeedSQL: []string{"UPDATE report_schedule SET active = 0"},
 			}
@@ -281,7 +273,6 @@ func TestBuildSeedScript(t *testing.T) {
 	})
 
 	t.Run("shell metacharacters in table/SQL fields are inert", func(t *testing.T) {
-		mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 		// $(...) command substitution and backticks would execute inside a
 		// double-quoted shell context; single-quoting via shellQuote neutralizes
 		// them while passing the value verbatim to the dump/restore tools.
@@ -293,7 +284,7 @@ func TestBuildSeedScript(t *testing.T) {
 				PostSeedSQL:   []string{p},
 			})
 			my := buildMySQLSeedScript(&supersetv1alpha1.SeedTaskSpec{
-				Source:        supersetv1alpha1.SeedSourceSpec{Type: &mysqlType, Host: "h", Database: "d", Username: "u"},
+				Source:        supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"},
 				ExcludeTables: []string{p},
 				PostSeedSQL:   []string{p},
 			})
@@ -377,10 +368,10 @@ func TestBuildSeedCommand(t *testing.T) {
 		r := &SupersetReconciler{}
 		mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 		superset := &supersetv1alpha1.Superset{}
+		superset.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{Type: &mysqlType}
 		superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 			Seed: &supersetv1alpha1.SeedTaskSpec{
 				Source: supersetv1alpha1.SeedSourceSpec{
-					Type:     &mysqlType,
 					Host:     "mysql-prod.svc",
 					Database: "superset_prod",
 					Username: "reader",
@@ -608,7 +599,7 @@ func TestResolveSeedImage(t *testing.T) {
 			},
 		}
 
-		img := resolveSeedImage(seed)
+		img := resolveSeedImage(seed, nil)
 
 		if img.Repository != "postgres" || img.Tag != "17-alpine" {
 			t.Errorf("expected postgres:17-alpine, got: %s:%s", img.Repository, img.Tag)
@@ -619,14 +610,13 @@ func TestResolveSeedImage(t *testing.T) {
 		mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 		seed := &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
-				Type:     &mysqlType,
 				Host:     "mysql-prod.svc",
 				Database: "superset_prod",
 				Username: "reader",
 			},
 		}
 
-		img := resolveSeedImage(seed)
+		img := resolveSeedImage(seed, &mysqlType)
 
 		if img.Repository != "mysql" || img.Tag != "8.4" {
 			t.Errorf("expected mysql:8.4, got: %s:%s", img.Repository, img.Tag)
@@ -646,7 +636,7 @@ func TestResolveSeedImage(t *testing.T) {
 			},
 		}
 
-		img := resolveSeedImage(seed)
+		img := resolveSeedImage(seed, nil)
 
 		if img.Repository != "my-registry/custom-tools" || img.Tag != "v2" {
 			t.Errorf("expected my-registry/custom-tools:v2, got: %s:%s", img.Repository, img.Tag)
@@ -695,11 +685,10 @@ func TestResolveSeedImage(t *testing.T) {
 						Host:     "src.svc",
 						Database: "src",
 						Username: "reader",
-						Type:     &srcType,
 					},
 					Image: tt.image,
 				}
-				img := resolveSeedImage(seed)
+				img := resolveSeedImage(seed, &srcType)
 				if img.Repository != tt.expectedRepo || img.Tag != tt.expectedTag {
 					t.Errorf("expected %s:%s, got %s:%s", tt.expectedRepo, tt.expectedTag, img.Repository, img.Tag)
 				}
@@ -1858,4 +1847,51 @@ func TestGateOnSeedEnvironment(t *testing.T) {
 			t.Fatal("expected no block when seed disabled")
 		}
 	})
+}
+
+// The seed source always uses the metastore's database type, so a MySQL
+// metastore gets the MySQL dump/restore command, port default and image.
+func TestSeed_UsesMetastoreDatabaseType(t *testing.T) {
+	r := &SupersetReconciler{}
+	mysqlType := supersetv1alpha1.DatabaseTypeMySQL
+	superset := &supersetv1alpha1.Superset{}
+	superset.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+		Type: &mysqlType, Host: new("mysql.svc"), Database: new("superset"), Username: new("superset"),
+	}
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{Seed: &supersetv1alpha1.SeedTaskSpec{
+		Source: supersetv1alpha1.SeedSourceSpec{Host: "mysql-prod.svc", Database: "superset_prod", Username: "reader"},
+	}}
+
+	if cmd := r.buildSeedCommand(superset); len(cmd) != 3 || !strings.Contains(cmd[2], "mysqldump") {
+		t.Errorf("expected a mysqldump seed command, got %v", cmd)
+	}
+	port := ""
+	for _, e := range collectSeedEnvVars(superset) {
+		if e.Name == "SUPERSET_OPERATOR__SEED_SRC_PORT" {
+			port = e.Value
+		}
+	}
+	if port != "3306" {
+		t.Errorf("expected default source port 3306, got %q", port)
+	}
+	if img := resolveSeedImage(superset.Spec.Lifecycle.Seed, seedDatabaseType(&superset.Spec)); img.Repository != "mysql" || img.Tag != "8.4" {
+		t.Errorf("expected mysql:8.4, got %s:%s", img.Repository, img.Tag)
+	}
+}
+
+// The seed checksum must keep the source's JSON shape from when it had its own
+// (always-defaulted) type field; otherwise upgrading the operator would change
+// the checksum and re-run the destructive seed.
+func TestSeedSourceChecksumInput_PreservesLegacyShape(t *testing.T) {
+	mysqlType := supersetv1alpha1.DatabaseTypeMySQL
+	got, err := json.Marshal(seedSourceChecksumInput{
+		Type: &mysqlType, Host: "src", Database: "superset", Username: "reader",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"type":"MySQL","host":"src","database":"superset","username":"reader"}`
+	if string(got) != want {
+		t.Errorf("checksum input JSON =\n  %s\nwant\n  %s", got, want)
+	}
 }

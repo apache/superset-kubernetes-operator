@@ -45,6 +45,10 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 - **User-managed HPAs and PDBs are no longer deleted.** The operator used to delete an unowned HPA or PDB named after a component Deployment, such as one created with `kubectl autoscale`, whenever that component had no `autoscaling` or `podDisruptionBudget` and again on every lifecycle drain. Component cleanup now finds resources by the operator's labels, and by name only for resources the Superset owns ([#507](https://github.com/apache/superset-kubernetes-operator/pull/507), [@villebro](https://github.com/villebro)).
 - At the default log level, the operator no longer repeats drain progress, "upgrade awaiting approval", env var override warnings, or foreign-owner cleanup skips on every reconcile. These messages are logged once when the state changes, or at debug level ([#528](https://github.com/apache/superset-kubernetes-operator/pull/528), [@villebro](https://github.com/villebro)).
 
+### Removed
+
+- **Breaking:** `lifecycle.seed.source.type` is removed. The seed source now always uses `metastore.type`, which selects the dump and restore tools, the default source port and the default seed image. A source type that differed from the metastore could only fail at runtime, because the default seed command restores with the source database's tools. Remove `source.type` from your Superset resources before upgrading; resources where it matched the metastore keep their seed checksum and don't re-seed. For a cross-engine seed, set `lifecycle.seed.command`, `image` and `source.port` explicitly ([#523](https://github.com/apache/superset-kubernetes-operator/pull/523), [@villebro](https://github.com/villebro)).
+
 ## 0.3.1 - 2026-10-21
 
 ### Fixed
