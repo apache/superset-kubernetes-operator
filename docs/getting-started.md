@@ -52,7 +52,7 @@ metadata:
 spec:
   environment: Development
   image:
-    tag: "6.1.0-dev"
+    tag: "7.0.0-dev"
   secretKey: thisIsNotSecure_changeInProduction!
   metastore:
     uri: postgresql+psycopg2://superset:superset@postgres:5432/superset

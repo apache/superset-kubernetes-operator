@@ -21,6 +21,8 @@ package controller
 import (
 	"context"
 	"fmt"
+	"net/url"
+	"slices"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -211,6 +213,136 @@ func resolveGatewayPath(svc *supersetv1alpha1.ComponentServiceSpec, defaultPath 
 	return defaultPath
 }
 
+// External URL schemes used when deriving the browser-visible websocket URL and
+// its allowed-origins allowlist.
+const (
+	schemeHTTP  = "http"
+	schemeHTTPS = "https"
+)
+
+// deriveWebSocketURL computes the browser-visible WEBSOCKET_URL. An explicit
+// realtime.webSocket.url wins; otherwise it is built from the external host
+// (spec.baseUrl, else spec.networking) and the websocket route path (default
+// /ws). The browser must reach the socket on the same host as Superset so the
+// JWT cookie is shared. Returns "" when no host is resolvable; CEL admission
+// requires a host source whenever realtime.webSocket is set.
+func deriveWebSocketURL(spec *supersetv1alpha1.SupersetSpec) string {
+	if ws := realtimeWebSocket(spec); ws != nil && ws.URL != nil && *ws.URL != "" {
+		return *ws.URL
+	}
+	scheme, host := externalHostScheme(spec)
+	if host == "" {
+		return ""
+	}
+	wsScheme := "ws"
+	if scheme == schemeHTTPS {
+		wsScheme = "wss"
+	}
+	var svc *supersetv1alpha1.ComponentServiceSpec
+	if spec.WebsocketServer != nil {
+		svc = spec.WebsocketServer.Service
+	}
+	return fmt.Sprintf("%s://%s%s", wsScheme, host, resolveGatewayPath(svc, "/ws"))
+}
+
+// anyWebSocketOrigin is the realtime.webSocket.allowedOrigins entry that lets
+// any browser origin connect (Development only, enforced by CEL).
+const anyWebSocketOrigin = "*"
+
+// deriveWebSocketAllowedOrigins returns the ALLOWED_ORIGINS allowlist for the
+// websocket server. An explicit realtime.webSocket.allowedOrigins wins;
+// otherwise it defaults to the single origin of the resolved websocket URL
+// (all realtime traffic is expected from the same host as Superset), or of the
+// deployment's external host when the URL is a path. Returns nil when no origin
+// can be resolved or "*" is configured: the server then accepts any origin.
+func deriveWebSocketAllowedOrigins(spec *supersetv1alpha1.SupersetSpec) []string {
+	if ws := realtimeWebSocket(spec); ws != nil && len(ws.AllowedOrigins) > 0 {
+		if slices.Contains(ws.AllowedOrigins, anyWebSocketOrigin) {
+			return nil
+		}
+		return ws.AllowedOrigins
+	}
+	wsURL := deriveWebSocketURL(spec)
+	if strings.HasPrefix(wsURL, "/") {
+		scheme, host := externalHostScheme(spec)
+		if host == "" {
+			return nil
+		}
+		return []string{fmt.Sprintf("%s://%s", scheme, host)}
+	}
+	if wsURL == "" {
+		return nil
+	}
+	u, err := url.Parse(wsURL)
+	if err != nil || u.Host == "" {
+		return nil
+	}
+	httpScheme := schemeHTTP
+	if u.Scheme == "wss" {
+		httpScheme = schemeHTTPS
+	}
+	return []string{fmt.Sprintf("%s://%s", httpScheme, u.Host)}
+}
+
+// webDriverBaseURL returns the in-cluster web-server URL the headless browser
+// uses to render Alerts & Reports and thumbnails (WEBDRIVER_BASEURL). It targets
+// the parent-owned web-server Service; empty when no web server is configured.
+func webDriverBaseURL(superset *supersetv1alpha1.Superset) string {
+	if superset.Spec.WebServer == nil {
+		return ""
+	}
+	name, port := webServerServiceRef(superset)
+	return fmt.Sprintf("http://%s:%d/", name, port)
+}
+
+// externalHostScheme returns the external HTTP scheme ("http"/"https") and
+// host[:port] for the deployment's browser-visible URL, taken from spec.baseUrl
+// when set, otherwise from spec.networking. Returns an empty host when neither
+// resolves a host.
+func externalHostScheme(spec *supersetv1alpha1.SupersetSpec) (scheme, host string) {
+	if spec.BaseURL != nil && *spec.BaseURL != "" {
+		if u, err := url.Parse(*spec.BaseURL); err == nil && u.Host != "" {
+			s := u.Scheme
+			if s == "" {
+				s = schemeHTTPS
+			}
+			return s, u.Host
+		}
+	}
+	if spec.Networking == nil {
+		return "", ""
+	}
+	switch {
+	case spec.Networking.Gateway != nil:
+		for _, h := range spec.Networking.Gateway.Hostnames {
+			if concreteHost(string(h)) {
+				return schemeHTTPS, string(h) // Gateways typically terminate TLS.
+			}
+		}
+	case spec.Networking.Ingress != nil:
+		ing := spec.Networking.Ingress
+		s := schemeHTTP
+		if len(ing.TLS) > 0 {
+			s = schemeHTTPS
+		}
+		if concreteHost(ing.Host) {
+			return s, ing.Host
+		}
+		for _, h := range ing.Hosts {
+			if concreteHost(h.Host) {
+				return s, h.Host
+			}
+		}
+	}
+	return "", ""
+}
+
+// concreteHost reports whether h names a single browser-reachable host: not
+// empty and not a wildcard. Mirrors the CEL host-source rule on SupersetSpec.
+func concreteHost(h string) bool {
+	return h != "" && !strings.HasPrefix(h, "*")
+}
+
 // flowerHealthPath returns Flower's HTTP health endpoint. Flower runs with
 // --url_prefix (the gateway path, default /flower), so its routes are served
 // under that prefix — the health endpoint is <prefix>/healthcheck. We probe
@@ -314,6 +446,21 @@ func componentRoutes(superset *supersetv1alpha1.Superset) []componentRoute {
 	return routes
 }
 
+// componentRoutesExcludingWebServer returns the operator-managed component routes
+// (/ws, /mcp, /flower for present components) without the web server's "/" catch-all.
+// These are always exposed on an Ingress host, even one with user-defined paths, so
+// the websocket/MCP/Flower routes aren't lost when a host overrides the web routing.
+func componentRoutesExcludingWebServer(superset *supersetv1alpha1.Superset) []componentRoute {
+	webSvc := webServerDescriptor.resourceBaseName(&superset.Spec, superset.Name)
+	var routes []componentRoute
+	for _, rt := range componentRoutes(superset) {
+		if rt.svcName != webSvc {
+			routes = append(routes, rt)
+		}
+	}
+	return routes
+}
+
 // ingressPath builds a single Ingress HTTP path rule pointing at a Service.
 func ingressPath(path string, pathType networkingv1.PathType, svcName string, port int32) networkingv1.HTTPIngressPath {
 	pt := pathType
@@ -364,16 +511,23 @@ func (r *SupersetReconciler) reconcileIngress(ctx context.Context, superset *sup
 			hosts = []supersetv1alpha1.IngressHost{{}}
 		}
 
-		// Build rules from hosts. A host without explicit Paths gets the full
-		// per-component fan-out (web "/" plus /flower, /mcp, /ws for present
-		// components), mirroring the Gateway HTTPRoute. A host with explicit
-		// Paths is treated as a user-controlled override and routes those paths
-		// to the web server.
-		routes := componentRoutes(superset)
+		// Build rules from hosts. Operator-managed component routes (/ws, /mcp,
+		// /flower) are always exposed. A host without explicit Paths also gets the
+		// web server's "/" catch-all; a host with explicit Paths routes those paths
+		// to the web server instead (user-controlled web routing), while still
+		// keeping the component routes, except any path the user listed.
+		componentRoutes := componentRoutesExcludingWebServer(superset)
 		for _, h := range hosts {
 			rule := networkingv1.IngressRule{
 				Host: h.Host,
 				HTTP: &networkingv1.HTTPIngressRuleValue{},
+			}
+
+			for _, rt := range componentRoutes {
+				if slices.ContainsFunc(h.Paths, func(p supersetv1alpha1.IngressPath) bool { return p.Path == rt.path }) {
+					continue
+				}
+				rule.HTTP.Paths = append(rule.HTTP.Paths, ingressPath(rt.path, networkingv1.PathTypePrefix, rt.svcName, rt.port))
 			}
 
 			if len(h.Paths) > 0 {
@@ -385,9 +539,7 @@ func (r *SupersetReconciler) reconcileIngress(ctx context.Context, superset *sup
 					rule.HTTP.Paths = append(rule.HTTP.Paths, ingressPath(p.Path, pathType, webServerSvcName, webServerPort))
 				}
 			} else {
-				for _, rt := range routes {
-					rule.HTTP.Paths = append(rule.HTTP.Paths, ingressPath(rt.path, networkingv1.PathTypePrefix, rt.svcName, rt.port))
-				}
+				rule.HTTP.Paths = append(rule.HTTP.Paths, ingressPath("/", networkingv1.PathTypePrefix, webServerSvcName, webServerPort))
 			}
 
 			ingress.Spec.Rules = append(ingress.Spec.Rules, rule)

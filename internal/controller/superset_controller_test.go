@@ -220,48 +220,6 @@ var _ = Describe("Integration", Ordered, func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("nodePort"))
 		})
-
-		It("should reject websocketServer without an image override", func() {
-			cr := newSuperset("ws-no-image", ns)
-			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{}
-			err := k8sClient.Create(ctx, cr)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("websocketServer.image.repository"))
-		})
-
-		It("should accept websocketServer with an image repository override", func() {
-			cr := newSuperset("ws-with-image", ns)
-			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
-				Image: &supersetv1alpha1.ImageOverrideSpec{
-					Repository: new("example.com/superset-websocket"),
-				},
-			}
-			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
-			Expect(k8sClient.Delete(ctx, cr)).To(Succeed())
-		})
-
-		It("should accept websocketServer configFrom outside Development", func() {
-			prodEnv := supersetv1alpha1.EnvironmentProduction
-			cr := newSuperset("ws-configfrom-prod", ns)
-			cr.Spec.Environment = &prodEnv
-			cr.Spec.SecretKey = nil
-			cr.Spec.SecretKeyFrom = &corev1.SecretKeySelector{
-				Name: "app-secret",
-				Key:  "secret-key",
-			}
-			cr.Spec.Metastore = nil
-			cr.Spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
-				Image: &supersetv1alpha1.ImageOverrideSpec{
-					Repository: new("example.com/superset-websocket"),
-				},
-				ConfigFrom: &corev1.SecretKeySelector{
-					Name: "ws-config",
-					Key:  "config.json",
-				},
-			}
-			Expect(k8sClient.Create(ctx, cr)).To(Succeed())
-			Expect(k8sClient.Delete(ctx, cr)).To(Succeed())
-		})
 	})
 
 	// --- Reconciliation Lifecycle ---

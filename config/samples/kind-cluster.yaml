@@ -13,46 +13,35 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Kind cluster config for locally testing the comprehensive dev sample through an
-# ingress controller WITHOUT port-forwards. It maps host ports 80/443 onto the
-# cluster and labels the control-plane node `ingress-ready=true` so ingress-nginx
-# (Kind provider) schedules its controller there and binds those ports.
+# Kind cluster config for locally testing the comprehensive dev sample through a
+# Gateway WITHOUT port-forwards. It maps host port 80 to NodePort 30080, where
+# config/samples/dev-dependencies.yaml pins the Envoy Gateway proxy Service.
 #
 # extraPortMappings can only be set at cluster creation, so this requires a fresh
 # cluster:
 #
 #   kind create cluster --config config/samples/kind-cluster.yaml
-#   # then ingress-nginx (Kind provider):
-#   kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
-#   kubectl -n ingress-nginx wait --for=condition=ready pod \
-#     -l app.kubernetes.io/component=controller --timeout=120s
-#   # then the backing services + sample:
+#   # then Envoy Gateway, before the operator (see dev-dependencies.yaml):
+#   helm install eg oci://docker.io/envoyproxy/gateway-helm --version v1.9.2 \
+#     --namespace envoy-gateway-system --create-namespace --wait
+#   # then the backing services and dev Gateway, the operator, and the sample:
 #   kubectl apply -f config/samples/dev-dependencies.yaml
 #   kubectl apply -f config/samples/superset_v1alpha1_superset_dev_full.yaml
 #
 # *.localhost resolves to 127.0.0.1, so the instance is then reachable directly,
-# no /etc/hosts edit and no port-forward:
+# with no /etc/hosts edit and no port-forward:
 #
 #   http://superset-dev.localhost/            -> web server
-#   http://superset-dev.localhost/flower/     -> Celery Flower
+#   http://superset-dev.localhost/ws          -> realtime websocket server
 #   http://superset-dev.localhost/mcp         -> MCP server
 #
-# If host ports 80/443 are already in use (or privileged on your setup), change
-# the hostPort values below (e.g. 8080/8443) and use that port in the URLs.
+# If host port 80 is already in use, change hostPort below (e.g. 8080) and set
+# spec.baseUrl in the sample to match (http://superset-dev.localhost:8080).
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
   - role: control-plane
-    kubeadmConfigPatches:
-      - |
-        kind: InitConfiguration
-        nodeRegistration:
-          kubeletExtraArgs:
-            node-labels: "ingress-ready=true"
     extraPortMappings:
-      - containerPort: 80
+      - containerPort: 30080
         hostPort: 80
-        protocol: TCP
-      - containerPort: 443
-        hostPort: 443
         protocol: TCP
