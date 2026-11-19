@@ -25,7 +25,6 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -97,7 +96,7 @@ func (r *SupersetReconciler) reconcileWebServerService(ctx context.Context, supe
 		svc := &corev1.Service{
 			Name: svcName, Namespace: superset.Namespace,
 		}
-		if err := deleteIfNotForeignOwned(ctx, r.Client, superset, svc); err != nil && !errors.IsNotFound(err) {
+		if err := deleteIfNotForeignOwned(ctx, r.Client, superset, svc); err != nil {
 			return fmt.Errorf("deleting web-server Service: %w", err)
 		}
 		return nil

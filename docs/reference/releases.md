@@ -43,6 +43,7 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 ### Fixed
 
 - **User-managed HPAs and PDBs are no longer deleted.** The operator used to delete an unowned HPA or PDB named after a component Deployment, such as one created with `kubectl autoscale`, whenever that component had no `autoscaling` or `podDisruptionBudget` and again on every lifecycle drain. Component cleanup now finds resources by the operator's labels, and by name only for resources the Superset owns ([#507](https://github.com/apache/superset-kubernetes-operator/pull/507), [@villebro](https://github.com/villebro)).
+- At the default log level, the operator no longer repeats drain progress, "upgrade awaiting approval", env var override warnings, or foreign-owner cleanup skips on every reconcile. These messages are logged once when the state changes, or at debug level ([#528](https://github.com/apache/superset-kubernetes-operator/pull/528), [@villebro](https://github.com/villebro)).
 
 ## 0.3.1 - 2026-10-21
 

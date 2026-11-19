@@ -159,9 +159,10 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	// Persist lifecycle completion status (lastCompletedChecksums) before
-	// creating components. Component creation triggers watch events that cause
-	// concurrent reconciles — if we defer this to Phase 5, a conflict there
-	// loses the checksums and the next reconcile re-enters lifecycle.
+	// creating components. Component creation triggers watch events and an
+	// immediate follow-up reconcile that may read a stale cache; if we defer
+	// this to Phase 5, a conflict there loses the checksums and the next
+	// reconcile re-enters lifecycle.
 	if statusErr := patchStatusIfChanged(ctx, r.Client, superset, origSuperset, origSuperset.Status, superset.Status); statusErr != nil {
 		return ctrl.Result{}, fmt.Errorf("updating status after lifecycle: %w", statusErr)
 	}
@@ -196,9 +197,11 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 	if maintenanceCleared {
 		// Service selector has been switched to web-server; safe to clean up
-		// maintenance resources now. Errors are non-fatal — GC will handle
-		// them since they are parent-owned.
-		_ = r.deleteMaintenanceResources(ctx, superset)
+		// maintenance resources now. Errors are non-fatal: the next reconcile
+		// retries the cleanup.
+		if err := r.deleteMaintenanceResources(ctx, superset); err != nil {
+			log.Error(err, "Failed to delete maintenance resources; will retry", "name", superset.Name)
+		}
 	}
 	if !maintenanceCleared {
 		log.V(1).Info("Maintenance active, requeueing before component reconcile", "name", superset.Name)
