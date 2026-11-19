@@ -2762,7 +2762,7 @@ for up-to-date guidance on deploying extensions.</p>
 <p>Use <code>SUPERSET_OPERATOR__INSTANCE_NAME</code> whenever you need the parent CR name inside your Python config.</p>
 <h2 id="gunicorn-configuration">Gunicorn Configuration<a class="headerlink" href="#gunicorn-configuration" title="Permanent link">&para;</a></h2>
 <p>The operator manages Gunicorn worker parameters for the web server by injecting environment variables that Superset's <code>run-server.sh</code> reads. By default, even without an explicit <code>gunicorn</code> field, the operator injects balanced defaults (2 workers, 8 threads, gthread worker class).</p>
-<p>Presets control <strong>workers</strong>, <strong>threads</strong>, and <strong>workerClass</strong>. All other fields have static defaults that you can override individually.</p>
+<p>Presets control <strong>workers</strong> and <strong>threads</strong>. All other fields, including <code>workerClass</code> (gthread), have static defaults that you can override individually.</p>
 <table>
 <thead>
 <tr>
@@ -2788,15 +2788,9 @@ for up-to-date guidance on deploying extensions.</p>
 <td>8</td>
 <td>16</td>
 </tr>
-<tr>
-<td>workerClass</td>
-<td>gthread</td>
-<td>gthread</td>
-<td>gthread</td>
-<td>gthread</td>
-</tr>
 </tbody>
 </table>
+<p>Gunicorn runs any worker class as gthread when threads is greater than 1. So when you set <code>workerClass</code> to something other than <code>gthread</code> and leave <code>threads</code> unset, the operator uses 1 thread instead of the preset value.</p>
 <p>Set <code>preset: disabled</code> to suppress env var injection entirely — Superset's <code>run-server.sh</code> built-in defaults will apply instead.</p>
 <div class="highlight"><pre><span></span><code><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="nt">spec</span><span class="p">:</span>
 <a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="w">  </span><span class="nt">webServer</span><span class="p">:</span>
@@ -2808,7 +2802,7 @@ for up-to-date guidance on deploying extensions.</p>
 </code></pre></div>
 <p>The full set of configurable fields (static defaults in parentheses): <code>timeout</code> (60), <code>keepAlive</code> (2), <code>maxRequests</code> (0 = disabled), <code>maxRequestsJitter</code> (0), <code>limitRequestLine</code> (0 = unlimited), <code>limitRequestFieldSize</code> (0 = unlimited), <code>logLevel</code> (info).</p>
 <h2 id="celery-worker-configuration">Celery Worker Configuration<a class="headerlink" href="#celery-worker-configuration" title="Permanent link">&para;</a></h2>
-<p>The operator constructs the celery worker command from structured fields instead of the hardcoded default. Presets control <strong>concurrency</strong> and <strong>pool</strong> type:</p>
+<p>The operator constructs the celery worker command from structured fields instead of the hardcoded default. Presets control <strong>concurrency</strong>; <code>pool</code> defaults to prefork for every preset:</p>
 <table>
 <thead>
 <tr>
@@ -2826,13 +2820,6 @@ for up-to-date guidance on deploying extensions.</p>
 <td>4</td>
 <td>8</td>
 <td>16</td>
-</tr>
-<tr>
-<td>pool</td>
-<td>prefork</td>
-<td>prefork</td>
-<td>prefork</td>
-<td>prefork</td>
 </tr>
 </tbody>
 </table>

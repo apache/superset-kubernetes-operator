@@ -2926,7 +2926,7 @@ replicas field, no autoscaling, and no PodDisruptionBudget by design.</p>
 </table>
 <h4 id="celeryworkerprocessspec">CeleryWorkerProcessSpec<a class="headerlink" href="#celeryworkerprocessspec" title="Permanent link">&para;</a></h4>
 <p>CeleryWorkerProcessSpec configures Celery worker execution parameters.
-Fields controlled by presets: concurrency, pool.
+Fields controlled by presets: concurrency.
 All other fields have static defaults independent of preset.</p>
 <p><em>Appears in:</em>
 - <a href="#celeryworkercomponentspec">CeleryWorkerComponentSpec</a></p>
@@ -2942,7 +2942,7 @@ All other fields have static defaults independent of preset.</p>
 <tbody>
 <tr>
 <td><code>preset</code> <em><a href="#preset">Preset</a></em></td>
-<td>Preset controlling concurrency and pool defaults. Individual fields override preset-computed values.</td>
+<td>Preset controlling the concurrency default. Individual fields override preset-computed values.</td>
 <td></td>
 <td>Enum: [disabled conservative balanced performance aggressive] <br />Optional: {} <br /></td>
 </tr>
@@ -3583,7 +3583,8 @@ the sibling PodTemplate field.</p>
 </table>
 <h4 id="gunicornspec">GunicornSpec<a class="headerlink" href="#gunicornspec" title="Permanent link">&para;</a></h4>
 <p>GunicornSpec configures Gunicorn worker parameters for the web server.
-Fields controlled by presets: workers, threads, workerClass.
+Fields controlled by presets: workers, threads. When workerClass is set to
+anything other than gthread, threads defaults to 1 instead of the preset value.
 All other fields have static defaults independent of preset.</p>
 <p><em>Appears in:</em>
 - <a href="#webservercomponentspec">WebServerComponentSpec</a></p>
@@ -3599,7 +3600,7 @@ All other fields have static defaults independent of preset.</p>
 <tbody>
 <tr>
 <td><code>preset</code> <em><a href="#preset">Preset</a></em></td>
-<td>Preset controlling workers, threads, and workerClass defaults. Individual fields override preset-computed values.</td>
+<td>Preset controlling workers and threads defaults. Individual fields override preset-computed values.</td>
 <td></td>
 <td>Enum: [disabled conservative balanced performance aggressive] <br />Optional: {} <br /></td>
 </tr>
