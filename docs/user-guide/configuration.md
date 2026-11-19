@@ -608,13 +608,14 @@ Use `SUPERSET_OPERATOR__INSTANCE_NAME` whenever you need the parent CR name insi
 
 The operator manages Gunicorn worker parameters for the web server by injecting environment variables that Superset's `run-server.sh` reads. By default, even without an explicit `gunicorn` field, the operator injects balanced defaults (2 workers, 8 threads, gthread worker class).
 
-Presets control **workers**, **threads**, and **workerClass**. All other fields have static defaults that you can override individually.
+Presets control **workers** and **threads**. All other fields, including `workerClass` (gthread), have static defaults that you can override individually.
 
 | Field | conservative | balanced (default) | performance | aggressive |
 |---|---|---|---|---|
 | workers | 1 | 2 | 4 | 8 |
 | threads | 4 | 8 | 8 | 16 |
-| workerClass | gthread | gthread | gthread | gthread |
+
+Gunicorn runs any worker class as gthread when threads is greater than 1. So when you set `workerClass` to something other than `gthread` and leave `threads` unset, the operator uses 1 thread instead of the preset value.
 
 Set `preset: disabled` to suppress env var injection entirely — Superset's `run-server.sh` built-in defaults will apply instead.
 
@@ -632,12 +633,11 @@ The full set of configurable fields (static defaults in parentheses): `timeout` 
 
 ## Celery Worker Configuration
 
-The operator constructs the celery worker command from structured fields instead of the hardcoded default. Presets control **concurrency** and **pool** type:
+The operator constructs the celery worker command from structured fields instead of the hardcoded default. Presets control **concurrency**; `pool` defaults to prefork for every preset:
 
 | Field | conservative | balanced (default) | performance | aggressive |
 |---|---|---|---|---|
 | concurrency | 2 | 4 | 8 | 16 |
-| pool | prefork | prefork | prefork | prefork |
 
 Set `preset: disabled` to use the operator's built-in fallback command (`--pool=prefork -O fair -c 4`).
 

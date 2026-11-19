@@ -162,7 +162,7 @@ _Appears in:_
 
 
 CeleryWorkerProcessSpec configures Celery worker execution parameters.
-Fields controlled by presets: concurrency, pool.
+Fields controlled by presets: concurrency.
 All other fields have static defaults independent of preset.
 
 
@@ -172,7 +172,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `preset` _[Preset](#preset)_ | Preset controlling concurrency and pool defaults. Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
+| `preset` _[Preset](#preset)_ | Preset controlling the concurrency default. Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
 | `concurrency` _integer_ | Number of concurrent task workers (maps to celery -c flag). |  | Minimum: 1 <br />Optional: \{\} <br /> |
 | `pool` _string_ | Celery pool implementation (e.g. prefork, threads, gevent), passed to celery worker --pool as-is. Defaults to prefork. |  | Optional: \{\} <br /> |
 | `optimization` _string_ | Task distribution optimization strategy (e.g. fair, default), passed to celery worker -O as-is. Defaults to fair. |  | Optional: \{\} <br /> |
@@ -474,7 +474,8 @@ _Appears in:_
 
 
 GunicornSpec configures Gunicorn worker parameters for the web server.
-Fields controlled by presets: workers, threads, workerClass.
+Fields controlled by presets: workers, threads. When workerClass is set to
+anything other than gthread, threads defaults to 1 instead of the preset value.
 All other fields have static defaults independent of preset.
 
 
@@ -484,7 +485,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `preset` _[Preset](#preset)_ | Preset controlling workers, threads, and workerClass defaults. Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
+| `preset` _[Preset](#preset)_ | Preset controlling workers and threads defaults. Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
 | `workers` _integer_ | Number of Gunicorn worker processes. |  | Minimum: 1 <br />Optional: \{\} <br /> |
 | `threads` _integer_ | Number of threads per worker (only effective with gthread worker class). |  | Minimum: 1 <br />Optional: \{\} <br /> |
 | `workerClass` _string_ | Gunicorn worker class (e.g. gthread, sync, gevent), passed to Gunicorn as-is. Defaults to gthread. |  | Optional: \{\} <br /> |

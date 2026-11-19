@@ -393,11 +393,12 @@ const (
 )
 
 // GunicornSpec configures Gunicorn worker parameters for the web server.
-// Fields controlled by presets: workers, threads, workerClass.
+// Fields controlled by presets: workers, threads. When workerClass is set to
+// anything other than gthread, threads defaults to 1 instead of the preset value.
 // All other fields have static defaults independent of preset.
 // +kubebuilder:validation:XValidation:rule="!has(self.threads) || self.threads <= 1 || !has(self.workerClass) || self.workerClass == 'gthread'",message="threads > 1 requires workerClass=gthread"
 type GunicornSpec struct {
-	// Preset controlling workers, threads, and workerClass defaults.
+	// Preset controlling workers and threads defaults.
 	// Individual fields override preset-computed values.
 	// +optional
 	Preset *Preset `json:"preset,omitempty"`
@@ -452,12 +453,12 @@ type GunicornSpec struct {
 }
 
 // CeleryWorkerProcessSpec configures Celery worker execution parameters.
-// Fields controlled by presets: concurrency, pool.
+// Fields controlled by presets: concurrency.
 // All other fields have static defaults independent of preset.
 // +kubebuilder:validation:XValidation:rule="(!has(self.maxTasksPerChild) || self.maxTasksPerChild == 0) || !has(self.pool) || self.pool == 'prefork'",message="maxTasksPerChild only applies to pool=prefork"
 // +kubebuilder:validation:XValidation:rule="(!has(self.maxMemoryPerChild) || self.maxMemoryPerChild == 0) || !has(self.pool) || self.pool == 'prefork'",message="maxMemoryPerChild only applies to pool=prefork"
 type CeleryWorkerProcessSpec struct {
-	// Preset controlling concurrency and pool defaults.
+	// Preset controlling the concurrency default.
 	// Individual fields override preset-computed values.
 	// +optional
 	Preset *Preset `json:"preset,omitempty"`
