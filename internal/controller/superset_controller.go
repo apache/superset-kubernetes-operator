@@ -470,7 +470,7 @@ func reconcileParentOwnedConfigMap(
 		if err := controllerutil.SetControllerReference(parent, cm, scheme); err != nil {
 			return err
 		}
-		cm.Labels = mergeLabels(cm.Labels, labels)
+		cm.Labels = mergeLabels(mergeLabels(cm.Labels, labels), parentLabels(parent.GetName()))
 		data := map[string]string{}
 		if config != "" {
 			data["superset_config.py"] = config

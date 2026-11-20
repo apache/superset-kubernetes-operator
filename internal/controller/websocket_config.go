@@ -83,7 +83,7 @@ func reconcileParentOwnedWebsocketConfigMap(
 		if err := controllerutil.SetControllerReference(parent, cm, scheme); err != nil {
 			return err
 		}
-		cm.Labels = mergeLabels(cm.Labels, labels)
+		cm.Labels = mergeLabels(mergeLabels(cm.Labels, labels), parentLabels(parent.GetName()))
 		cm.Data = map[string]string{websocketConfigKey: config}
 		return nil
 	})

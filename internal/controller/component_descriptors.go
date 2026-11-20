@@ -480,7 +480,11 @@ var websocketServerDescriptor = &componentDescriptor{
 			return nil
 		}
 		a := extractScalable(&c.ScalableComponentSpec, nil, nil, c.Image, c.Service)
-		a.websocketConfig = c.Config
+		// Inline websocket config usually carries the JWT secret, so like other
+		// inline secrets it is only honored in Development (see isDevEnvironment).
+		if isDevEnvironment(spec) {
+			a.websocketConfig = c.Config
+		}
 		a.websocketConfigFrom = c.ConfigFrom
 		return a
 	},

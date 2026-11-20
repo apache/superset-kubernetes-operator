@@ -230,6 +230,9 @@ func TestReconcile_WebsocketInlineConfigCreatesConfigMapAndMount(t *testing.T) {
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server-config", Namespace: "default"}, cm); err != nil {
 		t.Fatalf("expected websocket ConfigMap: %v", err)
 	}
+	if got := cm.Labels["superset.apache.org/parent"]; got != "test" {
+		t.Errorf("websocket ConfigMap missing parent label (got %q)", got)
+	}
 	if cm.Data["config.json"] == "" || !containsAll(cm.Data["config.json"], []string{`"port": 8080`, `"jwtSecret": "dev-secret"`}) {
 		t.Fatalf("unexpected websocket config data: %q", cm.Data["config.json"])
 	}
@@ -248,6 +251,38 @@ func TestReconcile_WebsocketInlineConfigCreatesConfigMapAndMount(t *testing.T) {
 	mount := findVolumeMount(deploy.Spec.Template.Spec.Containers[0].VolumeMounts, "websocket-config")
 	if mount == nil || mount.MountPath != "/home/superset-websocket/config.json" || mount.SubPath != "config.json" {
 		t.Fatalf("expected websocket config mount, got %#v", mount)
+	}
+}
+
+// Defense in depth: inline websocket config (which usually carries the JWT
+// secret) is ignored outside Development even if the CR slipped past CEL.
+func TestReconcile_WebsocketInlineConfigIgnoredOutsideDevelopment(t *testing.T) {
+	scheme := testScheme(t)
+
+	spec := minimalSupersetSpec()
+	spec.Environment = new(supersetv1alpha1.EnvironmentProduction)
+	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
+		Image:  &supersetv1alpha1.ImageOverrideSpec{Repository: new("example.com/superset-websocket")},
+		Config: &apiextensionsv1.JSON{Raw: []byte(`{"port":8080,"jwtSecret":"prod-secret"}`)},
+	}
+	superset := &supersetv1alpha1.Superset{
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: spec,
+	}
+
+	c := reconcileOnce(t, scheme, superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r)
+
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server-config", Namespace: "default"}, &corev1.ConfigMap{}); err == nil {
+		t.Fatal("expected no websocket ConfigMap outside Development")
+	}
+	deploy := &appsv1.Deployment{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server", Namespace: "default"}, deploy); err != nil {
+		t.Fatalf("expected websocket Deployment: %v", err)
+	}
+	if vol := findVolume(deploy.Spec.Template.Spec.Volumes, "websocket-config"); vol != nil {
+		t.Fatalf("expected no websocket config volume outside Development, got %#v", vol)
 	}
 }
 
@@ -362,6 +397,7 @@ func TestReconcile_ComponentResourcesCarryLabels(t *testing.T) {
 		"app.kubernetes.io/name":      "superset",
 		"app.kubernetes.io/component": "web-server",
 		"app.kubernetes.io/instance":  "test",
+		"superset.apache.org/parent":  "test",
 	}
 	assertLabels := func(t *testing.T, kind string, labels map[string]string) {
 		t.Helper()

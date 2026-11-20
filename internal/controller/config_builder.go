@@ -89,9 +89,11 @@ func convertTaskComponent(lifecycle *supersetv1alpha1.LifecycleSpec, command []s
 	}
 }
 
-// collectLifecycleInitEnvVars returns env vars for the init task (admin user credentials).
-func collectLifecycleInitEnvVars(lifecycle *supersetv1alpha1.LifecycleSpec) []corev1.EnvVar {
-	if lifecycle == nil || lifecycle.Init == nil || lifecycle.Init.AdminUser == nil {
+// collectLifecycleInitEnvVars returns env vars for the init task (admin user
+// credentials). adminUser is Development-only, like inline secrets.
+func collectLifecycleInitEnvVars(spec *supersetv1alpha1.SupersetSpec) []corev1.EnvVar {
+	lifecycle := spec.Lifecycle
+	if !isDevEnvironment(spec) || lifecycle == nil || lifecycle.Init == nil || lifecycle.Init.AdminUser == nil {
 		return nil
 	}
 	admin := lifecycle.Init.AdminUser
