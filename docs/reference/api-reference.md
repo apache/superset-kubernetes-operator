@@ -177,7 +177,7 @@ _Appears in:_
 | `pool` _string_ | Celery pool implementation (e.g. prefork, threads, gevent), passed to celery worker --pool as-is. Defaults to prefork. |  | Optional: \{\} <br /> |
 | `optimization` _string_ | Task distribution optimization strategy (e.g. fair, default), passed to celery worker -O as-is. Defaults to fair. |  | Optional: \{\} <br /> |
 | `maxTasksPerChild` _integer_ | Maximum tasks a worker process handles before being replaced (prefork only; 0 = unlimited). |  | Minimum: 0 <br />Optional: \{\} <br /> |
-| `maxMemoryPerChild` _integer_ | Maximum resident memory in bytes per worker before being replaced (prefork only; 0 = disabled). |  | Minimum: 0 <br />Optional: \{\} <br /> |
+| `maxMemoryPerChild` _integer_ | Maximum resident memory in KiB per worker before being replaced (prefork only; 0 = disabled). Passed to celery worker --max-memory-per-child, which is measured in kilobytes. |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `prefetchMultiplier` _integer_ | Task prefetch multiplier — number of tasks prefetched per worker. |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `softTimeLimit` _integer_ | Soft time limit in seconds — raises SoftTimeLimitExceeded (0 = disabled). |  | Minimum: 0 <br />Optional: \{\} <br /> |
 | `timeLimit` _integer_ | Hard time limit in seconds — kills the task (0 = disabled). |  | Minimum: 0 <br />Optional: \{\} <br /> |
@@ -282,7 +282,7 @@ _Appears in:_
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
 | `type` _[ServiceType](https://pkg.go.dev/k8s.io/api/core/v1#ServiceType)_ | Service type (ClusterIP, NodePort, LoadBalancer). | ClusterIP | Enum: [ClusterIP NodePort LoadBalancer] <br />Optional: \{\} <br /> |
-| `port` _integer_ | Service port exposed to clients. Defaults to the component's standard port (8088 for web server, 5555 for Flower). |  | Optional: \{\} <br /> |
+| `port` _integer_ | Service port exposed to clients. Defaults to the component's standard port (8088 for web server, 5555 for Flower). |  | Maximum: 65535 <br />Minimum: 1 <br />Optional: \{\} <br /> |
 | `nodePort` _integer_ | Fixed NodePort number when type=NodePort (30000-32767). If omitted, Kubernetes auto-assigns. |  | Maximum: 32767 <br />Minimum: 30000 <br />Optional: \{\} <br /> |
 | `annotations` _object (keys:string, values:string)_ | Service annotations (e.g., for cloud load balancer configuration). |  | Optional: \{\} <br /> |
 | `labels` _object (keys:string, values:string)_ | Service labels; merged with operator-managed labels. |  | Optional: \{\} <br /> |
@@ -294,7 +294,7 @@ _Appears in:_
 
 
 ComponentSpec defines per-component identity fields.
-Embedded by all component specs except InitSpec.
+Embedded by all deployment component specs (not by LifecycleSpec).
 
 
 
@@ -324,12 +324,12 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `webServer` _[ComponentRefStatus](#componentrefstatus)_ |  |  | Optional: \{\} <br /> |
-| `celeryWorker` _[ComponentRefStatus](#componentrefstatus)_ |  |  | Optional: \{\} <br /> |
-| `celeryBeat` _[ComponentRefStatus](#componentrefstatus)_ |  |  | Optional: \{\} <br /> |
-| `celeryFlower` _[ComponentRefStatus](#componentrefstatus)_ |  |  | Optional: \{\} <br /> |
-| `websocketServer` _[ComponentRefStatus](#componentrefstatus)_ |  |  | Optional: \{\} <br /> |
-| `mcpServer` _[ComponentRefStatus](#componentrefstatus)_ |  |  | Optional: \{\} <br /> |
+| `webServer` _[ComponentRefStatus](#componentrefstatus)_ | Web server status. |  | Optional: \{\} <br /> |
+| `celeryWorker` _[ComponentRefStatus](#componentrefstatus)_ | Celery worker status. |  | Optional: \{\} <br /> |
+| `celeryBeat` _[ComponentRefStatus](#componentrefstatus)_ | Celery beat status. |  | Optional: \{\} <br /> |
+| `celeryFlower` _[ComponentRefStatus](#componentrefstatus)_ | Celery Flower status. |  | Optional: \{\} <br /> |
+| `websocketServer` _[ComponentRefStatus](#componentrefstatus)_ | Websocket server status. |  | Optional: \{\} <br /> |
+| `mcpServer` _[ComponentRefStatus](#componentrefstatus)_ | MCP server status. |  | Optional: \{\} <br /> |
 
 
 #### ContainerImageSpec
@@ -556,8 +556,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `host` _string_ |  |  | Optional: \{\} <br /> |
-| `paths` _[IngressPath](#ingresspath) array_ |  |  | Optional: \{\} <br /> |
+| `host` _string_ | Hostname matched by this rule. Empty matches all hosts. |  | Optional: \{\} <br /> |
+| `paths` _[IngressPath](#ingresspath) array_ | Paths routed to the web server for this host. When empty, the host gets the default per-component routes. |  | Optional: \{\} <br /> |
 
 
 #### IngressPath
@@ -573,8 +573,8 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `path` _string_ |  | / |  |
-| `pathType` _[PathType](https://pkg.go.dev/k8s.io/api/networking/v1#PathType)_ |  | Prefix | Optional: \{\} <br /> |
+| `path` _string_ | URL path matched by this rule. | / |  |
+| `pathType` _[PathType](https://pkg.go.dev/k8s.io/api/networking/v1#PathType)_ | How the path is matched (Prefix, Exact, or ImplementationSpecific). | Prefix | Optional: \{\} <br /> |
 
 
 #### IngressSpec
@@ -774,7 +774,7 @@ _Appears in:_
 | `driver` _string_ | SQLAlchemy driver name for structured mode. When omitted, PostgreSQL uses psycopg2 and MySQL uses mysqldb. Set this to a driver installed in the Superset image, such as psycopg, pg8000, pymysql, or mysqlconnector. The operator selects the SQLAlchemy scheme only; it does not install Python driver packages into the image. |  | Pattern: `^[A-Za-z0-9_]+$` <br />Optional: \{\} <br /> |
 | `host` _string_ | Database hostname. |  | MinLength: 1 <br />Optional: \{\} <br /> |
 | `hostFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the database hostname. Mutually exclusive with host. |  | Optional: \{\} <br /> |
-| `port` _integer_ | Database port. Defaults per type (5432 for PostgreSQL, 3306 for MySQL). |  | Optional: \{\} <br /> |
+| `port` _integer_ | Database port. Defaults per type (5432 for PostgreSQL, 3306 for MySQL). |  | Maximum: 65535 <br />Minimum: 1 <br />Optional: \{\} <br /> |
 | `portFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the database port as a decimal string. Mutually exclusive with port. |  | Optional: \{\} <br /> |
 | `database` _string_ | Database name. |  | MinLength: 1 <br />Optional: \{\} <br /> |
 | `databaseFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the database name. Mutually exclusive with database. |  | Optional: \{\} <br /> |
@@ -820,7 +820,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `serviceMonitor` _[ServiceMonitorSpec](#servicemonitorspec)_ |  |  | Optional: \{\} <br /> |
+| `serviceMonitor` _[ServiceMonitorSpec](#servicemonitorspec)_ | Prometheus ServiceMonitor for the web server. Requires the prometheus-operator CRDs. |  | Optional: \{\} <br /> |
 
 
 #### NetworkPolicySpec
@@ -1042,8 +1042,8 @@ _Appears in:_
 
 ScalableComponentSpec provides deployment template and scaling fields.
 Embedded by scalable components (WebServer, CeleryWorker, CeleryFlower,
-WebsocketServer, McpServer). Non-scalable components (CeleryBeat, Init)
-use DeploymentTemplate or PodTemplate directly.
+WebsocketServer, McpServer). CeleryBeat uses DeploymentTemplate and
+PodTemplate directly; lifecycle tasks use PodTemplate only.
 
 
 
@@ -1128,7 +1128,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `host` _string_ | Source database hostname. Mutually exclusive with hostFrom. |  | MinLength: 1 <br />Optional: \{\} <br /> |
 | `hostFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the source database hostname. Mutually exclusive with host. |  | Optional: \{\} <br /> |
-| `port` _integer_ | Source database port. Defaults to 5432 (PostgreSQL) or 3306 (MySQL) based on metastore.type. |  | Optional: \{\} <br /> |
+| `port` _integer_ | Source database port. Defaults to 5432 (PostgreSQL) or 3306 (MySQL) based on metastore.type. |  | Maximum: 65535 <br />Minimum: 1 <br />Optional: \{\} <br /> |
 | `portFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the source database port as a decimal string. Mutually exclusive with port. |  | Optional: \{\} <br /> |
 | `database` _string_ | Database name on the source server. Mutually exclusive with databaseFrom. |  | MinLength: 1 <br />Optional: \{\} <br /> |
 | `databaseFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the source database name. Mutually exclusive with database. |  | Optional: \{\} <br /> |
@@ -1308,14 +1308,14 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ |  |  | Optional: \{\} <br /> |
-| `observedGeneration` _integer_ |  |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ | Standard Kubernetes conditions describing the Superset's state. |  | Optional: \{\} <br /> |
+| `observedGeneration` _integer_ | Most recent metadata.generation the operator has reconciled. |  | Optional: \{\} <br /> |
 | `ready` _string_ | Ready summarizes ready component replicas across all enabled components in "ready/desired" format. |  | Optional: \{\} <br /> |
-| `components` _[ComponentStatusMap](#componentstatusmap)_ |  |  | Optional: \{\} <br /> |
+| `components` _[ComponentStatusMap](#componentstatusmap)_ | Per-component workload status. |  | Optional: \{\} <br /> |
 | `lifecycle` _[LifecycleStatus](#lifecyclestatus)_ | Lifecycle tracks the current lifecycle state. |  | Optional: \{\} <br /> |
 | `lastLifecycleImage` _string_ | Last image (repository:tag) that successfully completed the lifecycle. Used to detect image changes on subsequent reconciles. |  | Optional: \{\} <br /> |
 | `tag` _string_ | Tag is the resolved image tag currently reconciled. |  | Optional: \{\} <br /> |
-| `configChecksum` _string_ |  |  | Optional: \{\} <br /> |
+| `configChecksum` _string_ | Checksum of the shared configuration inputs (secret key, metastore, Valkey, config, and worker presets) last reconciled. |  | Optional: \{\} <br /> |
 | `phase` _[SupersetPhase](#supersetphase)_ | High-level phase. |  | Enum: [Initializing Upgrading Running Degraded Suspended Blocked AwaitingApproval] <br />Optional: \{\} <br /> |
 
 
@@ -1332,17 +1332,17 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `state` _[TaskState](#taskstate)_ |  |  | Enum: [Pending Running Complete Failed] <br />Optional: \{\} <br /> |
-| `startedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
-| `completedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
-| `attempts` _integer_ |  |  | Optional: \{\} <br /> |
+| `state` _[TaskState](#taskstate)_ | Current state of the task. |  | Enum: [Pending Running Complete Failed] <br />Optional: \{\} <br /> |
+| `startedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ | When the current task run started. |  | Optional: \{\} <br /> |
+| `completedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ | When the task last reached a terminal state. |  | Optional: \{\} <br /> |
+| `attempts` _integer_ | Number of attempts made for the current task inputs. |  | Optional: \{\} <br /> |
 | `maxRetries` _integer_ | Maximum number of attempts before the task is considered permanently failed. |  | Optional: \{\} <br /> |
-| `image` _string_ |  |  | Optional: \{\} <br /> |
-| `message` _string_ |  |  | Optional: \{\} <br /> |
+| `image` _string_ | Image (repository:tag) of the task Job's main container. |  | Optional: \{\} <br /> |
+| `message` _string_ | Human-readable detail about the task state. Failure messages are redacted and truncated. |  | Optional: \{\} <br /> |
 | `nextAttemptAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ | NextAttemptAt is the earliest time the operator may retry this task after a failure or timeout. |  | Optional: \{\} <br /> |
 | `desiredChecksum` _string_ | DesiredChecksum is the checksum for the task inputs the operator is currently trying to execute. |  | Optional: \{\} <br /> |
 | `completedChecksum` _string_ | CompletedChecksum is the task input checksum that last reached a terminal Complete or Failed state. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ |  |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Condition) array_ | Task-level conditions. |  | Optional: \{\} <br /> |
 | `lastScheduledAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ | LastScheduledAt is the cron tick that triggered the most recent scheduled run. |  | Optional: \{\} <br /> |
 | `nextScheduleAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ | NextScheduleAt is the next future cron tick when the schedule will fire. |  | Optional: \{\} <br /> |
 
@@ -1383,7 +1383,7 @@ _Appears in:_
 | `fromTag` _string_ | FromTag is the image tag previously reconciled. |  | Optional: \{\} <br /> |
 | `toTag` _string_ | ToTag is the image tag being reconciled. |  | Optional: \{\} <br /> |
 | `approvalToken` _string_ | ApprovalToken is the annotation value required to approve this exact upgrade transition. |  | Optional: \{\} <br /> |
-| `startedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ |  |  | Optional: \{\} <br /> |
+| `startedAt` _[Time](https://pkg.go.dev/k8s.io/apimachinery/pkg/apis/meta/v1#Time)_ | When the operator first observed this upgrade. |  | Optional: \{\} <br /> |
 
 
 #### UpgradeMode
@@ -1494,7 +1494,7 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `host` _string_ | Valkey server hostname. Mutually exclusive with hostFrom. |  | MinLength: 1 <br />Optional: \{\} <br /> |
 | `hostFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the Valkey server hostname. Mutually exclusive with host. |  | Optional: \{\} <br /> |
-| `port` _integer_ | Valkey server port. Defaults to 6379 at runtime when neither port nor portFrom is set. |  | Optional: \{\} <br /> |
+| `port` _integer_ | Valkey server port. Defaults to 6379 at runtime when neither port nor portFrom is set. |  | Maximum: 65535 <br />Minimum: 1 <br />Optional: \{\} <br /> |
 | `portFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the Valkey server port as a decimal string. Mutually exclusive with port. |  | Optional: \{\} <br /> |
 | `username` _string_ | Valkey username. Useful for Redis ACL or managed Redis-compatible services. |  | Optional: \{\} <br /> |
 | `usernameFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the Valkey username. Mutually exclusive with username. |  | Optional: \{\} <br /> |

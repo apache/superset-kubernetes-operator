@@ -679,6 +679,8 @@ type SeedSourceSpec struct {
 
 	// Source database port. Defaults to 5432 (PostgreSQL) or 3306 (MySQL) based on metastore.type.
 	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
 	Port *int32 `json:"port,omitempty"`
 
 	// Reference to a Secret key containing the source database port as a decimal string.
@@ -771,16 +773,21 @@ type IngressSpec struct {
 
 // IngressHost defines a host rule for the Ingress.
 type IngressHost struct {
+	// Hostname matched by this rule. Empty matches all hosts.
 	// +optional
 	Host string `json:"host,omitempty"`
+	// Paths routed to the web server for this host. When empty, the host gets
+	// the default per-component routes.
 	// +optional
 	Paths []IngressPath `json:"paths,omitempty"`
 }
 
 // IngressPath defines a path rule for an Ingress host.
 type IngressPath struct {
+	// URL path matched by this rule.
 	// +kubebuilder:default="/"
 	Path string `json:"path,omitempty"`
+	// How the path is matched (Prefix, Exact, or ImplementationSpecific).
 	// +optional
 	// +kubebuilder:default="Prefix"
 	PathType *networkingv1.PathType `json:"pathType,omitempty"`
@@ -790,6 +797,7 @@ type IngressPath struct {
 
 // MonitoringSpec defines Prometheus monitoring configuration.
 type MonitoringSpec struct {
+	// Prometheus ServiceMonitor for the web server. Requires the prometheus-operator CRDs.
 	// +optional
 	ServiceMonitor *ServiceMonitorSpec `json:"serviceMonitor,omitempty"`
 }
@@ -859,14 +867,17 @@ const (
 
 // SupersetStatus defines the observed state of Superset.
 type SupersetStatus struct {
+	// Standard Kubernetes conditions describing the Superset's state.
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+	// Most recent metadata.generation the operator has reconciled.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
 	// Ready summarizes ready component replicas across all enabled components
 	// in "ready/desired" format.
 	// +optional
 	Ready string `json:"ready,omitempty"`
+	// Per-component workload status.
 	// +optional
 	Components *ComponentStatusMap `json:"components,omitempty"`
 	// Lifecycle tracks the current lifecycle state.
@@ -879,6 +890,8 @@ type SupersetStatus struct {
 	// Tag is the resolved image tag currently reconciled.
 	// +optional
 	Tag string `json:"tag,omitempty"`
+	// Checksum of the shared configuration inputs (secret key, metastore, Valkey,
+	// config, and worker presets) last reconciled.
 	// +optional
 	ConfigChecksum string `json:"configChecksum,omitempty"`
 	// High-level phase.
@@ -959,19 +972,25 @@ const (
 
 // TaskRefStatus holds the projected status summary of a lifecycle task.
 type TaskRefStatus struct {
+	// Current state of the task.
 	// +optional
 	State TaskState `json:"state,omitempty"`
+	// When the current task run started.
 	// +optional
 	StartedAt *metav1.Time `json:"startedAt,omitempty"`
+	// When the task last reached a terminal state.
 	// +optional
 	CompletedAt *metav1.Time `json:"completedAt,omitempty"`
+	// Number of attempts made for the current task inputs.
 	// +optional
 	Attempts int32 `json:"attempts,omitempty"`
 	// Maximum number of attempts before the task is considered permanently failed.
 	// +optional
 	MaxRetries int32 `json:"maxRetries,omitempty"`
+	// Image (repository:tag) of the task Job's main container.
 	// +optional
 	Image string `json:"image,omitempty"`
+	// Human-readable detail about the task state. Failure messages are redacted and truncated.
 	// +optional
 	Message string `json:"message,omitempty"`
 	// NextAttemptAt is the earliest time the operator may retry this task after
@@ -986,6 +1005,7 @@ type TaskRefStatus struct {
 	// Complete or Failed state.
 	// +optional
 	CompletedChecksum string `json:"completedChecksum,omitempty"`
+	// Task-level conditions.
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 	// LastScheduledAt is the cron tick that triggered the most recent scheduled run.
@@ -1007,22 +1027,29 @@ type UpgradeContext struct {
 	// ApprovalToken is the annotation value required to approve this exact upgrade transition.
 	// +optional
 	ApprovalToken string `json:"approvalToken,omitempty"`
+	// When the operator first observed this upgrade.
 	// +optional
 	StartedAt *metav1.Time `json:"startedAt,omitempty"`
 }
 
 // ComponentStatusMap holds status for each component.
 type ComponentStatusMap struct {
+	// Web server status.
 	// +optional
 	WebServer *ComponentRefStatus `json:"webServer,omitempty"`
+	// Celery worker status.
 	// +optional
 	CeleryWorker *ComponentRefStatus `json:"celeryWorker,omitempty"`
+	// Celery beat status.
 	// +optional
 	CeleryBeat *ComponentRefStatus `json:"celeryBeat,omitempty"`
+	// Celery Flower status.
 	// +optional
 	CeleryFlower *ComponentRefStatus `json:"celeryFlower,omitempty"`
+	// Websocket server status.
 	// +optional
 	WebsocketServer *ComponentRefStatus `json:"websocketServer,omitempty"`
+	// MCP server status.
 	// +optional
 	McpServer *ComponentRefStatus `json:"mcpServer,omitempty"`
 }

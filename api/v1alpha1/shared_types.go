@@ -162,6 +162,8 @@ type MetastoreSpec struct {
 
 	// Database port. Defaults per type (5432 for PostgreSQL, 3306 for MySQL).
 	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
 	Port *int32 `json:"port,omitempty"`
 
 	// Reference to a Secret key containing the database port as a decimal string.
@@ -234,6 +236,8 @@ type ValkeySpec struct {
 	// Valkey server port. Defaults to 6379 at runtime when neither port nor
 	// portFrom is set.
 	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
 	Port *int32 `json:"port,omitempty"`
 
 	// Reference to a Secret key containing the Valkey server port as a decimal string.
@@ -481,7 +485,8 @@ type CeleryWorkerProcessSpec struct {
 	// +kubebuilder:validation:Minimum=0
 	MaxTasksPerChild *int32 `json:"maxTasksPerChild,omitempty"`
 
-	// Maximum resident memory in bytes per worker before being replaced (prefork only; 0 = disabled).
+	// Maximum resident memory in KiB per worker before being replaced (prefork only; 0 = disabled).
+	// Passed to celery worker --max-memory-per-child, which is measured in kilobytes.
 	// +optional
 	// +kubebuilder:validation:Minimum=0
 	MaxMemoryPerChild *int32 `json:"maxMemoryPerChild,omitempty"`
@@ -697,8 +702,8 @@ func (m *ScalingMode) IsExternal() bool {
 
 // ScalableComponentSpec provides deployment template and scaling fields.
 // Embedded by scalable components (WebServer, CeleryWorker, CeleryFlower,
-// WebsocketServer, McpServer). Non-scalable components (CeleryBeat, Init)
-// use DeploymentTemplate or PodTemplate directly.
+// WebsocketServer, McpServer). CeleryBeat uses DeploymentTemplate and
+// PodTemplate directly; lifecycle tasks use PodTemplate only.
 type ScalableComponentSpec struct {
 	// Deployment template (Deployment-level configuration).
 	// +optional
@@ -724,7 +729,7 @@ type ScalableComponentSpec struct {
 }
 
 // ComponentSpec defines per-component identity fields.
-// Embedded by all component specs except InitSpec.
+// Embedded by all deployment component specs (not by LifecycleSpec).
 type ComponentSpec struct {
 	// Image tag and/or repository overrides; inherits from spec.image if unset.
 	// +optional
@@ -743,6 +748,8 @@ type ComponentServiceSpec struct {
 	Type corev1.ServiceType `json:"type,omitempty"`
 	// Service port exposed to clients. Defaults to the component's standard port (8088 for web server, 5555 for Flower).
 	// +optional
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=65535
 	Port *int32 `json:"port,omitempty"`
 	// Fixed NodePort number when type=NodePort (30000-32767). If omitted, Kubernetes auto-assigns.
 	// +optional

@@ -243,7 +243,7 @@ func buildServiceSpec(
 	var nodePort int32
 
 	if svcSpec != nil {
-		if svcSpec.Port != nil && *svcSpec.Port != 0 {
+		if svcSpec.Port != nil {
 			port = *svcSpec.Port
 		}
 		if svcSpec.Type != "" {

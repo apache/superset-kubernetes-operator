@@ -8112,6 +8112,8 @@ spec:
                         type: integer
                       port:
                         format: int32
+                        maximum: 65535
+                        minimum: 1
                         type: integer
                       type:
                         default: ClusterIP
@@ -23552,6 +23554,8 @@ spec:
                             x-kubernetes-map-type: atomic
                           port:
                             format: int32
+                            maximum: 65535
+                            minimum: 1
                             type: integer
                           portFrom:
                             properties:
@@ -27684,6 +27688,8 @@ spec:
                         type: integer
                       port:
                         format: int32
+                        maximum: 65535
+                        minimum: 1
                         type: integer
                       type:
                         default: ClusterIP
@@ -27782,6 +27788,8 @@ spec:
                     x-kubernetes-map-type: atomic
                   port:
                     format: int32
+                    maximum: 65535
+                    minimum: 1
                     type: integer
                   portFrom:
                     properties:
@@ -32057,6 +32065,8 @@ spec:
                     x-kubernetes-map-type: atomic
                   port:
                     format: int32
+                    maximum: 65535
+                    minimum: 1
                     type: integer
                   portFrom:
                     properties:
@@ -36225,6 +36235,8 @@ spec:
                         type: integer
                       port:
                         format: int32
+                        maximum: 65535
+                        minimum: 1
                         type: integer
                       type:
                         default: ClusterIP
@@ -40318,6 +40330,8 @@ spec:
                         type: integer
                       port:
                         format: int32
+                        maximum: 65535
+                        minimum: 1
                         type: integer
                       type:
                         default: ClusterIP

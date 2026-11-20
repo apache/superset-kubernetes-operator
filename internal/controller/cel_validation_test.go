@@ -601,6 +601,29 @@ var _ = Describe("CEL Validation", Ordered, func() {
 		})
 	})
 
+	// --- Ports ---
+
+	Describe("Ports", func() {
+		DescribeTable("rejects ports outside 1-65535",
+			func(name string, mutate func(*supersetv1alpha1.Superset), want string) {
+				cr := validDevSuperset(name)
+				mutate(cr)
+				err := k8sClient.Create(ctx, cr)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring(want))
+			},
+			Entry("metastore.port zero", "port-metastore-zero", func(cr *supersetv1alpha1.Superset) {
+				cr.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{Host: new("db"), Port: new(int32(0)), Database: new("superset"), Username: new("admin")}
+			}, "spec.metastore.port in body should be greater than or equal to 1"),
+			Entry("valkey.port too large", "port-valkey-large", func(cr *supersetv1alpha1.Superset) {
+				cr.Spec.Valkey = &supersetv1alpha1.ValkeySpec{Host: "valkey", Port: new(int32(65536))}
+			}, "spec.valkey.port in body should be less than or equal to 65535"),
+			Entry("webServer.service.port zero", "port-service-zero", func(cr *supersetv1alpha1.Superset) {
+				cr.Spec.WebServer = &supersetv1alpha1.WebServerComponentSpec{Service: &supersetv1alpha1.ComponentServiceSpec{Port: new(int32(0))}}
+			}, "spec.webServer.service.port in body should be greater than or equal to 1"),
+		)
+	})
+
 	// --- Networking / Monitoring component requirements ---
 
 	Describe("Networking", func() {
