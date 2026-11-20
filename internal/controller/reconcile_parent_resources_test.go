@@ -345,6 +345,22 @@ func TestReconcile_LogLevelWiringAndRestartScope(t *testing.T) {
 		before[name] = *deploy.Spec.Template.DeepCopy()
 	}
 
+	// Capture the rendered config and checksum before changing the log level.
+	webConfigBefore := &corev1.ConfigMap{}
+	if err := c.Get(context.Background(), types.NamespacedName{
+		Name: "test-web-server-config", Namespace: "default",
+	}, webConfigBefore); err != nil {
+		t.Fatalf("getting web-server ConfigMap: %v", err)
+	}
+
+	// Capture the Deployment's config checksum.
+	configHashBefore := deployments["test-web-server"].
+		Spec.Template.Annotations[common.AnnotationConfigChecksum]
+
+	// Capture init's inputs. A log-level-only change must not invalidate
+	// either its rendered config or its injected environment variables.
+	initInputsBefore := r.initInputs(superset)
+
 	nextLevel := supersetv1alpha1.LogLevelError
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test", Namespace: "default"}, superset); err != nil {
 		t.Fatalf("getting reconciled Superset: %v", err)
@@ -378,6 +394,31 @@ func TestReconcile_LogLevelWiringAndRestartScope(t *testing.T) {
 	if reflect.DeepEqual(before["test-web-server"], updatedWeb.Spec.Template) {
 		t.Fatal("web-server pod template did not change when its log level changed")
 	}
+
+	// The rendered ConfigMap must remain unchanged.
+	webConfigAfter := &corev1.ConfigMap{}
+	if err := c.Get(context.Background(), types.NamespacedName{
+		Name: "test-web-server-config", Namespace: "default",
+	}, webConfigAfter); err != nil {
+		t.Fatalf("getting updated web-server ConfigMap: %v", err)
+	}
+
+	assert.Equal(t, webConfigBefore.Data, webConfigAfter.Data,
+		"rendered config should not change when only log level changes")
+
+	// ConfigHash must remain unchanged, otherwise unrelated config changes
+	// could trigger lifecycle tasks or unnecessary component restarts.
+	configHashAfter := updatedWeb.Spec.Template.Annotations[common.AnnotationConfigChecksum]
+
+	assert.Equal(t, configHashBefore, configHashAfter,
+		"ConfigHash should not change when only log level changes")
+
+	// Neither init's rendered config nor its injected environment variables
+	// should change. In particular, changing log level must not re-run init.
+	initInputsAfter := r.initInputs(superset)
+
+	assert.Equal(t, initInputsBefore, initInputsAfter,
+		"init inputs should not change when only log level changes")
 }
 
 func TestReconcile_LogLevelWithDisabledCeleryPreset(t *testing.T) {
