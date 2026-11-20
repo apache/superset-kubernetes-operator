@@ -54,6 +54,8 @@ The operator enforces a strict separation between hardened modes (Production and
 - **Production/Staging** (`environment: Production` is the default; `Staging` keeps the same secret rules but allows the destructive `seed` task): Inline `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, websocket `config`, and `lifecycle.seed.source.password` are rejected by CRD CEL validation rules. Users reference Secret keys via the corresponding `*From` fields; structured metastore and Valkey connection fields also accept `*From` selectors for provisioner-owned connection details. The operator wires env-backed selectors as `valueFrom.secretKeyRef` (websocket `configFrom` is mounted as a file).
 - **Development** (`environment: Development`): Inline secrets are allowed for local development convenience. Additionally, `lifecycle.init.adminUser` and `lifecycle.init.loadExamples` are permitted — these create a default admin account and load sample data during initialization. Admin credentials from `adminUser` are stored as plain-text environment variables on the parent Superset CR and the resulting task Pod spec (visible to anyone with read access to these resources in the namespace). The admin password also appears in the Pod's process arguments via shell expansion.
 
+Outside Development, the controller also re-checks the environment before using inline secrets, `adminUser`, or `loadExamples`, so a resource that bypasses CEL (for example on clusters older than Kubernetes 1.25, which ignore CRD validation rules) still cannot use them.
+
 Development mode is intentionally less secure. It exists for local development with Kind or Minikube where secret management infrastructure is not available.
 
 ### Secret Handling

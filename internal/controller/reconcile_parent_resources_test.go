@@ -254,6 +254,38 @@ func TestReconcile_WebsocketInlineConfigCreatesConfigMapAndMount(t *testing.T) {
 	}
 }
 
+// Defense in depth: inline websocket config (which usually carries the JWT
+// secret) is ignored outside Development even if the CR slipped past CEL.
+func TestReconcile_WebsocketInlineConfigIgnoredOutsideDevelopment(t *testing.T) {
+	scheme := testScheme(t)
+
+	spec := minimalSupersetSpec()
+	spec.Environment = new(supersetv1alpha1.EnvironmentProduction)
+	spec.WebsocketServer = &supersetv1alpha1.WebsocketServerComponentSpec{
+		Image:  &supersetv1alpha1.ImageOverrideSpec{Repository: new("example.com/superset-websocket")},
+		Config: &apiextensionsv1.JSON{Raw: []byte(`{"port":8080,"jwtSecret":"prod-secret"}`)},
+	}
+	superset := &supersetv1alpha1.Superset{
+		Name: "test", Namespace: "default", UID: "uid-1",
+		Spec: spec,
+	}
+
+	c := reconcileOnce(t, scheme, superset).Build()
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: events.NewFakeRecorder(10)}
+	doReconcile(t, r)
+
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server-config", Namespace: "default"}, &corev1.ConfigMap{}); err == nil {
+		t.Fatal("expected no websocket ConfigMap outside Development")
+	}
+	deploy := &appsv1.Deployment{}
+	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-websocket-server", Namespace: "default"}, deploy); err != nil {
+		t.Fatalf("expected websocket Deployment: %v", err)
+	}
+	if vol := findVolume(deploy.Spec.Template.Spec.Volumes, "websocket-config"); vol != nil {
+		t.Fatalf("expected no websocket config volume outside Development, got %#v", vol)
+	}
+}
+
 func TestReconcile_WebsocketConfigFromMountsSecret(t *testing.T) {
 	scheme := testScheme(t)
 
