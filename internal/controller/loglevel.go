@@ -41,8 +41,11 @@ func lifecycleLogLevel(spec *supersetv1alpha1.SupersetSpec) supersetv1alpha1.Log
 }
 
 // appendLogLevelEnv injects the env vars that carry a component's resolved
-// level to loggers that don't read Superset's LOG_LEVEL. Only Flower needs
-// one: it resets the root logger at startup, so it gets FLOWER_LOGGING.
+// level to loggers that don't follow Superset's LOG_LEVEL. Only Flower needs
+// one. At startup, Flower calls Tornado's enable_pretty_logging without a
+// logger argument, which sets the root logger to Tornado's logging option.
+// That overrides the rendered LOG_LEVEL, just as Celery's --loglevel does
+// for the worker and Beat, so Flower gets the level as FLOWER_LOGGING.
 // Server-process loggers (Gunicorn, websocket, FastMCP) keep their own
 // native settings and are not driven by logLevel.
 func appendLogLevelEnv(componentType naming.ComponentType, level supersetv1alpha1.LogLevel, injected *resolution.OperatorInjected) {
@@ -62,9 +65,9 @@ func withCeleryDefaultLogLevel(componentType naming.ComponentType, command []str
 }
 
 // debugLoggingTargets returns the names of the workloads that run at debug
-// It resolves the level the same way the workloads do (component logLevel, 
+// It resolves the level the same way the workloads do (component logLevel,
 // then spec.logLevel, then info) and
-// checks each enabled Python component, by component type. 
+// checks each enabled Python component, by component type.
 // The websocket server is skipped because logLevel doesn't apply to it.
 // It also checks lifecycle tasks, unless lifecycle is disabled.
 func debugLoggingTargets(superset *supersetv1alpha1.Superset) []string {
