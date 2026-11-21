@@ -27,7 +27,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
-	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
 func TestCalculateBackoff(t *testing.T) {
@@ -64,7 +63,7 @@ func TestBuildInitPod(t *testing.T) {
 		assert.Equal(t, corev1.RestartPolicyNever, pod.RestartPolicy)
 		require.Len(t, pod.Containers, 1)
 		c := pod.Containers[0]
-		assert.Equal(t, common.Container, c.Name)
+		assert.Equal(t, "superset", c.Name)
 		assert.Equal(t, "apache/superset:4.0.0", c.Image)
 		assert.Equal(t, corev1.PullIfNotPresent, c.ImagePullPolicy)
 		assert.Empty(t, pod.ServiceAccountName)
@@ -106,7 +105,7 @@ func TestBuildInitPod(t *testing.T) {
 
 		// Main container is first; sidecar appended after.
 		require.Len(t, pod.Containers, 2)
-		assert.Equal(t, common.Container, pod.Containers[0].Name)
+		assert.Equal(t, "superset", pod.Containers[0].Name)
 		assert.Equal(t, []string{"/bin/sh", "-c", "superset init"}, pod.Containers[0].Command)
 		assert.Equal(t, []string{"--flag"}, pod.Containers[0].Args)
 		assert.Equal(t, "sidecar", pod.Containers[1].Name)

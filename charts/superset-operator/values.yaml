@@ -1,10 +1,16 @@
+# -- Override the chart name used in resource names and the `app.kubernetes.io/name` label.
+nameOverride: ~
+
+# -- Override the full resource name prefix (normally `<release>-<chart name>`).
+fullnameOverride: ~
+
 image:
   # -- Docker image repository for the operator manager.
   repository: ghcr.io/apache/superset-kubernetes-operator
   # -- Image tag. Defaults to the chart's appVersion when unset.
   tag: ~
-  # -- Image pull policy.
-  pullPolicy: IfNotPresent
+  # -- Image pull policy. Leave unset to use the Kubernetes default.
+  pullPolicy: ~
 
 # -- Existing Secrets used to pull the operator image from a private registry.
 imagePullSecrets: []

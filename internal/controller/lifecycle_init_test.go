@@ -19,6 +19,7 @@ limitations under the License.
 package controller
 
 import (
+	"slices"
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
@@ -53,10 +54,9 @@ func TestInitInputs_ChangesWithRenderedConfig(t *testing.T) {
 		return s
 	}
 
-	baseline := r.initInputs(base())
-
 	tests := []struct {
 		name   string
+		dev    bool
 		mutate func(*supersetv1alpha1.Superset)
 	}{
 		// Config-rendering changes — covered by ConfigHash.
@@ -136,6 +136,7 @@ func TestInitInputs_ChangesWithRenderedConfig(t *testing.T) {
 		},
 		{
 			name: "lifecycle.init.adminUser",
+			dev:  true,
 			mutate: func(s *supersetv1alpha1.Superset) {
 				s.Spec.Lifecycle.Init.AdminUser = &supersetv1alpha1.AdminUserSpec{
 					Username: new("admin"),
@@ -146,10 +147,15 @@ func TestInitInputs_ChangesWithRenderedConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			modified := base()
+			unmodified, modified := base(), base()
+			if tt.dev {
+				// Development-only fields are compared against a Development baseline.
+				unmodified.Spec.Environment = new(supersetv1alpha1.EnvironmentDevelopment)
+				modified.Spec.Environment = new(supersetv1alpha1.EnvironmentDevelopment)
+			}
 			tt.mutate(modified)
 			got := r.initInputs(modified)
-			if computeChecksum(got) == computeChecksum(baseline) {
+			if computeChecksum(got) == computeChecksum(r.initInputs(unmodified)) {
 				t.Errorf("expected init checksum input to change when %s mutated, but it stayed the same", tt.name)
 			}
 		})
@@ -219,4 +225,51 @@ func secretKeyRef(name, key string) *corev1.SecretKeySelector {
 		Name: name,
 		Key:  key,
 	}
+}
+
+// Defense in depth: adminUser and loadExamples are Development-only. Outside
+// Development the init task runs plain `superset init` with no admin
+// credentials, even if the CR slipped past CEL.
+func TestInitTask_DevOnlyFieldsIgnoredOutsideDevelopment(t *testing.T) {
+	newSuperset := func(env supersetv1alpha1.Environment) *supersetv1alpha1.Superset {
+		s := &supersetv1alpha1.Superset{}
+		s.Name = "test"
+		s.Spec.Environment = &env
+		s.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{Init: &supersetv1alpha1.InitTaskSpec{
+			AdminUser:    &supersetv1alpha1.AdminUserSpec{Password: new("hunter2")},
+			LoadExamples: new(true),
+		}}
+		return s
+	}
+	hasAdminEnv := func(env []corev1.EnvVar) bool {
+		for _, e := range env {
+			if e.Name == "SUPERSET_OPERATOR__ADMIN_PASSWORD" {
+				return true
+			}
+		}
+		return false
+	}
+
+	for _, env := range []supersetv1alpha1.Environment{supersetv1alpha1.EnvironmentStaging, supersetv1alpha1.EnvironmentProduction} {
+		t.Run(string(env), func(t *testing.T) {
+			s := newSuperset(env)
+			if got, want := defaultInitCommand(s), []string{"/bin/sh", "-c", "superset init"}; !slices.Equal(got, want) {
+				t.Errorf("init command = %#v, want %#v", got, want)
+			}
+			if hasAdminEnv(initTaskEnv(s)) {
+				t.Error("expected no admin credential env vars outside Development")
+			}
+		})
+	}
+
+	t.Run("Development", func(t *testing.T) {
+		s := newSuperset(supersetv1alpha1.EnvironmentDevelopment)
+		cmd := defaultInitCommand(s)
+		if len(cmd) != 3 || cmd[2] == "superset init" {
+			t.Errorf("expected admin and examples steps in Development, got %#v", cmd)
+		}
+		if !hasAdminEnv(initTaskEnv(s)) {
+			t.Error("expected admin credential env vars in Development")
+		}
+	})
 }

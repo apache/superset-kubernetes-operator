@@ -62,7 +62,7 @@ func (r *SupersetReconciler) buildSeedTaskFlatSpec(
 		podOperatorLabels(string(naming.ComponentInit), instanceName, superset.Name), operatorInjected,
 	)
 
-	seedImage := resolveSeedImage(seed)
+	seedImage := resolveSeedImage(seed, seedDatabaseType(&superset.Spec))
 	one := int32(1)
 	flatSpec := supersetv1alpha1.FlatComponentSpec{
 		Image:              seedImage,
@@ -93,7 +93,7 @@ func (r *SupersetReconciler) buildStandardTaskFlatSpec(
 	secretEnvVars := collectSecretEnvVars(&superset.Spec, superset.Name)
 	var initEnvVars []corev1.EnvVar
 	if taskType == taskTypeInit {
-		initEnvVars = collectLifecycleInitEnvVars(superset.Spec.Lifecycle)
+		initEnvVars = collectLifecycleInitEnvVars(&superset.Spec)
 	}
 	operatorInjected := buildOperatorInjected(renderedConfig, bootstrapScript, resourceBaseName, superset.Spec.ForceReload, lifecycleLogLevel(&superset.Spec), append(secretEnvVars, initEnvVars...))
 

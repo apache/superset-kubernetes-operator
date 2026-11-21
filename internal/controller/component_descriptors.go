@@ -113,14 +113,14 @@ func warnEnvVarOverrides(ctx context.Context, tl *resolution.SharedInput, comp *
 	tlEnv := envFromPodTemplate(tl.PodTemplate)
 	for _, e := range tlEnv {
 		if opNames[e.Name] {
-			log.Info("operator env var overrides user-specified value", "var", e.Name, "source", "spec.podTemplate.container.env")
+			log.V(1).Info("Operator env var overrides user-specified value", "envVar", e.Name, "source", "spec.podTemplate.container.env")
 		}
 	}
 	if comp != nil {
 		compEnv := envFromPodTemplate(comp.PodTemplate)
 		for _, e := range compEnv {
 			if opNames[e.Name] {
-				log.Info("operator env var overrides user-specified value", "var", e.Name, "source", "component.podTemplate.container.env")
+				log.V(1).Info("Operator env var overrides user-specified value", "envVar", e.Name, "source", "component.podTemplate.container.env")
 			}
 		}
 	}
@@ -307,7 +307,7 @@ func (r *SupersetReconciler) reconcileComponent(
 	}
 
 	// Flower serves under its URL prefix (--url_prefix), so its HTTP health
-	// endpoint lives at <prefix>/api/workers, not /api/workers. Build the probes
+	// endpoint lives at <prefix>/healthcheck, not /healthcheck. Build the probes
 	// from the same prefix used for the env var; otherwise the probe 404s and
 	// kubelet kills the (otherwise healthy) pod into CrashLoopBackOff.
 	applyFlowerProbes(desc.componentType, &cfg, accessor.service)
@@ -317,7 +317,7 @@ func (r *SupersetReconciler) reconcileComponent(
 }
 
 // applyFlowerProbes overrides the Celery Flower health probes so they target
-// Flower's prefixed health endpoint (<url_prefix>/api/workers). No-op for other
+// Flower's prefixed health endpoint (<url_prefix>/healthcheck). No-op for other
 // components. See flowerHealthPath for why the prefix matters.
 func applyFlowerProbes(componentType naming.ComponentType, cfg *componentReconcilerConfig, svc *supersetv1alpha1.ComponentServiceSpec) {
 	if componentType != naming.ComponentCeleryFlower {
@@ -494,7 +494,11 @@ var websocketServerDescriptor = &componentDescriptor{
 			return nil
 		}
 		a := extractScalable(&c.ScalableComponentSpec, nil, nil, c.Image, c.Service)
-		a.websocketConfig = c.Config
+		// Inline websocket config usually carries the JWT secret, so like other
+		// inline secrets it is only honored in Development (see isDevEnvironment).
+		if isDevEnvironment(spec) {
+			a.websocketConfig = c.Config
+		}
 		a.websocketConfigFrom = c.ConfigFrom
 		return a
 	},

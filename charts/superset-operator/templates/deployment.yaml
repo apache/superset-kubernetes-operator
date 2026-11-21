@@ -74,7 +74,9 @@ spec:
       containers:
         - name: manager
           image: {{ include "superset-operator.image" . }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.image.pullPolicy }}
+          imagePullPolicy: {{ . }}
+          {{- end }}
           command:
             - /manager
           args:

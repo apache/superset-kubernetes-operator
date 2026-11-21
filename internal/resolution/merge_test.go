@@ -23,7 +23,6 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 )
@@ -338,82 +337,6 @@ func TestResolveScalar(t *testing.T) {
 	}
 }
 
-func TestResolveResource(t *testing.T) {
-	r1 := &corev1.ResourceRequirements{
-		Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("500m")},
-	}
-	r2 := &corev1.ResourceRequirements{
-		Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("1")},
-	}
-
-	t.Run("first non-nil wins", func(t *testing.T) {
-		result := ResolveResource(r1, r2)
-		if !result.Requests.Cpu().Equal(resource.MustParse("500m")) {
-			t.Errorf("expected 500m, got %s", result.Requests.Cpu())
-		}
-	})
-
-	t.Run("all nil returns empty", func(t *testing.T) {
-		result := ResolveResource(nil, nil)
-		if result.Requests != nil {
-			t.Errorf("expected nil requests, got %v", result.Requests)
-		}
-	})
-}
-
-func TestResolveOverridableMap(t *testing.T) {
-	t.Run("override present replaces entirely", func(t *testing.T) {
-		result := ResolveOverridableMap(map[string]string{"a": "1"}, map[string]string{"b": "2"})
-		if result["a"] != "1" || result["b"] != "" {
-			t.Errorf("expected override only, got %v", result)
-		}
-	})
-
-	t.Run("override empty map replaces with empty", func(t *testing.T) {
-		emptyMap := map[string]string{}
-		result := ResolveOverridableMap(emptyMap, map[string]string{"b": "2"})
-		if len(result) != 0 {
-			t.Errorf("expected empty map, got %v", result)
-		}
-	})
-
-	t.Run("override nil uses default", func(t *testing.T) {
-		result := ResolveOverridableMap(nil, map[string]string{"b": "2"})
-		if result["b"] != "2" {
-			t.Errorf("expected default, got %v", result)
-		}
-	})
-}
-
-func TestResolveOverridableSlice(t *testing.T) {
-	t.Run("override present replaces entirely", func(t *testing.T) {
-		override := []corev1.Toleration{{Key: "override"}}
-		dflt := []corev1.Toleration{{Key: "default"}}
-		result := ResolveOverridableSlice(override, dflt)
-		if len(result) != 1 || result[0].Key != "override" {
-			t.Errorf("expected override, got %v", result)
-		}
-	})
-
-	t.Run("override empty slice replaces with empty", func(t *testing.T) {
-		override := []corev1.Toleration{}
-		dflt := []corev1.Toleration{{Key: "default"}}
-		result := ResolveOverridableSlice(override, dflt)
-		if len(result) != 0 {
-			t.Errorf("expected empty, got %v", result)
-		}
-	})
-
-	t.Run("override nil uses default", func(t *testing.T) {
-		var override []corev1.Toleration
-		dflt := []corev1.Toleration{{Key: "default"}}
-		result := ResolveOverridableSlice(override, dflt)
-		if len(result) != 1 || result[0].Key != "default" {
-			t.Errorf("expected default, got %v", result)
-		}
-	})
-}
-
 func TestResolveOverridableValue(t *testing.T) {
 	v1 := corev1.PodSecurityContext{RunAsUser: new(int64(1000))}
 	v2 := corev1.PodSecurityContext{RunAsUser: new(int64(2000))}
@@ -583,5 +506,35 @@ func assertMapsEqual(t *testing.T, expected, actual map[string]string) {
 		if actual[k] != v {
 			t.Errorf("key %q: expected %q, got %q", k, v, actual[k])
 		}
+	}
+}
+
+// Merging two components against the same top-level template must not share
+// the top-level slice's backing array: with spare capacity, append would let
+// the second merge overwrite the first component's entries.
+func TestMergePodTemplate_AppendedCollectionsDoNotAlias(t *testing.T) {
+	topTolerations := make([]corev1.Toleration, 1, 4)
+	topTolerations[0] = corev1.Toleration{Key: "shared"}
+	topSpread := make([]corev1.TopologySpreadConstraint, 1, 4)
+	topSpread[0] = corev1.TopologySpreadConstraint{TopologyKey: "shared"}
+	top := &supersetv1alpha1.PodTemplate{Tolerations: topTolerations, TopologySpreadConstraints: topSpread}
+
+	compA := &supersetv1alpha1.PodTemplate{
+		Tolerations:               []corev1.Toleration{{Key: "a"}},
+		TopologySpreadConstraints: []corev1.TopologySpreadConstraint{{TopologyKey: "a"}},
+	}
+	compB := &supersetv1alpha1.PodTemplate{
+		Tolerations:               []corev1.Toleration{{Key: "b"}},
+		TopologySpreadConstraints: []corev1.TopologySpreadConstraint{{TopologyKey: "b"}},
+	}
+
+	a := MergePodTemplate(compA, top, nil, &OperatorInjected{})
+	_ = MergePodTemplate(compB, top, nil, &OperatorInjected{})
+
+	if got := a.Tolerations[1].Key; got != "a" {
+		t.Errorf("component A toleration overwritten by a later merge: got %q", got)
+	}
+	if got := a.TopologySpreadConstraints[1].TopologyKey; got != "a" {
+		t.Errorf("component A topology spread constraint overwritten by a later merge: got %q", got)
 	}
 }

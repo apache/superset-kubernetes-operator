@@ -216,11 +216,53 @@ func TestHandleStuckTaskPod_SurfacesWhenSpecUnchanged(t *testing.T) {
 	if err := c.Get(ctx, types.NamespacedName{Name: "test-migrate", Namespace: "default"}, &batchv1.Job{}); err != nil {
 		t.Errorf("expected Job to be kept when spec is unchanged, got %v", err)
 	}
-	if !conditionHasReason(superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete, reasonTaskCannotStart) {
+	if !conditionHasReason(superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete, "TaskCannotStart") {
 		t.Error("expected parent LifecycleComplete condition with reason TaskCannotStart")
 	}
 	if taskRef.Message == "" {
 		t.Error("expected taskRef.Message to describe the startup failure")
+	}
+}
+
+func TestHandleStuckTaskPod_TruncatesLongMessages(t *testing.T) {
+	// Kubelet waiting and scheduling messages can be long. Like Job failure
+	// messages, they are capped before landing in status and Events.
+	ctx := context.Background()
+	scheme := testScheme(t)
+	superset := &supersetv1alpha1.Superset{Name: "test", Namespace: "default", UID: "uid-1"}
+	flatSpec := &supersetv1alpha1.FlatComponentSpec{Image: supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "latest"}}
+	job := &batchv1.Job{
+		Name:        "test-init",
+		Namespace:   "default",
+		UID:         taskJobUID,
+		Annotations: map[string]string{common.AnnotationTaskPodSpecHash: podSpecHash(buildInitPod(flatSpec))},
+	}
+	pod := wedgedTaskPod("test-init", "CreateContainerConfigError")
+	pod.Status.InitContainerStatuses[0].State.Waiting.Message = strings.Repeat("x", 1000)
+
+	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset, job, pod).Build()
+	recorder := events.NewFakeRecorder(10)
+	r := &SupersetReconciler{Client: c, Scheme: scheme, Recorder: recorder}
+	taskRef := &supersetv1alpha1.TaskRefStatus{State: supersetv1alpha1.TaskStateRunning, MaxRetries: 3}
+
+	if _, _, err := r.handleStuckTaskPod(ctx, superset, job, taskTypeInit, flatSpec, taskRef); err != nil {
+		t.Fatalf("handleStuckTaskPod: %v", err)
+	}
+	if len(taskRef.Message) > 256 || !strings.HasSuffix(taskRef.Message, "...") {
+		t.Errorf("expected task message truncated to 256 bytes, got %d bytes", len(taskRef.Message))
+	}
+	for _, cond := range taskRef.Conditions {
+		if len(cond.Message) > 256 {
+			t.Errorf("expected task condition message truncated, got %d bytes", len(cond.Message))
+		}
+	}
+	select {
+	case e := <-recorder.Events:
+		if strings.Contains(e, strings.Repeat("x", 300)) {
+			t.Errorf("expected event message truncated, got %d bytes", len(e))
+		}
+	default:
+		t.Error("expected a TaskCannotStart event")
 	}
 }
 

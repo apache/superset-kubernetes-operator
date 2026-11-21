@@ -68,7 +68,7 @@ func (r *SupersetReconciler) initInputs(superset *supersetv1alpha1.Superset) any
 // re-run init on forceReload changes.
 func initTaskEnv(superset *supersetv1alpha1.Superset) []corev1.EnvVar {
 	env := collectSecretEnvVars(&superset.Spec, superset.Name)
-	return append(env, collectLifecycleInitEnvVars(superset.Spec.Lifecycle)...)
+	return append(env, collectLifecycleInitEnvVars(&superset.Spec)...)
 }
 
 // defaultInitCommand returns the user override, or the standard
@@ -78,8 +78,10 @@ func defaultInitCommand(superset *supersetv1alpha1.Superset) []string {
 	if superset.Spec.Lifecycle != nil && superset.Spec.Lifecycle.Init != nil && len(superset.Spec.Lifecycle.Init.Command) > 0 {
 		return superset.Spec.Lifecycle.Init.Command
 	}
+	// adminUser and loadExamples are Development-only; outside Development
+	// the standard command runs without them.
 	var initSpec *supersetv1alpha1.InitTaskSpec
-	if superset.Spec.Lifecycle != nil {
+	if superset.Spec.Lifecycle != nil && isDevEnvironment(&superset.Spec) {
 		initSpec = superset.Spec.Lifecycle.Init
 	}
 	return withBootstrapScript(buildInitCommand(initSpec), effectiveLifecycleBootstrapScript(&superset.Spec))

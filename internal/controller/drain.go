@@ -56,6 +56,7 @@ func (r *SupersetReconciler) drainIfNeeded(
 	}
 	if !drained {
 		if !wasDraining {
+			logf.FromContext(ctx).Info("Draining components before lifecycle tasks", "name", superset.Name)
 			r.Recorder.Eventf(superset, nil, corev1.EventTypeNormal, "DrainingStarted", "Lifecycle",
 				"Draining component workloads before lifecycle tasks")
 		}
@@ -66,6 +67,7 @@ func (r *SupersetReconciler) drainIfNeeded(
 		return lifecycleWait(), nil
 	}
 	if wasDraining {
+		logf.FromContext(ctx).Info("Components drained", "name", superset.Name)
 		r.Recorder.Eventf(superset, nil, corev1.EventTypeNormal, "DrainingCompleted", "Lifecycle",
 			"All component workloads drained; lifecycle tasks can proceed")
 		setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeLifecycleComplete,
@@ -163,7 +165,7 @@ func (r *SupersetReconciler) drainComponents(ctx context.Context, superset *supe
 		if err := r.deleteComponentWorkload(ctx, superset, desc.componentType, deleteService); err != nil {
 			return false, fmt.Errorf("draining %s: %w", desc.componentType, err)
 		}
-		log.Info("Deleted component resources for drain", "component", desc.componentType)
+		log.V(1).Info("Deleted component resources for drain", "component", desc.componentType)
 	}
 
 	// Verify all component pods are terminated. Pods are the last resource in
@@ -188,7 +190,7 @@ func (r *SupersetReconciler) drainComponents(ctx context.Context, superset *supe
 		return false, nil
 	}
 
-	log.Info("All components drained")
+	log.V(1).Info("All components drained")
 	return true, nil
 }
 

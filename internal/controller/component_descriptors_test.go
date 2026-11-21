@@ -106,20 +106,21 @@ func TestComponentResourceConfig(t *testing.T) {
 	t.Run("known components return their config", func(t *testing.T) {
 		cases := []struct {
 			ct          common.ComponentType
+			wantName    string
 			defaultPort int32
 			hasScaling  bool
 		}{
-			{common.ComponentWebServer, 0, true},
-			{common.ComponentCeleryWorker, 0, true},
-			{common.ComponentCeleryBeat, 0, false},
-			{common.ComponentCeleryFlower, common.PortCeleryFlower, true},
-			{common.ComponentWebsocketServer, common.PortWebsocket, true},
-			{common.ComponentMcpServer, common.PortMcpServer, true},
+			{common.ComponentWebServer, "web-server", 0, true},
+			{common.ComponentCeleryWorker, "celery-worker", 0, true},
+			{common.ComponentCeleryBeat, "celery-beat", 0, false},
+			{common.ComponentCeleryFlower, "celery-flower", 5555, true},
+			{common.ComponentWebsocketServer, "websocket-server", 8080, true},
+			{common.ComponentMcpServer, "mcp-server", 8088, true},
 		}
 		for _, c := range cases {
 			cfg, ok := componentResourceConfig(c.ct)
 			require.True(t, ok, "expected config for %s", c.ct)
-			assert.Equal(t, string(c.ct), cfg.componentName)
+			assert.Equal(t, c.wantName, cfg.componentName)
 			assert.Equal(t, c.defaultPort, cfg.defaultPort)
 			assert.Equal(t, c.hasScaling, cfg.hasScaling)
 		}
@@ -217,12 +218,12 @@ func TestDeleteComponentResources(t *testing.T) {
 	}
 
 	// A web-server component (hasPythonConfig=true, defaultPort=0 so no Service).
-	wsName := common.ResourceBaseName("test", common.ComponentWebServer)
+	wsName := "test-web-server"
 	deploy := &appsv1.Deployment{
 		Name: wsName, Namespace: "default", OwnerReferences: controllerRefTo(superset),
 		Labels: podOperatorLabels(string(common.ComponentWebServer), "test", "test"),
 	}
-	cm := &corev1.ConfigMap{Name: common.ConfigMapName(wsName), Namespace: "default"}
+	cm := &corev1.ConfigMap{Name: "test-web-server-config", Namespace: "default"}
 	// A user-managed HPA named after the Deployment, without operator labels.
 	userHPA := &autoscalingv2.HorizontalPodAutoscaler{Name: wsName, Namespace: "default"}
 
@@ -242,7 +243,7 @@ func TestDeleteComponentResources(t *testing.T) {
 
 	// ConfigMap should be gone (hasPythonConfig).
 	gotCM := &corev1.ConfigMap{}
-	err = c.Get(context.Background(), client.ObjectKey{Name: common.ConfigMapName(wsName), Namespace: "default"}, gotCM)
+	err = c.Get(context.Background(), client.ObjectKey{Name: "test-web-server-config", Namespace: "default"}, gotCM)
 	assert.True(t, errors.IsNotFound(err), "expected ConfigMap deleted, got %v", err)
 
 	err = c.Get(context.Background(), client.ObjectKey{Name: wsName, Namespace: "default"}, &autoscalingv2.HorizontalPodAutoscaler{})
@@ -256,7 +257,7 @@ func TestDeleteComponentResources_OwnedWithoutLabels(t *testing.T) {
 	ctx := context.Background()
 	scheme := testScheme(t)
 	superset := &supersetv1alpha1.Superset{Name: "test", Namespace: "default", UID: "uid-1"}
-	name := common.ResourceBaseName("test", common.ComponentCeleryWorker)
+	name := "test-celery-worker"
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(superset,
 		&appsv1.Deployment{Name: name, Namespace: "default", OwnerReferences: controllerRefTo(superset)},
 		&autoscalingv2.HorizontalPodAutoscaler{Name: name, Namespace: "default", OwnerReferences: controllerRefTo(superset)},

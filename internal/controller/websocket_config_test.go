@@ -97,20 +97,20 @@ func TestInjectWebsocketConfigMap(t *testing.T) {
 
 	if assert.Len(t, op.Volumes, 1) {
 		v := op.Volumes[0]
-		assert.Equal(t, websocketConfigVolume, v.Name)
+		assert.Equal(t, "websocket-config", v.Name)
 		if assert.NotNil(t, v.ConfigMap) {
 			assert.True(t, strings.Contains(v.ConfigMap.Name, "websocket-server"))
 			if assert.Len(t, v.ConfigMap.Items, 1) {
-				assert.Equal(t, websocketConfigKey, v.ConfigMap.Items[0].Key)
-				assert.Equal(t, websocketConfigKey, v.ConfigMap.Items[0].Path)
+				assert.Equal(t, "config.json", v.ConfigMap.Items[0].Key)
+				assert.Equal(t, "config.json", v.ConfigMap.Items[0].Path)
 			}
 		}
 	}
 	if assert.Len(t, op.VolumeMounts, 1) {
 		m := op.VolumeMounts[0]
-		assert.Equal(t, websocketConfigVolume, m.Name)
-		assert.Equal(t, websocketConfigMountPath, m.MountPath)
-		assert.Equal(t, websocketConfigKey, m.SubPath)
+		assert.Equal(t, "websocket-config", m.Name)
+		assert.Equal(t, "/home/superset-websocket/config.json", m.MountPath)
+		assert.Equal(t, "config.json", m.SubPath)
 		assert.True(t, m.ReadOnly)
 	}
 }
@@ -126,17 +126,17 @@ func TestInjectWebsocketConfigSecret(t *testing.T) {
 
 	if assert.Len(t, op.Volumes, 1) {
 		v := op.Volumes[0]
-		assert.Equal(t, websocketConfigVolume, v.Name)
+		assert.Equal(t, "websocket-config", v.Name)
 		if assert.NotNil(t, v.Secret) {
 			assert.Equal(t, "ws-secret", v.Secret.SecretName)
 			assert.Equal(t, new(true), v.Secret.Optional)
 			if assert.Len(t, v.Secret.Items, 1) {
 				assert.Equal(t, "config", v.Secret.Items[0].Key)
-				assert.Equal(t, websocketConfigKey, v.Secret.Items[0].Path)
+				assert.Equal(t, "config.json", v.Secret.Items[0].Path)
 			}
 		}
 	}
 	if assert.Len(t, op.VolumeMounts, 1) {
-		assert.Equal(t, websocketConfigMountPath, op.VolumeMounts[0].MountPath)
+		assert.Equal(t, "/home/superset-websocket/config.json", op.VolumeMounts[0].MountPath)
 	}
 }

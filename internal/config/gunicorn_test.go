@@ -76,6 +76,29 @@ func TestResolveGunicorn_FieldOverrides(t *testing.T) {
 	assert.Equal(t, int32(120), g.Timeout)
 }
 
+func TestResolveGunicorn_NonGthreadWorkerClass(t *testing.T) {
+	t.Run("preset threads drop to 1", func(t *testing.T) {
+		g := ResolveGunicorn(&v1alpha1.GunicornSpec{
+			Preset:      new(v1alpha1.PresetPerformance),
+			WorkerClass: new("sync"),
+		})
+		assert.Equal(t, "sync", g.WorkerClass)
+		assert.Equal(t, int32(4), g.Workers)
+		assert.Equal(t, int32(1), g.Threads)
+	})
+	t.Run("explicit threads kept", func(t *testing.T) {
+		g := ResolveGunicorn(&v1alpha1.GunicornSpec{
+			WorkerClass: new("gevent"),
+			Threads:     new(int32(1)),
+		})
+		assert.Equal(t, int32(1), g.Threads)
+	})
+	t.Run("gthread keeps preset threads", func(t *testing.T) {
+		g := ResolveGunicorn(&v1alpha1.GunicornSpec{WorkerClass: new("gthread")})
+		assert.Equal(t, int32(8), g.Threads)
+	})
+}
+
 func TestResolveGunicorn_AllFieldOverrides(t *testing.T) {
 	// Every overridable field set to a non-default value, on top of a preset
 	// whose worker/thread defaults must be replaced by the explicit values.
@@ -115,9 +138,9 @@ func TestResolveGunicorn_EnvVars(t *testing.T) {
 	for _, e := range envs {
 		envMap[e.Name] = e.Value
 	}
-	assert.Equal(t, "2", envMap[EnvServerWorkerAmount])
-	assert.Equal(t, "8", envMap[EnvServerThreadsAmount])
-	assert.Equal(t, "gthread", envMap[EnvServerWorkerClass])
-	assert.Equal(t, "60", envMap[EnvGunicornTimeout])
-	assert.Equal(t, "info", envMap[EnvGunicornLogLevel])
+	assert.Equal(t, "2", envMap["SERVER_WORKER_AMOUNT"])
+	assert.Equal(t, "8", envMap["SERVER_THREADS_AMOUNT"])
+	assert.Equal(t, "gthread", envMap["SERVER_WORKER_CLASS"])
+	assert.Equal(t, "60", envMap["GUNICORN_TIMEOUT"])
+	assert.Equal(t, "info", envMap["GUNICORN_LOGLEVEL"])
 }

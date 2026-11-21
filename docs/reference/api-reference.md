@@ -165,7 +165,7 @@ _Appears in:_
 
 
 CeleryWorkerProcessSpec configures Celery worker execution parameters.
-Fields controlled by presets: concurrency, pool.
+Fields controlled by presets: concurrency.
 All other fields have static defaults independent of preset.
 
 
@@ -175,7 +175,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `preset` _[Preset](#preset)_ | Preset controlling concurrency and pool defaults. Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
+| `preset` _[Preset](#preset)_ | Preset controlling the concurrency default. Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
 | `concurrency` _integer_ | Number of concurrent task workers (maps to celery -c flag). |  | Minimum: 1 <br />Optional: \{\} <br /> |
 | `pool` _string_ | Celery pool implementation (e.g. prefork, threads, gevent), passed to celery worker --pool as-is. Defaults to prefork. |  | Optional: \{\} <br /> |
 | `optimization` _string_ | Task distribution optimization strategy (e.g. fair, default), passed to celery worker -O as-is. Defaults to fair. |  | Optional: \{\} <br /> |
@@ -396,7 +396,6 @@ _Validation:_
 
 _Appears in:_
 - [MetastoreSpec](#metastorespec)
-- [SeedSourceSpec](#seedsourcespec)
 
 | Field | Description |
 | --- | --- |
@@ -478,7 +477,8 @@ _Appears in:_
 
 
 GunicornSpec configures Gunicorn worker parameters for the web server.
-Fields controlled by presets: workers, threads, workerClass.
+Fields controlled by presets: workers, threads. When workerClass is set to
+anything other than gthread, threads defaults to 1 instead of the preset value.
 All other fields have static defaults independent of preset.
 
 
@@ -488,7 +488,7 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `preset` _[Preset](#preset)_ | Preset controlling workers, threads, and workerClass defaults. Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
+| `preset` _[Preset](#preset)_ | Preset controlling workers and threads defaults. Individual fields override preset-computed values. |  | Enum: [disabled conservative balanced performance aggressive] <br />Optional: \{\} <br /> |
 | `workers` _integer_ | Number of Gunicorn worker processes. |  | Minimum: 1 <br />Optional: \{\} <br /> |
 | `threads` _integer_ | Number of threads per worker (only effective with gthread worker class). |  | Minimum: 1 <br />Optional: \{\} <br /> |
 | `workerClass` _string_ | Gunicorn worker class (e.g. gthread, sync, gevent), passed to Gunicorn as-is. Defaults to gthread. |  | Optional: \{\} <br /> |
@@ -1149,7 +1149,8 @@ _Appears in:_
 
 
 
-SeedSourceSpec defines the source database connection for seeding.
+SeedSourceSpec defines the source database connection for seeding. The
+source uses the same database type as the target (metastore.type).
 
 
 
@@ -1158,10 +1159,9 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `type` _[DatabaseType](#databasetype)_ | Database type: PostgreSQL (default) or MySQL. | PostgreSQL | Enum: [PostgreSQL MySQL] <br />Optional: \{\} <br /> |
 | `host` _string_ | Source database hostname. Mutually exclusive with hostFrom. |  | MinLength: 1 <br />Optional: \{\} <br /> |
 | `hostFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the source database hostname. Mutually exclusive with host. |  | Optional: \{\} <br /> |
-| `port` _integer_ | Source database port. Defaults to 5432 (postgresql) or 3306 (mysql). |  | Optional: \{\} <br /> |
+| `port` _integer_ | Source database port. Defaults to 5432 (PostgreSQL) or 3306 (MySQL) based on metastore.type. |  | Optional: \{\} <br /> |
 | `portFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the source database port as a decimal string. Mutually exclusive with port. |  | Optional: \{\} <br /> |
 | `database` _string_ | Database name on the source server. Mutually exclusive with databaseFrom. |  | MinLength: 1 <br />Optional: \{\} <br /> |
 | `databaseFrom` _[SecretKeySelector](https://pkg.go.dev/k8s.io/api/core/v1#SecretKeySelector)_ | Reference to a Secret key containing the source database name. Mutually exclusive with database. |  | Optional: \{\} <br /> |
@@ -1199,7 +1199,7 @@ _Appears in:_
 | `excludeTables` _string array_ | Tables to exclude entirely from the dump (schema and data). |  | Optional: \{\} <br /> |
 | `excludeTableData` _string array_ | Tables where schema is dumped but data is not. Useful for large tables needed by migrations but not for testing (e.g., "logs", "query"). |  | Optional: \{\} <br /> |
 | `postSeedSQL` _string array_ | SQL statements to execute against the target database after seeding. Useful for sanitizing seeded data (e.g., disabling alerts, deleting OAuth tokens, masking PII). |  | Optional: \{\} <br /> |
-| `image` _[ContainerImageSpec](#containerimagespec)_ | Image for the seed Job. Defaults to postgres:17-alpine (PostgreSQL) or mysql:8.4 (MySQL) based on source.type. Partial specs (e.g., only `tag` set) inherit the type-appropriate default for omitted fields. |  | Optional: \{\} <br /> |
+| `image` _[ContainerImageSpec](#containerimagespec)_ | Image for the seed Job. Defaults to postgres:17-alpine (PostgreSQL) or mysql:8.4 (MySQL) based on metastore.type. Partial specs (e.g., only `tag` set) inherit the type-appropriate default for omitted fields. |  | Optional: \{\} <br /> |
 | `podTemplate` _[PodTemplate](#podtemplate)_ | Pod and container template for the seed task Job. |  | Optional: \{\} <br /> |
 | `podRetention` _[PodRetentionSpec](#podretentionspec)_ | Retention policy for completed seed Jobs and their Pods. |  | Optional: \{\} <br /> |
 

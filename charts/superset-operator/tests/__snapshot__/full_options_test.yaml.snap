@@ -6,11 +6,11 @@ renders the full install manifests:
       labels:
         app.kubernetes.io/instance: my-release
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/name: operator-test
         app.kubernetes.io/version: 1.0.0
         control-plane: controller-manager
         helm.sh/chart: superset-operator-1.0.0
-      name: my-release-superset-operator
+      name: superset-operator-test
       namespace: my-namespace
     spec:
       replicas: 2
@@ -18,7 +18,7 @@ renders the full install manifests:
       selector:
         matchLabels:
           app.kubernetes.io/instance: my-release
-          app.kubernetes.io/name: superset-operator
+          app.kubernetes.io/name: operator-test
           control-plane: controller-manager
       template:
         metadata:
@@ -27,7 +27,7 @@ renders the full install manifests:
             prometheus.io/scrape: "false"
           labels:
             app.kubernetes.io/instance: my-release
-            app.kubernetes.io/name: superset-operator
+            app.kubernetes.io/name: operator-test
             control-plane: controller-manager
             team: platform
         spec:
@@ -163,11 +163,11 @@ renders the full install manifests:
       labels:
         app.kubernetes.io/instance: my-release
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/name: operator-test
         app.kubernetes.io/version: 1.0.0
         control-plane: controller-manager
         helm.sh/chart: superset-operator-1.0.0
-      name: my-release-superset-operator-leader-election
+      name: superset-operator-test-leader-election
       namespace: my-namespace
     rules:
       - apiGroups:
@@ -196,16 +196,16 @@ renders the full install manifests:
       labels:
         app.kubernetes.io/instance: my-release
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/name: operator-test
         app.kubernetes.io/version: 1.0.0
         control-plane: controller-manager
         helm.sh/chart: superset-operator-1.0.0
-      name: my-release-superset-operator-leader-election
+      name: superset-operator-test-leader-election
       namespace: my-namespace
     roleRef:
       apiGroup: rbac.authorization.k8s.io
       kind: Role
-      name: my-release-superset-operator-leader-election
+      name: superset-operator-test-leader-election
     subjects:
       - kind: ServiceAccount
         name: superset-operator-custom-sa
@@ -217,11 +217,11 @@ renders the full install manifests:
       labels:
         app.kubernetes.io/instance: my-release
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/name: operator-test
         app.kubernetes.io/version: 1.0.0
         control-plane: controller-manager
         helm.sh/chart: superset-operator-1.0.0
-      name: my-release-superset-operator-metrics-auth
+      name: superset-operator-test-metrics-auth
     rules:
       - apiGroups:
           - authentication.k8s.io
@@ -242,15 +242,15 @@ renders the full install manifests:
       labels:
         app.kubernetes.io/instance: my-release
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/name: operator-test
         app.kubernetes.io/version: 1.0.0
         control-plane: controller-manager
         helm.sh/chart: superset-operator-1.0.0
-      name: my-release-superset-operator-metrics-auth
+      name: superset-operator-test-metrics-auth
     roleRef:
       apiGroup: rbac.authorization.k8s.io
       kind: ClusterRole
-      name: my-release-superset-operator-metrics-auth
+      name: superset-operator-test-metrics-auth
     subjects:
       - kind: ServiceAccount
         name: superset-operator-custom-sa
@@ -262,11 +262,11 @@ renders the full install manifests:
       labels:
         app.kubernetes.io/instance: my-release
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/name: operator-test
         app.kubernetes.io/version: 1.0.0
         control-plane: controller-manager
         helm.sh/chart: superset-operator-1.0.0
-      name: my-release-superset-operator-metrics-reader
+      name: superset-operator-test-metrics-reader
     rules:
       - nonResourceURLs:
           - /metrics
@@ -279,11 +279,11 @@ renders the full install manifests:
       labels:
         app.kubernetes.io/instance: my-release
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/name: operator-test
         app.kubernetes.io/version: 1.0.0
         control-plane: controller-manager
         helm.sh/chart: superset-operator-1.0.0
-      name: my-release-superset-operator-metrics
+      name: superset-operator-test-metrics
       namespace: my-namespace
     spec:
       ports:
@@ -293,7 +293,7 @@ renders the full install manifests:
           targetPort: 9443
       selector:
         app.kubernetes.io/instance: my-release
-        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/name: operator-test
         control-plane: controller-manager
   10: |
     apiVersion: monitoring.coreos.com/v1
@@ -302,12 +302,12 @@ renders the full install manifests:
       labels:
         app.kubernetes.io/instance: my-release
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/name: operator-test
         app.kubernetes.io/version: 1.0.0
         control-plane: controller-manager
         helm.sh/chart: superset-operator-1.0.0
         release: kube-prometheus-stack
-      name: my-release-superset-operator-metrics
+      name: superset-operator-test-metrics
       namespace: my-namespace
     spec:
       endpoints:
@@ -322,7 +322,7 @@ renders the full install manifests:
       selector:
         matchLabels:
           app.kubernetes.io/instance: my-release
-          app.kubernetes.io/name: superset-operator
+          app.kubernetes.io/name: operator-test
           control-plane: controller-manager
   11: |
     apiVersion: policy/v1
@@ -331,18 +331,18 @@ renders the full install manifests:
       labels:
         app.kubernetes.io/instance: my-release
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/name: operator-test
         app.kubernetes.io/version: 1.0.0
         control-plane: controller-manager
         helm.sh/chart: superset-operator-1.0.0
-      name: my-release-superset-operator
+      name: superset-operator-test
       namespace: my-namespace
     spec:
       minAvailable: 1
       selector:
         matchLabels:
           app.kubernetes.io/instance: my-release
-          app.kubernetes.io/name: superset-operator
+          app.kubernetes.io/name: operator-test
           control-plane: controller-manager
       unhealthyPodEvictionPolicy: AlwaysAllow
   12: |
@@ -352,11 +352,11 @@ renders the full install manifests:
       labels:
         app.kubernetes.io/instance: my-release
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/name: operator-test
         app.kubernetes.io/version: 1.0.0
         control-plane: controller-manager
         helm.sh/chart: superset-operator-1.0.0
-      name: my-release-superset-operator-manager
+      name: superset-operator-test-manager
       namespace: team-a
     rules:
       - apiGroups:
@@ -414,8 +414,6 @@ renders the full install manifests:
           - delete
           - get
           - list
-          - patch
-          - update
           - watch
       - apiGroups:
           - events.k8s.io
@@ -504,11 +502,11 @@ renders the full install manifests:
       labels:
         app.kubernetes.io/instance: my-release
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/name: operator-test
         app.kubernetes.io/version: 1.0.0
         control-plane: controller-manager
         helm.sh/chart: superset-operator-1.0.0
-      name: my-release-superset-operator-manager
+      name: superset-operator-test-manager
       namespace: team-b
     rules:
       - apiGroups:
@@ -566,8 +564,6 @@ renders the full install manifests:
           - delete
           - get
           - list
-          - patch
-          - update
           - watch
       - apiGroups:
           - events.k8s.io
@@ -656,16 +652,16 @@ renders the full install manifests:
       labels:
         app.kubernetes.io/instance: my-release
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/name: operator-test
         app.kubernetes.io/version: 1.0.0
         control-plane: controller-manager
         helm.sh/chart: superset-operator-1.0.0
-      name: my-release-superset-operator-manager
+      name: superset-operator-test-manager
       namespace: team-a
     roleRef:
       apiGroup: rbac.authorization.k8s.io
       kind: Role
-      name: my-release-superset-operator-manager
+      name: superset-operator-test-manager
     subjects:
       - kind: ServiceAccount
         name: superset-operator-custom-sa
@@ -677,16 +673,16 @@ renders the full install manifests:
       labels:
         app.kubernetes.io/instance: my-release
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/name: operator-test
         app.kubernetes.io/version: 1.0.0
         control-plane: controller-manager
         helm.sh/chart: superset-operator-1.0.0
-      name: my-release-superset-operator-manager
+      name: superset-operator-test-manager
       namespace: team-b
     roleRef:
       apiGroup: rbac.authorization.k8s.io
       kind: Role
-      name: my-release-superset-operator-manager
+      name: superset-operator-test-manager
     subjects:
       - kind: ServiceAccount
         name: superset-operator-custom-sa
@@ -700,7 +696,7 @@ renders the full install manifests:
       labels:
         app.kubernetes.io/instance: my-release
         app.kubernetes.io/managed-by: Helm
-        app.kubernetes.io/name: superset-operator
+        app.kubernetes.io/name: operator-test
         app.kubernetes.io/version: 1.0.0
         control-plane: controller-manager
         helm.sh/chart: superset-operator-1.0.0

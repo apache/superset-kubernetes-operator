@@ -23598,12 +23598,6 @@ spec:
                             - key
                             type: object
                             x-kubernetes-map-type: atomic
-                          type:
-                            default: PostgreSQL
-                            enum:
-                            - PostgreSQL
-                            - MySQL
-                            type: string
                           username:
                             minLength: 1
                             type: string

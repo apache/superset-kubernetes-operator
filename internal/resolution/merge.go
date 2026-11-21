@@ -20,6 +20,7 @@ package resolution
 
 import (
 	"maps"
+	"slices"
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
@@ -93,10 +94,10 @@ func MergeMaps(inputs ...map[string]string) map[string]string {
 // mergeByKey merges multiple slices, deduplicating by the key returned by key.
 // Later entries with the same key replace earlier entries in place to preserve
 // ordering.
-func mergeByKey[T any](key func(T) string, slices ...[]T) []T {
+func mergeByKey[T any](key func(T) string, lists ...[]T) []T {
 	seen := make(map[string]int) // key -> index in result
 	var result []T
-	for _, slice := range slices {
+	for _, slice := range lists {
 		for _, item := range slice {
 			if idx, exists := seen[key(item)]; exists {
 				result[idx] = item
@@ -111,26 +112,26 @@ func mergeByKey[T any](key func(T) string, slices ...[]T) []T {
 
 // MergeEnvVars merges multiple env var slices. Later entries with the same Name
 // replace earlier entries in place to preserve ordering.
-func MergeEnvVars(slices ...[]corev1.EnvVar) []corev1.EnvVar {
-	return mergeByKey(func(e corev1.EnvVar) string { return e.Name }, slices...)
+func MergeEnvVars(lists ...[]corev1.EnvVar) []corev1.EnvVar {
+	return mergeByKey(func(e corev1.EnvVar) string { return e.Name }, lists...)
 }
 
 // MergeVolumes merges multiple volume slices. Later entries with the same Name
 // replace earlier entries in place to preserve ordering.
-func MergeVolumes(slices ...[]corev1.Volume) []corev1.Volume {
-	return mergeByKey(func(v corev1.Volume) string { return v.Name }, slices...)
+func MergeVolumes(lists ...[]corev1.Volume) []corev1.Volume {
+	return mergeByKey(func(v corev1.Volume) string { return v.Name }, lists...)
 }
 
 // MergeVolumeMounts merges multiple volume mount slices. Later entries with the
 // same Name replace earlier entries in place to preserve ordering.
-func MergeVolumeMounts(slices ...[]corev1.VolumeMount) []corev1.VolumeMount {
-	return mergeByKey(func(m corev1.VolumeMount) string { return m.Name }, slices...)
+func MergeVolumeMounts(lists ...[]corev1.VolumeMount) []corev1.VolumeMount {
+	return mergeByKey(func(m corev1.VolumeMount) string { return m.Name }, lists...)
 }
 
 // MergeHostAliases merges multiple host alias slices. Later entries with the
 // same IP replace earlier entries in place to preserve ordering.
-func MergeHostAliases(slices ...[]corev1.HostAlias) []corev1.HostAlias {
-	return mergeByKey(func(a corev1.HostAlias) string { return a.IP }, slices...)
+func MergeHostAliases(lists ...[]corev1.HostAlias) []corev1.HostAlias {
+	return mergeByKey(func(a corev1.HostAlias) string { return a.IP }, lists...)
 }
 
 // MergeEnvFromSources concatenates multiple EnvFromSource slices.
@@ -139,9 +140,9 @@ func MergeHostAliases(slices ...[]corev1.HostAlias) []corev1.HostAlias {
 // can reference either a ConfigMap or a Secret, each with an optional Prefix,
 // and the same source may be intentionally included multiple times with
 // different prefixes.
-func MergeEnvFromSources(slices ...[]corev1.EnvFromSource) []corev1.EnvFromSource {
+func MergeEnvFromSources(lists ...[]corev1.EnvFromSource) []corev1.EnvFromSource {
 	var result []corev1.EnvFromSource
-	for _, slice := range slices {
+	for _, slice := range lists {
 		result = append(result, slice...)
 	}
 	return result
@@ -149,8 +150,8 @@ func MergeEnvFromSources(slices ...[]corev1.EnvFromSource) []corev1.EnvFromSourc
 
 // MergeContainers concatenates multiple container slices (for sidecars/initContainers).
 // Later entries with the same Name replace earlier entries.
-func MergeContainers(slices ...[]corev1.Container) []corev1.Container {
-	return mergeByKey(func(c corev1.Container) string { return c.Name }, slices...)
+func MergeContainers(lists ...[]corev1.Container) []corev1.Container {
+	return mergeByKey(func(c corev1.Container) string { return c.Name }, lists...)
 }
 
 // MergeDeploymentTemplate field-level merges two DeploymentTemplates.
@@ -198,8 +199,8 @@ func MergePodTemplate(comp, tl *supersetv1alpha1.PodTemplate, operatorLabels map
 		Sidecars:                      MergeContainers(t.Sidecars, c.Sidecars),
 		InitContainers:                MergeContainers(t.InitContainers, c.InitContainers, op.InitContainers),
 		HostAliases:                   MergeHostAliases(t.HostAliases, c.HostAliases),
-		Tolerations:                   append(t.Tolerations, c.Tolerations...),
-		TopologySpreadConstraints:     append(t.TopologySpreadConstraints, c.TopologySpreadConstraints...),
+		Tolerations:                   slices.Concat(t.Tolerations, c.Tolerations),
+		TopologySpreadConstraints:     slices.Concat(t.TopologySpreadConstraints, c.TopologySpreadConstraints),
 		Container:                     MergeContainerTemplate(c.Container, t.Container, op),
 	}
 }

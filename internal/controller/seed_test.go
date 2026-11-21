@@ -20,6 +20,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -31,7 +32,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
-	"github.com/apache/superset-kubernetes-operator/internal/common"
 	"github.com/apache/superset-kubernetes-operator/internal/resolution"
 )
 
@@ -99,10 +99,8 @@ func TestBuildSeedScript(t *testing.T) {
 	})
 
 	t.Run("mysql base", func(t *testing.T) {
-		mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 		seed := &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
-				Type:     &mysqlType,
 				Host:     "mysql-prod.svc",
 				Database: "superset_prod",
 				Username: "reader",
@@ -160,10 +158,8 @@ func TestBuildSeedScript(t *testing.T) {
 	})
 
 	t.Run("mysql exclude tables", func(t *testing.T) {
-		mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 		seed := &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
-				Type:     &mysqlType,
 				Host:     "mysql-prod.svc",
 				Database: "superset_prod",
 				Username: "reader",
@@ -182,10 +178,8 @@ func TestBuildSeedScript(t *testing.T) {
 	})
 
 	t.Run("mysql exclude table data", func(t *testing.T) {
-		mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 		seed := &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
-				Type:     &mysqlType,
 				Host:     "mysql-prod.svc",
 				Database: "superset_prod",
 				Username: "reader",
@@ -222,10 +216,8 @@ func TestBuildSeedScript(t *testing.T) {
 	})
 
 	t.Run("mysql no exclude table data keeps single pass", func(t *testing.T) {
-		mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 		seed := &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
-				Type:     &mysqlType,
 				Host:     "mysql-prod.svc",
 				Database: "superset_prod",
 				Username: "reader",
@@ -265,10 +257,9 @@ func TestBuildSeedScript(t *testing.T) {
 		})
 
 		t.Run("mysql", func(t *testing.T) {
-			mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 			seed := &supersetv1alpha1.SeedTaskSpec{
 				Source: supersetv1alpha1.SeedSourceSpec{
-					Type: &mysqlType, Host: "mysql-prod.svc", Database: "superset_prod", Username: "reader",
+					Host: "mysql-prod.svc", Database: "superset_prod", Username: "reader",
 				},
 				PostSeedSQL: []string{"UPDATE report_schedule SET active = 0"},
 			}
@@ -282,7 +273,6 @@ func TestBuildSeedScript(t *testing.T) {
 	})
 
 	t.Run("shell metacharacters in table/SQL fields are inert", func(t *testing.T) {
-		mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 		// $(...) command substitution and backticks would execute inside a
 		// double-quoted shell context; single-quoting via shellQuote neutralizes
 		// them while passing the value verbatim to the dump/restore tools.
@@ -294,7 +284,7 @@ func TestBuildSeedScript(t *testing.T) {
 				PostSeedSQL:   []string{p},
 			})
 			my := buildMySQLSeedScript(&supersetv1alpha1.SeedTaskSpec{
-				Source:        supersetv1alpha1.SeedSourceSpec{Type: &mysqlType, Host: "h", Database: "d", Username: "u"},
+				Source:        supersetv1alpha1.SeedSourceSpec{Host: "h", Database: "d", Username: "u"},
 				ExcludeTables: []string{p},
 				PostSeedSQL:   []string{p},
 			})
@@ -378,10 +368,10 @@ func TestBuildSeedCommand(t *testing.T) {
 		r := &SupersetReconciler{}
 		mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 		superset := &supersetv1alpha1.Superset{}
+		superset.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{Type: &mysqlType}
 		superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{
 			Seed: &supersetv1alpha1.SeedTaskSpec{
 				Source: supersetv1alpha1.SeedSourceSpec{
-					Type:     &mysqlType,
 					Host:     "mysql-prod.svc",
 					Database: "superset_prod",
 					Username: "reader",
@@ -485,7 +475,7 @@ func TestReconcileLifecycleTask_SeedIgnoresBootstrapScript(t *testing.T) {
 	}
 
 	cm := &corev1.ConfigMap{}
-	err := c.Get(ctx, types.NamespacedName{Name: common.ConfigMapName("test-seed"), Namespace: "default"}, cm)
+	err := c.Get(ctx, types.NamespacedName{Name: "test-seed-config", Namespace: "default"}, cm)
 	if !apierrors.IsNotFound(err) {
 		t.Fatalf("expected seed task to skip bootstrap ConfigMap, got %v", err)
 	}
@@ -526,26 +516,26 @@ func TestCollectSeedEnvVars(t *testing.T) {
 		envMap[e.Name] = e.Value
 	}
 
-	if envMap[common.EnvSeedSrcHost] != "pg-prod.svc" {
-		t.Errorf("expected source host pg-prod.svc, got: %s", envMap[common.EnvSeedSrcHost])
+	if envMap["SUPERSET_OPERATOR__SEED_SRC_HOST"] != "pg-prod.svc" {
+		t.Errorf("expected source host pg-prod.svc, got: %s", envMap["SUPERSET_OPERATOR__SEED_SRC_HOST"])
 	}
-	if envMap[common.EnvSeedSrcPort] != "5433" {
-		t.Errorf("expected source port 5433, got: %s", envMap[common.EnvSeedSrcPort])
+	if envMap["SUPERSET_OPERATOR__SEED_SRC_PORT"] != "5433" {
+		t.Errorf("expected source port 5433, got: %s", envMap["SUPERSET_OPERATOR__SEED_SRC_PORT"])
 	}
-	if envMap[common.EnvSeedSrcDB] != "superset_prod" {
-		t.Errorf("expected source db superset_prod, got: %s", envMap[common.EnvSeedSrcDB])
+	if envMap["SUPERSET_OPERATOR__SEED_SRC_DB"] != "superset_prod" {
+		t.Errorf("expected source db superset_prod, got: %s", envMap["SUPERSET_OPERATOR__SEED_SRC_DB"])
 	}
-	if envMap[common.EnvSeedSrcUser] != "reader" {
-		t.Errorf("expected source user reader, got: %s", envMap[common.EnvSeedSrcUser])
+	if envMap["SUPERSET_OPERATOR__SEED_SRC_USER"] != "reader" {
+		t.Errorf("expected source user reader, got: %s", envMap["SUPERSET_OPERATOR__SEED_SRC_USER"])
 	}
-	if envMap[common.EnvSeedSrcPass] != "secret123" {
-		t.Errorf("expected source pass secret123, got: %s", envMap[common.EnvSeedSrcPass])
+	if envMap["SUPERSET_OPERATOR__SEED_SRC_PASS"] != "secret123" {
+		t.Errorf("expected source pass secret123, got: %s", envMap["SUPERSET_OPERATOR__SEED_SRC_PASS"])
 	}
-	if envMap[common.EnvDBHost] != "pg-staging.svc" {
-		t.Errorf("expected target host pg-staging.svc, got: %s", envMap[common.EnvDBHost])
+	if envMap["SUPERSET_OPERATOR__DB_HOST"] != "pg-staging.svc" {
+		t.Errorf("expected target host pg-staging.svc, got: %s", envMap["SUPERSET_OPERATOR__DB_HOST"])
 	}
-	if envMap[common.EnvDBName] != "superset_staging" {
-		t.Errorf("expected target db superset_staging, got: %s", envMap[common.EnvDBName])
+	if envMap["SUPERSET_OPERATOR__DB_NAME"] != "superset_staging" {
+		t.Errorf("expected target db superset_staging, got: %s", envMap["SUPERSET_OPERATOR__DB_NAME"])
 	}
 }
 
@@ -577,9 +567,9 @@ func TestCollectSeedEnvVars_SecretRef(t *testing.T) {
 	envs := collectSeedEnvVars(superset)
 
 	wantKeys := map[string]string{
-		common.EnvSeedSrcHost: "host", common.EnvSeedSrcPort: "port", common.EnvSeedSrcDB: "dbname",
-		common.EnvSeedSrcUser: "user", common.EnvSeedSrcPass: "password", common.EnvDBHost: "host",
-		common.EnvDBPort: "port", common.EnvDBName: "dbname", common.EnvDBUser: "user", common.EnvDBPass: "password",
+		"SUPERSET_OPERATOR__SEED_SRC_HOST": "host", "SUPERSET_OPERATOR__SEED_SRC_PORT": "port", "SUPERSET_OPERATOR__SEED_SRC_DB": "dbname",
+		"SUPERSET_OPERATOR__SEED_SRC_USER": "user", "SUPERSET_OPERATOR__SEED_SRC_PASS": "password", "SUPERSET_OPERATOR__DB_HOST": "host",
+		"SUPERSET_OPERATOR__DB_PORT": "port", "SUPERSET_OPERATOR__DB_NAME": "dbname", "SUPERSET_OPERATOR__DB_USER": "user", "SUPERSET_OPERATOR__DB_PASS": "password",
 	}
 	for _, e := range envs {
 		wantKey, ok := wantKeys[e.Name]
@@ -609,7 +599,7 @@ func TestResolveSeedImage(t *testing.T) {
 			},
 		}
 
-		img := resolveSeedImage(seed)
+		img := resolveSeedImage(seed, nil)
 
 		if img.Repository != "postgres" || img.Tag != "17-alpine" {
 			t.Errorf("expected postgres:17-alpine, got: %s:%s", img.Repository, img.Tag)
@@ -620,14 +610,13 @@ func TestResolveSeedImage(t *testing.T) {
 		mysqlType := supersetv1alpha1.DatabaseTypeMySQL
 		seed := &supersetv1alpha1.SeedTaskSpec{
 			Source: supersetv1alpha1.SeedSourceSpec{
-				Type:     &mysqlType,
 				Host:     "mysql-prod.svc",
 				Database: "superset_prod",
 				Username: "reader",
 			},
 		}
 
-		img := resolveSeedImage(seed)
+		img := resolveSeedImage(seed, &mysqlType)
 
 		if img.Repository != "mysql" || img.Tag != "8.4" {
 			t.Errorf("expected mysql:8.4, got: %s:%s", img.Repository, img.Tag)
@@ -647,7 +636,7 @@ func TestResolveSeedImage(t *testing.T) {
 			},
 		}
 
-		img := resolveSeedImage(seed)
+		img := resolveSeedImage(seed, nil)
 
 		if img.Repository != "my-registry/custom-tools" || img.Tag != "v2" {
 			t.Errorf("expected my-registry/custom-tools:v2, got: %s:%s", img.Repository, img.Tag)
@@ -696,11 +685,10 @@ func TestResolveSeedImage(t *testing.T) {
 						Host:     "src.svc",
 						Database: "src",
 						Username: "reader",
-						Type:     &srcType,
 					},
 					Image: tt.image,
 				}
-				img := resolveSeedImage(seed)
+				img := resolveSeedImage(seed, &srcType)
 				if img.Repository != tt.expectedRepo || img.Tag != tt.expectedTag {
 					t.Errorf("expected %s:%s, got %s:%s", tt.expectedRepo, tt.expectedTag, img.Repository, img.Tag)
 				}
@@ -1527,7 +1515,7 @@ func TestCollectSecretEnvVars_PreviousSecretKey(t *testing.T) {
 		envs := collectSecretEnvVars(spec, "test")
 		found := false
 		for _, e := range envs {
-			if e.Name == common.EnvPreviousSecretKey {
+			if e.Name == "SUPERSET_OPERATOR__PREVIOUS_SECRET_KEY" {
 				found = true
 				if e.Value != "old-key" {
 					t.Errorf("expected plaintext value 'old-key', got %q", e.Value)
@@ -1551,7 +1539,7 @@ func TestCollectSecretEnvVars_PreviousSecretKey(t *testing.T) {
 		envs := collectSecretEnvVars(spec, "test")
 		found := false
 		for _, e := range envs {
-			if e.Name == common.EnvPreviousSecretKey {
+			if e.Name == "SUPERSET_OPERATOR__PREVIOUS_SECRET_KEY" {
 				found = true
 				if e.ValueFrom == nil || e.ValueFrom.SecretKeyRef == nil {
 					t.Fatal("expected secretKeyRef")
@@ -1572,7 +1560,7 @@ func TestCollectSecretEnvVars_PreviousSecretKey(t *testing.T) {
 		}
 		envs := collectSecretEnvVars(spec, "test")
 		for _, e := range envs {
-			if e.Name == common.EnvPreviousSecretKey {
+			if e.Name == "SUPERSET_OPERATOR__PREVIOUS_SECRET_KEY" {
 				t.Error("should not have SUPERSET_OPERATOR__PREVIOUS_SECRET_KEY when not configured")
 			}
 		}
@@ -1611,7 +1599,7 @@ func TestDefaultLifecycleCommandsSourceBootstrap(t *testing.T) {
 		"rotate":  defaultRotateCommand(superset),
 		"init":    defaultInitCommand(superset),
 	} {
-		if len(cmd) < 3 || cmd[0] != "/bin/sh" || cmd[1] != "-c" || !strings.Contains(cmd[2], bootstrapScriptKey) {
+		if len(cmd) < 3 || cmd[0] != "/bin/sh" || cmd[1] != "-c" || !strings.Contains(cmd[2], "superset_bootstrap.sh") {
 			t.Errorf("%s command should source bootstrap script, got %v", name, cmd)
 		}
 	}
@@ -1799,10 +1787,10 @@ func TestCollectSeedEnvVars_ProductionDropsInlinePasswords(t *testing.T) {
 	}
 
 	for _, e := range collectSeedEnvVars(superset) {
-		if e.Name == common.EnvSeedSrcPass && e.Value != "" {
+		if e.Name == "SUPERSET_OPERATOR__SEED_SRC_PASS" && e.Value != "" {
 			t.Errorf("inline seed source password must be dropped outside Development, got %q", e.Value)
 		}
-		if e.Name == common.EnvDBPass && e.Value != "" {
+		if e.Name == "SUPERSET_OPERATOR__DB_PASS" && e.Value != "" {
 			t.Errorf("inline seed target password must be dropped outside Development, got %q", e.Value)
 		}
 	}
@@ -1859,4 +1847,51 @@ func TestGateOnSeedEnvironment(t *testing.T) {
 			t.Fatal("expected no block when seed disabled")
 		}
 	})
+}
+
+// The seed source always uses the metastore's database type, so a MySQL
+// metastore gets the MySQL dump/restore command, port default and image.
+func TestSeed_UsesMetastoreDatabaseType(t *testing.T) {
+	r := &SupersetReconciler{}
+	mysqlType := supersetv1alpha1.DatabaseTypeMySQL
+	superset := &supersetv1alpha1.Superset{}
+	superset.Spec.Metastore = &supersetv1alpha1.MetastoreSpec{
+		Type: &mysqlType, Host: new("mysql.svc"), Database: new("superset"), Username: new("superset"),
+	}
+	superset.Spec.Lifecycle = &supersetv1alpha1.LifecycleSpec{Seed: &supersetv1alpha1.SeedTaskSpec{
+		Source: supersetv1alpha1.SeedSourceSpec{Host: "mysql-prod.svc", Database: "superset_prod", Username: "reader"},
+	}}
+
+	if cmd := r.buildSeedCommand(superset); len(cmd) != 3 || !strings.Contains(cmd[2], "mysqldump") {
+		t.Errorf("expected a mysqldump seed command, got %v", cmd)
+	}
+	port := ""
+	for _, e := range collectSeedEnvVars(superset) {
+		if e.Name == "SUPERSET_OPERATOR__SEED_SRC_PORT" {
+			port = e.Value
+		}
+	}
+	if port != "3306" {
+		t.Errorf("expected default source port 3306, got %q", port)
+	}
+	if img := resolveSeedImage(superset.Spec.Lifecycle.Seed, seedDatabaseType(&superset.Spec)); img.Repository != "mysql" || img.Tag != "8.4" {
+		t.Errorf("expected mysql:8.4, got %s:%s", img.Repository, img.Tag)
+	}
+}
+
+// The seed checksum must keep the source's JSON shape from when it had its own
+// (always-defaulted) type field; otherwise upgrading the operator would change
+// the checksum and re-run the destructive seed.
+func TestSeedSourceChecksumInput_PreservesLegacyShape(t *testing.T) {
+	mysqlType := supersetv1alpha1.DatabaseTypeMySQL
+	got, err := json.Marshal(seedSourceChecksumInput{
+		Type: &mysqlType, Host: "src", Database: "superset", Username: "reader",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"type":"MySQL","host":"src","database":"superset","username":"reader"}`
+	if string(got) != want {
+		t.Errorf("checksum input JSON =\n  %s\nwant\n  %s", got, want)
+	}
 }

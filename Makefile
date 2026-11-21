@@ -219,7 +219,7 @@ codegen: manifests generate helm-sync-crds helm-docs docs-api supported-versions
 .PHONY: clean
 clean: ## Remove build artifacts, downloaded tools, and test cache.
 	chmod -R u+w $(LOCALBIN) 2>/dev/null || true
-	rm -rf $(LOCALBIN) dist cover.out Dockerfile.cross
+	rm -rf $(LOCALBIN) dist cover.out cover_ut.out Dockerfile.cross
 	go clean -cache -testcache
 
 .PHONY: manifests
@@ -252,8 +252,7 @@ test-integration: manifests generate fmt vet setup-envtest ## Run integration te
 # Fuzz targets live in *_fuzz_test.go beside the code they exercise. `go test
 # -fuzz` runs a single target per invocation, so we loop over them. FUZZTIME
 # bounds each target (override for longer scheduled runs, e.g. FUZZTIME=5m).
-# Seed corpora and any committed testdata/fuzz crashers also replay during the
-# normal `make test-unit` run.
+# The f.Add(...) seed corpora also replay during the normal `make test-unit` run.
 .PHONY: fuzz
 fuzz: ## Run all fuzz targets for a bounded duration (FUZZTIME per target, default 30s).
 	@FUZZTIME=$${FUZZTIME:-30s}; \

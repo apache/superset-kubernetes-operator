@@ -651,13 +651,14 @@ Use `SUPERSET_OPERATOR__INSTANCE_NAME` whenever you need the parent CR name insi
 
 The operator manages Gunicorn worker parameters for the web server by injecting environment variables that Superset's `run-server.sh` reads. By default, even without an explicit `gunicorn` field, the operator injects balanced defaults (2 workers, 8 threads, gthread worker class).
 
-Presets control **workers**, **threads**, and **workerClass**. All other fields have static defaults that you can override individually.
+Presets control **workers** and **threads**. All other fields, including `workerClass` (gthread), have static defaults that you can override individually.
 
 | Field | conservative | balanced (default) | performance | aggressive |
 |---|---|---|---|---|
 | workers | 1 | 2 | 4 | 8 |
 | threads | 4 | 8 | 8 | 16 |
-| workerClass | gthread | gthread | gthread | gthread |
+
+Gunicorn runs any worker class as gthread when threads is greater than 1. So when you set `workerClass` to something other than `gthread` and leave `threads` unset, the operator uses 1 thread instead of the preset value.
 
 Set `preset: disabled` to suppress the operator's Gunicorn tuning env vars — Superset's `run-server.sh` built-in defaults will apply for those settings. This does not disable Gunicorn log-level configuration. The resolved value from `spec.logLevel` or `webServer.logLevel` is still passed to Gunicorn.
 
@@ -675,12 +676,11 @@ The full set of configurable fields (static defaults in parentheses): `timeout` 
 
 ## Celery Worker Configuration
 
-The operator constructs the celery worker command from structured fields instead of the hardcoded default. Presets control **concurrency** and **pool** type:
+The operator constructs the celery worker command from structured fields instead of the hardcoded default. Presets control **concurrency**; `pool` defaults to prefork for every preset:
 
 | Field | conservative | balanced (default) | performance | aggressive |
 |---|---|---|---|---|
 | concurrency | 2 | 4 | 8 | 16 |
-| pool | prefork | prefork | prefork | prefork |
 
 Set `preset: disabled` to use the operator's built-in fallback command (`--pool=prefork -O fair -c 4`).
 
@@ -710,7 +710,7 @@ Presets control **poolClass**, **poolSize**, and **maxOverflow**:
 | performance | QueuePool | workers (web), concurrency (celery), 1 (flower), 10 (MCP) | -1 |
 | aggressive | QueuePool | workers × threads (web), concurrency (celery), 1 (flower), 20 (MCP) | -1 |
 
-CeleryBeat and lifecycle tasks always use NullPool regardless of preset (singleton/short-lived components with minimal DB interaction). CeleryFlower uses standard pool sizing (defaults to 1 for performance/aggressive since it has no worker configuration).
+CeleryBeat and lifecycle tasks use NullPool under every preset except `disabled` (which renders nothing), since they are singleton or short-lived components with minimal DB interaction. CeleryFlower uses standard pool sizing (defaults to 1 for performance/aggressive since it has no worker configuration).
 
 `spec.sqlaEngineOptions` sets the baseline for all Python components. Per-component `sqlaEngineOptions` on `webServer`, `celeryWorker`, `celeryBeat`, `mcpServer`, or `lifecycle` replaces the top-level entirely (override semantics, not merge).
 
@@ -732,7 +732,7 @@ spec:
   celeryBeat: {}                 # always NullPool
 ```
 
-Static defaults (same regardless of preset, overridable per-field): `poolRecycle` (3600), `poolPrePing` (false), `poolTimeout` (omitted — SQLAlchemy default 30s).
+Static defaults for QueuePool presets (overridable per-field): `poolRecycle` (3600), `poolPrePing` (false), `poolTimeout` (omitted, so SQLAlchemy's default applies). Under NullPool (the `conservative` preset, CeleryBeat, and lifecycle tasks) only `poolclass` is rendered, so the pool fields are ignored.
 
 Individual field overrides take precedence over the preset computation:
 
@@ -1018,7 +1018,7 @@ A Superset CR with no components enabled is valid — the operator will run init
 
 Component resources are named `{parentName}-{componentType}`. For example, a parent named `my-superset` creates resources such as `my-superset-web-server`, `my-superset-celery-worker`, and `my-superset-mcp-server`. ConfigMaps add the `-config` suffix, for example `my-superset-web-server-config`. Lifecycle task Jobs use deterministic names based on `{parentName}-{taskName}`, such as `my-superset-migrate`.
 
-The parent name must be a valid DNS label: lowercase alphanumeric and hyphens only (`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`), at most 63 characters. Since sub-resource names append a component suffix, the parent name is further constrained by the longest enabled component's suffix. The longest suffix is `-websocket-server` (17 characters), so parent names must be at most 46 characters when websocket-server is enabled. CRD validation enforces the appropriate limit for each enabled component.
+The parent name must be a valid DNS label: lowercase alphanumeric and hyphens only (`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`), at most 63 characters. Since sub-resource names append a component suffix, the parent name is further constrained by the longest enabled component's suffix. The longest suffix is `-websocket-server` (17 characters), so parent names must be at most 46 characters when websocket-server is enabled. Lifecycle tasks are enabled by default, and their ConfigMaps (`{parentName}-migrate-config`) cap parent names at 48 characters unless `lifecycle.disabled` is `true`. CRD validation enforces the appropriate limit for each enabled component and feature.
 
 ## Deployment Template
 
@@ -1140,6 +1140,8 @@ Per-component `deploymentTemplate` and `podTemplate` are each **field-level merg
 | `minReadySeconds` | Seconds before a pod is considered available |
 | `progressDeadlineSeconds` | Seconds before a rollout is considered failed |
 | `strategy` | Update strategy (RollingUpdate or Recreate) |
+| `labels` | Deployment object labels (merged by key; operator labels cannot be overridden) |
+| `annotations` | Deployment object annotations (merged by key) |
 
 **Pod level** (`podTemplate.*`):
 

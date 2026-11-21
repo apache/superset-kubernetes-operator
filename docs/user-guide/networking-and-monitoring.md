@@ -235,7 +235,7 @@ spec:
 Creates per-component NetworkPolicies that:
 
 - Allow ingress from other pods of the same Superset instance on **any port** (matched by `app.kubernetes.io/name: superset` + `superset.apache.org/parent` labels — multiple Superset instances in the same namespace are isolated from each other). The same-instance rule is intentionally port-unrestricted so internal traffic between components (sidecar metrics scraping, the websocket server fanning out to web pods, etc.) is not silently blocked.
-- Allow ingress on the service port from any source for externally-facing components (web server, websocket server, MCP server, and Celery Flower once it is published — see the Flower note above) — this is necessary because ingress controllers and load balancers typically reside outside the namespace and cannot be matched with a pod selector.
+- Allow ingress on the component's container port from any source for externally-facing components (web server, websocket server, MCP server, and Celery Flower once it is published — see the Flower note above) — this is necessary because ingress controllers and load balancers typically reside outside the namespace and cannot be matched with a pod selector.
 - Allow all egress (for database/cache access)
 - Support custom `extraIngress` and `extraEgress` rules
 

@@ -98,6 +98,13 @@ func ResolveGunicorn(spec *v1alpha1.GunicornSpec) ResolvedGunicorn {
 	setIf(&r.LimitRequestFieldSize, spec.LimitRequestFieldSize)
 	setIf(&r.LogLevel, spec.LogLevel)
 
+	// Gunicorn switches any worker class to gthread when threads > 1, so the
+	// preset's thread count would silently override an explicit non-gthread
+	// workerClass. Only an explicit threads value is honored in that case.
+	if spec.Threads == nil && r.WorkerClass != defaultWorkerClass {
+		r.Threads = 1
+	}
+
 	return r
 }
 

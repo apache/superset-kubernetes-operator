@@ -86,8 +86,8 @@ func TestTaskTerminalFailedForChecksum(t *testing.T) {
 	})
 
 	t.Run("falls back to default max retries when ref MaxRetries is zero", func(t *testing.T) {
-		// defaultMaxRetries is 3; Attempts at the default ceiling is terminal.
-		ref := &supersetv1alpha1.TaskRefStatus{State: supersetv1alpha1.TaskStateFailed, CompletedChecksum: checksum, Attempts: defaultMaxRetries}
+		// The default max retries is 3; Attempts at the default ceiling is terminal.
+		ref := &supersetv1alpha1.TaskRefStatus{State: supersetv1alpha1.TaskStateFailed, CompletedChecksum: checksum, Attempts: 3}
 		assert.True(t, r.taskTerminalFailedForChecksum(supersetWithMigrate(ref), taskTypeMigrate, checksum))
 	})
 }

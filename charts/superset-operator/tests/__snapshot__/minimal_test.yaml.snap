@@ -67,8 +67,6 @@ renders the default install manifests:
           - delete
           - get
           - list
-          - patch
-          - update
           - watch
       - apiGroups:
           - events.k8s.io
@@ -207,7 +205,6 @@ renders the default install manifests:
               command:
                 - /manager
               image: ghcr.io/apache/superset-kubernetes-operator:1.0.0
-              imagePullPolicy: IfNotPresent
               livenessProbe:
                 httpGet:
                   path: /healthz

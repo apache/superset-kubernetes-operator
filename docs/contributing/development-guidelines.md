@@ -128,6 +128,7 @@ We use a **pyramid testing strategy** where the vast majority of logic is covere
 - **Every assertion should protect against a plausible regression.** If you can't name the scenario where removing it would let a bug through, it doesn't belong. Avoid adding narrow standalone tests when the assertion fits naturally in an existing comprehensive test.
 - **When fixing a regression, always add a test that would have caught it.** Regressions that broke silently indicate a gap in test coverage — close the gap as part of the fix.
 - **Use subtests (`t.Run`)** to group related scenarios within a single test function instead of creating separate top-level tests.
+- **Parametrize only what varies.** Every column of a table test should take more than one value across its rows. A value that is the same in every row belongs in the test body as a literal, and a column that always repeats another (for example an expected value identical to the subtest name) should be dropped in favor of the one that remains. If a table would have a single row, write a plain test instead.
 
 ### What goes where
 
@@ -174,7 +175,7 @@ func TestReconcile_MyScenario(t *testing.T) {
         Namespace: "default",
         Spec: supersetv1alpha1.SupersetSpec{
             Image:       supersetv1alpha1.ImageSpec{Repository: "apache/superset", Tag: "6.1.0"},
-            Environment: new(common.EnvironmentDev),
+            Environment: new(supersetv1alpha1.EnvironmentDevelopment),
             SecretKey:   new("test-secret-key"),
             Lifecycle: &supersetv1alpha1.LifecycleSpec{
                 Disabled: new(true),
@@ -279,7 +280,7 @@ To check locally (requires Java):
 make check-license
 ```
 
-The script downloads the Rat jar to `${XDG_CACHE_HOME:-$HOME/.cache}/superset-kubernetes-operator/lib/` on first run. Files that are generated, scaffolded by Operator SDK, or not user-authored are excluded via `.rat-excludes`.
+The script downloads the Rat jar to `${XDG_CACHE_HOME:-$HOME/.cache}/superset-kubernetes-operator/lib/` on first run. Rat checks every git-tracked file, including hidden directories such as `.github/` and `.devcontainer/`. Generated files (`config/crd/bases/`, `config/rbac/role.yaml`, and the Helm chart's CRD copies) are removed before the scan, and other files that can't carry a header are excluded by name via `.rat-excludes`. Files under `config/` other than those generated ones, including Operator SDK scaffolding, need the header.
 
 When adding new source files (`.go`, `.yaml`, `.sh`, `Dockerfile`, etc.), include the appropriate license header. Go files get this automatically from `hack/boilerplate.go.txt` when using `make generate`. For other file types, use the `#`-comment form:
 
@@ -348,7 +349,7 @@ The bar: every new "remember to also update X when Y changes" instruction is a b
 ### Don't
 
 - **Don't hardcode resource names** — use `componentDescriptor.resourceBaseName()` and naming helpers. Component resources are named `{parentName}-{componentType}`.
-- **Don't fetch resources by name for cleanup** — use `deleteByLabels` with parent/component labels to discover and clean up. Name-based `CreateOrUpdate` and status reads are fine — those address resources whose names the operator controls. Users and other tools pick the same names by convention (`kubectl autoscale` names its HPA after the Deployment), so a name alone doesn't prove the operator created a resource. When an upgrade needs a name-based fallback for resources created before a label existed, delete through `deleteIfControlledBy`, which only removes resources this Superset controls, and mark the fallback with a `TODO(<version>)` for removal.
+- **Don't fetch resources by name for cleanup** — use `deleteByLabels` with parent/component labels to discover and clean up. Name-based `CreateOrUpdate` and status reads are fine — those address resources whose names the operator controls. Users and other tools pick the same names by convention (`kubectl autoscale` names its HPA after the Deployment), so a name alone doesn't prove the operator created a resource. When a cleanup path must delete by name, choose the helper by how the name is chosen. For names that users or other tools also pick by convention (component HPAs and PDBs, and upgrade fallbacks for resources created before a label existed), use `deleteIfControlledBy`, which only removes resources this Superset controls; mark upgrade fallbacks with a `TODO(<version>)` for removal. For names reserved to the operator (lifecycle task Jobs, maintenance-page resources, parent-owned ConfigMaps, the web-server Service), `deleteIfNotForeignOwned` may also remove unowned resources but skips ones controlled by another owner; see [Managed resource adoption and cleanup](../reference/security.md#design-decisions).
 - **Don't hardcode commands/ports** — use `DeploymentConfig` defaults
 - **Don't duplicate controller logic** — use `component_reconciler.go` helpers
 - **Don't copy derived facts between docs** — values defined in code or in one canonical doc (e.g. the per-component routing paths in [`networking-and-monitoring.md`](../user-guide/networking-and-monitoring.md)) should be stated once and cross-linked from elsewhere, not re-listed on other pages where they silently go stale. Same spirit as the [Automation Principle](#automation-principle): one source of truth.
@@ -387,20 +388,13 @@ Fields outside the templates follow the same layering: if a field applies to mor
 
 ## Package Structure
 
-```text
-internal/
-├── resolution/       # Pure Go — spec flattening engine
-│                     # Zero controller-runtime deps, fully unit-testable
-│                     # MergeMaps, MergeEnvVars, ResolveComponentSpec(), etc.
-├── config/           # Pure Go — Python config renderer
-│                     # Per-component rendering, metastore URI,
-│                     # config appending
-├── common/           # Shared types (ComponentType, environment constants)
-├── schedule/         # Pure Go — cron tick computation
-└── controller/       # controller-runtime — reconcilers
-                      # Parent controller, component resources,
-                      # task job lifecycle, status, scaling, networking
-```
+| Package | Purpose |
+|---------|---------|
+| `internal/resolution/` | Pure Go spec flattening engine (`MergeMaps`, `MergeEnvVars`, `ResolveComponentSpec()`, etc.); no controller-runtime dependency |
+| `internal/config/` | Pure Go `superset_config.py` renderer: per-component rendering, metastore URI, Valkey, presets, raw config appending |
+| `internal/common/` | Shared `ComponentType`, naming helpers, label keys, suffixes, and ports |
+| `internal/schedule/` | Pure Go cron tick computation |
+| `internal/controller/` | controller-runtime reconciler: parent controller, component resources, lifecycle task Jobs, status, scaling, networking |
 
 ---
 
@@ -410,7 +404,7 @@ internal/
 |------|---------|
 | `api/v1alpha1/shared_types.go` | ImageSpec, MetastoreSpec, DeploymentTemplate, PodTemplate, ContainerTemplate, FlatComponentSpec |
 | `api/v1alpha1/superset_types.go` | Parent SupersetSpec, component specs, LifecycleSpec, CEL validation rules, status |
-| `internal/common/types.go` | Shared ComponentType, environment constants |
+| `internal/common/types.go` | Shared ComponentType |
 | `internal/resolution/resolver.go` | ResolveComponentSpec — core flattening engine |
 | `internal/config/renderer.go` | RenderConfig — per-component Python generation |
 | `internal/controller/component_reconciler.go` | Shared helpers for component resources |
@@ -418,6 +412,9 @@ internal/
 | `internal/controller/component_descriptors.go` | Parent-side component descriptors for resource reconciliation and status |
 | `internal/controller/superset_controller.go` | Parent reconciler (orchestrates everything) |
 | `internal/controller/deployment_builder.go` | Deployment construction from flat spec |
+| `internal/controller/lifecycle.go` | Lifecycle pipeline orchestration: task sequencing, upgrade gates |
+| `internal/controller/lifecycle_taskdescriptor.go` | Per-task descriptors (ordering and wiring for seed/migrate/rotate/init) |
+| `internal/controller/lifecycle_cascade.go` | Lifecycle task checksum cascade |
 | `internal/controller/initpod.go` | Lifecycle task Job PodSpec building, retention, backoff |
 | `internal/controller/reconcile_parent_resources_test.go` | Parent controller resource tests (fake client) |
 
@@ -448,7 +445,7 @@ The Helm chart enables metrics by default (`metrics.enabled: true`, port 8443).
 
 ### Superset instance monitoring
 
-When `spec.monitoring.serviceMonitor` is set on a Superset CR, the parent controller creates a Prometheus ServiceMonitor targeting the web-server component (port 8088). This uses unstructured objects because the ServiceMonitor CRD is external (`monitoring.coreos.com/v1`). If the CRD is not installed, the controller logs an info message and continues.
+When `spec.monitoring.serviceMonitor` is set on a Superset CR, the parent controller creates a Prometheus ServiceMonitor targeting the web-server component (port 8088). This uses unstructured objects because the ServiceMonitor CRD is external (`monitoring.coreos.com/v1`). If the CRD is not installed, the controller skips the ServiceMonitor, logs at V(1), and continues.
 
 See `internal/controller/monitoring.go` for the implementation.
 

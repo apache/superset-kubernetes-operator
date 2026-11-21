@@ -46,12 +46,12 @@ Each task has hardcoded trigger inputs — what it watches for changes:
 
 | Task | Watches | Re-runs when... |
 |------|---------|-----------------|
-| Seed | `trigger` field, `cronSchedule` tick, source config, excludes, target Superset image | Trigger value changes, schedule tick boundary crossed, source DB config changes, or the target image changes (so the data set is re-seeded before migrate runs against it) |
-| Migrate | Image (resolved lifecycle image), `metastore.createDatabase` flag | Image tag or repository changes, or `createDatabase` is toggled |
-| Rotate | `trigger` field, `secretKeyFrom` ref, `previousSecretKeyFrom` ref | Secret key references change or trigger value changes |
-| Init | Config checksum (rendered Python config) | Any config-affecting field changes |
+| Seed | `trigger`, `cronSchedule` tick, `source`, `excludeTables`, `excludeTableData`, `postSeedSQL`, seed (database-tool) image, target Superset image | Trigger value changes, schedule tick boundary crossed, source or seed settings change, or the target image changes (so the data set is re-seeded before migrate runs against it) |
+| Migrate | `trigger`, lifecycle image, bootstrap script, `metastore.createDatabase`; when `createDatabase` is set, also the target metastore type, host, port, database, username (literal values or Secret selector references), and the create-database init-container script | Trigger value changes, image tag or repository changes, bootstrap script changes, `createDatabase` is toggled, or the create-database target changes |
+| Rotate | `trigger`, lifecycle image, bootstrap script, `secretKey`/`secretKeyFrom`, `previousSecretKey`/`previousSecretKeyFrom` | Trigger value changes, image changes, bootstrap script changes, or the current or previous secret key (or its Secret reference) changes |
+| Init | `trigger`, lifecycle image, bootstrap script, rendered lifecycle `superset_config.py`, injected env vars (secret key, metastore, Valkey, and admin user settings) | Trigger value changes, image changes, bootstrap script changes, or any change to the rendered config or injected env vars |
 
-All tasks also re-run when an upstream task re-executes (automatic propagation).
+Every task also hashes its command, so changing a custom `command` re-runs it. All tasks re-run when an upstream task re-executes (automatic propagation). The operator does not read Secret values: changing the data behind an unchanged Secret reference does not re-run a task; change its `trigger` instead.
 
 ### Manual Trigger
 
@@ -218,7 +218,7 @@ spec:
 
 #### Custom image
 
-For advanced use cases (custom branding, dynamic status pages, HA), provide your own image. It must serve HTTP on the web-server port (default 8088):
+For advanced use cases (custom branding, dynamic status pages, HA), provide your own image. It must serve HTTP on the web-server container port (8088):
 
 ```yaml
 spec:
@@ -534,9 +534,9 @@ Changing a selector's Secret name or key changes the seed task checksum. Updatin
 
 ### Seed Image
 
-The seed pod uses a database-tool image (not the Superset image):
+The seed pod uses a database-tool image (not the Superset image). The source database always has the same type as the metastore (`metastore.type`), which selects the dump and restore tools, the default source port, and the default image:
 
-| Source type | Default image |
+| Metastore type | Default image |
 |---|---|
 | `PostgreSQL` | `postgres:17-alpine` |
 | `MySQL` | `mysql:8.4` |
@@ -554,19 +554,10 @@ Override with `seed.image` if you need additional tools.
 
 ### Pipeline Checksum Model
 
-The lifecycle uses a **checksum chain** to determine which tasks execute and which skip. Each task receives an incoming checksum from the previous stage, adds its own unique inputs, and produces a task checksum. On completion, that checksum is stored in the parent `status.lifecycle` field and becomes the incoming checksum for the next task.
+The lifecycle uses a **checksum chain** to determine which tasks execute and which skip. Each enabled task hashes an incoming checksum, its task type, its command, and its own inputs (listed in [Task Triggers](#task-triggers)) into a task checksum:
 
-```text
-                     parentUID (stable anchor)
-                         ↓
-seed.checksum   = hash(parentUID, "Seed", command, trigger, scheduleTick, source, excludes, postSeedSQL, seedImage, targetImage)
-                         ↓ (stored in parent status on completion)
-migrate.checksum = hash(seed.status.checksum, "Migrate", command, trigger, image, createDatabase)
-                         ↓ (stored in parent status on completion)
-rotate.checksum  = hash(migrate.status.checksum, "Rotate", command, trigger, image, secretKey, secretKeyFrom, previousSecretKey, previousSecretKeyFrom)
-                         ↓ (stored in parent status on completion)
-init.checksum    = hash(rotate.status.checksum, "Init", command, trigger, image, configChecksum)
-```
+- The first enabled task uses the parent's UID as its incoming checksum, a stable anchor for the life of the resource.
+- On completion, the task's checksum is stored in the parent `status.lifecycle` field and becomes the incoming checksum for the next enabled task, in the order seed, migrate, rotate, init.
 
 **The universal rule:** a task executes when its computed checksum differs from the completed checksum stored in parent status. If they match, the task skips.
 

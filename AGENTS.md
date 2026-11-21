@@ -21,7 +21,7 @@ under the License.
 
 ## Project Overview
 
-Kubernetes operator for Apache Superset, built with the Go-based Operator SDK and Go 1.27.4.
+Kubernetes operator for Apache Superset, built with the Go-based Operator SDK. The Go version is pinned in `go.mod`.
 
 - Module: `github.com/apache/superset-kubernetes-operator`
 - API group: `superset.apache.org/v1alpha1`
@@ -52,48 +52,25 @@ The operator uses a **single public CRD architecture** where the parent `Superse
 
 - **Parent resolves and reconciles.** All layering logic lives in the parent controller, which writes Kubernetes resources directly.
 - **Presence = enabled.** No `enabled: true/false`. If `celeryWorker: {}` is set, workers deploy. Lifecycle tasks (migrate, init) run by default; disable individual tasks via `disabled: true`. Seed runs when `spec.lifecycle.seed` is set. Rotate runs when `spec.lifecycle.rotate` is set.
-- **Secrets never touch ConfigMaps.** In prod mode, CRD CEL validation rejects inline `secretKey`, `metastore.uri`, `metastore.password`, and `valkey.password`. Use the corresponding `*From` fields to reference Kubernetes Secrets (operator injects `valueFrom.secretKeyRef` env vars). Structured metastore, Valkey, and seed-source connection fields also have `*From` counterparts for provisioner-owned connection details. In dev mode, inline secrets are allowed.
+- **Secrets never touch ConfigMaps.** Outside `Development` (that is, in `Staging` and `Production`), CRD CEL validation rejects inline `secretKey`, `previousSecretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, `websocketServer.config`, and `lifecycle.seed.source.password`. Use the corresponding `*From` fields to reference Kubernetes Secrets (operator injects `valueFrom.secretKeyRef` env vars). Structured metastore, Valkey, and seed-source connection fields also have `*From` counterparts for provisioner-owned connection details. In `Development`, inline secrets are allowed.
 - **Per-component config rendering.** All Python components get `SECRET_KEY` rendered from `SUPERSET_OPERATOR__SECRET_KEY`. Web gets port config. Structured metastore renders an f-string URI from `SUPERSET_OPERATOR__DB_*` env vars. When `spec.valkey` is set, operator renders all cache configs (`CACHE_CONFIG`, `DATA_CACHE_CONFIG`, etc.), `CeleryConfig`, and `RESULTS_BACKEND` from `SUPERSET_OPERATOR__VALKEY_*` env vars. Websocket gets nothing (Node.js).
 
 ## Directory Layout
 
-- `api/v1alpha1/` — CRD type definitions
-  - `shared_types.go` — ImageSpec, MetastoreSpec, ValkeySpec (ValkeySSLSpec, ValkeyCacheSpec, ValkeyCelerySpec, ValkeyResultsBackendSpec), GunicornSpec, CeleryWorkerProcessSpec, SQLAlchemyEngineOptionsSpec, FlatComponentSpec, DeploymentTemplate, PodTemplate, ContainerTemplate, ScalableComponentSpec, ComponentSpec, AutoscalingSpec, PDBSpec
-  - `superset_types.go` — SupersetSpec (environment, secretKey/secretKeyFrom, metastore, valkey, config, sqlaEngineOptions, autoscaling, podDisruptionBudget), component specs (GunicornSpec on webServer, CeleryWorkerProcessSpec on celeryWorker, SQLAlchemyEngineOptionsSpec on all Python components except Flower), LifecycleSpec (seed/migrate/rotate/init tasks, upgradeMode, maintenancePage), AdminUserSpec, NetworkingSpec, MonitoringSpec, status types (LifecycleStatus, ComponentStatusMap, LastLifecycleImage)
-- `internal/resolution/` — Pure Go spec resolution engine (zero controller-runtime deps)
-  - `merge.go` — MergeMaps, MergeEnvVars, MergeVolumes, MergeVolumeMounts, MergeHostAliases, MergeContainers
-  - `resolve.go` — ResolveScalar, ResolveOverridableMap/Slice/Value
-  - `resolver.go` — ResolveComponentSpec() — core flattening engine
-- `internal/config/` — Pure Go config rendering pipeline (zero controller-runtime deps)
-  - `renderer.go` — Per-component superset_config.py generation
-  - `gunicorn.go` — Gunicorn preset resolution, env var generation
-  - `celery.go` — Celery worker preset resolution, command construction
-  - `engine_options.go` — SQLALCHEMY_ENGINE_OPTIONS computation (pool sizing from worker/thread counts)
-- `internal/common/` — Shared types (ComponentType), naming functions (DerivedName, ConfigMapName, ComponentLabels), constants (labels, suffixes, ports)
-- `internal/controller/` — Reconciler implementations
-  - `superset_controller.go` — Parent `SupersetReconciler`: top-level Reconcile loop, parent-owned resource reconciliation, cleanup, status
-  - `lifecycle.go` — Lifecycle pipeline orchestration: task sequencing, checksum computation, upgrade gates
-  - `drain.go` — Component drain logic: resource deletion, pod termination verification
-  - `schedule.go` — Cron schedule handling: tick computation, requeue timing
-  - `config_builder.go` — Spec conversion: top-level → SharedInput, config rendering, env var collection
-  - `maintenance.go` — Maintenance page: parent-owned Deployment + ConfigMap, Service selector switching
-  - `component_reconciler.go` — shared component resource lifecycle (ConfigMap, Deployment, Service, Scaling)
-  - `component_resources.go` — `ComponentResourceDefs()`: per-component DeploymentConfig defaults (commands, ports, scaling flags)
-  - `component_descriptors.go` — table-driven component descriptors for parent resource reconciliation
-  - `deployment_builder.go` — builds Deployment from FlatComponentSpec + DeploymentConfig
-  - `initpod.go` — Task Job PodSpec helpers
-  - `version.go` — `ImageRef` helper (canonical repository:tag string)
-  - `helpers.go` — componentLabels(), mergeLabels(), mergeAnnotations()
-  - `status.go` — condition helpers
-  - `scaling.go` — HPA (with custom metrics) + PDB reconciliation
-  - `networking.go` — HTTPRoute/Ingress reconciliation
-  - `monitoring.go` — ServiceMonitor reconciliation (unstructured)
-  - `networkpolicy.go` — NetworkPolicy reconciliation
-- `config/` — Kustomize manifests (CRDs, RBAC, manager, samples, prometheus)
-- `cmd/main.go` — entrypoint, registers all reconcilers + Gateway API scheme
-- `docs/` — installation, architecture overview, internals, user guide, developer guide
-- `scripts/` — release automation (`release-rc.sh`, `release-finalize.sh`)
-- `test/e2e/` — end-to-end tests (require Kind cluster)
+Package responsibilities and the most important files are listed in the development guidelines' [Package Structure](docs/contributing/development-guidelines.md#package-structure) and [Key Files Reference](docs/contributing/development-guidelines.md#key-files-reference). Orientation:
+
+- `api/v1alpha1/` — CRD types. `shared_types.go` holds the shared building blocks (image, metastore, Valkey, presets, `DeploymentTemplate`/`PodTemplate`/`ContainerTemplate`, `FlatComponentSpec`); `superset_types.go` holds `SupersetSpec`, component and lifecycle task specs, the CEL rules, and `SupersetStatus`.
+- `internal/resolution/` — pure Go spec flattening (`merge.go` merge helpers, `resolve.go` scalar/override helpers, `resolver.go` `ResolveComponentSpec()`).
+- `internal/config/` — pure Go `superset_config.py` rendering (`renderer.go`), Gunicorn/Celery presets (`gunicorn.go`, `celery.go`), `CeleryConfig` rendering (`celery_app.go`), and `SQLALCHEMY_ENGINE_OPTIONS` (`engine_options.go`).
+- `internal/common/` — `ComponentType`, naming helpers, label keys, suffixes, and ports.
+- `internal/schedule/` — pure Go cron tick computation.
+- `internal/controller/` — the parent `SupersetReconciler` (`superset_controller.go`) and its helpers. File prefixes group responsibilities: `component_*` and `deployment_builder.go` for component resources, `lifecycle*.go` for the task pipeline (`lifecycle_cascade.go` computes task checksums; `lifecycle_<task>.go` holds per-task inputs and commands), plus `drain.go`, `maintenance.go`, `schedule.go`, `scaling.go`, `networking.go`, `networkpolicy.go`, `monitoring.go`, `websocket_config.go`, `bootstrap.go`, and `redact.go` (credential masking for task output written to status and Events).
+- `config/` — Kustomize manifests (CRDs, RBAC, manager, samples, prometheus).
+- `charts/superset-operator/` — Helm chart.
+- `cmd/main.go` — entrypoint, registers the reconciler and the Gateway API scheme.
+- `docs/` — user, architecture, reference, and contributor docs.
+- `scripts/` — CI, docs, sync, and release automation.
+- `test/e2e/` — end-to-end tests (require a Kind cluster).
 
 ## Key Patterns
 
@@ -102,19 +79,19 @@ The operator uses a **single public CRD architecture** where the parent `Superse
 - **ScalableComponentSpec**: Has `DeploymentTemplate`, `PodTemplate`, and scaling fields (`Replicas`, `Autoscaling`, `PDB`). Used by scalable components. CeleryBeat has `DeploymentTemplate` + `PodTemplate` directly (no scaling). Lifecycle task Jobs use `PodTemplate` only.
 - **ComponentSpec**: Per-component image override field (`Image`). Embedded by all component specs except LifecycleSpec.
 - **Per-component config**: `internal/config/RenderConfig()` generates component-appropriate Python. `SECRET_KEY` is rendered from the `SUPERSET_OPERATOR__SECRET_KEY` env var. Both passthrough and structured metastore modes render `SQLALCHEMY_DATABASE_URI` in the config from operator-internal env vars (`SUPERSET_OPERATOR__DB_URI` for passthrough, `SUPERSET_OPERATOR__DB_*` for structured). `SQLALCHEMY_ENGINE_OPTIONS` is computed per component from the `sqlaEngineOptions` preset and Gunicorn/Celery worker configuration. Web server gets `SUPERSET_WEBSERVER_PORT`. WebsocketServer returns empty (Node.js). All Python components get `config`.
-- **Gunicorn configuration**: `spec.webServer.gunicorn` controls Gunicorn worker parameters. Presets (`conservative`/`balanced`/`performance`/`aggressive`) set workers, threads, workerClass. Static defaults for timeout, keepAlive, etc. Operator injects env vars (`SERVER_WORKER_AMOUNT`, `SERVER_THREADS_AMOUNT`, etc.) read by `run-server.sh`. `disabled` preset suppresses injection.
-- **Celery worker configuration**: `spec.celeryWorker.celery` controls Celery worker command args. Presets set concurrency and pool. Operator constructs the `celery worker` command from resolved fields. `disabled` preset uses the hardcoded fallback command.
-- **SQLAlchemy engine options**: `spec.sqlaEngineOptions` sets the baseline; per-component `sqlaEngineOptions` on webServer, celeryWorker, celeryBeat, mcpServer, lifecycle tasks replaces the top-level entirely (override semantics). Presets: `disabled` (no rendering), `conservative` (NullPool), `balanced` (pool_size=1, max_overflow=-1), `performance` (pool_size=workers), `aggressive` (pool_size=workers×threads). CeleryBeat and lifecycle tasks always default to NullPool. Pool sizing is computed from resolved Gunicorn workers/threads or Celery concurrency. Static defaults: pool_recycle=3600, pool_pre_ping=false.
-- **Environment modes**: `environment: Development` allows inline `secretKey`, `metastore.uri`, `metastore.password`, `valkey.password`, `lifecycle.adminUser`, and `lifecycle.loadExamples`. `environment: Production` (default) rejects these via CRD validation; use the corresponding `*From` fields to reference Kubernetes Secrets (operator injects `valueFrom.secretKeyRef` env vars).
+- **Gunicorn configuration**: `spec.webServer.gunicorn` controls Gunicorn worker parameters. Presets (`conservative`/`balanced`/`performance`/`aggressive`) set workers and threads; a non-gthread `workerClass` without explicit `threads` resolves to 1 thread. Static defaults for timeout, keepAlive, etc. Operator injects env vars (`SERVER_WORKER_AMOUNT`, `SERVER_THREADS_AMOUNT`, etc.) read by `run-server.sh`. `disabled` preset suppresses injection.
+- **Celery worker configuration**: `spec.celeryWorker.celery` controls Celery worker command args. Presets set concurrency. Operator constructs the `celery worker` command from resolved fields. `disabled` preset uses the hardcoded fallback command.
+- **SQLAlchemy engine options**: `spec.sqlaEngineOptions` sets the baseline; per-component `sqlaEngineOptions` on webServer, celeryWorker, celeryBeat, mcpServer, lifecycle tasks replaces the top-level entirely (override semantics). Presets size the pool from the resolved Gunicorn workers/threads or Celery concurrency; CeleryBeat and lifecycle tasks use NullPool unless the preset is `disabled`. See `docs/user-guide/configuration.md#sqlalchemy-engine-options` for the preset table and static defaults.
+- **Environment modes**: `Production` (default) and `Staging` reject the inline secret fields listed under "Secrets never touch ConfigMaps"; `Staging` additionally allows `lifecycle.seed`. `Development` allows inline secrets, `lifecycle.seed`, `lifecycle.init.adminUser`, and `lifecycle.init.loadExamples`. A CEL transition rule blocks changing an existing `Production` resource to another environment in place; it must be deleted and recreated. See `docs/user-guide/configuration.md#environment-mode`.
 - **Env var tiers**: Operator-internal transport vars (`SUPERSET_OPERATOR__SECRET_KEY`, `SUPERSET_OPERATOR__DB_URI`, `SUPERSET_OPERATOR__DB_HOST`, `SUPERSET_OPERATOR__VALKEY_HOST`, `SUPERSET_OPERATOR__FORCE_RELOAD`, etc.).
-- **SECRET_KEY validation**: CEL requires either `secretKey` (dev mode) or `secretKeyFrom` (any mode) to be set.
+- **SECRET_KEY validation**: CEL requires exactly one of `secretKey` (`Development` only) or `secretKeyFrom` (any environment).
 - **Deployment builder**: Component resource reconciliation uses `buildDeploymentSpec()` with flat `FlatComponentSpec`. Reads all fields from the merged `DeploymentTemplate` hierarchy.
 - **Operator labels protected**: Operator labels (`app.kubernetes.io/*`, `superset.apache.org/parent`) are merged last — users cannot override them. Workload pods and NetworkPolicies carry `superset.apache.org/parent` + `app.kubernetes.io/component` for label-based discovery and instance-scoped NetworkPolicy isolation.
 - **Checksum-driven rollouts**: Config checksums stamped as pod annotations trigger rolling restarts. Use `forceReload` for Secret rotations.
 - **HPA**: When `autoscaling` is set, Deployment replicas is nil (HPA manages). Supports custom metrics via `autoscalingv2.MetricSpec`. Top-level `autoscaling`/`podDisruptionBudget` provide defaults inherited by all scalable components; per-component values override (not merge). CeleryBeat and lifecycle tasks are excluded (singleton/one-off Jobs).
 - **Beat singleton**: CeleryBeat always forces replicas=1 regardless of spec.
 - **Gateway API**: Uses `sigs.k8s.io/gateway-api` types. Graceful handling of missing CRDs via `meta.IsNoMatchError`.
-- **Lifecycle tasks**: `spec.lifecycle` on the parent CRD (type `LifecycleSpec`) defines up to four sequential tasks: "seed" (database snapshot from external source), "migrate" (`superset db upgrade`), "rotate" (`superset re-encrypt-secrets` for secret key rotation), and "init" (`superset init`). The parent controller sequences them (migrate waits for seed, rotate waits for migrate, init waits for rotate), gates component deployment, and triggers re-runs by deleting and recreating deterministic task Jobs when checksums change. Tasks run as Jobs with `backoffLimit: 0`; operator-managed retry/backoff and durable state are stored in parent `status.lifecycle`. Each task can be independently disabled via `disabled: true`. Seed supports `cronSchedule` for periodic re-execution. Checksums cascade: a re-seed triggers re-migrate, which triggers re-rotate, which triggers re-init. Any change to the lifecycle image tag re-runs migrate (`superset db upgrade`) regardless of direction — downgrades are not blocked (Superset's `db downgrade` is poorly tested and often breaks, so the operator never runs down migrations and relies on the optional pre-upgrade backup as the safety net). `upgradeMode: Automatic` (default) runs tasks immediately; `Supervised` waits for an annotation approval before proceeding (phase: `AwaitingApproval`). Lifecycle gates component deployment — components are not updated until all enabled tasks complete. Dev-mode-only `adminUser` and `loadExamples` fields append steps to the init task command. Parent status tracks `LastLifecycleImage` and `Lifecycle *LifecycleStatus` (with lifecycle `Phase` enum: `Seeding`, `Draining`, `Migrating`, `Rotating`, `Initializing`, `Restoring`, `Complete`, etc.). Drain only runs when a task that will run requires drain and at least one configured component has desired replicas greater than zero; when it runs, parent brings up maintenance Deployment only if `maintenancePage` is set and an existing web-server workload is present, switches the parent-owned web-server Service selector to maintenance-page labels, drains components, runs tasks, waits for web-server ready, switches selector back, and deletes maintenance resources.
+- **Lifecycle tasks**: `spec.lifecycle` on the parent CRD (type `LifecycleSpec`) defines up to four sequential tasks: "seed" (database snapshot from external source), "migrate" (`superset db upgrade`), "rotate" (`superset re-encrypt-secrets` for secret key rotation), and "init" (`superset init`). The parent controller sequences them (migrate waits for seed, rotate waits for migrate, init waits for rotate), gates component deployment, and triggers re-runs by deleting and recreating deterministic task Jobs when checksums change. Tasks run as Jobs with `backoffLimit: 0`; operator-managed retry/backoff and durable state are stored in parent `status.lifecycle`. Each task can be independently disabled via `disabled: true`. Seed supports `cronSchedule` for periodic re-execution. Checksums cascade: a re-seed triggers re-migrate, which triggers re-rotate, which triggers re-init. Any change to the lifecycle image tag re-runs migrate (`superset db upgrade`) regardless of direction — downgrades are not blocked (Superset's `db downgrade` is poorly tested and often breaks, so the operator never runs down migrations; users should take a database backup before upgrading). `upgradeMode: Automatic` (default) runs tasks immediately; `Supervised` waits for an annotation approval before proceeding (phase: `AwaitingApproval`). Lifecycle gates component deployment — components are not updated until all enabled tasks complete. Dev-mode-only `adminUser` and `loadExamples` fields append steps to the init task command. Parent status tracks `LastLifecycleImage` and `Lifecycle *LifecycleStatus` (with lifecycle `Phase` enum: `Seeding`, `Draining`, `Migrating`, `Rotating`, `Initializing`, `Restoring`, `Complete`, etc.). Drain only runs when a task that will run requires drain and at least one configured component has desired replicas greater than zero; when it runs, parent brings up maintenance Deployment only if `maintenancePage` is set and an existing web-server workload is present, switches the parent-owned web-server Service selector to maintenance-page labels, drains components, runs tasks, waits for web-server ready, switches selector back, and deletes maintenance resources.
 - **Config mount path**: `/app/pythonpath` for superset_config.py.
 
 ## Naming Conventions

@@ -173,7 +173,7 @@ func TestReconcileComponentResources_NoServiceNoScaling(t *testing.T) {
 	err := reconcileComponentResources(ctx, c, scheme, recorder, owner, spec, cfg, "", nil, nil, nil)
 	require.NoError(t, err)
 
-	resourceBaseName := common.ResourceBaseName("test", common.ComponentCeleryBeat)
+	resourceBaseName := "test-celery-beat"
 	// Deployment created.
 	require.NoError(t, c.Get(ctx, client.ObjectKey{Name: resourceBaseName, Namespace: "default"}, &appsv1.Deployment{}))
 	// No Service created (defaultPort 0).
@@ -189,7 +189,7 @@ func TestReconcileComponentService_PreservesClusterIPAcrossUpdate(t *testing.T) 
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner).Build()
 
-	resourceBaseName := common.ResourceBaseName("test", common.ComponentCeleryFlower)
+	resourceBaseName := "test-celery-flower"
 	componentName := string(common.ComponentCeleryFlower)
 
 	// First reconcile creates the Service.
@@ -208,7 +208,7 @@ func TestReconcileComponentService_PreservesClusterIPAcrossUpdate(t *testing.T) 
 	require.NoError(t, c.Get(ctx, client.ObjectKey{Name: resourceBaseName, Namespace: "default"}, svc))
 	assert.Equal(t, "10.20.30.40", svc.Spec.ClusterIP)
 	// Selector is the operator-managed component label set.
-	assert.Equal(t, string(common.ComponentCeleryFlower), svc.Spec.Selector[common.LabelKeyComponent])
+	assert.Equal(t, "celery-flower", svc.Spec.Selector["app.kubernetes.io/component"])
 	// Owned by the parent.
 	assert.True(t, isOwnedBy(svc, owner))
 }
@@ -221,7 +221,7 @@ func TestReconcileScaling_NoAutoscalingOrPDB(t *testing.T) {
 	}
 	c := fake.NewClientBuilder().WithScheme(scheme).WithObjects(owner).Build()
 
-	resourceBaseName := common.ResourceBaseName("test", common.ComponentWebServer)
+	resourceBaseName := "test-web-server"
 	// With nil autoscaling/pdb, reconcileScaling should be a clean no-op (it
 	// reconciles "absent" HPA/PDB which means deleting any that exist).
 	err := reconcileScaling(ctx, c, scheme, owner, nil, nil, string(common.ComponentWebServer), resourceBaseName)
@@ -249,17 +249,17 @@ func TestReconcileComponentResources_CreatesDeploymentAndService(t *testing.T) {
 	require.NoError(t, err)
 
 	// Deployment created.
-	resourceBaseName := common.ResourceBaseName("test", common.ComponentCeleryFlower)
+	resourceBaseName := "test-celery-flower"
 	deploy := &appsv1.Deployment{}
 	require.NoError(t, c.Get(ctx, client.ObjectKey{Name: resourceBaseName, Namespace: "default"}, deploy))
 	assert.True(t, isOwnedBy(deploy, owner))
 	// Config checksum stamped as a pod annotation.
-	assert.Equal(t, "cfg-sum", deploy.Spec.Template.Annotations[common.AnnotationConfigChecksum])
+	assert.Equal(t, "cfg-sum", deploy.Spec.Template.Annotations["superset.apache.org/config-checksum"])
 
 	// Service created (flower has defaultPort > 0).
 	svc := &corev1.Service{}
 	require.NoError(t, c.Get(ctx, client.ObjectKey{Name: resourceBaseName, Namespace: "default"}, svc))
-	assert.Equal(t, common.PortCeleryFlower, svc.Spec.Ports[0].Port)
+	assert.Equal(t, int32(5555), svc.Spec.Ports[0].Port)
 }
 
 func TestPreserveDeploymentReplicasWhenUnmanaged(t *testing.T) {
@@ -331,7 +331,7 @@ func TestReconcileComponentDeployment_PreservesReplicasWhenAutoscaling(t *testin
 	cfg, ok := componentResourceConfig(common.ComponentWebServer)
 	require.True(t, ok)
 
-	resourceBaseName := common.ResourceBaseName("test", common.ComponentWebServer)
+	resourceBaseName := "test-web-server"
 	require.NoError(t, reconcileComponentResources(ctx, c, scheme, recorder, owner, spec, cfg, "", nil, autoscaling, nil))
 
 	deploy := &appsv1.Deployment{}

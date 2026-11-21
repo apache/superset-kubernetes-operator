@@ -13,9 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Note: Generated/scaffolded directories (config/) are removed from the
-# Rat workdir by scripts/check_license.sh before Rat runs. This file
-# handles remaining file-level exclusions.
+# Note: Generated files (config/crd/bases/, config/rbac/role.yaml,
+# charts/superset-operator/crds/) are removed from the Rat workdir by
+# scripts/check_license.sh before Rat runs. This file handles remaining
+# file-level exclusions.
+#
+# Rat matches these patterns against file NAMES, not paths, so a pattern
+# containing a directory component (e.g. `ISSUE_TEMPLATE/.*`) never matches.
 
 # Git
 .*\.gitignore
@@ -48,7 +52,10 @@
 
 # CI / tooling
 .*PULL_REQUEST_TEMPLATE\.md
-.*ISSUE_TEMPLATE/.*\.md
+# GitHub issue templates: GitHub requires YAML front matter at the top, and an
+# HTML comment would leak into every new issue body.
+bug_report\.md
+feature_request\.md
 .*\.claude.*
 # Editor/agent context symlink → AGENTS.md (which carries the header itself)
 GEMINI\.md

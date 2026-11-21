@@ -19,6 +19,9 @@
 # (CI target `make helm-values-covered`) — any new knob added to values.yaml must
 # be exercised here.
 
+nameOverride: operator-test
+fullnameOverride: superset-operator-test
+
 image:
   repository: example.com/superset/superset-operator
   tag: v9.9.9-test

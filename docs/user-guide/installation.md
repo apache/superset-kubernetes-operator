@@ -53,7 +53,7 @@ helm install superset-operator \
   --create-namespace
 ```
 
-Replace `<version>` with a published chart version (e.g., `0.1.0`). Use `0.0.0-dev` for the latest build from main. When using the `dev` version, set `image.pullPolicy=Always` to ensure you always get the latest image:
+Replace `<version>` with a published chart version (see [Downloads](../reference/downloads.md)). Use `0.0.0-dev` for the latest build from main. When using the `dev` version, set `image.pullPolicy=Always` to ensure you always get the latest image:
 
 ```bash
 helm install superset-operator \
@@ -68,7 +68,22 @@ See `charts/superset-operator/values.yaml` for all available Helm values and [Do
 
 ### Extra manifests
 
-The chart's `extraManifests` value renders additional Kubernetes manifests as part of the release. Each entry is passed through Helm's [`tpl` function](https://helm.sh/docs/howto/charts_tips_and_tricks/#using-the-tpl-function), so template expressions like `{{ .Release.Namespace }}` resolve at install time. Use it for trusted, release-scoped companion resources owned by the operator release — a cert-manager `Certificate` backing `metrics.certSecretName`, a `NetworkPolicy` for the manager pod, or an `ExternalSecret`. Do not use it for shared cluster infrastructure such as Gateway API controllers, CRDs, or shared Gateways — those have their own lifecycle and should not be upgraded or garbage-collected with this release. See the `extraManifests` examples in `charts/superset-operator/values.yaml` for both entry forms (YAML objects and raw strings).
+The chart's `extraManifests` value renders additional Kubernetes manifests as part of the release. Each entry is passed through Helm's [`tpl` function](https://helm.sh/docs/howto/charts_tips_and_tricks/#using-the-tpl-function), so template expressions like `{{ .Release.Namespace }}` resolve at install time. Use it for trusted, release-scoped companion resources owned by the operator release — a cert-manager `Certificate` backing `metrics.certSecretName`, a `NetworkPolicy` for the manager pod, or an `ExternalSecret`. Do not use it for shared cluster infrastructure such as Gateway API controllers, CRDs, or shared Gateways — those have their own lifecycle and should not be upgraded or garbage-collected with this release. Each entry is either a YAML object or a string containing a manifest:
+
+```yaml
+extraManifests:
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: example
+      namespace: "{{ .Release.Namespace }}"
+  - |
+    apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: example-raw
+      namespace: {{ .Release.Namespace }}
+```
 
 ### Namespace-scoped install
 
@@ -249,6 +264,25 @@ EOF
 ```
 
 The operator will create the CeleryWorker and CeleryBeat Deployments and their ConfigMaps automatically.
+
+## Upgrading the operator
+
+Helm installs the `Superset` CRD from the chart's `crds/` directory on first install, but [`helm upgrade` never updates it](https://helm.sh/docs/chart_best_practices/custom_resource_definitions/#some-caveats-and-explanations). Apply the new version's CRD before upgrading the chart:
+
+```bash
+helm show crds oci://ghcr.io/apache/superset-kubernetes-operator/charts/superset-operator \
+  --version <version> \
+  | kubectl apply --server-side --force-conflicts -f -
+
+helm upgrade superset-operator \
+  oci://ghcr.io/apache/superset-kubernetes-operator/charts/superset-operator \
+  --version <version> \
+  --namespace superset-operator-system
+```
+
+The CRD is too large for client-side `kubectl apply`, so use `--server-side`. `--force-conflicts` takes over the fields Helm set when it created the CRD. If you skip this step, the cluster keeps the old schema: the API server silently drops fields it doesn't know, and new validation rules don't apply. Applying the CRD requires cluster-admin.
+
+Read the [release notes](../reference/releases.md) before upgrading; breaking changes list the steps to take first.
 
 ## Debugging the operator
 

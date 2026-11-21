@@ -57,9 +57,10 @@ The chart values schema intentionally allows undeclared top-level keys so shared
 | dnsPolicy | string | `nil` | DNS policy for the manager pod. |
 | extraEnv | list | `[]` | Extra environment variables for the manager container, such as `GOMEMLIMIT` or `GODEBUG`. `WATCH_NAMESPACE` is reserved; configure it through `watch` instead. See [corev1.EnvVar](https://pkg.go.dev/k8s.io/api/core/v1#EnvVar). |
 | extraManifests | list | `[]` | Additional Kubernetes manifests rendered alongside the chart's own resources. Each entry is a YAML object or a string; both are passed through Helm's `tpl` function so template expressions such as `{{ .Release.Namespace }}` are resolved. Use for release-scoped companion resources (e.g. a cert-manager Certificate, NetworkPolicy, or ExternalSecret). Do not use for shared cluster infrastructure such as Gateway controllers, CRDs, or shared Gateways — those have their own lifecycle. |
+| fullnameOverride | string | `nil` | Override the full resource name prefix (normally `<release>-<chart name>`). |
 | healthProbes.livenessProbe | object | `{"httpGet":{"path":"/healthz","port":8081},"initialDelaySeconds":15,"periodSeconds":20}` | Liveness probe for the manager container. See [corev1.Probe](https://pkg.go.dev/k8s.io/api/core/v1#Probe). |
 | healthProbes.readinessProbe | object | `{"httpGet":{"path":"/readyz","port":8081},"initialDelaySeconds":5,"periodSeconds":10}` | Readiness probe for the manager container. See [corev1.Probe](https://pkg.go.dev/k8s.io/api/core/v1#Probe). |
-| image.pullPolicy | string | `"IfNotPresent"` | Image pull policy. |
+| image.pullPolicy | string | `nil` | Image pull policy. Leave unset to use the Kubernetes default. |
 | image.repository | string | `"ghcr.io/apache/superset-kubernetes-operator"` | Docker image repository for the operator manager. |
 | image.tag | string | `nil` | Image tag. Defaults to the chart's appVersion when unset. |
 | imagePullSecrets | list | `[]` | Existing Secrets used to pull the operator image from a private registry. |
@@ -74,6 +75,7 @@ The chart values schema intentionally allows undeclared top-level keys so shared
 | metrics.serviceMonitor.labels | object | `{}` | Extra labels on the ServiceMonitor so Prometheus Operator selects it (e.g. `{release: prometheus}` for kube-prometheus-stack). |
 | metrics.serviceMonitor.scrapeTimeout | string | `nil` | Scrape timeout. Unset inherits Prometheus' default. |
 | metrics.serviceMonitor.tlsConfig | object | `{"insecureSkipVerify":true}` | TLS configuration for the ServiceMonitor scrape. The default trusts any certificate, matching the operator's built-in self-signed flow. Override to scrape over verified TLS. |
+| nameOverride | string | `nil` | Override the chart name used in resource names and the `app.kubernetes.io/name` label. |
 | nodeSelector | object | `{}` | Node selector for the manager pod. |
 | podAnnotations | object | `{}` | Extra annotations to add to the manager pod. |
 | podDisruptionBudget.enabled | bool | `false` | Create a PodDisruptionBudget for the manager pod. Only useful with `replicas >= 2`. |

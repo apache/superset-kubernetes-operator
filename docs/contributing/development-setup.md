@@ -26,9 +26,9 @@ This guide walks through setting up a local development environment with Kind, P
 | Tool | Version | Install |
 |---|---|---|
 | Docker daemon | 20+ | [Docker Desktop](https://docs.docker.com/get-docker/), [Colima](https://github.com/abiosoft/colima) (`brew install colima`), or [Podman](https://podman.io) |
-| kubectl | 1.27+ | [kubernetes.io](https://kubernetes.io/docs/tasks/tools/) |
-| Kind | 0.30+ | `brew install kind` or `go install sigs.k8s.io/kind@latest` |
-| Go | 1.27.4 | `brew install go` or [go.dev](https://go.dev/dl/) |
+| kubectl | Within one minor version of your cluster ([skew policy](https://kubernetes.io/releases/version-skew-policy/#kubectl)) | [kubernetes.io](https://kubernetes.io/docs/tasks/tools/) |
+| Kind | Version in `.github/supported-k8s.json` (`kind_version`) | `brew install kind` or `go install sigs.k8s.io/kind@latest` |
+| Go | Version in `go.mod` | `brew install go` or [go.dev](https://go.dev/dl/) |
 | Helm | 4+ | `brew install helm` or [helm.sh](https://helm.sh/docs/intro/install/) — used by `make lint` (Helm chart lint) and the chart tests |
 
 ### macOS notes
@@ -64,10 +64,11 @@ There are two ways to run the operator:
 ### Option A: Run locally (outside the cluster)
 
 ```bash
+make install
 make run
 ```
 
-This compiles and runs the operator process on your machine, connecting to the Kind cluster via your kubeconfig. Leave this terminal open — it streams reconciliation logs.
+`make install` applies the CRDs to the cluster; `make run` then compiles and runs the operator process on your machine, connecting to the Kind cluster via your kubeconfig. Leave this terminal open — it streams reconciliation logs.
 
 ### Option B: Deploy in-cluster
 

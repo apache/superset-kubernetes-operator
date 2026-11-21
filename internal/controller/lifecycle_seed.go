@@ -38,20 +38,38 @@ func (r *SupersetReconciler) seedInputs(superset *supersetv1alpha1.Superset) any
 		TargetImage      string
 		Trigger          string
 		ScheduleTick     string
-		Source           supersetv1alpha1.SeedSourceSpec
+		Source           seedSourceChecksumInput
 		ExcludeTables    []string
 		ExcludeTableData []string
 		PostSeedSQL      []string
 	}{
-		Image:            resolveSeedImage(seed),
+		Image:            resolveSeedImage(seed, seedDatabaseType(&superset.Spec)),
 		TargetImage:      targetImage,
 		Trigger:          derefOrDefault(seed.Trigger, ""),
 		ScheduleTick:     r.scheduleTick(seed.CronSchedule),
-		Source:           seed.Source,
+		Source:           seedSourceChecksumInput{Type: seedDatabaseType(&superset.Spec), SeedSourceSpec: seed.Source},
 		ExcludeTables:    seed.ExcludeTables,
 		ExcludeTableData: seed.ExcludeTableData,
 		PostSeedSQL:      seed.PostSeedSQL,
 	}
+}
+
+// seedSourceChecksumInput keeps the seed checksum's source shape from when the
+// source had its own type field (always stored, via its CRD default), so
+// upgrading the operator does not change the checksum and trigger a
+// destructive re-seed. The source type is now the metastore type.
+type seedSourceChecksumInput struct {
+	Type *supersetv1alpha1.DatabaseType `json:"type,omitempty"`
+	supersetv1alpha1.SeedSourceSpec
+}
+
+// seedDatabaseType returns the database type of the seed source and target,
+// which is always the metastore type.
+func seedDatabaseType(spec *supersetv1alpha1.SupersetSpec) *supersetv1alpha1.DatabaseType {
+	if spec.Metastore == nil {
+		return nil
+	}
+	return spec.Metastore.Type
 }
 
 // buildSeedCommand constructs the pg_dump|psql or mysqldump|mysql streaming command
@@ -62,12 +80,7 @@ func (r *SupersetReconciler) buildSeedCommand(superset *supersetv1alpha1.Superse
 		return seed.Command
 	}
 
-	srcType := supersetv1alpha1.DatabaseTypePostgreSQL
-	if seed.Source.Type != nil {
-		srcType = *seed.Source.Type
-	}
-
-	if srcType == supersetv1alpha1.DatabaseTypeMySQL {
+	if dbType := seedDatabaseType(&superset.Spec); dbType != nil && *dbType == supersetv1alpha1.DatabaseTypeMySQL {
 		return []string{bootstrapShell, "-c", buildMySQLSeedScript(seed)}
 	}
 	return []string{bootstrapShell, "-c", buildPostgresSeedScript(seed)}
@@ -174,7 +187,7 @@ func collectSeedEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVar {
 	// Source env vars.
 	envs = append(envs, literalOrSecretEnv(naming.EnvSeedSrcHost, &seed.Source.Host, seed.Source.HostFrom))
 
-	envs = append(envs, literalInt32OrSecretEnv(naming.EnvSeedSrcPort, seed.Source.Port, seed.Source.PortFrom, defaultDBPort(seed.Source.Type)))
+	envs = append(envs, literalInt32OrSecretEnv(naming.EnvSeedSrcPort, seed.Source.Port, seed.Source.PortFrom, defaultDBPort(seedDatabaseType(spec))))
 	envs = append(envs,
 		literalOrSecretEnv(naming.EnvSeedSrcDB, &seed.Source.Database, seed.Source.DatabaseFrom),
 		literalOrSecretEnv(naming.EnvSeedSrcUser, &seed.Source.Username, seed.Source.UsernameFrom),
@@ -195,17 +208,12 @@ func collectSeedEnvVars(superset *supersetv1alpha1.Superset) []corev1.EnvVar {
 }
 
 // resolveSeedImage determines the image for the seed pod. Defaults are
-// type-aware: postgres:17-alpine for PostgreSQL sources, mysql:8.4 for
-// MySQL. Partial user specs inherit the default repository or tag for omitted
+// type-aware: postgres:17-alpine for PostgreSQL, mysql:8.4 for MySQL. Partial user specs inherit the default repository or tag for omitted
 // fields rather than the Superset image (which would be incorrect for a
 // database tooling container).
-func resolveSeedImage(seed *supersetv1alpha1.SeedTaskSpec) supersetv1alpha1.ImageSpec {
-	srcType := supersetv1alpha1.DatabaseTypePostgreSQL
-	if seed.Source.Type != nil {
-		srcType = *seed.Source.Type
-	}
+func resolveSeedImage(seed *supersetv1alpha1.SeedTaskSpec, dbType *supersetv1alpha1.DatabaseType) supersetv1alpha1.ImageSpec {
 	defaultRef := naming.SeedImagePostgres
-	if srcType == supersetv1alpha1.DatabaseTypeMySQL {
+	if dbType != nil && *dbType == supersetv1alpha1.DatabaseTypeMySQL {
 		defaultRef = naming.SeedImageMySQL
 	}
 	defRepo, defTag := splitImageRef(defaultRef)
