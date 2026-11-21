@@ -106,6 +106,16 @@ The operator maps the resolved value to each component's native logging mechanis
 
 If a component uses a custom command (e.g. webserver), that command is responsible for consuming the injected logging environment variables or configuring logging itself. The operator does not modify custom commands to add runtime-specific logging arguments.
 
+### Debug Logging Outside Development
+
+Debug logs can include request details and other sensitive data. When any resolved `logLevel` is `debug` and `environment` is not `Development` (including `Staging`), the operator sets a `DebugLogging` condition on the `Superset` status. The condition message lists the affected components (and `lifecycle` for lifecycle tasks). The operator also emits a `DebugLogging` Warning Event when the condition first appears. The condition is removed when debug logging is turned off, and it does not affect `Ready` or `Available`.
+
+```bash
+kubectl get superset my-superset -o jsonpath='{.status.conditions[?(@.type=="DebugLogging")].message}'
+```
+
+Only the typed `logLevel` fields are checked. A `LOG_LEVEL = "DEBUG"` assignment in `config` or component level configuration is not detected.
+
 ## Image
 
 `spec.image` sets the Superset image for all Python components. `repository` defaults to the official Superset image; `tag` is required — set it to the release you want:
