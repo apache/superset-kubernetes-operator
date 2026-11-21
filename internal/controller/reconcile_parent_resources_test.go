@@ -36,7 +36,6 @@ import (
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	"github.com/apache/superset-kubernetes-operator/internal/common"
-	supersetconfig "github.com/apache/superset-kubernetes-operator/internal/config"
 )
 
 func TestReconcile_CreatesParentOwnedComponentResources(t *testing.T) {
@@ -365,12 +364,12 @@ func TestReconcile_LogLevelWiringAndRestartScope(t *testing.T) {
 		}
 		return ""
 	}
-	assert.Equal(t, "DEBUG", envValue(deployments["test-web-server"], common.EnvLogLevel))
+	assert.Equal(t, "DEBUG", envValue(deployments["test-web-server"], "SUPERSET_OPERATOR__LOG_LEVEL"))
 	// The typed logLevel does not drive Gunicorn: GUNICORN_LOGLEVEL comes only
 	// from webServer.gunicorn.logLevel (default info).
-	assert.Equal(t, "info", envValue(deployments["test-web-server"], supersetconfig.EnvGunicornLogLevel))
-	assert.Equal(t, "WARNING", envValue(deployments["test-celery-worker"], common.EnvLogLevel))
-	assert.Equal(t, "WARNING", envValue(deployments["test-celery-flower"], supersetconfig.EnvCeleryFlowerLogLevel))
+	assert.Equal(t, "info", envValue(deployments["test-web-server"], "GUNICORN_LOGLEVEL"))
+	assert.Equal(t, "WARNING", envValue(deployments["test-celery-worker"], "SUPERSET_OPERATOR__LOG_LEVEL"))
+	assert.Equal(t, "WARNING", envValue(deployments["test-celery-flower"], "FLOWER_LOGGING"))
 	assert.Empty(t, envValue(deployments["test-websocket-server"], "LOG_LEVEL"))
 	assert.Contains(t, deployments["test-celery-worker"].Spec.Template.Spec.Containers[0].Command, "--loglevel=warning")
 	assert.Contains(t, deployments["test-celery-beat"].Spec.Template.Spec.Containers[0].Command, "--loglevel=warning")
@@ -390,7 +389,7 @@ func TestReconcile_LogLevelWiringAndRestartScope(t *testing.T) {
 
 	// Capture the Deployment's config checksum.
 	configHashBefore := deployments["test-web-server"].
-		Spec.Template.Annotations[common.AnnotationConfigChecksum]
+		Spec.Template.Annotations["superset.apache.org/config-checksum"]
 
 	// Capture init's inputs. A log-level-only change must not invalidate
 	// either its rendered config or its injected environment variables.
@@ -424,8 +423,8 @@ func TestReconcile_LogLevelWiringAndRestartScope(t *testing.T) {
 	if err := c.Get(context.Background(), types.NamespacedName{Name: "test-web-server", Namespace: "default"}, updatedWeb); err != nil {
 		t.Fatalf("getting updated web-server Deployment: %v", err)
 	}
-	assert.Equal(t, "ERROR", envValue(updatedWeb, common.EnvLogLevel))
-	assert.Equal(t, "info", envValue(updatedWeb, supersetconfig.EnvGunicornLogLevel))
+	assert.Equal(t, "ERROR", envValue(updatedWeb, "SUPERSET_OPERATOR__LOG_LEVEL"))
+	assert.Equal(t, "info", envValue(updatedWeb, "GUNICORN_LOGLEVEL"))
 	if reflect.DeepEqual(before["test-web-server"], updatedWeb.Spec.Template) {
 		t.Fatal("web-server pod template did not change when its log level changed")
 	}
@@ -443,7 +442,7 @@ func TestReconcile_LogLevelWiringAndRestartScope(t *testing.T) {
 
 	// ConfigHash must remain unchanged, otherwise unrelated config changes
 	// could trigger lifecycle tasks or unnecessary component restarts.
-	configHashAfter := updatedWeb.Spec.Template.Annotations[common.AnnotationConfigChecksum]
+	configHashAfter := updatedWeb.Spec.Template.Annotations["superset.apache.org/config-checksum"]
 
 	assert.Equal(t, configHashBefore, configHashAfter,
 		"ConfigHash should not change when only log level changes")
@@ -511,7 +510,7 @@ func TestReconcile_WebsocketIgnoresLogLevel(t *testing.T) {
 		t.Fatalf("expected websocket Deployment: %v", err)
 	}
 	for _, env := range deploy.Spec.Template.Spec.Containers[0].Env {
-		if env.Name == "LOG_LEVEL" || env.Name == common.EnvLogLevel {
+		if env.Name == "LOG_LEVEL" || env.Name == "SUPERSET_OPERATOR__LOG_LEVEL" {
 			t.Fatalf("did not expect log-level env var %s on websocket server", env.Name)
 		}
 	}
@@ -561,7 +560,7 @@ func TestReconcile_CeleryFlowerLogLevelOverride(t *testing.T) {
 
 	assert.Equal(t, "CRITICAL", envValue(
 		deploy,
-		supersetconfig.EnvCeleryFlowerLogLevel,
+		"FLOWER_LOGGING",
 	))
 }
 
@@ -756,7 +755,7 @@ func TestReconcile_LifecycleCreatesParentOwnedTaskJobAndStatus(t *testing.T) {
 	var logLevelEnv *corev1.EnvVar
 	for i := range jobs.Items[0].Spec.Template.Spec.Containers[0].Env {
 		env := &jobs.Items[0].Spec.Template.Spec.Containers[0].Env[i]
-		if env.Name == common.EnvLogLevel {
+		if env.Name == "SUPERSET_OPERATOR__LOG_LEVEL" {
 			logLevelEnv = env
 			break
 		}

@@ -34,7 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
-	"github.com/apache/superset-kubernetes-operator/internal/common"
 )
 
 // TestLifecyclePipeline_FullSuccess walks the full seed → migrate → rotate →
@@ -198,7 +197,7 @@ func TestLifecyclePipeline_LogLevelAppliesOnTriggeredRerun(t *testing.T) {
 	require.NotNil(t, runningJob)
 
 	assert.Equal(t, job.Name, runningJob.Name)
-	assert.Equal(t, "INFO", envValue(runningJob.Spec.Template.Spec.Containers[0].Env, common.EnvLogLevel))
+	assert.Equal(t, "INFO", envValue(runningJob.Spec.Template.Spec.Containers[0].Env, "SUPERSET_OPERATOR__LOG_LEVEL"))
 
 	markJobSucceeded(t, c, job)
 	reconcileLifecycleWithoutFailure(t, r, ctx, superset)
@@ -215,7 +214,7 @@ func TestLifecyclePipeline_LogLevelAppliesOnTriggeredRerun(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, job)
 
-	assert.Equal(t, "DEBUG", envValue(job.Spec.Template.Spec.Containers[0].Env, common.EnvLogLevel))
+	assert.Equal(t, "DEBUG", envValue(job.Spec.Template.Spec.Containers[0].Env, "SUPERSET_OPERATOR__LOG_LEVEL"))
 }
 
 func taskJobName(parent, taskType string) string {

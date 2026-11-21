@@ -36,9 +36,9 @@ func TestLogLevelResolutionAndMappings(t *testing.T) {
 			topLevel  *v1alpha1.LogLevel
 			want      v1alpha1.LogLevel
 		}{
-			{"default", nil, nil, v1alpha1.LogLevelInfo},
-			{"top-level", nil, &topLevel, v1alpha1.LogLevelWarning},
-			{"component overrides top-level", &component, &topLevel, v1alpha1.LogLevelDebug},
+			{"default", nil, nil, "info"},
+			{"top-level", nil, &topLevel, "warning"},
+			{"component overrides top-level", &component, &topLevel, "debug"},
 		}
 		for _, tt := range tests {
 			t.Run(tt.name, func(t *testing.T) {
