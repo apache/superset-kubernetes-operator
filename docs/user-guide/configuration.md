@@ -77,6 +77,8 @@ spec:
 
 If no applicable field is set, the operator uses `info` at runtime.
 
+Because the operator always sets `LOG_LEVEL`, `FLASK_DEBUG=1` no longer turns on debug logging as it does in Superset's default config. Set `logLevel: debug` instead.
+
 ```yaml
 spec:
   logLevel: warning
