@@ -97,6 +97,7 @@ func (r *SupersetReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	// Clear Suspended condition when not suspended.
 	setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeSuspended,
 		metav1.ConditionFalse, "NotSuspended", "Reconciliation is not suspended", superset.Generation)
+	r.reconcileDebugLoggingCondition(superset, origSuperset)
 
 	log.V(1).Info("Reconciling Superset", "name", superset.Name)
 

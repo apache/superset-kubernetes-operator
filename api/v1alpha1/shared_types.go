@@ -34,6 +34,7 @@ const (
 	ConditionTypeAvailable         = "Available"
 	ConditionTypeTaskComplete      = "TaskComplete"
 	ConditionTypeLifecycleComplete = "LifecycleComplete" // on Superset (aggregate lifecycle gate)
+	ConditionTypeDebugLogging      = "DebugLogging"      // on Superset (a resolved logLevel is debug outside Development)
 )
 
 // LogLevel is the Superset application log level. The operator maps it onto

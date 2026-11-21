@@ -73,12 +73,11 @@ spec:
 
 ## Log Levels
 
-`spec.logLevel` sets the default log level for Superset workloads and
-lifecycle tasks managed by the operator. A component-level `logLevel` overrides
-the top-level value for that component. `spec.lifecycle.logLevel` similarly
-overrides the top-level value for lifecycle tasks.
+`spec.logLevel` sets the default log level for Superset workloads and lifecycle tasks managed by the operator. A component-level `logLevel` overrides the top-level value for that component. `spec.lifecycle.logLevel` similarly overrides the top-level value for lifecycle tasks.
 
 If no applicable field is set, the operator uses `info` at runtime.
+
+Because the operator always sets `LOG_LEVEL`, `FLASK_DEBUG=1` no longer turns on debug logging as it does in Superset's default config. Set `logLevel: debug` instead.
 
 ```yaml
 spec:
@@ -97,7 +96,7 @@ The typed `logLevel` field is separate from component-specific configuration fie
 
 For Python components and lifecycle tasks, component-specific configuration is applied after the operator-generated configuration, so an explicit `LOG_LEVEL` assignment overrides the typed `logLevel` field.
 
-The Node.js websocket server applies environment variables *after* its component-specific configuration, so an injected runtime `LOG_LEVEL` takes precedence. Therefore, the operator injects `LOG_LEVEL` for the websocket server only when `spec.logLevel` or `websocketServer.logLevel` is explicitly set.
+The typed `logLevel` field applies only to Python components and lifecycle tasks. The websocket server has no typed `logLevel` field; set its level with `websocketServer.config.logLevel`. The web server's Gunicorn process log level is set separately with `webServer.gunicorn.logLevel` (see [Gunicorn Configuration](#gunicorn-configuration)).
 
 The operator maps the resolved value to each component's native logging mechanism:
 
@@ -105,11 +104,19 @@ The operator maps the resolved value to each component's native logging mechanis
 |---|---|---|
 | Python components and lifecycle tasks | `LOG_LEVEL` in rendered `superset_config.py` | Generated before `spec.config` and component configuration, so an explicit `LOG_LEVEL` assignment there overrides the typed `logLevel`. |
 | Celery worker and Celery Beat | `--loglevel=<level>` | Celery overrides the root logger level at startup, so the command-line option is also required. |
-| Web server | `GUNICORN_LOGLEVEL` | The default `run-server.sh` passes it to Gunicorn. |
-| Websocket server | `LOG_LEVEL` environment variable | Uses Winston names: `warning` maps to `warn`, and `critical` maps to `error`. The variable is injected only when the top-level or websocket-specific `logLevel` is explicitly set. |
-| Celery Flower | `FLOWER_LOGGING` | Flower's own loggers ignore `LOG_LEVEL`, so the level must be set explicitly through Flower's logging configuration. |
+| Celery Flower | `FLOWER_LOGGING` | Tornado's logging setup overrides the root logger level at startup, so the level must also be set through Flower's logging option. |
 
 If a component uses a custom command (e.g. webserver), that command is responsible for consuming the injected logging environment variables or configuring logging itself. The operator does not modify custom commands to add runtime-specific logging arguments.
+
+### Debug Logging Outside Development
+
+Debug logs can include request details and other sensitive data. When any resolved `logLevel` is `debug` and `environment` is not `Development` (including `Staging`), the operator sets a `DebugLogging` condition on the `Superset` status. The condition message lists the affected components (and `lifecycle` for lifecycle tasks). The operator also emits a `DebugLogging` Warning Event when the condition first appears. The condition is removed when debug logging is turned off, and it does not affect `Ready` or `Available`.
+
+```bash
+kubectl get superset my-superset -o jsonpath='{.status.conditions[?(@.type=="DebugLogging")].message}'
+```
+
+Only the typed `logLevel` fields are checked. A `LOG_LEVEL = "DEBUG"` assignment in `config` or component level configuration is not detected.
 
 ## Image
 
@@ -371,10 +378,8 @@ The operator sets certain env vars automatically based on the CR spec. These are
 | `SUPERSET_OPERATOR__FLOWER_URL_PREFIX` | Operator-internal | Operator (from `celeryFlower.service.gatewayPath`, default `/flower`) | Flower URL prefix |
 | `SUPERSET_OPERATOR__FORCE_RELOAD` | Operator-internal | Operator (from `spec.forceReload`) | Triggers rolling restart |
 | `SUPERSET_OPERATOR__LOG_LEVEL` | Operator-internal | Operator (from the resolved level, Python components and lifecycle tasks) | Read by the generated `superset_config.py` as Python `LOG_LEVEL` |
-| `LOG_LEVEL` | Standard | Operator (from `spec.logLevel` or `websocketServer.logLevel`, websocket server only, set only when a level is explicitly configured) | Winston log level read by the websocket server |
-| `SERVER_WORKER_AMOUNT`, `SERVER_THREADS_AMOUNT`, `SERVER_WORKER_CLASS`, `GUNICORN_TIMEOUT`, `GUNICORN_KEEPALIVE`, `WORKER_MAX_REQUESTS`, `WORKER_MAX_REQUESTS_JITTER`, `SERVER_LIMIT_REQUEST_LINE`, `SERVER_LIMIT_REQUEST_FIELD_SIZE` | Standard | Operator (from `webServer.gunicorn`, web server only, skipped when `preset: disabled`) | Gunicorn settings read by `run-server.sh` |
-| `GUNICORN_LOGLEVEL` | Standard | Operator (from the resolved `spec.logLevel` or `webServer.logLevel`, web server only) | Gunicorn log level read by `run-server.sh`; independent of the Gunicorn tuning preset |
-| `FLOWER_LOGGING` | Standard | Operator (from the resolved `spec.logLevel` or `celeryFlower.logLevel`, Celery Flower only) | Flower logging level; Flower's own loggers ignore `LOG_LEVEL`, so this value must be set explicitly |
+| `SERVER_WORKER_AMOUNT`, `SERVER_THREADS_AMOUNT`, `SERVER_WORKER_CLASS`, `GUNICORN_TIMEOUT`, `GUNICORN_KEEPALIVE`, `WORKER_MAX_REQUESTS`, `WORKER_MAX_REQUESTS_JITTER`, `SERVER_LIMIT_REQUEST_LINE`, `SERVER_LIMIT_REQUEST_FIELD_SIZE`, `GUNICORN_LOGLEVEL` | Standard | Operator (from `webServer.gunicorn`, web server only, skipped when `preset: disabled`) | Gunicorn settings read by `run-server.sh` |
+| `FLOWER_LOGGING` | Standard | Operator (from the resolved `spec.logLevel` or `celeryFlower.logLevel`, Celery Flower only) | Flower logging level; overrides the root logger level, so it must match the rendered `LOG_LEVEL` |
 
 Operator-set env vars are merged after `podTemplate.container.env`, so a user-defined env var with the same name is overridden and the operator logs `operator env var overrides user-specified value`. Use the matching CRD field instead, for example `webServer.gunicorn.workers` rather than `SERVER_WORKER_AMOUNT`.
 
@@ -660,7 +665,7 @@ Presets control **workers** and **threads**. All other fields, including `worker
 
 Gunicorn runs any worker class as gthread when threads is greater than 1. So when you set `workerClass` to something other than `gthread` and leave `threads` unset, the operator uses 1 thread instead of the preset value.
 
-Set `preset: disabled` to suppress the operator's Gunicorn tuning env vars — Superset's `run-server.sh` built-in defaults will apply for those settings. This does not disable Gunicorn log-level configuration. The resolved value from `spec.logLevel` or `webServer.logLevel` is still passed to Gunicorn.
+Set `preset: disabled` to suppress env var injection entirely — Superset's `run-server.sh` built-in defaults will apply instead.
 
 ```yaml
 spec:

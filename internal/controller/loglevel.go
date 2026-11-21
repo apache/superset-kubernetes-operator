@@ -19,7 +19,11 @@ limitations under the License.
 package controller
 
 import (
+	"strings"
+
 	corev1 "k8s.io/api/core/v1"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	supersetv1alpha1 "github.com/apache/superset-kubernetes-operator/api/v1alpha1"
 	naming "github.com/apache/superset-kubernetes-operator/internal/common"
@@ -37,8 +41,11 @@ func lifecycleLogLevel(spec *supersetv1alpha1.SupersetSpec) supersetv1alpha1.Log
 }
 
 // appendLogLevelEnv injects the env vars that carry a component's resolved
-// level to loggers that don't read Superset's LOG_LEVEL. Only Flower needs
-// one: it resets the root logger at startup, so it gets FLOWER_LOGGING.
+// level to loggers that don't follow Superset's LOG_LEVEL. Only Flower needs
+// one. At startup, Flower calls Tornado's enable_pretty_logging without a
+// logger argument, which sets the root logger to Tornado's logging option.
+// That overrides the rendered LOG_LEVEL, just as Celery's --loglevel does
+// for the worker and Beat, so Flower gets the level as FLOWER_LOGGING.
 // Server-process loggers (Gunicorn, websocket, FastMCP) keep their own
 // native settings and are not driven by logLevel.
 func appendLogLevelEnv(componentType naming.ComponentType, level supersetv1alpha1.LogLevel, injected *resolution.OperatorInjected) {
@@ -55,4 +62,52 @@ func withCeleryDefaultLogLevel(componentType naming.ComponentType, command []str
 		return command
 	}
 	return append(command, supersetconfig.CeleryLogLevelFlag(level))
+}
+
+// debugLoggingTargets returns the names of the workloads that run at debug
+// It resolves the level the same way the workloads do (component logLevel,
+// then spec.logLevel, then info) and
+// checks each enabled Python component, by component type.
+// The websocket server is skipped because logLevel doesn't apply to it.
+// It also checks lifecycle tasks, unless lifecycle is disabled.
+func debugLoggingTargets(superset *supersetv1alpha1.Superset) []string {
+	var targets []string
+	for _, desc := range componentDescriptors {
+		if !desc.hasPythonConfig {
+			continue
+		}
+		accessor := desc.extract(&superset.Spec)
+		if accessor == nil {
+			continue
+		}
+		if supersetconfig.ResolveLogLevel(accessor.logLevel, superset.Spec.LogLevel) == supersetv1alpha1.LogLevelDebug {
+			targets = append(targets, string(desc.componentType))
+		}
+	}
+	if !isLifecycleDisabled(superset) && lifecycleLogLevel(&superset.Spec) == supersetv1alpha1.LogLevelDebug {
+		targets = append(targets, "lifecycle")
+	}
+	return targets
+}
+
+// reconcileDebugLoggingCondition sets the DebugLogging condition while any
+// app log level is debug outside Development, and removes it otherwise.
+// It reflects spec state only and doesn't affect Ready or Available.
+// The Warning Event is emitted only when the condition appears
+func (r *SupersetReconciler) reconcileDebugLoggingCondition(superset, origSuperset *supersetv1alpha1.Superset) {
+	var targets []string
+	if !isDevEnvironment(&superset.Spec) {
+		targets = debugLoggingTargets(superset)
+	}
+	if len(targets) == 0 {
+		removeCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeDebugLogging)
+		return
+	}
+
+	message := "Log level is debug outside Development for: " + strings.Join(targets, ", ")
+	setCondition(&superset.Status.Conditions, supersetv1alpha1.ConditionTypeDebugLogging,
+		metav1.ConditionTrue, "DebugLogLevel", message, superset.Generation)
+	if !apimeta.IsStatusConditionTrue(origSuperset.Status.Conditions, supersetv1alpha1.ConditionTypeDebugLogging) {
+		r.Recorder.Eventf(superset, nil, corev1.EventTypeWarning, "DebugLogging", "Reconcile", "%s", message)
+	}
 }

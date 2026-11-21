@@ -29,7 +29,7 @@ import (
 // DefaultLogLevel applies when neither the component nor spec.logLevel sets a level.
 const DefaultLogLevel = v1alpha1.LogLevelInfo
 
-// The env variable Celery Flower uses to determine its log level
+// EnvCeleryFlowerLogLevel is the env var Celery Flower reads for its log level.
 const EnvCeleryFlowerLogLevel = "FLOWER_LOGGING"
 
 // ResolveLogLevel returns the effective lowercase level: the component value,
