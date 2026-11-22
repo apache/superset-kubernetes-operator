@@ -958,17 +958,6 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#added" class="md-nav__link">
-    <span class="md-ellipsis">
-      <span class="md-typeset">
-        Added
-      </span>
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
   <a href="#changed" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1007,6 +996,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#040-2026-11-22" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        0.4.0 - 2026-11-22
+      </span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="0.4.0 - 2026-11-22">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#added" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Added
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changed_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Changed
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#fixed_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      <span class="md-typeset">
+        Fixed
+      </span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#031-2026-10-21" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
@@ -1019,7 +1058,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#fixed_1" class="md-nav__link">
+  <a href="#fixed_2" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
         Fixed
@@ -1058,7 +1097,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed_1" class="md-nav__link">
+  <a href="#changed_2" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
         Changed
@@ -1069,7 +1108,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#fixed_2" class="md-nav__link">
+  <a href="#fixed_3" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
         Fixed
@@ -1119,7 +1158,7 @@
 </li>
         
           <li class="md-nav__item">
-  <a href="#changed_2" class="md-nav__link">
+  <a href="#changed_3" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
         Changed
@@ -1158,7 +1197,7 @@
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
-  <a href="#fixed_3" class="md-nav__link">
+  <a href="#fixed_4" class="md-nav__link">
     <span class="md-ellipsis">
       <span class="md-typeset">
         Fixed
@@ -1254,27 +1293,13 @@ under the License.
 <h1 id="releases">Releases<a class="headerlink" href="#releases" title="Permanent link">&para;</a></h1>
 <p>This page tracks notable changes in Apache Superset Kubernetes Operator releases.</p>
 <h2 id="unreleased">Unreleased<a class="headerlink" href="#unreleased" title="Permanent link">&para;</a></h2>
-<h3 id="added">Added<a class="headerlink" href="#added" title="Permanent link">&para;</a></h3>
-<ul>
-<li><strong>Helm <code>dnsPolicy</code> and <code>dnsConfig</code>.</strong> The Helm chart now exposes <code>dnsPolicy</code> and <code>dnsConfig</code> values for the operator manager pod (<a href="https://github.com/apache/superset-kubernetes-operator/pull/394">#394</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
-<li><strong>Helm <code>priorityClassName</code>.</strong> The Helm chart now exposes a <a href="https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/"><code>priorityClassName</code></a> value that sets the PriorityClass of the operator manager pods. Unset by default, which keeps the cluster default priority (<a href="https://github.com/apache/superset-kubernetes-operator/pull/420">#420</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
-<li><strong>Removing default probes.</strong> Setting <code>livenessProbe</code>, <code>readinessProbe</code>, or <code>startupProbe</code> to <code>{}</code> now removes the operator's default probe. It works on every component and follows the usual top-level and per-component override rules (<a href="https://github.com/apache/superset-kubernetes-operator/pull/427">#427</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
-<li><strong>Helm <code>extraEnv</code>.</strong> The Helm chart now exposes an <code>extraEnv</code> value that appends environment variables to the operator manager container, for example a <code>GOMEMLIMIT</code> derived from the memory limit. <code>WATCH_NAMESPACE</code> is rejected because the <code>watch</code> block owns it (<a href="https://github.com/apache/superset-kubernetes-operator/pull/426">#426</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
-<li><strong><code>sup</code> short name.</strong> The <code>Superset</code> resource now has the short name <code>sup</code>, so <code>kubectl get sup</code> works the same as <code>kubectl get superset</code> (<a href="https://github.com/apache/superset-kubernetes-operator/pull/480">#480</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
-<li><strong>External scaling.</strong> A new <code>scalingMode</code> field hands a component's replica count to an external controller, such as a <a href="https://keda.sh">KEDA</a> <code>ScaledObject</code> that scales Celery workers on broker queue depth. With <code>scalingMode: External</code>, the operator keeps the Deployment's live replica count and creates no HPA for the component. Set it at the top level for every scalable component or per component; a component's <code>scalingMode: Operator</code> opts it out of a top-level <code>External</code>. <code>replicas</code> and <code>autoscaling</code> are rejected where the effective mode is <code>External</code>. See <a href="/superset-kubernetes-operator/latest/user-guide/configuration/#external-scaling">External scaling</a> (<a href="https://github.com/apache/superset-kubernetes-operator/pull/506">#506</a>, <a href="https://github.com/lucargir">@lucargir</a>).</li>
-</ul>
 <h3 id="changed">Changed<a class="headerlink" href="#changed" title="Permanent link">&para;</a></h3>
 <ul>
-<li>Optional string values in the Helm chart (<code>image.tag</code>, <code>serviceAccount.name</code>, <code>logLevel</code>, <code>metrics.certSecretName</code>, <code>metrics.serviceMonitor.scrapeTimeout</code>, <code>dnsPolicy</code>, <code>podDisruptionBudget.unhealthyPodEvictionPolicy</code>) now default to <code>~</code> (null) instead of <code>""</code>, matching the chart's other unset values. Rendered output is unchanged, and explicit empty strings are still accepted (<a href="https://github.com/apache/superset-kubernetes-operator/pull/394">#394</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
-<li><strong>Breaking:</strong> <code>podTemplate.container.ports</code> is removed. Each component now always listens on its operator default port, and its Service <code>targetPort</code>, default probes, and NetworkPolicy always target that port. Overriding the first port used to move the Service, probes, and NetworkPolicy without changing the port the server listened on, so the pods restarted in a loop. A port set on the top-level <code>podTemplate.container</code> was also merged into every HTTP component. Remove <code>ports</code> from your Superset resources before upgrading: once the new CRD is applied (see <a href="/superset-kubernetes-operator/latest/user-guide/installation/#upgrading-the-operator">Upgrading the operator</a>), the API server drops the field from stored resources, and <code>kubectl apply</code> with strict field validation rejects it. Instances that set <code>ports</code> go back to the default port and roll once on upgrade. To change the port clients connect to, use <code>service.port</code> (<a href="https://github.com/apache/superset-kubernetes-operator/pull/462">#462</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
-<li><strong>Celery worker liveness probe.</strong> The Celery worker now gets a default liveness probe that runs <code>celery inspect ping</code> against the pod's own worker node, so a worker that stays Running but no longer answers over the broker is restarted. Timings match the upstream Superset Helm chart (120s initial delay, 60s period and timeout, 3 failures). Existing worker Deployments roll once on upgrade, and setting <code>livenessProbe</code> on the worker replaces the default (<a href="https://github.com/apache/superset-kubernetes-operator/pull/427">#427</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
-<li><code>webServer.gunicorn.workerClass</code>, <code>webServer.gunicorn.logLevel</code>, <code>celeryWorker.celery.pool</code>, <code>celeryWorker.celery.optimization</code>, and <code>valkey.ssl.certRequired</code> no longer have a fixed list of allowed values. The operator passes them to Gunicorn, Celery, and the Valkey client unchanged, so values added in newer releases of those projects work without an operator update (<a href="https://github.com/apache/superset-kubernetes-operator/pull/508">#508</a>, <a href="https://github.com/villebro">@villebro</a>).</li>
 <li>The Helm chart now documents its <code>nameOverride</code> and <code>fullnameOverride</code> values, and <code>image.pullPolicy</code> defaults to unset so the Kubernetes default applies. Rendered pull behavior is unchanged for the default image tag (<a href="https://github.com/apache/superset-kubernetes-operator/pull/531">#531</a>, <a href="https://github.com/villebro">@villebro</a>).</li>
 <li>The operator's RBAC no longer grants <code>update</code> and <code>patch</code> on Jobs. Lifecycle task Jobs are only ever created and deleted, so the manager role (Kustomize and Helm) now requests just <code>get</code>, <code>list</code>, <code>watch</code>, <code>create</code> and <code>delete</code> (<a href="https://github.com/apache/superset-kubernetes-operator/pull/524">#524</a>, <a href="https://github.com/villebro">@villebro</a>).</li>
 </ul>
 <h3 id="fixed">Fixed<a class="headerlink" href="#fixed" title="Permanent link">&para;</a></h3>
 <ul>
-<li><strong>User-managed HPAs and PDBs are no longer deleted.</strong> The operator used to delete an unowned HPA or PDB named after a component Deployment, such as one created with <code>kubectl autoscale</code>, whenever that component had no <code>autoscaling</code> or <code>podDisruptionBudget</code> and again on every lifecycle drain. Component cleanup now finds resources by the operator's labels, and by name only for resources the Superset owns (<a href="https://github.com/apache/superset-kubernetes-operator/pull/507">#507</a>, <a href="https://github.com/villebro">@villebro</a>).</li>
 <li>At the default log level, the operator no longer repeats drain progress, "upgrade awaiting approval", env var override warnings, or foreign-owner cleanup skips on every reconcile. These messages are logged once when the state changes, or at debug level (<a href="https://github.com/apache/superset-kubernetes-operator/pull/528">#528</a>, <a href="https://github.com/villebro">@villebro</a>).</li>
 <li>Setting <code>webServer.gunicorn.workerClass</code> to a class other than <code>gthread</code> (for example <code>sync</code> or <code>gevent</code>) without setting <code>threads</code> no longer runs the web server as gthread. The preset's thread count used to apply anyway, and Gunicorn switches to gthread whenever threads is greater than 1. Such web servers now use 1 thread and roll once on upgrade; set <code>threads</code> explicitly to keep the old behavior (<a href="https://github.com/apache/superset-kubernetes-operator/pull/522">#522</a>, <a href="https://github.com/villebro">@villebro</a>).</li>
 <li>Outside Development, the operator now ignores inline <code>websocketServer.config</code>, <code>lifecycle.init.adminUser</code> and <code>lifecycle.init.loadExamples</code> even if a resource gets past CRD validation (for example on clusters older than Kubernetes 1.25, which ignore CRD validation rules), as it already did for the other inline secrets (<a href="https://github.com/apache/superset-kubernetes-operator/pull/525">#525</a>, <a href="https://github.com/villebro">@villebro</a>).</li>
@@ -1285,8 +1310,31 @@ under the License.
 <ul>
 <li><strong>Breaking:</strong> <code>lifecycle.seed.source.type</code> is removed. The seed source now always uses <code>metastore.type</code>, which selects the dump and restore tools, the default source port and the default seed image. A source type that differed from the metastore could only fail at runtime, because the default seed command restores with the source database's tools. Remove <code>source.type</code> from your Superset resources before upgrading; resources where it matched the metastore keep their seed checksum and don't re-seed. For a cross-engine seed, set <code>lifecycle.seed.command</code>, <code>image</code> and <code>source.port</code> explicitly (<a href="https://github.com/apache/superset-kubernetes-operator/pull/523">#523</a>, <a href="https://github.com/villebro">@villebro</a>).</li>
 </ul>
-<h2 id="031-2026-10-21">0.3.1 - 2026-10-21<a class="headerlink" href="#031-2026-10-21" title="Permanent link">&para;</a></h2>
+<h2 id="040-2026-11-22">0.4.0 - 2026-11-22<a class="headerlink" href="#040-2026-11-22" title="Permanent link">&para;</a></h2>
+<h3 id="added">Added<a class="headerlink" href="#added" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Helm <code>dnsPolicy</code> and <code>dnsConfig</code>.</strong> The Helm chart now exposes <code>dnsPolicy</code> and <code>dnsConfig</code> values for the operator manager pod (<a href="https://github.com/apache/superset-kubernetes-operator/pull/394">#394</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
+<li><strong>Helm <code>priorityClassName</code>.</strong> The Helm chart now exposes a <a href="https://kubernetes.io/docs/concepts/scheduling-eviction/pod-priority-preemption/"><code>priorityClassName</code></a> value that sets the PriorityClass of the operator manager pods. Unset by default, which keeps the cluster default priority (<a href="https://github.com/apache/superset-kubernetes-operator/pull/420">#420</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
+<li><strong>Removing default probes.</strong> Setting <code>livenessProbe</code>, <code>readinessProbe</code>, or <code>startupProbe</code> to <code>{}</code> now removes the operator's default probe. It works on every component and follows the usual top-level and per-component override rules (<a href="https://github.com/apache/superset-kubernetes-operator/pull/427">#427</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
+<li><strong>Helm <code>extraEnv</code>.</strong> The Helm chart now exposes an <code>extraEnv</code> value that appends environment variables to the operator manager container, for example a <code>GOMEMLIMIT</code> derived from the memory limit. <code>WATCH_NAMESPACE</code> is rejected because the <code>watch</code> block owns it (<a href="https://github.com/apache/superset-kubernetes-operator/pull/426">#426</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
+<li><strong><code>sup</code> short name.</strong> The <code>Superset</code> resource now has the short name <code>sup</code>, so <code>kubectl get sup</code> works the same as <code>kubectl get superset</code> (<a href="https://github.com/apache/superset-kubernetes-operator/pull/480">#480</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
+<li><strong>External scaling.</strong> A new <code>scalingMode</code> field hands a component's replica count to an external controller, such as a <a href="https://keda.sh">KEDA</a> <code>ScaledObject</code> that scales Celery workers on broker queue depth. With <code>scalingMode: External</code>, the operator keeps the Deployment's live replica count and creates no HPA for the component. Set it at the top level for every scalable component or per component; a component's <code>scalingMode: Operator</code> opts it out of a top-level <code>External</code>. <code>replicas</code> and <code>autoscaling</code> are rejected where the effective mode is <code>External</code>. See <a href="/superset-kubernetes-operator/latest/user-guide/configuration/#external-scaling">External scaling</a> (<a href="https://github.com/apache/superset-kubernetes-operator/pull/506">#506</a>, <a href="https://github.com/lucargir">@lucargir</a>).</li>
+</ul>
+<h3 id="changed_1">Changed<a class="headerlink" href="#changed_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Optional string values in the Helm chart (<code>image.tag</code>, <code>serviceAccount.name</code>, <code>logLevel</code>, <code>metrics.certSecretName</code>, <code>metrics.serviceMonitor.scrapeTimeout</code>, <code>dnsPolicy</code>, <code>podDisruptionBudget.unhealthyPodEvictionPolicy</code>) now default to <code>~</code> (null) instead of <code>""</code>, matching the chart's other unset values. Rendered output is unchanged, and explicit empty strings are still accepted (<a href="https://github.com/apache/superset-kubernetes-operator/pull/394">#394</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
+<li><strong>Breaking:</strong> <code>podTemplate.container.ports</code> is removed. Each component now always listens on its operator default port, and its Service <code>targetPort</code>, default probes, and NetworkPolicy always target that port. Overriding the first port used to move the Service, probes, and NetworkPolicy without changing the port the server listened on, so the pods restarted in a loop. A port set on the top-level <code>podTemplate.container</code> was also merged into every HTTP component. Remove <code>ports</code> from your Superset resources before upgrading: once the new CRD is applied (see <a href="/superset-kubernetes-operator/latest/user-guide/installation/#upgrading-the-operator">Upgrading the operator</a>), the API server drops the field from stored resources, and <code>kubectl apply</code> with strict field validation rejects it. Instances that set <code>ports</code> go back to the default port and roll once on upgrade. To change the port clients connect to, use <code>service.port</code> (<a href="https://github.com/apache/superset-kubernetes-operator/pull/462">#462</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
+<li><strong>Celery worker liveness probe.</strong> The Celery worker now gets a default liveness probe that runs <code>celery inspect ping</code> against the pod's own worker node, so a worker that stays Running but no longer answers over the broker is restarted. Timings match the upstream Superset Helm chart (120s initial delay, 60s period and timeout, 3 failures). Existing worker Deployments roll once on upgrade, and setting <code>livenessProbe</code> on the worker replaces the default (<a href="https://github.com/apache/superset-kubernetes-operator/pull/427">#427</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
+<li><code>webServer.gunicorn.workerClass</code>, <code>webServer.gunicorn.logLevel</code>, <code>celeryWorker.celery.pool</code>, <code>celeryWorker.celery.optimization</code>, and <code>valkey.ssl.certRequired</code> no longer have a fixed list of allowed values. The operator passes them to Gunicorn, Celery, and the Valkey client unchanged, so values added in newer releases of those projects work without an operator update (<a href="https://github.com/apache/superset-kubernetes-operator/pull/508">#508</a>, <a href="https://github.com/villebro">@villebro</a>).</li>
+<li>The operator's Pod cache now holds only pods that carry the <code>superset.apache.org/parent</code> label instead of every Pod it can see. In a cluster-scoped install this greatly reduces manager memory use on busy clusters: with 2,000 unrelated pods, steady memory dropped from about 47 MiB to 17 MiB (<a href="https://github.com/apache/superset-kubernetes-operator/pull/441">#441</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
+</ul>
 <h3 id="fixed_1">Fixed<a class="headerlink" href="#fixed_1" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>User-managed HPAs and PDBs are no longer deleted.</strong> The operator used to delete an unowned HPA or PDB named after a component Deployment, such as one created with <code>kubectl autoscale</code>, whenever that component had no <code>autoscaling</code> or <code>podDisruptionBudget</code> and again on every lifecycle drain. Component cleanup now finds resources by the operator's labels, and by name only for resources the Superset owns (<a href="https://github.com/apache/superset-kubernetes-operator/pull/507">#507</a>, <a href="https://github.com/villebro">@villebro</a>).</li>
+<li>An Ingress with neither <code>host</code> nor <code>hosts</code> set (for example only <code>className: alb</code>) is now created with a single rule that matches every hostname. Previously the API server rejected the Ingress because it had no rules, so reconciliation failed and no Ingress was created (<a href="https://github.com/apache/superset-kubernetes-operator/pull/461">#461</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
+</ul>
+<h2 id="031-2026-10-21">0.3.1 - 2026-10-21<a class="headerlink" href="#031-2026-10-21" title="Permanent link">&para;</a></h2>
+<h3 id="fixed_2">Fixed<a class="headerlink" href="#fixed_2" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Credential redaction in lifecycle task failure messages now masks the whole value when a quoted credential key is followed by empty quotes and more characters, such as <code>{"password": ""hunter2}</code>. Previously the characters after the empty quotes were left in the parent Superset status and Kubernetes Events (<a href="https://github.com/apache/superset-kubernetes-operator/pull/437">#437</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
 <li>Setting <code>spec.valkey.ssl</code> without certificate files (for example <code>ssl: {}</code> for managed Valkey or Redis with in-transit encryption) no longer crash-loops the Celery worker. The operator now renders <code>ssl_cert_reqs</code> and the Celery <code>broker_use_ssl</code> and <code>redis_backend_use_ssl</code> options whenever SSL is enabled, and <code>ssl.certRequired</code> takes effect without certificate paths. Deployments that use SSL roll once on upgrade (<a href="https://github.com/apache/superset-kubernetes-operator/pull/440">#440</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
@@ -1298,13 +1346,13 @@ under the License.
 <li>Structured metastore, Valkey, and lifecycle seed-source connection fields can now be sourced individually from Kubernetes Secret keys, allowing <code>Superset</code> resources to consume provisioner-owned endpoints and credentials without copying discovered values or assembling a separate connection URI (<a href="https://github.com/apache/superset-kubernetes-operator/pull/369">#369</a>).</li>
 <li><strong>Helm <code>podDisruptionBudget</code>.</strong> The Helm chart now exposes a <code>podDisruptionBudget</code> value that renders a <a href="https://kubernetes.io/docs/concepts/workloads/pods/disruptions/#pod-disruption-budgets">PodDisruptionBudget</a> for the operator manager pods. It is disabled by default and falls back to <code>maxUnavailable: 1</code> when no bound is set. Rendering fails for integer or percentage bounds that would leave zero allowed disruptions at the configured <code>replicas</code> (for example <code>minAvailable: 1</code> with one replica, or <code>maxUnavailable: 0</code>), so the budget never blocks node drains. See <a href="/superset-kubernetes-operator/latest/user-guide/installation/#high-availability">High availability</a> for the recommended multi-replica setup. <a href="https://kubernetes.io/docs/tasks/run-application/configure-pdb/#unhealthy-pod-eviction-policy"><code>unhealthyPodEvictionPolicy</code></a> can be set to <code>AlwaysAllow</code> so drains can evict a crash-looping manager (<a href="https://github.com/apache/superset-kubernetes-operator/pull/386">#386</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
 </ul>
-<h3 id="changed_1">Changed<a class="headerlink" href="#changed_1" title="Permanent link">&para;</a></h3>
+<h3 id="changed_2">Changed<a class="headerlink" href="#changed_2" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>Helm chart requires leader election for multiple replicas.</strong> Rendering now fails when <code>replicas</code> is greater than 1 and <code>leaderElection.enabled</code> is <code>false</code>. Replicas are active/standby behind the <a href="https://kubernetes.io/docs/concepts/architecture/leases/#leader-election">leader election Lease</a>; without it every replica reconciles the same <code>Superset</code> resources and races on Jobs, drains, and status. Existing releases with that combination fail <code>helm upgrade</code> until leader election is enabled or the release is scaled to one replica (<a href="https://github.com/apache/superset-kubernetes-operator/pull/390">#390</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
 <li>Valkey's default port is now applied at runtime, aligning it with the existing structured-metastore behavior, instead of being stored by CRD defaulting. Resources that omit both <code>valkey.port</code> and <code>valkey.portFrom</code> therefore no longer materialize <code>port: 6379</code>, while generated configuration continues to use port 6379. This permits <code>portFrom</code> without a defaulted literal conflicting at admission (<a href="https://github.com/apache/superset-kubernetes-operator/pull/369">#369</a>).</li>
 <li>Kubernetes support now covers the three newest <code>kind</code>-published minor versions instead of two. CI tests Kubernetes 1.37, 1.36, and 1.35 natively, with the experimental <code>next</code> lane disabled again (<a href="https://github.com/apache/superset-kubernetes-operator/pull/315">#315</a>).</li>
 </ul>
-<h3 id="fixed_2">Fixed<a class="headerlink" href="#fixed_2" title="Permanent link">&para;</a></h3>
+<h3 id="fixed_3">Fixed<a class="headerlink" href="#fixed_3" title="Permanent link">&para;</a></h3>
 <ul>
 <li>The default MySQL tool image for the seed task and the <code>createDatabase</code> init container is now <code>mysql:8.4</code>. The previous default, <code>mysql:8-alpine</code>, does not exist on Docker Hub, so MySQL seeding and database auto-creation failed with an image pull error unless an image was set explicitly. Staging instances that seed from MySQL with the default image re-seed once after upgrading, because the seed image is part of the seed task checksum (<a href="https://github.com/apache/superset-kubernetes-operator/pull/389">#389</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
 <li>The operator-managed maintenance page now sets <code>seccompProfile: RuntimeDefault</code> on its container, so it is admitted in namespaces enforcing the restricted Pod Security Standard (its other hardened defaults were already set, but the missing seccomp profile caused rejection) (<a href="https://github.com/apache/superset-kubernetes-operator/pull/362">#362</a>, <a href="https://github.com/villebro">@villebro</a>).</li>
@@ -1333,7 +1381,7 @@ under the License.
 <li><strong>Helm extra manifests.</strong> The Helm chart now supports <code>extraManifests</code> for rendering trusted, release-scoped Kubernetes manifests with Helm <code>tpl</code>. Use it for companion resources owned by the operator release, not shared cluster infrastructure such as Gateway API controllers, CRDs, or shared Gateways (<a href="https://github.com/apache/superset-kubernetes-operator/pull/196">#196</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
 <li><strong>Helm resize policy.</strong> The Helm chart now supports <code>resizePolicy</code> on the manager container, controlling whether an in-place pod resize (InPlacePodVerticalScaling) restarts the container (<a href="https://github.com/apache/superset-kubernetes-operator/pull/200">#200</a>, <a href="https://github.com/younsl">@younsl</a>).</li>
 </ul>
-<h3 id="changed_2">Changed<a class="headerlink" href="#changed_2" title="Permanent link">&para;</a></h3>
+<h3 id="changed_3">Changed<a class="headerlink" href="#changed_3" title="Permanent link">&para;</a></h3>
 <ul>
 <li><strong>Breaking:</strong> renamed the "version" status fields to "tag". <code>status.version</code> → <code>status.tag</code> (the <code>kubectl get</code> column is renamed <strong>Version</strong> → <strong>Tag</strong>), and <code>status.lifecycle.upgrade.fromVersion</code>/<code>toVersion</code> → <code>fromTag</code>/<code>toTag</code>. No behavior change.</li>
 <li><strong>Breaking:</strong> downgrade blocking is removed. Any change to the lifecycle image tag now re-runs the migrate task (<code>superset db upgrade</code>) regardless of direction — the operator no longer performs semver comparison or sets <code>status.phase: Blocked</code> on a version decrease. The migrate task only runs <code>superset db upgrade</code> (Superset's down migrations are poorly tested and often break, so the operator never runs them), so take a database backup before an upgrade if you may need to revert. The <code>direction</code> field is removed from <code>status.lifecycle.upgrade</code>, and the <code>VersionComparisonSkipped</code> warning event no longer fires.</li>
@@ -1344,7 +1392,7 @@ under the License.
 <li><strong>Credential redaction in task failure output.</strong> Lifecycle task failure messages are now scrubbed with best-effort pattern-based redaction before being persisted to the parent Superset status and Kubernetes Events: passwords embedded in connection URIs and common credential assignments (<code>password=...</code>, <code>token=...</code>, etc.) are masked. This mitigates the known limitation where a failing task command could leak credential fragments into status (<a href="https://github.com/younsl">@younsl</a>).</li>
 </ul>
 <h2 id="011-2026-06-29">0.1.1 - 2026-06-29<a class="headerlink" href="#011-2026-06-29" title="Permanent link">&para;</a></h2>
-<h3 id="fixed_3">Fixed<a class="headerlink" href="#fixed_3" title="Permanent link">&para;</a></h3>
+<h3 id="fixed_4">Fixed<a class="headerlink" href="#fixed_4" title="Permanent link">&para;</a></h3>
 <ul>
 <li>Honor HPA-managed replica counts: the operator no longer overwrites the replica count on Deployments whose scaling is owned by a HorizontalPodAutoscaler (<a href="https://github.com/apache/superset-kubernetes-operator/pull/152">#152</a>, <a href="https://github.com/pashtet04">@pashtet04</a>).</li>
 </ul>
