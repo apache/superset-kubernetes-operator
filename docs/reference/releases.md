@@ -63,7 +63,6 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 
 - **User-managed HPAs and PDBs are no longer deleted.** The operator used to delete an unowned HPA or PDB named after a component Deployment, such as one created with `kubectl autoscale`, whenever that component had no `autoscaling` or `podDisruptionBudget` and again on every lifecycle drain. Component cleanup now finds resources by the operator's labels, and by name only for resources the Superset owns ([#507](https://github.com/apache/superset-kubernetes-operator/pull/507), [@villebro](https://github.com/villebro)).
 - An Ingress with neither `host` nor `hosts` set (for example only `className: alb`) is now created with a single rule that matches every hostname. Previously the API server rejected the Ingress because it had no rules, so reconciliation failed and no Ingress was created ([#461](https://github.com/apache/superset-kubernetes-operator/pull/461), [@younsl](https://github.com/younsl)).
-- Built with Go 1.27.4.
 
 ## 0.3.1 - 2026-10-21
 
