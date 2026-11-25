@@ -17,10 +17,10 @@
 set -euo pipefail
 
 # renovate: datasource=github-release-attachments depName=oras-project/oras versioning=semver-coerced
-ORAS_VERSION="${ORAS_VERSION:-v1.3.6}"
+ORAS_VERSION="${ORAS_VERSION:-v1.4.0}"
 ORAS_VERSION_NO_PREFIX="${ORAS_VERSION#v}"
 ORAS_PLATFORM="${ORAS_PLATFORM:-linux_amd64}"
-ORAS_SHA256="${ORAS_SHA256:-66fb0ad7206f3f6fa77ed5b552049d364ccf4b50b1684554f731f76302b52ca0}"
+ORAS_SHA256="${ORAS_SHA256:-d8e1dce2fd8ce996f1d901845b688eb0cf505a6082897606f053825bb47935d1}"
 
 archive="oras_${ORAS_VERSION_NO_PREFIX}_${ORAS_PLATFORM}.tar.gz"
 url="https://github.com/oras-project/oras/releases/download/${ORAS_VERSION}/${archive}"
