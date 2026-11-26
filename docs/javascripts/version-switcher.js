@@ -219,6 +219,11 @@
 
   // ---- selector ----
 
+  function setSelectorExpanded(nav, expanded) {
+    nav.classList.toggle("md-version--active", expanded);
+    nav.querySelector(".md-version__current")?.setAttribute("aria-expanded", String(expanded));
+  }
+
   function createSelector() {
     const nav = document.createElement("nav");
     nav.className = `md-version ${SWITCHER_CLASS}`;
@@ -239,8 +244,16 @@
     list.id = `${SWITCHER_CLASS}-list`;
     toggle.addEventListener("click", () => {
       const expanded = toggle.getAttribute("aria-expanded") === "true";
-      toggle.setAttribute("aria-expanded", String(!expanded));
-      nav.classList.toggle("md-version--active", !expanded);
+      setSelectorExpanded(nav, !expanded);
+    });
+    nav.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        setSelectorExpanded(nav, false);
+        toggle.focus();
+      }
+    });
+    document.addEventListener("click", (event) => {
+      if (!nav.contains(event.target)) setSelectorExpanded(nav, false);
     });
     list.addEventListener("click", onVersionLinkClick);
 
@@ -257,6 +270,7 @@
     const { versions, root, segment, current, latest, preferred } = ctx;
     if (!document.querySelector(".md-header__inner")) return;
     const nav = document.querySelector(`.${SWITCHER_CLASS}`) || createSelector();
+    setSelectorExpanded(nav, false);
     // On a shared page, show the last-viewed version rather than latest.
     const selected = current || (segment ? { title: segment } : preferred || latest || versions[0]);
 
