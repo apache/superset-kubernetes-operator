@@ -104,7 +104,7 @@ jobs:
   deploy:
     name: Deploy docs
     needs: build
-    if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main')
+    if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main' || inputs.dry_run)
     runs-on: ubuntu-latest
     # Keep refs on separate queues so one pending deploy cannot replace another.
     concurrency:
@@ -145,9 +145,11 @@ jobs:
       - name: Assemble into gh-pages
         run: bash scripts/run-docs-ci.sh assemble "$RUNNER_TEMP/docs-site" "$PUBLISH_DIR"
       - name: Commit and push docs
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          auth_header="$(printf 'x-access-token:%s' '${{ github.token }}' | base64 -w0)"
+          auth_header="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           echo "::add-mask::$auth_header"
           if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch || "$GITHUB_REF_TYPE" == tag ]]; then
             tag_ref="refs/tags/$DOC_REF"
