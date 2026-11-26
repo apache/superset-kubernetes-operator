@@ -26,6 +26,7 @@ on:
       - "zensical-unversioned.toml"
       - "zensical-versioned.toml"
       - "scripts/publish-docs.sh"
+      - "scripts/build-docs-local.sh"
       - "scripts/run-docs-ci.sh"
       - "scripts/docs_versions.py"
       - "scripts/prepare_docs_links.py"
@@ -58,6 +59,7 @@ on:
       - "zensical-unversioned.toml"
       - "zensical-versioned.toml"
       - "scripts/publish-docs.sh"
+      - "scripts/build-docs-local.sh"
       - "scripts/run-docs-ci.sh"
       - "scripts/docs_versions.py"
       - "scripts/prepare_docs_links.py"
@@ -134,6 +136,9 @@ jobs:
           fi
           git fetch origin gh-pages
           git worktree add --detach "$PUBLISH_DIR" origin/gh-pages
+      - name: Check published version before building
+        if: github.event_name == 'workflow_dispatch' || github.ref_type == 'tag'
+        run: bash scripts/run-docs-ci.sh check-published "$PUBLISH_DIR"
       - name: Configure git
         run: |
           git -C "$PUBLISH_DIR" config user.name "github-actions[bot]"
