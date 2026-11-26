@@ -53,20 +53,20 @@ from functools import lru_cache
 import posixpath
 import re
 from pathlib import Path, PurePosixPath
+import tomllib
 from urllib.parse import urlsplit
 
-# Read the canonical URL from the primary config; tests verify the other configs agree.
+# Shared-page link rewriting uses the root URL; versioned builds set their canonical URL
+# directly in zensical-versioned.toml.
 _CONFIG = Path(__file__).resolve().parent.parent / "zensical.toml"
 
 
 @lru_cache(maxsize=1)
 def site_urls() -> tuple[str, str]:
-    """Load canonical site origin and path only when link rewriting needs them."""
-    config = _CONFIG.read_text(encoding="utf-8")
-    match = re.search(r'^site_url\s*=\s*"([^"]+)"\s*$', config, re.MULTILINE)
-    if not match:
+    with _CONFIG.open("rb") as config_file:
+        site_url = tomllib.load(config_file).get("project", {}).get("site_url")
+    if not isinstance(site_url, str):
         raise RuntimeError(f"could not find project.site_url in {_CONFIG}")
-    site_url = match.group(1)
     site = urlsplit(site_url)
     return f"{site.scheme}://{site.netloc}", site.path.rstrip("/")
 
@@ -139,6 +139,7 @@ def rewrite_file(
     # other versioned pages must stay relative or they would jump to another version.
     link_to_versioned = versioned_pages if relative.as_posix() in SHARED_PAGES else None
     original = path.read_text(encoding="utf-8")
+    _, site_path_prefix = site_urls()
 
     def replace(match: re.Match[str]) -> str:
         target = match.group("target")
@@ -155,7 +156,6 @@ def rewrite_file(
             page = None
         if page is None:
             return match.group(0)
-        _, site_path_prefix = site_urls()
         rewritten_target = f"{site_path_prefix}{page}"
         if query_separator:
             rewritten_target += f"?{query}"

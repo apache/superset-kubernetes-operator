@@ -17,6 +17,7 @@
 # CI glue for .github/workflows/docs.yml.
 #
 #   run-docs-ci.sh env            print DOC_REF, DRY_RUN, and DOCS_FORCE for >> "$GITHUB_ENV"
+#   run-docs-ci.sh check-published DIR check a release against the published versions manifest
 #   run-docs-ci.sh prepare        prepare current docs links or load backfill docs
 #   run-docs-ci.sh publish DIR    build slices, then assemble them into DIR
 #   run-docs-ci.sh build SITE_DIR build once and save slices under SITE_DIR
@@ -41,6 +42,18 @@ release_vars() {
   }
   VERSION="${BASH_REMATCH[1]}"
   MINOR="${VERSION%.*}"
+}
+
+set_release_args() {
+  local -n args="$1"
+  args=()
+  if is_release; then
+    release_vars
+    args=(--release "$VERSION")
+    if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "${DOCS_FORCE:-false}" == true ]]; then
+      args+=(--force)
+    fi
+  fi
 }
 
 # Workflow inputs come from the event payload instead of a ${{ }} expression, so
@@ -119,22 +132,15 @@ publish() (
 build() {
   local site_dir="$1" config target
   mkdir -p "$site_dir"
-  local release_args=() force_args=()
+  local release_args=()
+  set_release_args release_args
   local targets
   targets="$(target_pairs)"
-  if is_release; then
-    release_vars
-    release_args=(--release "$VERSION")
-    if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "${DOCS_FORCE:-false}" == true ]]; then
-      force_args+=(--force)
-    fi
-  fi
   while IFS=$'\t' read -r config target; do
     bash scripts/publish-docs.sh \
       --config "$config" \
       --target "$target" \
       "${release_args[@]+"${release_args[@]}"}" \
-      "${force_args[@]+"${force_args[@]}"}" \
       --build-only \
       --artifact-dir "$site_dir/$target" \
       < /dev/null
@@ -143,17 +149,11 @@ build() {
 
 assemble() {
   local site_dir="$1" publish_dir="$2" config target
-  local release_args=() force_args=()
+  local release_args=()
+  set_release_args release_args
   local targets
   targets="$(target_pairs)"
   mkdir -p "$publish_dir"
-  if is_release; then
-    release_vars
-    release_args=(--release "$VERSION")
-    if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch && "${DOCS_FORCE:-false}" == true ]]; then
-      force_args+=(--force)
-    fi
-  fi
   while IFS=$'\t' read -r config target; do
     bash scripts/publish-docs.sh \
       --config "$config" \
@@ -162,16 +162,24 @@ assemble() {
       "${release_args[@]+"${release_args[@]}"}" \
       --assemble-only \
       --artifact-dir "$site_dir/$target" \
-      "${force_args[@]+"${force_args[@]}"}" \
       < /dev/null
   done <<< "$targets"
 }
 
+check_published() {
+  [[ $# -eq 1 ]] || { echo "usage: $0 check-published PUBLISH_DIR" >&2; exit 2; }
+  local release_args=()
+  set_release_args release_args
+  local args=(check --publish-dir "$1" --target "$MINOR" "${release_args[@]}")
+  python3 scripts/docs_versions.py "${args[@]}"
+}
+
 case "${1:-}" in
   env) emit_env ;;
+  check-published) shift; check_published "$@" ;;
   prepare) prepare ;;
   publish) [[ $# -eq 2 ]] || { echo "usage: $0 publish DIR" >&2; exit 2; }; publish "$2" ;;
   build) [[ $# -eq 2 ]] || { echo "usage: $0 build SITE_DIR" >&2; exit 2; }; build "$2" ;;
   assemble) [[ $# -eq 3 ]] || { echo "usage: $0 assemble SITE_DIR PUBLISH_DIR" >&2; exit 2; }; assemble "$2" "$3" ;;
-  *) echo "usage: $0 env | prepare | publish DIR | build SITE_DIR | assemble SITE_DIR PUBLISH_DIR" >&2; exit 2 ;;
+  *) echo "usage: $0 env | check-published DIR | prepare | publish DIR | build SITE_DIR | assemble SITE_DIR PUBLISH_DIR" >&2; exit 2 ;;
 esac

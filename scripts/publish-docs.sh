@@ -45,6 +45,8 @@ Usage: publish-docs.sh --config FILE --target TARGET --publish-dir DIR [options]
   --assemble-only      assemble a previously built --artifact-dir
   --artifact-dir DIR   directory containing/storing the built site
   --force              allow overwriting a minor with an older patch
+
+Relative file and directory arguments are resolved from the repository root.
 EOF
 }
 
@@ -59,10 +61,9 @@ reject_site_symlinks() {
 }
 
 CONFIG="" TARGET="" PUBLISH_DIR="" RELEASE="" FORCE=""
-BUILD_ONLY="" ASSEMBLE_ONLY="" ARTIFACT_DIR="" TEMP_CONFIG="" check_dir=""
+BUILD_ONLY="" ASSEMBLE_ONLY="" ARTIFACT_DIR="" check_dir=""
 SITE_DIR="${SITE_DIR:-$ROOT_DIR/site}"
 cleanup() {
-  [[ -z "$TEMP_CONFIG" ]] || rm -f "$TEMP_CONFIG"
   [[ -z "$check_dir" ]] || rm -rf "$check_dir"
 }
 trap cleanup EXIT
@@ -139,26 +140,9 @@ else
   python3 "$VERSIONS_PY" check "${validate_args[@]}"
 fi
 
-BUILD_CONFIG="$CONFIG"
-if [[ "$TARGET" != root && -z "$ASSEMBLE_ONLY" ]]; then
-  # Canonical URLs and sitemap entries must include the output version directory.
-  site_url="$(sed -n 's/^site_url = "\(.*\)"$/\1/p' "$CONFIG")"
-  [[ "$(grep -Ec '^site_url = "' "$CONFIG" || true)" == 1 && "$site_url" == */ ]] || \
-    die "expected exactly one site_url ending in / in $CONFIG before rewriting target $TARGET"
-  versioned_site_url="${site_url%/}/$TARGET/"
-  TEMP_CONFIG="$(mktemp "$(dirname "$CONFIG")/.zensical-versioned.XXXXXX")"
-  mv "$TEMP_CONFIG" "$TEMP_CONFIG.toml"
-  TEMP_CONFIG="$TEMP_CONFIG.toml"
-  BUILD_CONFIG="$TEMP_CONFIG"
-  sed "s|^site_url = \"$site_url\"|site_url = \"$versioned_site_url\"|" \
-    "$CONFIG" > "$BUILD_CONFIG"
-  expected_site_url="site_url = \"$versioned_site_url\""
-  [[ "$(grep -Fxc "$expected_site_url" "$BUILD_CONFIG" || true)" == 1 ]] || die "could not set exactly one versioned site_url in $CONFIG"
-fi
-
 if [[ -z "$ASSEMBLE_ONLY" ]]; then
   log "Building '$TARGET' with $(basename "$CONFIG")"
-  "$ZENSICAL" build --clean --strict --config-file "$BUILD_CONFIG"
+  "$ZENSICAL" build --clean --strict --config-file "$CONFIG"
   [[ -d "$SITE_DIR" ]] || die "build output not found: $SITE_DIR (does site_dir in the config match --site-dir?)"
   [[ -f "$SITE_DIR/search.json" ]] || die "build produced no search.json (is search enabled in the config?)"
   reject_site_symlinks "$SITE_DIR"

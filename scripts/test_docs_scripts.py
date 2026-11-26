@@ -25,6 +25,7 @@ import re
 import tempfile
 import tomllib
 import unittest
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -115,12 +116,14 @@ class DocsVersionsTest(unittest.TestCase):
             self.assertIn("location.search + location.hash", index)
             self.assertIn('"../../0.3/guide/"', (root / "latest/guide/index.html").read_text())
             self.assertIn('"../../0.3/guide/page.html"', (root / "latest/guide/page.html").read_text())
-            self.assertIn('<link rel="canonical" href="../0.3/getting-started/">', index)
 
     def test_redirect_page_escapes_url_and_label(self):
         page = dv.redirect_page('../a<"b/', 'docs <"latest"')
         self.assertIn('href="../a&lt;&quot;b/"', page)
         self.assertIn("docs &lt;&quot;latest&quot;", page)
+        script = page.split("<script>", 1)[1].split("</script>", 1)[0]
+        self.assertIn("\\u003c", script)
+        self.assertNotIn("<", script)
 
     def test_latest_redirects_replace_previous_alias(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -150,11 +153,13 @@ class DocsVersionsTest(unittest.TestCase):
             (root / "sitemap-root.xml").write_text('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"/>')
             (root / "0.3").mkdir()
             (root / "0.3/sitemap.xml").write_text("<urlset/>")
-            dv.write_sitemap_index(root, [{"version": "0.3"}])
-            parsed = __import__("xml.etree.ElementTree", fromlist=["ElementTree"]).parse(root / "sitemap.xml")
+            (root / "latest").mkdir()
+            (root / "latest/sitemap.xml").write_text("<urlset/>")
+            dv.write_sitemap_index(root, [{"version": "0.3", "aliases": ["latest"]}])
+            parsed = ET.parse(root / "sitemap.xml")
             self.assertEqual(parsed.getroot().tag.rsplit("}", 1)[-1], "sitemapindex")
             self.assertIn("/sitemap-root.xml", (root / "sitemap.xml").read_text())
-            self.assertIn("/0.3/sitemap.xml", (root / "sitemap.xml").read_text())
+            self.assertIn("/latest/sitemap.xml", (root / "sitemap.xml").read_text())
 
     def test_write_sitemap_index_renames_root_urlset_and_ignores_malformed(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -181,7 +186,11 @@ class DocsVersionsTest(unittest.TestCase):
                 self.assertEqual(dv.write_legacy_redirects(root), 0)
             self.assertIn("not overwriting real page", stderr.getvalue())
             self.assertEqual((root / "guide/index.html").read_text(), "real page")
-            dv.write_text_atomic(root / "guide/index.html", dv.redirect_page("/superset-kubernetes-operator/latest/guide/", "latest") + dv.LEGACY_REDIRECT_MARKER)
+            (root / "guide/index.html").write_text(
+                dv.redirect_page("/superset-kubernetes-operator/latest/guide/", "latest")
+                + dv.LEGACY_REDIRECT_MARKER,
+                encoding="utf-8",
+            )
             self.assertTrue(dv.is_legacy_redirect(root / "guide/index.html"))
             self.assertEqual(dv.write_legacy_redirects(root), 1)
 
@@ -295,9 +304,13 @@ class DocumentationLinkPreparationTest(unittest.TestCase):
             site_url = self.project_config(name).get("site_url")
             if not site_url:
                 continue
+            expected = (
+                f"{site_origin}{site_path_prefix}/latest/"
+                if name == "zensical-versioned.toml"
+                else canonical_site_url
+            )
             with self.subTest(config=name):
-                self.assertEqual(site_url, canonical_site_url)
-                self.assertEqual(urlparse(site_url).path.rstrip("/"), site_path_prefix)
+                self.assertEqual(site_url, expected)
 
     def test_theme_preference_scope_is_shared_across_configs(self):
         configs = ("zensical.toml", "zensical-unversioned.toml", "zensical-versioned.toml")
