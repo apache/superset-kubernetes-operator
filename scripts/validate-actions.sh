@@ -63,7 +63,7 @@ for workflow in .github/workflows/*.yml .github/workflows/*.yaml; do
     done <<< "$allowlist"
 
     if [ "$matched" = "false" ]; then
-      echo "::error file=${workflow},line=${lineno}::Action not on ASF allowlist: ${action}"
+      echo "::error file=${workflow},line=${lineno}::Action not on ASF allowlist: ${action}. Pin an approved commit SHA, replace the action with a run step, or request approval (see the job log)."
       echo "1" >> "$error_file"
     fi
   done
@@ -72,8 +72,10 @@ done
 if [ -s "$error_file" ]; then
   count=$(wc -l < "$error_file" | tr -d ' ')
   echo ""
-  echo "Found ${count} action(s) not on the ASF allowlist."
-  echo "See: https://github.com/apache/infrastructure-actions/blob/main/approved_patterns.yml"
+  echo "Found ${count} action(s) not on the ASF allowlist. For each one, either:"
+  echo "  - pin an approved commit SHA from https://github.com/apache/infrastructure-actions/blob/main/approved_patterns.yml,"
+  echo "  - replace the action with a run step, or"
+  echo "  - request approval with a PR to https://github.com/apache/infrastructure-actions that adds the exact commit SHA to actions.yml."
   exit 1
 fi
 
