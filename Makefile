@@ -301,8 +301,8 @@ lint-fix: lint-go-fix lint-md-fix ## Auto-fix all linters that support it (Go, M
 
 .PHONY: lint-go
 lint-go: golangci-lint ## Run the Go linter (golangci-lint).
-	$(GOLANGCI_LINT) fmt --diff
-	$(GOLANGCI_LINT) run
+	$(GOLANGCI_LINT) fmt --diff || { echo "Go formatting differs from the diff above. Run 'make lint-go-fix' to apply it." >&2; exit 1; }
+	$(GOLANGCI_LINT) run || { echo "Go lint failed. Run 'make lint-go-fix' to apply automatic fixes, then fix the remaining findings by hand as each message describes." >&2; exit 1; }
 
 .PHONY: lint-go-fix
 lint-go-fix: golangci-lint ## Run the Go linter and apply fixes.
@@ -315,7 +315,7 @@ lint-go-config: golangci-lint ## Verify the golangci-lint configuration.
 
 .PHONY: lint-md
 lint-md: rumdl ## Lint Markdown files (check only).
-	$(RUMDL) check .
+	$(RUMDL) check . || { echo "Markdown lint failed. Run 'make lint-md-fix' to apply automatic fixes, then fix the remaining findings by hand." >&2; exit 1; }
 
 .PHONY: lint-md-fix
 lint-md-fix: rumdl ## Auto-fix Markdown formatting in place.
