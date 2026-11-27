@@ -32,6 +32,14 @@ type lifecycleTaskDescriptor struct {
 	Phase           supersetv1alpha1.LifecyclePhase
 	DrainsByDefault bool
 
+	// EnabledByDefault is whether the task runs when its spec is absent.
+	// Migrate and init run by default; seed and rotate need an explicit spec.
+	EnabledByDefault bool
+
+	// ConfigValid, when set, gates a configured task that is not disabled.
+	// Only seed uses it, to reject an invalid cron schedule.
+	ConfigValid func(*supersetv1alpha1.Superset) bool
+
 	// BuildCommand returns the task command (respecting user override).
 	BuildCommand func(*SupersetReconciler, *supersetv1alpha1.Superset) []string
 
@@ -39,11 +47,6 @@ type lifecycleTaskDescriptor struct {
 	// task checksum. configChecksum is only consumed by tasks that depend on
 	// rendered Python config (init).
 	BuildInputs func(*SupersetReconciler, *supersetv1alpha1.Superset, string) any
-
-	// IsEnabled determines whether the task participates in the pipeline given
-	// the parent spec. Defaults vary per task: seed/rotate require explicit
-	// spec; migrate/init are enabled by default.
-	IsEnabled func(*supersetv1alpha1.Superset) bool
 
 	// BaseSpec returns the BaseTaskSpec for this task (nil-safe). Callers use
 	// it to read the shared fields (Disabled, MaxRetries, Timeout,
@@ -53,6 +56,20 @@ type lifecycleTaskDescriptor struct {
 	// TaskRef returns the addressable TaskRefStatus pointer slot in
 	// LifecycleStatus so callers can both read and clear it.
 	TaskRef func(*supersetv1alpha1.LifecycleStatus) **supersetv1alpha1.TaskRefStatus
+}
+
+// IsEnabled reports whether the task participates in the pipeline. A task
+// whose spec is absent is enabled only if EnabledByDefault; a configured task
+// is enabled unless it is disabled or fails ConfigValid.
+func (d *lifecycleTaskDescriptor) IsEnabled(superset *supersetv1alpha1.Superset) bool {
+	base := d.BaseSpec(superset)
+	if base == nil {
+		return d.EnabledByDefault
+	}
+	if isDisabled(base.Disabled) {
+		return false
+	}
+	return d.ConfigValid == nil || d.ConfigValid(superset)
 }
 
 // lifecycleTaskDescriptors is the source of truth for task ordering and
@@ -70,13 +87,7 @@ var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 		BuildInputs: func(r *SupersetReconciler, s *supersetv1alpha1.Superset, _ string) any {
 			return r.seedInputs(s)
 		},
-		IsEnabled: func(s *supersetv1alpha1.Superset) bool {
-			if s.Spec.Lifecycle == nil || s.Spec.Lifecycle.Seed == nil {
-				return false
-			}
-			if isDisabled(s.Spec.Lifecycle.Seed.Disabled) {
-				return false
-			}
+		ConfigValid: func(s *supersetv1alpha1.Superset) bool {
 			return seedScheduleIsValid(s.Spec.Lifecycle.Seed.CronSchedule)
 		},
 		BaseSpec: func(s *supersetv1alpha1.Superset) *supersetv1alpha1.BaseTaskSpec {
@@ -90,21 +101,16 @@ var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 		},
 	},
 	{
-		TaskType:        taskTypeMigrate,
-		Suffix:          suffixMigrate,
-		Phase:           supersetv1alpha1.LifecyclePhaseMigrating,
-		DrainsByDefault: true,
+		TaskType:         taskTypeMigrate,
+		Suffix:           suffixMigrate,
+		Phase:            supersetv1alpha1.LifecyclePhaseMigrating,
+		DrainsByDefault:  true,
+		EnabledByDefault: true,
 		BuildCommand: func(_ *SupersetReconciler, s *supersetv1alpha1.Superset) []string {
 			return defaultMigrateCommand(s)
 		},
 		BuildInputs: func(r *SupersetReconciler, s *supersetv1alpha1.Superset, _ string) any {
 			return r.migrateInputs(s)
-		},
-		IsEnabled: func(s *supersetv1alpha1.Superset) bool {
-			if s.Spec.Lifecycle == nil || s.Spec.Lifecycle.Migrate == nil {
-				return true // default-enabled (matches prior isTaskEnabled behavior)
-			}
-			return !isDisabled(s.Spec.Lifecycle.Migrate.Disabled)
 		},
 		BaseSpec: func(s *supersetv1alpha1.Superset) *supersetv1alpha1.BaseTaskSpec {
 			if s.Spec.Lifecycle == nil || s.Spec.Lifecycle.Migrate == nil {
@@ -127,12 +133,6 @@ var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 		BuildInputs: func(r *SupersetReconciler, s *supersetv1alpha1.Superset, _ string) any {
 			return r.rotateInputs(s)
 		},
-		IsEnabled: func(s *supersetv1alpha1.Superset) bool {
-			if s.Spec.Lifecycle == nil || s.Spec.Lifecycle.Rotate == nil {
-				return false
-			}
-			return !isDisabled(s.Spec.Lifecycle.Rotate.Disabled)
-		},
 		BaseSpec: func(s *supersetv1alpha1.Superset) *supersetv1alpha1.BaseTaskSpec {
 			if s.Spec.Lifecycle == nil || s.Spec.Lifecycle.Rotate == nil {
 				return nil
@@ -144,24 +144,16 @@ var lifecycleTaskDescriptors = []*lifecycleTaskDescriptor{
 		},
 	},
 	{
-		TaskType:        taskTypeInit,
-		Suffix:          suffixInit,
-		Phase:           supersetv1alpha1.LifecyclePhaseInitializing,
-		DrainsByDefault: false,
+		TaskType:         taskTypeInit,
+		Suffix:           suffixInit,
+		Phase:            supersetv1alpha1.LifecyclePhaseInitializing,
+		DrainsByDefault:  false,
+		EnabledByDefault: true,
 		BuildCommand: func(_ *SupersetReconciler, s *supersetv1alpha1.Superset) []string {
 			return defaultInitCommand(s)
 		},
 		BuildInputs: func(r *SupersetReconciler, s *supersetv1alpha1.Superset, _ string) any {
 			return r.initInputs(s)
-		},
-		IsEnabled: func(s *supersetv1alpha1.Superset) bool {
-			if s.Spec.Lifecycle == nil {
-				return true // matches prior default-true behavior
-			}
-			if s.Spec.Lifecycle.Init == nil {
-				return true
-			}
-			return !isDisabled(s.Spec.Lifecycle.Init.Disabled)
 		},
 		BaseSpec: func(s *supersetv1alpha1.Superset) *supersetv1alpha1.BaseTaskSpec {
 			if s.Spec.Lifecycle == nil || s.Spec.Lifecycle.Init == nil {

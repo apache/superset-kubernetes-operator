@@ -78,14 +78,13 @@ linters:
     generated: lax
     rules:
       - linters:
-          - dupl
           - lll
         path: api/*
       - linters:
-          - dupl
           - lll
         path: internal/*
       - linters:
+          - dupl
           - gocyclo
           - gosec
         path: _test\.go
