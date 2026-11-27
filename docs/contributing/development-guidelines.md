@@ -28,7 +28,7 @@ See [Architecture](../architecture/overview.md) for the structural overview (CRD
 
 - **Single public CRD**: `Superset` resolves shared spec (top-level + per-component) into parent-owned Kubernetes resources
 - **6 deployment components + lifecycle tasks**: web server, Celery worker, Celery beat, Flower, websocket, MCP, and task Jobs for seed/migrate/rotate/init
-- **Pure Go packages** (no controller-runtime dependency): `internal/resolution/` (spec flattening), `internal/config/` (Python rendering), `internal/common/` (shared types), `internal/schedule/` (cron tick computation)
+- **Pure Go packages** (no controller-runtime dependency and no logging, enforced by [lint](#linting)): `internal/resolution/` (spec flattening), `internal/config/` (Python rendering), `internal/common/` (shared types), `internal/schedule/` (cron tick computation)
 - **Parent resolves and executes**: All layering, lifecycle orchestration, resource reconciliation, and status projection live in the parent controller
 
 ### Top-level defaults and per-component overrides
@@ -320,6 +320,16 @@ The bar: every new "remember to also update X when Y changes" instruction is a b
 
 ---
 
+## Linting
+
+`make lint` must pass before you open a PR, and CI runs the same linters. Run `make hooks` once to have the Go and Markdown linters run on every commit; see [Pre-Commit Hooks](development-setup.md#pre-commit-hooks).
+
+Prefer a deterministic lint rule to written guidance whenever a tool can check the convention. A rule lives in the linter's configuration (`.golangci.yml` for Go), not in this guide: when a guideline can be checked mechanically, enforce it there and delete the prose.
+
+Every rule must fail with an actionable message that states what is wrong and what to do instead (the replacement to use, or where the code belongs), not only that something is not allowed. Write the message as `<what is wrong>; <what to do instead>` so the author can fix the failure without reading this guide.
+
+---
+
 ## Documentation Style
 
 - **README** is a landing page: project description, philosophy, quick start, link to docs. Keep it welcoming and free of jargon. Don't reference specific knobs, internal config names, or implementation details that might intimidate newcomers.
@@ -342,6 +352,7 @@ The bar: every new "remember to also update X when Y changes" instruction is a b
 - **Set OwnerReferences** via `controllerutil.SetControllerReference`
 - **Record events** via `r.Recorder.Eventf()` for errors and state changes
 - **Add Go doc comments** to all exported types — they become CRD descriptions
+- **Express validation as [CEL](https://kubernetes.io/docs/reference/using-api/cel/)** (`x-kubernetes-validations`) on CRD types. The operator ships no admission webhooks; see [CRD Validation](../reference/security.md#crd-validation).
 - **Run `make manifests generate`** after any change to `api/v1alpha1/`
 - **Write unit tests first** — every new feature should have tests before integration
 - **Test with fake client** — only use envtest when you genuinely need a real API server
@@ -358,7 +369,6 @@ The bar: every new "remember to also update X when Y changes" instruction is a b
 - **Don't use `bool` with `omitempty`** — use `*bool` to distinguish false from unset
 - **Don't write integration tests for unit-testable logic** — use fake client
 - **Don't put secret values in ConfigMaps** — in prod mode, secrets are mounted via env vars from Kubernetes Secrets
-- **Don't use admission webhooks for validation** — use [CEL](https://kubernetes.io/docs/reference/using-api/cel/) (`x-kubernetes-validations`) on CRD types instead. Webhooks add operational complexity (cert-manager dependency, TLS setup) and are not installed by default. All validation rules should be expressed as CEL where feasible.
 - **Cross-reference security docs** — any change that affects trust boundaries, secret handling, RBAC, CRD validation, or the operator's attack surface must be reflected in [`docs/reference/security.md`](../reference/security.md). Review the threat model, design decisions, and in-scope/out-of-scope sections to ensure they stay accurate.
 
 ## How to Add a New Field
@@ -479,7 +489,6 @@ Anything that fires on **every** reconcile regardless of state change is V(1) or
 
 - Structured keys are **camelCase**: `name`, `namespace`, `component`, `task`, `image`, `from`, `to`, `operation`, `reason`, `phase`. Reuse these; don't invent synonyms.
 - Never log secret values or rendered config bodies. Log sizes, counts, or checksums instead (e.g. `configBytes`, `envVars`, `checksum`).
-- Pure packages (`internal/resolution/`, `internal/config/`, `internal/common/`, `internal/schedule/`) do **zero** logging by design — they have no controller-runtime dependency and return errors only. Keep it that way.
 
 ### Enabling verbose logs when debugging
 
