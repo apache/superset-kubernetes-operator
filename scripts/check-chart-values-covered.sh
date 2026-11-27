@@ -64,8 +64,8 @@ if [ -n "${uncovered}" ]; then
     echo "ERROR: values.yaml keys not exercised by ${FULL}:"
     echo "${uncovered}" | awk '{ print "  - " $0 }'
     echo
-    echo "Add them to the comprehensive chart test values so the chart tests"
-    echo "cover every documented knob."
+    echo "Set each key above in ${FULL} so the chart tests cover every documented knob,"
+    echo "then run 'helm unittest -u ${CHART_DIR}' to capture its rendered effect in the snapshot."
   } >&2
   exit 1
 fi
