@@ -72,7 +72,8 @@ jobs:
       - name: Check for uncommitted changes
         run: |
           if [ -n "$(git status --porcelain)" ]; then
-            echo "Generated files are not up to date. Run 'make codegen' and commit the changes."
+            echo "Generated files are not up to date. Run 'make codegen' locally and commit the changes. Changed or new files:"
+            git status --porcelain
             git diff
             exit 1
           fi

@@ -23,6 +23,7 @@ linters:
   default: none
   enable:
     - copyloopvar
+    - depguard
     - dupl
     - errcheck
     - ginkgolinter
@@ -42,6 +43,29 @@ linters:
     - unparam
     - unused
   settings:
+    depguard:
+      rules:
+        pure-packages:
+          files:
+            - "**/internal/resolution/**"
+            - "**/internal/config/**"
+            - "**/internal/common/**"
+            - "**/internal/schedule/**"
+          deny:
+            - pkg: sigs.k8s.io/controller-runtime
+              desc: pure packages must not import controller-runtime; move code that needs a client or reconciler into internal/controller and pass the data in as plain arguments
+            - pkg: github.com/go-logr/logr
+              desc: pure packages must not log; return an error to the caller and let internal/controller log it
+            - pkg: log
+              desc: pure packages must not log; return an error to the caller and let internal/controller log it
+        no-admission-webhooks:
+          files:
+            - $all
+          deny:
+            - pkg: sigs.k8s.io/controller-runtime/pkg/webhook
+              desc: the operator has no admission webhooks; express the validation as a CEL rule (x-kubernetes-validations marker) on the type in api/v1alpha1 instead
+            - pkg: k8s.io/api/admissionregistration
+              desc: the operator has no admission webhooks; express the validation as a CEL rule (x-kubernetes-validations marker) on the type in api/v1alpha1 instead
     goconst:
       # Test files legitimately repeat literals to assert on observable output;
       # don't count those occurrences toward the constant-extraction threshold.
@@ -54,14 +78,13 @@ linters:
     generated: lax
     rules:
       - linters:
-          - dupl
           - lll
         path: api/*
       - linters:
-          - dupl
           - lll
         path: internal/*
       - linters:
+          - dupl
           - gocyclo
           - gosec
         path: _test\.go

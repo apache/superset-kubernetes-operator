@@ -135,6 +135,11 @@ ERRORS="$(cat rat-results.txt | grep -e "??")"
 if test ! -z "$ERRORS"; then
     echo >&2 "Could not find Apache license headers in the following files:"
     echo >&2 "$ERRORS"
+    echo >&2
+    echo >&2 "Add the Apache license header to each file above, using the comment form for its file type."
+    echo >&2 "Go files get it from 'make generate'; other types are covered in"
+    echo >&2 "docs/contributing/development-guidelines.md#license-headers."
+    echo >&2 "If a file cannot carry a header (generated or binary), add its name to .rat-excludes instead."
     exit 1
 else
     echo -e "RAT checks passed."
