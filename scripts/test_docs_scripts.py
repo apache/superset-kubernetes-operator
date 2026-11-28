@@ -25,6 +25,7 @@ import re
 import tempfile
 import tomllib
 import unittest
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -69,6 +70,10 @@ class DocsVersionsTest(unittest.TestCase):
         self.assertEqual([entry["version"] for entry in entries], ["0.3", "main"])
         self.assertEqual(entries[0]["release"], "0.3.1")
 
+    def test_re_finalize_without_release_clears_stale_release(self):
+        entries = dv.build_manifest([], "0.3", "0.3.1")
+        self.assertNotIn("release", dv.build_manifest(entries, "0.3")[0])
+
     def test_downgrade_refused_unless_forced(self):
         entries = dv.build_manifest([], "0.3", "0.3.2")
         with self.assertRaises(dv.DocsVersionError):
@@ -112,6 +117,14 @@ class DocsVersionsTest(unittest.TestCase):
             self.assertIn('"../../0.3/guide/"', (root / "latest/guide/index.html").read_text())
             self.assertIn('"../../0.3/guide/page.html"', (root / "latest/guide/page.html").read_text())
 
+    def test_redirect_page_escapes_url_and_label(self):
+        page = dv.redirect_page('../a<"b/', 'docs <"latest"')
+        self.assertIn('href="../a&lt;&quot;b/"', page)
+        self.assertIn("docs &lt;&quot;latest&quot;", page)
+        script = page.split("<script>", 1)[1].split("</script>", 1)[0]
+        self.assertIn("\\u003c", script)
+        self.assertNotIn("<", script)
+
     def test_latest_redirects_replace_previous_alias(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -134,6 +147,53 @@ class DocsVersionsTest(unittest.TestCase):
             self.assertEqual(dv.latest_version(dv.load_manifest(root)), "0.3")
             self.assertTrue((root / "latest/index.html").is_file())
 
+    def test_write_sitemap_index_preserves_shared_map_and_indexes_versions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "sitemap-root.xml").write_text('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"/>')
+            (root / "0.3").mkdir()
+            (root / "0.3/sitemap.xml").write_text("<urlset/>")
+            (root / "latest").mkdir()
+            (root / "latest/sitemap.xml").write_text("<urlset/>")
+            dv.write_sitemap_index(root, [{"version": "0.3", "aliases": ["latest"]}])
+            parsed = ET.parse(root / "sitemap.xml")
+            self.assertEqual(parsed.getroot().tag.rsplit("}", 1)[-1], "sitemapindex")
+            self.assertIn("/sitemap-root.xml", (root / "sitemap.xml").read_text())
+            self.assertIn("/latest/sitemap.xml", (root / "sitemap.xml").read_text())
+
+    def test_write_sitemap_index_renames_root_urlset_and_ignores_malformed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "sitemap.xml").write_text('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"/>')
+            dv.write_sitemap_index(root, [], root_build=True)
+            self.assertTrue((root / "sitemap-root.xml").is_file())
+            self.assertIn("sitemapindex", (root / "sitemap.xml").read_text())
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "sitemap.xml").write_text("<broken")
+            dv.write_sitemap_index(root, [], root_build=True)
+            self.assertEqual((root / "sitemap.xml").read_text(), "<broken")
+
+    def test_legacy_redirect_protects_real_page_and_replaces_generated_stub(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "latest/guide").mkdir(parents=True)
+            (root / "latest/guide/index.html").write_text("latest")
+            (root / "guide").mkdir()
+            (root / "guide/index.html").write_text("real page")
+            stderr = io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                self.assertEqual(dv.write_legacy_redirects(root), 0)
+            self.assertIn("not overwriting real page", stderr.getvalue())
+            self.assertEqual((root / "guide/index.html").read_text(), "real page")
+            (root / "guide/index.html").write_text(
+                dv.redirect_page("/superset-kubernetes-operator/latest/guide/", "latest")
+                + dv.LEGACY_REDIRECT_MARKER,
+                encoding="utf-8",
+            )
+            self.assertTrue(dv.is_legacy_redirect(root / "guide/index.html"))
+            self.assertEqual(dv.write_legacy_redirects(root), 1)
+
     def test_finalize_refuses_a_version_without_the_landing_page(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -148,10 +208,54 @@ class DocsVersionsTest(unittest.TestCase):
     def test_load_manifest_rejects_malformed_entries(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / dv.MANIFEST).write_text(json.dumps([{"version": "0.3"}, None]))
+            (root / dv.MANIFEST).write_text(
+                json.dumps([{"version": "0.3", "title": "0.3", "aliases": []}, None])
+            )
 
             with self.assertRaisesRegex(dv.DocsVersionError, "entry 1"):
                 dv.load_manifest(root)
+
+    def test_load_manifest_rejects_invalid_fields_and_duplicate_versions(self):
+        invalid_manifests = [
+            ([{"version": "0.3", "title": "0.3", "aliases": None}], "aliases"),
+            (
+                [
+                    {"version": "0.3", "title": "0.3", "aliases": ["latest"]},
+                    {"version": "0.4", "title": "0.4", "aliases": ["latest"]},
+                    {"version": "main", "title": "main", "aliases": []},
+                ],
+                "only one version",
+            ),
+            (
+                [
+                    {"version": "0.3", "title": "0.3", "aliases": [], "release": "0.4.0"},
+                    {"version": "main", "title": "main", "aliases": []},
+                ],
+                "does not belong",
+            ),
+            (
+                [
+                    {"version": "0.3", "title": "0.3", "aliases": [], "release": None},
+                    {"version": "main", "title": "main", "aliases": []},
+                ],
+                "invalid 'release'",
+            ),
+            (
+                [
+                    {"version": "0.3", "title": "0.3", "aliases": []},
+                    {"version": "0.3", "title": "duplicate", "aliases": []},
+                ],
+                "duplicate version",
+            ),
+            ([{"version": "0.3", "title": "0.3", "aliases": []}], "main.*entry"),
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for manifest, message in invalid_manifests:
+                with self.subTest(message=message):
+                    (root / dv.MANIFEST).write_text(json.dumps(manifest))
+                    with self.assertRaisesRegex(dv.DocsVersionError, message):
+                        dv.load_manifest(root)
 
 
 class DocumentationLinkPreparationTest(unittest.TestCase):
@@ -194,17 +298,47 @@ class DocumentationLinkPreparationTest(unittest.TestCase):
         self.assertEqual(root_only, set(phd.SHARED_PAGES))
 
     def test_site_path_prefix_matches_site_url(self):
-        for name in ("zensical-unversioned.toml", "zensical-versioned.toml"):
+        site_origin, site_path_prefix = phd.site_urls()
+        canonical_site_url = f"{site_origin}{site_path_prefix}/"
+        for name in ("zensical.toml", "zensical-unversioned.toml", "zensical-versioned.toml"):
             site_url = self.project_config(name).get("site_url")
             if not site_url:
                 continue
+            expected = (
+                f"{site_origin}{site_path_prefix}/latest/"
+                if name == "zensical-versioned.toml"
+                else canonical_site_url
+            )
             with self.subTest(config=name):
-                self.assertEqual(urlparse(site_url).path.rstrip("/"), phd.SITE_PATH_PREFIX)
+                self.assertEqual(site_url, expected)
 
     def test_theme_preference_scope_is_shared_across_configs(self):
         configs = ("zensical.toml", "zensical-unversioned.toml", "zensical-versioned.toml")
         scopes = {self.project_config(name)["extra"]["scope"] for name in configs}
-        self.assertEqual(scopes, {f"{phd.SITE_PATH_PREFIX}/"})
+        _, site_path_prefix = phd.site_urls()
+        self.assertEqual(scopes, {f"{site_path_prefix}/"})
+
+    def test_navigation_trees_agree_across_configs(self):
+        configs = ("zensical.toml", "zensical-unversioned.toml", "zensical-versioned.toml")
+
+        def navigation_shape(items):
+            return tuple(
+                (
+                    label,
+                    navigation_shape(value) if isinstance(value, list) else None,
+                )
+                for item in items
+                for label, value in item.items()
+            )
+
+        shapes = {
+            name: navigation_shape(self.project_config(name)["nav"])
+            for name in configs
+        }
+        expected = shapes[configs[0]]
+        for name in configs[1:]:
+            with self.subTest(config=name):
+                self.assertEqual(shapes[name], expected)
 
     def test_unsupported_link_syntax_does_not_cross_sections(self):
         # The rewriter only handles inline markdown links. Reference-style definitions and
@@ -261,6 +395,15 @@ class DocumentationLinkPreparationTest(unittest.TestCase):
                 "[Live](/superset-kubernetes-operator/reference/security/)\n\n"
                 "```markdown\n[Example](reference/security.md)\n```\n",
             )
+
+    def test_fence_variants_and_unclosed_fence(self):
+        source = "[A](x.md)\n~~~md\n[B](x.md)\n~~~~\n[C](x.md)\n````python\n[D](x.md)\n``````\n[E](x.md)\n```code```\n[F](x.md)\n    ```\n[G](x.md)\n"
+        rewritten = phd.rewrite_outside_fenced_code(source, lambda match: "](/rewritten)")
+        self.assertIn("](/rewritten)", rewritten)
+        self.assertIn("[B](x.md)", rewritten)
+        self.assertIn("[D](x.md)", rewritten)
+        self.assertIn("[F](/rewritten)", rewritten)
+        self.assertIn("[G](/rewritten)", rewritten)
 
     def test_shared_links_to_versioned_pages_use_project_and_version_paths(self):
         with tempfile.TemporaryDirectory() as directory:

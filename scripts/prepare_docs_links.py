@@ -21,16 +21,18 @@ Docs are written with plain relative .md links; this makes them work across sect
   * shared page -> versioned page  absolute URL under /<prefix>/ (for example latest)
   * versioned -> versioned         left relative, so each version stays self-contained
 
-Only inline markdown links are handled (not reference-style, raw HTML, or code
-fences), and doc file names must not contain spaces or parentheses. Files are
+Only inline markdown links are handled (not reference-style, raw HTML, inline
+code spans, indented code blocks, or fenced code), and doc file names must not
+contain spaces or parentheses. Files are
 rewritten in place: run it in CI or on a throwaway copy of docs/. Query strings
 and fragments are preserved when a local page link is rewritten.
 
 Usage::
 
-    prepare_docs_links.py --docs-dir DIR [--versioned-prefix PREFIX]
+    prepare_docs_links.py --docs-dir DIR [--allow-in-place] [--versioned-prefix PREFIX]
 
     --docs-dir          the docs/ tree to rewrite
+    --allow-in-place    allow rewriting the repository's docs/ tree directly
     --versioned-prefix  also rewrite shared -> versioned links under /PREFIX/ (use
                         ``latest`` for normal builds; omit for historical backfills,
                         where shared pages are not built)
@@ -47,12 +49,26 @@ pages built by zensical-unversioned.toml; test_docs_scripts.py checks both ways.
 from __future__ import annotations
 
 import argparse
+from functools import lru_cache
 import posixpath
 import re
 from pathlib import Path, PurePosixPath
+import tomllib
+from urllib.parse import urlsplit
 
-# GitHub Pages serves this project under its repository name (must match site_url).
-SITE_PATH_PREFIX = "/superset-kubernetes-operator"
+# Shared-page link rewriting uses the root URL; versioned builds set their canonical URL
+# directly in zensical-versioned.toml.
+_CONFIG = Path(__file__).resolve().parent.parent / "zensical.toml"
+
+
+@lru_cache(maxsize=1)
+def site_urls() -> tuple[str, str]:
+    with _CONFIG.open("rb") as config_file:
+        site_url = tomllib.load(config_file).get("project", {}).get("site_url")
+    if not isinstance(site_url, str):
+        raise RuntimeError(f"could not find project.site_url in {_CONFIG}")
+    site = urlsplit(site_url)
+    return f"{site.scheme}://{site.netloc}", site.path.rstrip("/")
 
 # Pages built at the site root, as paths relative to docs/
 SHARED_PAGES = frozenset(
@@ -68,7 +84,7 @@ SHARED_PAGES = frozenset(
 )
 # [text](target) or [text](target "title")
 MARKDOWN_LINK = re.compile(r"\]\((?P<target>[^)\s]+)(?P<title>\s+(?:\"[^\"]*\"|'[^']*'))?\)")
-FENCE_START = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+FENCE_START = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*?)(?:\r?\n)?$")
 FENCE_END = re.compile(r"^ {0,3}(`+|~+)[ \t]*(?:\r?\n)?$")
 
 
@@ -80,7 +96,7 @@ def rewrite_outside_fenced_code(text: str, replace) -> str:
     for line in text.splitlines(keepends=True):
         if fence_char is None:
             opening = FENCE_START.match(line)
-            if opening:
+            if opening and not (opening.group(1)[0] == "`" and "`" in opening.group(2)):
                 fence_char = opening.group(1)[0]
                 fence_length = len(opening.group(1))
                 output.append(line)
@@ -122,7 +138,8 @@ def rewrite_file(
     # Only shared pages point at versioned pages by URL. A versioned page's links to
     # other versioned pages must stay relative or they would jump to another version.
     link_to_versioned = versioned_pages if relative.as_posix() in SHARED_PAGES else None
-    original = path.read_text()
+    original = path.read_text(encoding="utf-8")
+    _, site_path_prefix = site_urls()
 
     def replace(match: re.Match[str]) -> str:
         target = match.group("target")
@@ -139,7 +156,7 @@ def rewrite_file(
             page = None
         if page is None:
             return match.group(0)
-        rewritten_target = f"{SITE_PATH_PREFIX}{page}"
+        rewritten_target = f"{site_path_prefix}{page}"
         if query_separator:
             rewritten_target += f"?{query}"
         if fragment_separator:
@@ -149,7 +166,7 @@ def rewrite_file(
     rewritten = rewrite_outside_fenced_code(original, replace)
     if rewritten == original:
         return False
-    path.write_text(rewritten)
+    path.write_text(rewritten, encoding="utf-8")
     return True
 
 
@@ -157,10 +174,22 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--docs-dir", type=Path, required=True)
     parser.add_argument(
+        "--allow-in-place",
+        action="store_true",
+        help="allow rewriting the repository's docs/ tree directly",
+    )
+    parser.add_argument(
         "--versioned-prefix",
         help="rewrite links from shared pages to versioned pages under this URL prefix (for example, latest)",
     )
     args = parser.parse_args()
+    if not args.docs_dir.is_dir():
+        parser.error(f"docs directory does not exist: {args.docs_dir}")
+    repository_root = Path(__file__).resolve().parent.parent
+    repository_docs = repository_root / "docs"
+    has_git_metadata = (repository_root / ".git").exists()
+    if has_git_metadata and args.docs_dir.resolve() == repository_docs.resolve() and not args.allow_in_place:
+        parser.error("refusing to rewrite the repository docs/ tree without --allow-in-place")
     prefix = args.versioned_prefix.strip("/") if args.versioned_prefix else None
     if args.versioned_prefix is not None and not prefix:
         parser.error("--versioned-prefix must contain a path segment")

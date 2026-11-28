@@ -26,11 +26,11 @@ on:
       - "zensical-unversioned.toml"
       - "zensical-versioned.toml"
       - "scripts/publish-docs.sh"
+      - "scripts/build-docs-local.sh"
       - "scripts/run-docs-ci.sh"
       - "scripts/docs_versions.py"
       - "scripts/prepare_docs_links.py"
       - "scripts/test_docs_scripts.py"
-      - "docs/stylesheets/version-banner.css"
       - "docs-requirements.in"
       - "docs-requirements.txt"
       - "Makefile"
@@ -59,11 +59,11 @@ on:
       - "zensical-unversioned.toml"
       - "zensical-versioned.toml"
       - "scripts/publish-docs.sh"
+      - "scripts/build-docs-local.sh"
       - "scripts/run-docs-ci.sh"
       - "scripts/docs_versions.py"
       - "scripts/prepare_docs_links.py"
       - "scripts/test_docs_scripts.py"
-      - "docs/stylesheets/version-banner.css"
       - "docs-requirements.in"
       - "docs-requirements.txt"
       - "Makefile"
@@ -91,26 +91,33 @@ jobs:
         run: python -m pip install --require-hashes -r docs-requirements.txt
       - name: Test documentation versioning and links
         run: python scripts/test_docs_scripts.py
-      - name: Prepare documentation source and links
-        run: bash scripts/run-docs-ci.sh prepare
+      # Check source-relative cross-section links before prepare rewrites them for publication.
       - name: Build complete documentation tree
         if: github.event_name != 'workflow_dispatch'
         run: zensical build --clean --strict
-      - name: Build docs
-        run: bash scripts/run-docs-ci.sh publish "$RUNNER_TEMP/docs-build"
+      - name: Prepare documentation source and links
+        run: bash scripts/run-docs-ci.sh prepare
+      - name: Build versioned docs artifacts
+        run: bash scripts/run-docs-ci.sh build "$RUNNER_TEMP/docs-site"
+      - name: Dry-run assemble
+        if: github.event_name == 'pull_request'
+        run: bash scripts/run-docs-ci.sh assemble "$RUNNER_TEMP/docs-site" "$RUNNER_TEMP/scratch-publish"
 
   deploy:
     name: Deploy docs
     needs: build
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && (github.event_name != 'workflow_dispatch' || github.ref == 'refs/heads/main' || inputs.dry_run)
     runs-on: ubuntu-latest
+    # Keep refs on separate queues so one pending deploy cannot replace another.
     concurrency:
-      group: docs-deploy-${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.ref) || github.ref }}
+      group: docs-deploy-${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.ref) || github.ref }}${{ inputs.dry_run && '-dry' || '' }}
       cancel-in-progress: false
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Set docs ref, dry-run, and force env variables
         run: bash scripts/run-docs-ci.sh env >> "$GITHUB_ENV"
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -123,19 +130,39 @@ jobs:
       - name: Prepare gh-pages worktree
         run: |
           set -euo pipefail
+          if ! git ls-remote --exit-code --heads origin gh-pages >/dev/null; then
+            echo "error: origin/gh-pages does not exist; create the gh-pages branch with an initial commit before deploying docs" >&2
+            exit 1
+          fi
           git fetch origin gh-pages
           git worktree add --detach "$PUBLISH_DIR" origin/gh-pages
+      - name: Check published version before building
+        if: github.event_name == 'workflow_dispatch' || github.ref_type == 'tag'
+        run: bash scripts/run-docs-ci.sh check-published "$PUBLISH_DIR"
       - name: Configure git
         run: |
           git -C "$PUBLISH_DIR" config user.name "github-actions[bot]"
           git -C "$PUBLISH_DIR" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - name: Prepare documentation source and links
         run: bash scripts/run-docs-ci.sh prepare
-      - name: Build docs
-        run: bash scripts/run-docs-ci.sh publish "$PUBLISH_DIR"
+      - name: Build site once
+        run: bash scripts/run-docs-ci.sh build "$RUNNER_TEMP/docs-site"
+      - name: Assemble into gh-pages
+        run: bash scripts/run-docs-ci.sh assemble "$RUNNER_TEMP/docs-site" "$PUBLISH_DIR"
       - name: Commit and push docs
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          auth_header="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::$auth_header"
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch || "$GITHUB_REF_TYPE" == tag ]]; then
+            tag_ref="refs/tags/$DOC_REF"
+            tag_sha="$(git ls-remote origin "$tag_ref^{}" "$tag_ref" | awk '$2 == tag "^{}" { peeled=$1 } $2 == tag { direct=$1 } END { print peeled ? peeled : direct }' tag="$tag_ref")"
+            [[ -n "$tag_sha" ]] || { echo "error: could not resolve $tag_ref on origin" >&2; exit 1; }
+          else
+            tag_sha="$GITHUB_SHA"
+          fi
           git -C "$PUBLISH_DIR" add -A
           if [[ "$DRY_RUN" == "true" ]]; then
             echo "Dry run: assembled the backfill against the existing gh-pages tree; no commit or push will be made."
@@ -151,18 +178,26 @@ jobs:
               echo "No documentation changes to deploy"
               exit 0
             fi
-            git -C "$PUBLISH_DIR" commit -q -m "docs: deploy ${GITHUB_SHA}"
-            if git -C "$PUBLISH_DIR" push origin HEAD:gh-pages; then
+            base="$(git -C "$PUBLISH_DIR" rev-parse HEAD)"
+            git -C "$PUBLISH_DIR" commit -q -m "docs: deploy ${DOC_REF} (${tag_sha})"
+            if git -C "$PUBLISH_DIR" -c http.https://github.com/.extraheader="AUTHORIZATION: basic $auth_header" push origin HEAD:gh-pages; then
               exit 0
             fi
+            git -C "$PUBLISH_DIR" fetch origin gh-pages
+            remote="$(git -C "$PUBLISH_DIR" rev-parse origin/gh-pages)"
+            if [[ "$remote" == "$base" ]]; then
+              echo "Push failed but gh-pages did not move; this was not a race" >&2
+              exit 1
+            fi
             if [ "$attempt" -eq 5 ]; then
-              echo "Unable to push gh-pages after ${attempt} attempts" >&2
+              echo "gh-pages kept moving; unable to deploy after ${attempt} attempts" >&2
               exit 1
             fi
             echo "gh-pages changed while deploying; resetting and retrying"
-            git -C "$PUBLISH_DIR" fetch origin gh-pages
+            sleep "$((RANDOM % 5 + 1))"
             git -C "$PUBLISH_DIR" reset --hard origin/gh-pages
-            bash scripts/run-docs-ci.sh publish "$PUBLISH_DIR"
+            git -C "$PUBLISH_DIR" clean -fd
+            bash scripts/run-docs-ci.sh assemble "$RUNNER_TEMP/docs-site" "$PUBLISH_DIR"
           done
       - name: Clean up gh-pages worktree
         if: always()

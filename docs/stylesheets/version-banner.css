@@ -26,10 +26,32 @@
 
 .docs-version-switcher .md-version__current {
   top: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.docs-version-switcher .md-version__current:focus-visible {
+  outline: 2px solid var(--md-accent-fg-color);
+  outline-offset: 2px;
 }
 
 .docs-version-switcher .md-version__list {
   top: 100%;
+}
+
+.docs-version-switcher.md-version:not(.md-version--active) .md-version__list {
+  max-height: 0;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.docs-version-switcher.md-version--active .md-version__list {
+  max-height: 10rem;
+  opacity: 1;
+  visibility: visible;
 }
 
 .docs-version-banner {

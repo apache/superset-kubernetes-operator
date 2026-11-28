@@ -50,7 +50,10 @@ cp "$ROOT_DIR/scripts/run-docs-ci.sh" \
   "$ROOT_DIR/scripts/docs_versions.py" \
   "$ROOT_DIR/scripts/prepare_docs_links.py" \
   "$WORK_DIR/scripts/"
-cp "$ROOT_DIR/zensical-unversioned.toml" "$ROOT_DIR/zensical-versioned.toml" "$WORK_DIR/"
+cp "$ROOT_DIR/zensical.toml" \
+  "$ROOT_DIR/zensical-unversioned.toml" \
+  "$ROOT_DIR/zensical-versioned.toml" \
+  "$WORK_DIR/"
 cd "$WORK_DIR"
 
 # The publishing script runs from this temporary copy, so pass through the
