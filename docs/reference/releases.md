@@ -23,6 +23,25 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 
 ## Unreleased
 
+### Changed
+
+- The Helm chart now documents its `nameOverride` and `fullnameOverride` values, and `image.pullPolicy` defaults to unset so the Kubernetes default applies. Rendered pull behavior is unchanged for the default image tag ([#531](https://github.com/apache/superset-kubernetes-operator/pull/531), [@villebro](https://github.com/villebro)).
+- The operator's RBAC no longer grants `update` and `patch` on Jobs. Lifecycle task Jobs are only ever created and deleted, so the manager role (Kustomize and Helm) now requests just `get`, `list`, `watch`, `create` and `delete` ([#524](https://github.com/apache/superset-kubernetes-operator/pull/524), [@villebro](https://github.com/villebro)).
+
+### Fixed
+
+- At the default log level, the operator no longer repeats drain progress, "upgrade awaiting approval", env var override warnings, or foreign-owner cleanup skips on every reconcile. These messages are logged once when the state changes, or at debug level ([#528](https://github.com/apache/superset-kubernetes-operator/pull/528), [@villebro](https://github.com/villebro)).
+- Setting `webServer.gunicorn.workerClass` to a class other than `gthread` (for example `sync` or `gevent`) without setting `threads` no longer runs the web server as gthread. The preset's thread count used to apply anyway, and Gunicorn switches to gthread whenever threads is greater than 1. Such web servers now use 1 thread and roll once on upgrade; set `threads` explicitly to keep the old behavior ([#522](https://github.com/apache/superset-kubernetes-operator/pull/522), [@villebro](https://github.com/villebro)).
+- Outside Development, the operator now ignores inline `websocketServer.config`, `lifecycle.init.adminUser` and `lifecycle.init.loadExamples` even if a resource gets past CRD validation (for example on clusters older than Kubernetes 1.25, which ignore CRD validation rules), as it already did for the other inline secrets ([#525](https://github.com/apache/superset-kubernetes-operator/pull/525), [@villebro](https://github.com/villebro)).
+- Messages about a lifecycle task Pod that cannot start (for example `CreateContainerConfigError` or an unschedulable Pod) are now truncated to 256 bytes before they reach the Superset status and Events, as Job failure messages already were. Truncation no longer splits multi-byte UTF-8 characters ([#526](https://github.com/apache/superset-kubernetes-operator/pull/526), [@villebro](https://github.com/villebro)).
+- Component and lifecycle task ConfigMaps, the websocket config ConfigMap, and the maintenance-page Deployment and ConfigMap now carry the `superset.apache.org/parent` label like the other resources the operator creates, so `kubectl get -l superset.apache.org/parent=<name>` lists them too ([#527](https://github.com/apache/superset-kubernetes-operator/pull/527), [@villebro](https://github.com/villebro)).
+
+### Removed
+
+- **Breaking:** `lifecycle.seed.source.type` is removed. The seed source now always uses `metastore.type`, which selects the dump and restore tools, the default source port and the default seed image. A source type that differed from the metastore could only fail at runtime, because the default seed command restores with the source database's tools. Remove `source.type` from your Superset resources before upgrading; resources where it matched the metastore keep their seed checksum and don't re-seed. For a cross-engine seed, set `lifecycle.seed.command`, `image` and `source.port` explicitly ([#523](https://github.com/apache/superset-kubernetes-operator/pull/523), [@villebro](https://github.com/villebro)).
+
+## 0.4.0 - 2026-11-22
+
 ### Added
 
 - **Helm `dnsPolicy` and `dnsConfig`.** The Helm chart now exposes `dnsPolicy` and `dnsConfig` values for the operator manager pod ([#394](https://github.com/apache/superset-kubernetes-operator/pull/394), [@younsl](https://github.com/younsl)).
@@ -44,19 +63,12 @@ This page tracks notable changes in Apache Superset Kubernetes Operator releases
 - The operator's RBAC no longer grants `update` and `patch` on Jobs. Lifecycle task Jobs are only ever created and deleted, so the manager role (Kustomize and Helm) now requests just `get`, `list`, `watch`, `create` and `delete` ([#524](https://github.com/apache/superset-kubernetes-operator/pull/524), [@villebro](https://github.com/villebro)).
 - **Celery worker and Beat log at `info` by default.** They used to run at Celery's own default of `warning`, and now run at the resolved `logLevel` (default `info`), so they produce more log output. Set `logLevel: warning` on `celeryWorker` and `celeryBeat`, or at the top level, to keep the previous volume. A custom `command` is unchanged and must pass `--loglevel` itself ([#487](https://github.com/apache/superset-kubernetes-operator/pull/487), [@EkVid](https://github.com/EkVid)).
 - Every rendered `superset_config.py` now sets `LOG_LEVEL`, so upgrading the operator rolls every Python component once and reruns the `init` lifecycle task once ([#487](https://github.com/apache/superset-kubernetes-operator/pull/487), [@EkVid](https://github.com/EkVid)).
+- The operator's Pod cache now holds only pods that carry the `superset.apache.org/parent` label instead of every Pod it can see. In a cluster-scoped install this greatly reduces manager memory use on busy clusters: with 2,000 unrelated pods, steady memory dropped from about 47 MiB to 17 MiB ([#441](https://github.com/apache/superset-kubernetes-operator/pull/441), [@younsl](https://github.com/younsl)).
 
 ### Fixed
 
 - **User-managed HPAs and PDBs are no longer deleted.** The operator used to delete an unowned HPA or PDB named after a component Deployment, such as one created with `kubectl autoscale`, whenever that component had no `autoscaling` or `podDisruptionBudget` and again on every lifecycle drain. Component cleanup now finds resources by the operator's labels, and by name only for resources the Superset owns ([#507](https://github.com/apache/superset-kubernetes-operator/pull/507), [@villebro](https://github.com/villebro)).
-- At the default log level, the operator no longer repeats drain progress, "upgrade awaiting approval", env var override warnings, or foreign-owner cleanup skips on every reconcile. These messages are logged once when the state changes, or at debug level ([#528](https://github.com/apache/superset-kubernetes-operator/pull/528), [@villebro](https://github.com/villebro)).
-- Setting `webServer.gunicorn.workerClass` to a class other than `gthread` (for example `sync` or `gevent`) without setting `threads` no longer runs the web server as gthread. The preset's thread count used to apply anyway, and Gunicorn switches to gthread whenever threads is greater than 1. Such web servers now use 1 thread and roll once on upgrade; set `threads` explicitly to keep the old behavior ([#522](https://github.com/apache/superset-kubernetes-operator/pull/522), [@villebro](https://github.com/villebro)).
-- Outside Development, the operator now ignores inline `websocketServer.config`, `lifecycle.init.adminUser` and `lifecycle.init.loadExamples` even if a resource gets past CRD validation (for example on clusters older than Kubernetes 1.25, which ignore CRD validation rules), as it already did for the other inline secrets ([#525](https://github.com/apache/superset-kubernetes-operator/pull/525), [@villebro](https://github.com/villebro)).
-- Messages about a lifecycle task Pod that cannot start (for example `CreateContainerConfigError` or an unschedulable Pod) are now truncated to 256 bytes before they reach the Superset status and Events, as Job failure messages already were. Truncation no longer splits multi-byte UTF-8 characters ([#526](https://github.com/apache/superset-kubernetes-operator/pull/526), [@villebro](https://github.com/villebro)).
-- Component and lifecycle task ConfigMaps, the websocket config ConfigMap, and the maintenance-page Deployment and ConfigMap now carry the `superset.apache.org/parent` label like the other resources the operator creates, so `kubectl get -l superset.apache.org/parent=<name>` lists them too ([#527](https://github.com/apache/superset-kubernetes-operator/pull/527), [@villebro](https://github.com/villebro)).
-
-### Removed
-
-- **Breaking:** `lifecycle.seed.source.type` is removed. The seed source now always uses `metastore.type`, which selects the dump and restore tools, the default source port and the default seed image. A source type that differed from the metastore could only fail at runtime, because the default seed command restores with the source database's tools. Remove `source.type` from your Superset resources before upgrading; resources where it matched the metastore keep their seed checksum and don't re-seed. For a cross-engine seed, set `lifecycle.seed.command`, `image` and `source.port` explicitly ([#523](https://github.com/apache/superset-kubernetes-operator/pull/523), [@villebro](https://github.com/villebro)).
+- An Ingress with neither `host` nor `hosts` set (for example only `className: alb`) is now created with a single rule that matches every hostname. Previously the API server rejected the Ingress because it had no rules, so reconciliation failed and no Ingress was created ([#461](https://github.com/apache/superset-kubernetes-operator/pull/461), [@younsl](https://github.com/younsl)).
 
 ## 0.3.1 - 2026-10-21
 
