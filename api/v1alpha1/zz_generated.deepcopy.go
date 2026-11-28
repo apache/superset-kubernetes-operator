@@ -171,6 +171,11 @@ func (in *CeleryBeatComponentSpec) DeepCopyInto(out *CeleryBeatComponentSpec) {
 		*out = new(string)
 		**out = **in
 	}
+	if in.LogLevel != nil {
+		in, out := &in.LogLevel, &out.LogLevel
+		*out = new(LogLevel)
+		**out = **in
+	}
 	if in.SQLAlchemyEngineOptions != nil {
 		in, out := &in.SQLAlchemyEngineOptions, &out.SQLAlchemyEngineOptions
 		*out = new(SQLAlchemyEngineOptionsSpec)
@@ -203,6 +208,11 @@ func (in *CeleryFlowerComponentSpec) DeepCopyInto(out *CeleryFlowerComponentSpec
 		*out = new(string)
 		**out = **in
 	}
+	if in.LogLevel != nil {
+		in, out := &in.LogLevel, &out.LogLevel
+		*out = new(LogLevel)
+		**out = **in
+	}
 	if in.Service != nil {
 		in, out := &in.Service, &out.Service
 		*out = new(ComponentServiceSpec)
@@ -233,6 +243,11 @@ func (in *CeleryWorkerComponentSpec) DeepCopyInto(out *CeleryWorkerComponentSpec
 	if in.BootstrapScript != nil {
 		in, out := &in.BootstrapScript, &out.BootstrapScript
 		*out = new(string)
+		**out = **in
+	}
+	if in.LogLevel != nil {
+		in, out := &in.LogLevel, &out.LogLevel
+		*out = new(LogLevel)
 		**out = **in
 	}
 	if in.Celery != nil {
@@ -961,6 +976,11 @@ func (in *LifecycleSpec) DeepCopyInto(out *LifecycleSpec) {
 		*out = new(SQLAlchemyEngineOptionsSpec)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.LogLevel != nil {
+		in, out := &in.LogLevel, &out.LogLevel
+		*out = new(LogLevel)
+		**out = **in
+	}
 	if in.MaintenancePage != nil {
 		in, out := &in.MaintenancePage, &out.MaintenancePage
 		*out = new(MaintenancePageSpec)
@@ -1108,6 +1128,11 @@ func (in *McpServerComponentSpec) DeepCopyInto(out *McpServerComponentSpec) {
 	if in.BootstrapScript != nil {
 		in, out := &in.BootstrapScript, &out.BootstrapScript
 		*out = new(string)
+		**out = **in
+	}
+	if in.LogLevel != nil {
+		in, out := &in.LogLevel, &out.LogLevel
+		*out = new(LogLevel)
 		**out = **in
 	}
 	if in.Service != nil {
@@ -1923,6 +1948,11 @@ func (in *SupersetSpec) DeepCopyInto(out *SupersetSpec) {
 		*out = new(SQLAlchemyEngineOptionsSpec)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.LogLevel != nil {
+		in, out := &in.LogLevel, &out.LogLevel
+		*out = new(LogLevel)
+		**out = **in
+	}
 	if in.WebServer != nil {
 		in, out := &in.WebServer, &out.WebServer
 		*out = new(WebServerComponentSpec)
@@ -2326,6 +2356,11 @@ func (in *WebServerComponentSpec) DeepCopyInto(out *WebServerComponentSpec) {
 	if in.BootstrapScript != nil {
 		in, out := &in.BootstrapScript, &out.BootstrapScript
 		*out = new(string)
+		**out = **in
+	}
+	if in.LogLevel != nil {
+		in, out := &in.LogLevel, &out.LogLevel
+		*out = new(LogLevel)
 		**out = **in
 	}
 	if in.Service != nil {

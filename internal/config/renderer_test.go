@@ -123,6 +123,7 @@ func TestRenderConfig_ComponentVariants(t *testing.T) {
 		{"celery-worker", ComponentCeleryWorker, &ConfigInput{MetastoreMode: MetastoreNone}},
 		{"celery-beat", ComponentCeleryBeat, &ConfigInput{MetastoreMode: MetastoreNone}},
 		{"celery-flower", ComponentCeleryFlower, &ConfigInput{MetastoreMode: MetastoreNone}},
+		{"web-server", ComponentWebServer, &ConfigInput{MetastoreMode: MetastoreNone}},
 		{"mcp-server", ComponentMcpServer, &ConfigInput{MetastoreMode: MetastoreNone}},
 		{"minimal (no metastore)", ComponentCeleryWorker, &ConfigInput{}},
 	}
@@ -132,6 +133,8 @@ func TestRenderConfig_ComponentVariants(t *testing.T) {
 			result := RenderConfig(tt.component, tt.input)
 			assertContains(t, result, "import os")
 			assertContains(t, result, "# Operator-generated configs")
+			assertContains(t, result, "SECRET_KEY = os.environ['SUPERSET_OPERATOR__SECRET_KEY']")
+			assertContains(t, result, "LOG_LEVEL = os.environ.get('SUPERSET_OPERATOR__LOG_LEVEL', 'INFO')")
 		})
 	}
 }

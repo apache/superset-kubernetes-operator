@@ -201,6 +201,12 @@ func TestInitInputs_StableForNonConfigFields(t *testing.T) {
 				s.Spec.ForceReload = "2026-05-22T15:00:00Z"
 			},
 		},
+		{
+			name: "spec.logLevel",
+			mutate: func(s *supersetv1alpha1.Superset) {
+				s.Spec.LogLevel = new(supersetv1alpha1.LogLevelDebug)
+			},
+		},
 	}
 
 	for _, tt := range tests {
